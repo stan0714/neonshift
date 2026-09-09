@@ -144,6 +144,11 @@ fn main() {
     println!("  \"domain\": \"NEONSHIFT_ATTEST_V1\",");
     println!("  \"length\": {ATTESTATION_LEN},");
     println!("  \"version\": {VERSION},");
+    // i64 欄位以字串輸出。JSON number 是 IEEE 754 double，
+    // 超過 2^53 的值在 JavaScript 解析時會失去精度，導致
+    // TypeScript 端算出與 Rust 不同的位元組。這不是理論問題，
+    // distinct_byte_patterns 這組向量實測就會踩到。
+    println!("  \"note_i64_as_string\": \"issued_at / not_before / expiry 以字串表示，避免 JSON number 精度損失\",");
     println!("  \"vectors\": [");
 
     for (i, case) in cases.iter().enumerate() {
@@ -167,9 +172,9 @@ fn main() {
         println!("        \"task_type\": {},", a.task_type);
         println!("        \"rules_version\": {},", a.rules_version);
         println!("        \"evidence_hash\": \"{}\",", to_hex(&a.evidence_hash));
-        println!("        \"issued_at\": {},", a.issued_at);
-        println!("        \"not_before\": {},", a.not_before);
-        println!("        \"expiry\": {},", a.expiry);
+        println!("        \"issued_at\": \"{}\",", a.issued_at);
+        println!("        \"not_before\": \"{}\",", a.not_before);
+        println!("        \"expiry\": \"{}\",", a.expiry);
         println!("        \"nonce\": \"{}\"", to_hex(&a.nonce));
         println!("      }},");
         println!("      \"expected_hex\": \"{}\",", to_hex(&encoded));

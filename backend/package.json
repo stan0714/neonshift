@@ -1,0 +1,26 @@
+{
+  "name": "@neonshift/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "NeonShift Attestor 後端",
+  "engines": {
+    "node": "^24.0.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "db:up": "docker compose up -d",
+    "db:migrate": "docker compose exec -T db psql -U neonshift -d neonshift -v ON_ERROR_STOP=1 -f - < migrations/0001_init.sql",
+    "vectors:check": "node --test-force-exit scripts/check-vectors-fresh.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true
+  }
+}

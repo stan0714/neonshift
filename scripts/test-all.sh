@@ -6,6 +6,19 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
+# 非互動 shell 不讀 ~/.zshrc，這裡自行補上工具路徑，
+# 讓 CI 與腳本呼叫都能找到 node、solana 與 anchor。
+for p in \
+  "/opt/homebrew/opt/node@24/bin" \
+  "/opt/homebrew/bin" \
+  "$HOME/.local/share/solana/install/active_release/bin" \
+  "$HOME/.avm/bin" \
+  "$HOME/.cargo/bin"
+do
+  [ -d "$p" ] && case ":$PATH:" in *":$p:"*) ;; *) PATH="$p:$PATH" ;; esac
+done
+export PATH
+
 fail=0
 pass=0
 
@@ -85,14 +98,15 @@ else
 fi
 
 section "鏈上程式（Anchor）"
-if command -v anchor >/dev/null; then
-  if (cd programs && anchor test --skip-deploy) >/tmp/ns-anchor.log 2>&1; then
-    ok "anchor test"
-  else
-    bad "anchor test"; tail -20 /tmp/ns-anchor.log
-  fi
-else
+if ! command -v anchor >/dev/null; then
   skip "Anchor 未安裝"
+elif [ ! -f programs/Anchor.toml ]; then
+  # 尚未建立 Anchor workspace（PG-C-01）。這是預期狀態，不算失敗。
+  skip "尚未建立 Anchor workspace（programs/Anchor.toml 不存在）"
+elif (cd programs && anchor test --skip-deploy) >/tmp/ns-anchor.log 2>&1; then
+  ok "anchor test"
+else
+  bad "anchor test"; tail -20 /tmp/ns-anchor.log
 fi
 
 printf '\n\033[1m總計：%d 通過，%d 失敗\033[0m\n' "$pass" "$fail"

@@ -31,9 +31,9 @@ def encode(f):
     out[89] = f["task_type"]                                # 89
     put(90, struct.pack("<H", f["rules_version"]))          # 90..92
     put(92, bytes.fromhex(f["evidence_hash"]))              # 92..124
-    put(124, struct.pack("<q", f["issued_at"]))             # 124..132
-    put(132, struct.pack("<q", f["not_before"]))            # 132..140
-    put(140, struct.pack("<q", f["expiry"]))                # 140..148
+    put(124, struct.pack("<q", int(f["issued_at"])))             # 124..132
+    put(132, struct.pack("<q", int(f["not_before"])))            # 132..140
+    put(140, struct.pack("<q", int(f["expiry"])))                # 140..148
     put(148, bytes.fromhex(f["nonce"]))                     # 148..164
 
     assert len(out) == LENGTH, "長度必須固定為 164"

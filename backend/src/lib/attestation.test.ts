@@ -26,9 +26,11 @@ interface VectorFields {
   task_type: number;
   rules_version: number;
   evidence_hash: string;
-  issued_at: number;
-  not_before: number;
-  expiry: number;
+  // i64 以字串表示。JSON number 無法安全承載超過 2^53 的值，
+  // 直接用 number 會在解析階段就失去精度。
+  issued_at: string;
+  not_before: string;
+  expiry: string;
   nonce: string;
 }
 
@@ -41,7 +43,7 @@ interface Vector {
 }
 
 const doc = JSON.parse(
-  readFileSync(join(__dirname, "attestation-vectors.json"), "utf8"),
+  readFileSync(join(import.meta.dirname, "attestation-vectors.json"), "utf8"),
 ) as { length: number; vectors: Vector[] };
 
 function toAttestation(f: VectorFields): Attestation {
