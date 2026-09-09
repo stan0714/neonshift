@@ -1,0 +1,750 @@
+# NeonShift UI Style Guide & Screen Planning
+
+| 項目 | 內容 |
+|---|---|
+| 文件版本 | v0.1 |
+| 建立日期 | 2026-09-09 |
+| 對應需求 | [BRD v0.4](./brd-detailed.md) |
+| 目標平台 | Android only；Solana Mobile Seeker 為主要裝置 |
+| 首版介面語言 | English；本文件以繁中說明 |
+| 設計關鍵字 | Cyber fitness、neon telemetry、digital gear、trusted motion |
+
+---
+
+## 1. 文件目的
+
+本文件定義 NeonShift 的視覺語言、design tokens、共用元件、畫面結構、狀態與動效，作為 UI 設計、React Native 實作、測試與 Demo 錄製的共同依據。
+
+參考圖提供的是品牌氛圍，不是可直接複製的 UI。產品內應保留深色背景、青綠／紫色霓虹、全息跑鞋與運動數據感，但降低裝飾噪音，確保數據、任務狀態和交易風險優先被看見。
+
+### 1.1 設計目標
+
+1. 使用者在 3 秒內看懂今日步數、睡眠、任務狀態與主要動作。
+2. 讓跑鞋 NFT 成為畫面視覺中心，但不壓過交易金額或警告訊息。
+3. Web3 操作使用熟悉語言說明，不以炫技術名詞代替風險提示。
+4. 霓虹效果只用於焦點與狀態，不讓所有元素同時發光。
+5. 明確標示 `DEVNET`、`tSKR` 與 `Test Token · No monetary value`，不得讓使用者誤認為官方 SKR。
+
+### 1.2 設計原則
+
+- **Signal over spectacle**：先讀懂訊息，再感受特效。
+- **One primary action**：每個畫面只保留一個最明顯的主要 CTA。
+- **Progressive permission**：權限在需要時才解釋並請求，不在首次啟動一次索取全部權限。
+- **State is explicit**：loading、同步中、可領取、已領取、失敗與離線均使用文字加圖示，不只依靠顏色。
+- **Trust through clarity**：簽章前呈現網路、資產、費用、結果與不可逆操作。
+
+---
+
+## 2. 畫面架構
+
+### 2.1 核心流程
+
+```text
+Native Launch Screen
+        ↓
+App Loading / Bootstrap
+        ↓
+Landing ──→ Demo Preview
+   ↓
+Connect Wallet
+   ↓
+Health Permission → Activity Permission
+   ↓
+Mint Shoe Confirmation
+   ↓
+Dashboard
+   ├── Gear
+   ├── Arena
+   ├── Activity
+   └── Profile / Settings
+```
+
+定位權限屬選用的輔助風險訊號，只在 Arena 或需要 GPS 驗證的情境另行請求；拒絕後仍可使用 M 級每日打卡功能。
+
+### 2.2 Navigation
+
+登入後使用固定四分頁 bottom navigation：
+
+| 分頁 | Icon 語意 | 用途 |
+|---|---|---|
+| Home | house / pulse | 今日數據、任務與打卡 |
+| Gear | shoe / layers | 跑鞋狀態、升級與進化 |
+| Arena | trophy | 週末錦標賽、排名與質押 |
+| Profile | user / settings | 錢包、權限、隱私與設定 |
+
+- 必須同時顯示 icon 和 label，不使用只有 icon 的猜測式導覽。
+- Active item 使用青綠色文字、實心 icon 與低強度 glow；inactive 使用 `Text Muted`。
+- Activity history 從 Home 的次要入口進入，不占用首版主要 tab。
+
+---
+
+## 3. Visual Direction
+
+### 3.1 品牌氣質
+
+NeonShift 是「夜間城市中的個人運動終端」，不是駭客終端機，也不是賭場。畫面需兼具速度感、可信度與收藏感。
+
+建議使用：
+
+- 黑藍色空間背景與局部網格。
+- 青綠作為健康、成功與主要互動色。
+- 紫色作為裝備、Web3 與等級色。
+- 洋紅只用於能量、稀有度或短暫強調。
+- 細線 HUD、柔和光暈、數據刻度和低對比雜訊。
+- 跑鞋以 3/4 視角置中，搭配圓形能量平台。
+
+避免使用：
+
+- 大面積純黑、純飽和螢光色或同時超過兩種強 glow。
+- 難以閱讀的 glitch 文字、持續閃爍、掃描線覆蓋正文。
+- 以 Solana 官方識別包裝 tSKR。
+- 將背景城市、跑者和大量 HUD 全塞入日常操作畫面；此類構圖只適合行銷 hero。
+
+### 3.2 Logo 概念
+
+- Primary mark：由字母 `N`／向右躍遷箭頭構成的單色幾何符號。
+- App icon：深色圓角方底，中央青綠至紫色 mark，不放細字。
+- Wordmark：`NEONSHIFT` 全大寫；字距略寬，不使用極端 glitch 效果。
+- Loading 與小尺寸場合只使用 mark，不使用完整標語。
+
+---
+
+## 4. Color Tokens
+
+### 4.1 Base palette
+
+| Token | Hex | 用途 |
+|---|---|---|
+| `color.bg.canvas` | `#050711` | App 最底層背景 |
+| `color.bg.surface` | `#0B1020` | Card、sheet、navigation |
+| `color.bg.elevated` | `#121A2E` | 浮層與選中區塊 |
+| `color.bg.scrim` | `#02040BCC` | Modal scrim |
+| `color.border.subtle` | `#26324A` | 一般邊框與 divider |
+| `color.border.active` | `#30EBC8` | Focus、active card |
+| `color.text.primary` | `#F4F8FF` | 標題與關鍵數據 |
+| `color.text.secondary` | `#AAB7CC` | 說明文字 |
+| `color.text.muted` | `#718099` | 次要 metadata、inactive |
+| `color.neon.mint` | `#30EBC8` | Primary action、完成、步數 |
+| `color.neon.cyan` | `#24C8FF` | 同步、資訊、數據線 |
+| `color.neon.violet` | `#9B6CFF` | Gear、Web3、等級 |
+| `color.neon.magenta` | `#FF4FD8` | 稀有度與短暫強調 |
+| `color.semantic.success` | `#4BE39A` | 成功狀態 |
+| `color.semantic.warning` | `#FFCB66` | 權限、devnet、等待 |
+| `color.semantic.danger` | `#FF6B7A` | 錯誤與破壞性操作 |
+
+### 4.2 Gradients
+
+| Token | 定義 | 用途 |
+|---|---|---|
+| `gradient.brand` | `#30EBC8 → #24C8FF → #9B6CFF` | Logo、主要進度、hero 線條 |
+| `gradient.gear` | `#9B6CFF → #FF4FD8` | 跑鞋稀有度、升級 moment |
+| `gradient.surface` | `#121A2E → #090D19` | Hero card 與 bottom sheet |
+
+規則：文字正文不可使用 gradient；同一 viewport 最多一個高亮 gradient 區域。
+
+### 4.3 Glow
+
+- Small：`0 0 8px`，alpha 20%，用於 icon 和 focus ring。
+- Medium：`0 0 16px`，alpha 24%，只用於 primary CTA 或跑鞋平台。
+- Hero：`0 0 32px`，alpha 18%，只用於 Landing／升級成功。
+- Error、長文、整張 card 不使用 glow。
+- React Native 實作需以 shadow、半透明圖層或預製資產控制成本，不依賴高模糊半徑即時動畫。
+
+---
+
+## 5. Typography
+
+### 5.1 字體建議
+
+| 角色 | 字體 | 備援 |
+|---|---|---|
+| Display / Brand | Space Grotesk SemiBold | system sans-serif |
+| UI / Body | Inter | Roboto |
+| CJK | Noto Sans TC | system sans-serif |
+| Numeric telemetry | Rajdhani SemiBold | tabular-number system font |
+
+正式打包前需確認字體授權並內嵌必要字重。英文字型缺少中文字形時必須完整回退至 Noto Sans TC，不混用缺字替代符號。
+
+### 5.2 Type scale
+
+| Token | Size / Line height | Weight | 用途 |
+|---|---|---|---|
+| `display.l` | 40 / 44sp | 700 | Landing hero 數字或短標題 |
+| `display.m` | 32 / 36sp | 700 | 今日步數 |
+| `heading.1` | 24 / 30sp | 700 | Page title |
+| `heading.2` | 20 / 26sp | 600 | Section title |
+| `title` | 16 / 22sp | 600 | Card title、button |
+| `body` | 16 / 24sp | 400 | 正文與說明 |
+| `body.small` | 14 / 20sp | 400 | 次要資訊 |
+| `label` | 12 / 16sp | 600 | Uppercase label、chip |
+| `caption` | 11 / 16sp | 500 | 時間戳、輔助資訊 |
+
+- 數值使用 tabular numerals，千位以 locale format 顯示，例如 `12,580`。
+- 全大寫只用於 20 字元內的 label，例如 `READY TO CLOCK IN`。
+- Body 不小於 14sp；重要交易與錯誤文字不小於 16sp。
+- 支援至少 130% Android font scale，內容不可被截斷。
+
+---
+
+## 6. Layout Tokens
+
+### 6.1 Spacing
+
+採 4dp 基準：`4, 8, 12, 16, 20, 24, 32, 40, 48, 64`。
+
+| 用途 | 建議值 |
+|---|---|
+| Screen horizontal padding | 20dp；≥ 600dp 時 32dp |
+| Section gap | 24–32dp |
+| Card internal padding | 16–20dp |
+| Compact item gap | 8–12dp |
+| Bottom navigation height | 72dp + safe-area inset |
+| Minimum touch target | 48 × 48dp |
+
+### 6.2 Radius and border
+
+| Token | 值 | 用途 |
+|---|---|---|
+| `radius.s` | 8dp | chip、compact control |
+| `radius.m` | 12dp | input、button |
+| `radius.l` | 20dp | card |
+| `radius.xl` | 28dp | hero card、bottom sheet |
+| `border.default` | 1dp | 一般 surface |
+| `border.focus` | 2dp | keyboard／accessibility focus |
+
+切角可用於 hero card 的純裝飾外框，但內容容器仍保持正常矩形 hit area。
+
+### 6.3 Responsive rules
+
+- 基準寬度以 360–412dp 手機設計，禁止只對單一截圖尺寸 hardcode。
+- 使用 Android safe-area／system bar inset；主要 CTA 不得被 gesture navigation 遮擋。
+- Dashboard 大數據與跑鞋區在矮螢幕可縮小間距，但不縮小 body font。
+- Landscape 只需不崩潰；黑客松 MVP 不要求重新設計專用 landscape layout。
+
+---
+
+## 7. Core Components
+
+### 7.1 Buttons
+
+**Primary button**
+
+- 高度 52dp，`radius.m`。
+- 背景使用 `color.neon.mint`，文字使用 `#04110E`。
+- 一頁只放一個視覺 primary。
+- Pressed：亮度降低 8%，scale 最多 0.98。
+- Disabled：surface 灰底、muted 文字、無 glow，並保留原因文字。
+- Loading：保留原寬度，spinner + 動詞，例如 `Submitting…`。
+
+**Secondary button**
+
+- 透明底、1dp violet 或 subtle border。
+- 適用 `View activity`、`Preview app`、`Not now`。
+
+**Danger button**
+
+- 只用於 disconnect、delete data 等操作。
+- 預設 outline；確認 modal 的最終動作才可使用 danger fill。
+
+### 7.2 Data Card
+
+- 上方：icon、label、同步時間。
+- 中段：主要數值與單位。
+- 下方：progress bar、目標與狀態文字。
+- Steps 使用 mint；Sleep 使用 violet；不得只靠顏色區分。
+- 同步資料超過 30 分鐘時顯示 `Data may be outdated`。
+
+### 7.3 Mission Card
+
+狀態定義：
+
+| 狀態 | 視覺 | CTA |
+|---|---|---|
+| In progress | subtle border、線性 progress | Disabled `Keep moving` |
+| Ready | mint border、低強度 pulse 一次 | `Clock In` |
+| Verifying | cyan spinner／stepper | Disabled `Verifying…` |
+| Wallet approval | violet wallet icon | `Open wallet` |
+| Confirming | transaction progress | `View transaction` |
+| Claimed | success icon、無持續 glow | `Claimed` |
+| Failed | danger icon、具體原因 | `Try again` |
+
+### 7.4 Shoe Hero Card
+
+- 跑鞋為透明背景 WebP／PNG 或 Lottie；首版不要求即時 3D。
+- 圖像占 card 高度約 50–60%，周圍保留 breathing room。
+- 固定顯示 `LEVEL`、XP、Core level 和 multiplier。
+- 稀有度顏色只影響平台光圈與小型 badge，不改變正文顏色。
+- NFT metadata 載入失敗時顯示品牌 placeholder，不留空白。
+
+### 7.5 Token Amount
+
+- 統一格式為 `150 tSKR`，不使用 `$tSKR` 或官方 SKR icon。
+- 首次出現附近顯示 `Test Token · No monetary value`。
+- 交易確認畫面同時顯示 devnet badge、mint 短地址與 network fee。
+
+### 7.6 Chips and badges
+
+- `DEVNET`：warning 色 outline，常駐於 Header 或 wallet chip。
+- `SYNCED`：success 色，必須附時間。
+- `OFFLINE`：neutral／warning 色，不假裝資料為即時。
+- `LV. 3`：violet 色 gear badge。
+
+### 7.7 Dialog and Bottom Sheet
+
+- 一般選擇使用 bottom sheet；高風險交易使用 centered confirmation dialog。
+- 簽章確認依序顯示：Action、Asset、Amount、Network、Expected result、Fee。
+- 禁止只顯示 `Confirm transaction?`。
+- 關閉 icon 具 48dp hit area，Android back 必須有一致行為。
+
+### 7.8 Skeleton and Spinner
+
+- Skeleton 使用 `surface → elevated` 的 1.2 秒柔和循環，不用高亮白色掃光。
+- Spinner 只用於局部且預期短於 10 秒的動作。
+- 超過 10 秒改顯示步驟、目前狀態與可採取動作。
+
+---
+
+## 8. Loading / Launch Page 規劃
+
+Loading 不只是一張動畫圖，需拆成 OS launch screen 與 app bootstrap 兩層，避免白屏與錯誤地隱藏初始化失敗。
+
+### 8.1 Native Launch Screen
+
+**用途**：App process 啟動到 React Native 首幀之前。
+
+```text
+┌──────────────────────────┐
+│                          │
+│                          │
+│          [ N mark ]      │
+│         NEONSHIFT        │
+│                          │
+│                          │
+└──────────────────────────┘
+```
+
+- 背景：`color.bg.canvas`。
+- 中央 logo mark：72dp；下方 wordmark 可省略於小螢幕。
+- 不放 spinner、進度百分比或複雜動畫；native splash 無法代表真實初始化進度。
+- Android 12+ splash icon 必須在系統 mask safe zone 內，避免裁切。
+- React 首幀準備完成後立即退出，不設定人為最短等待時間。
+
+### 8.2 App Bootstrap Loading
+
+**用途**：載入本機 session、遠端 Config、Health Connect availability、cached dashboard 與 wallet authorization 狀態。
+
+```text
+┌──────────────────────────┐
+│ NEONSHIFT        DEVNET  │
+│                          │
+│       [pulse N mark]     │
+│     Syncing your shift   │
+│                          │
+│   ● Profile              │
+│   ◐ Health data          │
+│   ○ Network              │
+│                          │
+│      [Use offline data]  │
+└──────────────────────────┘
+```
+
+載入順序：
+
+1. 讀取本機設定與 cached profile。
+2. 檢查最低 App／Config 相容版本。
+3. 檢查 Health Connect availability 和既有權限，不主動彈出權限 dialog。
+4. 以保存的 MWA token 嘗試 reauthorize；失效時標記為 disconnected，不卡住啟動。
+5. 拉取 dashboard 資料；網路失敗時使用快取並顯示資料時間。
+
+狀態與逾時：
+
+| 條件 | 處理 |
+|---|---|
+| 總載入 < 300ms | 直接進下一頁，不顯示 bootstrap 畫面以免閃爍 |
+| 300ms–3s | 顯示 logo pulse 與目前步驟 |
+| > 3s | 顯示仍在進行的步驟和 `Use offline data`（有快取時） |
+| > 10s | 顯示 `Retry`、診斷摘要與可離線進入選項；停止無限 spinner |
+| 強制更新 | 顯示版本原因與 `Update app`；不可假裝為一般 loading |
+| 維護中 | 顯示預估恢復時間（若後端提供）與 retry |
+
+Loading copy：
+
+- Default：`Syncing your shift`
+- Health：`Checking health access`
+- Wallet：`Restoring wallet session`
+- Network：`Contacting devnet`
+- Offline：`Live data unavailable`
+
+### 8.3 Loading 動效
+
+- Logo 以 1.6 秒 ease-in-out 做 96%–104% 呼吸縮放與 12% glow 變化。
+- 背景只允許極低對比的慢速 radial gradient，不使用高速粒子。
+- 進度點逐步切換，不偽造百分比。
+- 系統開啟 Reduce Motion 時停用縮放，改用靜態 logo 與文字狀態。
+
+### 8.4 Loading 驗收
+
+- 冷啟動全程無白屏或明亮閃爍。
+- 無網路、後端逾時、錢包未安裝、token 失效及 Health Connect 不可用皆可離開 loading。
+- Back、重試和離線進入不造成重複 navigation stack。
+- loading 文字可被 TalkBack 讀出，狀態更新使用 polite announcement。
+
+---
+
+## 9. Landing Page 規劃
+
+Landing 是首次使用者的產品價值頁，不是 loading page。它不應先要求權限，也不應播放無法跳過的影片。
+
+### 9.1 資訊層級
+
+```text
+┌──────────────────────────┐
+│ NEONSHIFT        DEVNET  │
+│                          │
+│      [hologram shoe]     │
+│       CLOCK IN.          │
+│    MOVE BEYOND LIMITS.   │
+│                          │
+│ Turn verified movement   │
+│ into evolving gear.      │
+│                          │
+│ ✓ Health-powered missions│
+│ ✓ Onchain gear progress  │
+│ ✓ Multi-signal checks    │
+│                          │
+│ [ Connect wallet       ] │
+│ [ Preview the app      ] │
+│ Test Token · No value    │
+└──────────────────────────┘
+```
+
+1. Header：品牌 mark；右側固定 `DEVNET` badge。
+2. Hero visual：Lv.1 跑鞋、圓形能量平台、少量城市網格；不得使用官方代幣 logo。
+3. Headline：最多兩行，傳達行動與進化。
+4. Supporting copy：最多兩行，說明健康數據與 gear 關係。
+5. 三個 proof points：各一行、用 icon + text。
+6. Primary CTA：`Connect wallet`。
+7. Secondary CTA：`Preview the app`，允許尚未安裝錢包的評審查看唯讀 demo。
+8. Legal／environment note：`Runs on Solana devnet · Rewards use tSKR test tokens with no monetary value.`
+
+### 9.2 Hero 文案
+
+首選：
+
+- Eyebrow：`YOUR DAILY SHIFT`
+- Headline：`CLOCK IN. MOVE BEYOND LIMITS.`
+- Body：`Turn verified movement into evolving onchain gear.`
+- CTA：`Connect wallet`
+- Secondary：`Preview the app`
+
+備選：
+
+- Headline：`EVERY STEP POWERS YOUR NEXT FORM.`
+- Body：`Complete health missions, evolve your gear, and enter the weekend arena.`
+
+不得使用：
+
+- `Guaranteed earnings`
+- `Real SKR rewards`
+- `Cheat-proof`
+- `Hardware verified`
+- `Passive income`
+
+### 9.3 Landing 行為
+
+- 首次安裝、登出或 onboarding 未完成時顯示。
+- 已完成 onboarding 且 session 可恢復時跳過 Landing，直接進 Dashboard。
+- `Connect wallet` 呼叫 MWA；未安裝相容錢包時顯示說明與官方錢包取得方式，不進入無限 loading。
+- `Preview the app` 進入帶有 `DEMO` badge 的唯讀 Dashboard；不得建立錢包、NFT 或健康資料假象。
+- Landing 不請求 Health Connect、activity recognition 或 location 權限。
+
+### 9.4 Landing 動效
+
+- Hero 跑鞋進場：320ms fade + 12dp rise。
+- 能量平台：2.4 秒低強度循環旋轉；Reduce Motion 時改靜態。
+- Headline、body、CTA 依序以 60ms stagger 出現，總進場不超過 600ms。
+- 不自動播放有聲內容，不使用連續 glitch 或快速閃光。
+
+### 9.5 Landing 驗收
+
+- 360dp 寬、最大字型 130% 時 primary CTA 仍在合理捲動範圍內且文案不截斷。
+- 使用者不需連線錢包即可理解產品用途並進入唯讀 preview。
+- TalkBack 順序為品牌 → hero 說明 → headline → proof points → CTA → disclaimer。
+- Hero 圖載入失敗時仍保留 headline、CTA 與品牌 placeholder。
+- 所有 `DEVNET`／tSKR 聲明不可被圖片、keyboard 或 system inset 遮擋。
+
+---
+
+## 10. Onboarding & Permission Pages
+
+Landing 後採單一步驟頁面，不使用一次塞滿五頁的 carousel。
+
+### 10.1 Wallet Connection
+
+- Title：`Connect your mission wallet`
+- 說明 MWA 將開啟相容錢包；NeonShift 不會取得 seed phrase。
+- 顯示 network：`Solana Devnet`。
+- Error 分為 rejected、wallet unavailable、session expired、network error。
+
+### 10.2 Health Access
+
+- Title：`Power missions with Health Connect`
+- 先說明只讀取 Steps 與 Sleep，再由 CTA 觸發系統權限頁。
+- 列出用途、30 天後端摘要保留上限與 `Manage later in Settings`。
+- 拒絕後提供 `Open Health Connect settings` 與 `Not now`，不可反覆彈出。
+
+### 10.3 Activity Recognition
+
+- 獨立說明其用於動作特徵摘要與提高作弊成本。
+- 不宣稱可完全證明真人步行。
+
+### 10.4 Shoe Mint Confirmation
+
+- 顯示 NFT 名稱、network、owner 短地址、預估 network fee 和結果。
+- Primary：`Mint starter shoe`。
+- Secondary：`Back`。
+- 成功後播放一次 800ms reveal；失敗保留重試，不重複建立資產。
+
+---
+
+## 11. Dashboard 規劃
+
+```text
+┌──────────────────────────┐
+│ Good evening      DEVNET │
+│ 7F3…K9A       245 tSKR   │
+│                          │
+│ TODAY                    │
+│ 12,580 steps   7h 38m    │
+│ [██████████░] [███████░] │
+│ Updated 2 min ago        │
+│                          │
+│ [      SHOE HERO       ] │
+│ LV. 5 · CORE 3 · 1.5×    │
+│                          │
+│ READY TO CLOCK IN        │
+│ Step mission · +15 tSKR  │
+│ [ Clock In             ] │
+│                          │
+│ Home  Gear  Arena Profile│
+└──────────────────────────┘
+```
+
+優先順序：
+
+1. Header：問候、wallet chip、devnet、tSKR balance。
+2. Today summary：Steps、Sleep、同步時間與手動 refresh。
+3. Shoe hero：等級、XP、Core multiplier；點擊進 Gear。
+4. Mission card：依 Step／Sleep 顯示兩項任務，可橫向卡片或上下排列。
+5. Primary CTA：只有存在可領任務時顯示 `Clock In`。
+6. Bottom navigation。
+
+若兩項任務同時可領，先顯示任務選擇 bottom sheet；不可用一個按鈕讓使用者誤以為一次會領兩項。
+
+---
+
+## 12. Gear Page 規劃
+
+- 上半部：大型跑鞋、Level、XP ring、rarity／visual stage。
+- 中段：Core level、current multiplier、next multiplier。
+- 下段：升級成本、增量收益、BRD 8.3 定義的回本天數。
+- Primary CTA：`Upgrade core · 60 tSKR`。
+- 餘額不足：disabled CTA + `Need 18 more tSKR`。
+- 確認 sheet 必須顯示 burn、treasury 分配、最終 multiplier 和不可逆提示。
+- 升級完成只播放一次 reveal，並提供 transaction link。
+
+---
+
+## 13. Arena Page 規劃
+
+### 13.1 未報名
+
+- 顯示比賽 UTC 時段，也換算裝置當地時間。
+- 顯示 entry stake、最低參賽人數、退款／獎金規則與目前人數。
+- CTA：`Stake 50 tSKR to enter`。
+- 質押前用 confirmation dialog 顯示最差情況可能損失的金額。
+
+### 13.2 進行中
+
+- 顯示目前 rank、verified steps、last verified time、leaderboard freshness。
+- 排行榜地址預設遮罩；本人 row 固定強調。
+- 異常或待驗證分數顯示 `Pending verification`，不先計入排名。
+
+### 13.3 結算
+
+- 顯示 final rank、stake refund、prize、forfeiture 與 transaction status。
+- 爭議或檢查中不可顯示為 final。
+- 作弊處置不得只顯示紅字；必須提供規則版本與申訴／聯絡方式。
+
+---
+
+## 14. Empty, Error & Offline States
+
+| 場景 | Title | 行動 |
+|---|---|---|
+| 無健康權限 | `Health access is off` | `Review access` |
+| 尚無睡眠資料 | `No sleep session found` | `Check Health Connect` |
+| Wallet disconnected | `Reconnect your wallet` | `Connect wallet` |
+| Wallet rejected | `Request canceled` | `Try again` |
+| Devnet unavailable | `Devnet is taking a break` | `Retry`／`Use cached data` |
+| NFT image unavailable | `Gear visual unavailable` | `Reload visual`；屬性仍顯示 |
+| Tournament canceled | `Arena entry refunded` | `View transaction` |
+| Generic error | `Something interrupted your shift` | 顯示 reference ID + `Try again` |
+
+- Error 文案說明發生什麼、資料／資金是否安全、下一步是什麼。
+- 禁止只顯示錯誤碼、`Failed` 或長篇 stack trace。
+- Toast 只用於低風險短訊息；交易失敗與權限問題使用 inline state 或 dialog。
+
+---
+
+## 15. Motion & Haptics
+
+| Token | Duration | 用途 |
+|---|---|---|
+| `motion.fast` | 120ms | pressed、chip |
+| `motion.normal` | 220ms | page element、sheet |
+| `motion.slow` | 320ms | hero、card transition |
+| `motion.celebration` | 600–900ms | 打卡／升級成功，僅播放一次 |
+
+- Default easing：`cubic-bezier(0.2, 0.8, 0.2, 1)`。
+- 頁面 transition 不超過 320ms。
+- 打卡成功使用一次 medium haptic；升級成功一次 success haptic。
+- loading、失敗重試與 disabled control 不震動。
+- 尊重 Reduce Motion；移除 parallax、循環縮放與粒子，只保留 opacity transition。
+
+---
+
+## 16. Iconography & Imagery
+
+### 16.1 Icons
+
+- 使用單一 rounded geometric icon family，stroke 2dp。
+- 標準尺寸：20dp（inline）、24dp（navigation）、32dp（status）。
+- 不混用 emoji、filled 3D icon 和不同筆畫 icon pack。
+- Success、warning、danger 必須具不同形狀，不只換色。
+
+### 16.2 Shoe assets
+
+至少準備 5 階跑鞋視覺，構圖、尺寸與光源一致：
+
+| Level | 主色 | 視覺變化 |
+|---|---|---|
+| 1 | Graphite + cyan | 單線光條 |
+| 2 | Cyan | 雙線光條、平台亮起 |
+| 3 | Violet | 鞋底能量紋、資料核心 |
+| 4 | Violet + magenta | 外框粒子、結構升級 |
+| 5 | Mint + iridescent | 完整全息外觀、有限 hero glow |
+
+輸出要求：透明背景 WebP 為主、PNG fallback；同階資產 bounding box 必須一致，避免升級時跳動。裝飾動畫優先使用 Lottie 或預製序列，並提供靜態 fallback。
+
+### 16.3 Marketing image vs. product UI
+
+參考圖中的城市、跑者、浮空手機、Solana coin 與多層 HUD 適合作為 Pitch cover 或商店宣傳圖。App 內不可直接使用該完整合成構圖，也不得在 tSKR 旁使用官方 SKR／Solana coin 暗示官方獎勵。
+
+---
+
+## 17. Accessibility & Content Rules
+
+- 一般文字與背景至少達 WCAG AA 4.5:1；大字至少 3:1。
+- Active、success、warning、error 均提供 icon／文字雙重訊號。
+- Touch target 至少 48dp，元件間保留足夠誤觸距離。
+- TalkBack label 說明值與單位，例如 `Steps, twelve thousand five hundred eighty, goal eight thousand`。
+- 動態數值不頻繁搶占 screen reader focus。
+- 裝飾圖片標記為不可存取；具有資訊的圖表需提供文字摘要。
+- UTC 規則需同時顯示裝置當地 reset time，避免只呈現 `UTC`。
+- 地址預設縮寫為 `7F3…K9A`，點擊後可複製並顯示完整地址。
+- 文案使用 `wallet`、`approve`、`network fee`、`test token`；避免 `gas`、`airdrop`、`free money` 等易誤解詞。
+
+---
+
+## 18. React Native Token Mapping
+
+實作時建立單一 theme source，名稱沿用本文件；禁止在 screen component 直接散落 hex、radius 或 animation duration。
+
+```ts
+export const theme = {
+  color: {
+    canvas: '#050711',
+    surface: '#0B1020',
+    elevated: '#121A2E',
+    scrim: '#02040BCC',
+    borderSubtle: '#26324A',
+    textPrimary: '#F4F8FF',
+    textSecondary: '#AAB7CC',
+    textMuted: '#718099',
+    mint: '#30EBC8',
+    cyan: '#24C8FF',
+    violet: '#9B6CFF',
+    magenta: '#FF4FD8',
+    success: '#4BE39A',
+    warning: '#FFCB66',
+    danger: '#FF6B7A',
+  },
+  space: { xxs: 4, xs: 8, s: 12, m: 16, l: 20, xl: 24, xxl: 32, xxxl: 40, huge: 48, hero: 64 },
+  radius: { s: 8, m: 12, l: 20, xl: 28 },
+  motion: { fast: 120, normal: 220, slow: 320 },
+} as const;
+```
+
+若實際實作調整 token，必須同步更新本文件與視覺回歸基準圖。
+
+---
+
+## 19. Screen Delivery Checklist
+
+每個畫面交付時至少包含：
+
+- Default、loading、empty、error、offline、disabled 狀態。
+- 360dp 與 Seeker 實機寬度版面。
+- 100% 與 130% font scale。
+- Keyboard、system bar、gesture inset 與 Android back 行為。
+- TalkBack label、focus order 與 contrast 檢查。
+- 所有交易畫面的 devnet、tSKR、費用與結果說明。
+- Reduce Motion 靜態／低動效版本。
+- 可供測試引用的 screen／component 名稱。
+
+### 19.1 MVP 必交畫面
+
+1. Native Launch Screen。
+2. App Bootstrap Loading（含 timeout／offline）。
+3. Landing（含 wallet unavailable 與 Demo Preview）。
+4. Wallet Connection。
+5. Health Access／Activity Recognition。
+6. Shoe Mint Confirmation／Success／Failure。
+7. Dashboard 全任務狀態。
+8. Clock In Confirmation／Verifying／Confirmed／Failed。
+9. Gear／Upgrade Confirmation／Result。
+10. Arena 未報名／進行中／結算。
+11. Activity History。
+12. Profile／Permissions／Privacy／Disconnect。
+
+---
+
+## 20. Open Design Decisions
+
+| 編號 | 問題 | 建議預設 | 決定期限 |
+|---|---|---|---|
+| UI-Q01 | Logo／wordmark 最終版本 | 幾何 N + wordmark | 第一週第 2 天 |
+| UI-Q02 | 首版跑鞋採 Lottie 或透明 WebP 階段圖 | WebP 靜態 + 成功 Lottie | 第一週第 3 天 |
+| UI-Q03 | Landing 是否允許 Demo Preview | 允許，利於評審無錢包瀏覽 | 第一週第 3 天 |
+| UI-Q04 | 指定用來驗收 NFT 顯示的錢包與版本 | 取得 Seeker 實機後立即確認 | 第二週第 1 天 |
+| UI-Q05 | 英文字體是否可內嵌 | Space Grotesk + Inter；先驗授權與 APK 大小 | 第一週第 2 天 |
+| UI-Q06 | Arena 未達最低人數的取消呈現 | 自動退款 + transaction link | 第三週前 |
+
+---
+
+## Appendix A. Reference Image Interpretation
+
+從參考圖採用：
+
+- 深藍黑底、青綠和紫色霓虹對比。
+- 跑鞋作為核心資產 hero。
+- 大型步數、睡眠 progress、等級和升級操作。
+- 城市夜跑與數據 HUD 所代表的品牌世界觀。
+
+不直接採用：
+
+- `MOVE-TO-EARN` 與官方代幣視覺，避免與 tSKR／devnet 定位衝突。
+- 同一畫面過多浮動面板、發光邊框與小字圖表。
+- 中英混雜的產品 UI；首版依 BRD 使用英文，繁中僅作未來 locale。
+- 無 label 的 bottom-nav icon，以及缺少交易／測試網聲明的升級按鈕。
