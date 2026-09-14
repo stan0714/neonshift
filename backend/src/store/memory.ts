@@ -1,5 +1,5 @@
 import { compareLeaderboard } from "./leaderboard.js";
-import type { AttestationRow, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -15,6 +15,8 @@ export class MemoryStore implements Store {
   chainEvents = new Map<string, ChainEventRow>();
   cursors = new Map<string, ChainCursor>();
   redeemed = new Map<string, string>();
+  galleryPlayers = new Map<string, GalleryPlayer>();
+  galleryCollectibles = new Map<string, GalleryCollectible>();
 
   async insertChallenge(c: Challenge) {
     const k = c.nonceHash.toString("hex");
@@ -112,6 +114,43 @@ export class MemoryStore implements Store {
   }
   async hasActiveStakedTournament(_wallet: string) {
     return false;
+  }
+
+  // ---- PG-G-01 ----
+  private galleryRanked() {
+    return [...this.galleryPlayers.values()].sort(compareGallery);
+  }
+  async upsertGalleryPlayer(p: { wallet: string; shoeLevel: number; coreLevel: number; xp: bigint; streakDays: number; maxStreakDays: number; lastTaskDate: number | null; slot: number }, now: Date) {
+    const cur = this.galleryPlayers.get(p.wallet);
+    if (cur && cur.updatedSlot > p.slot) return;
+    this.galleryPlayers.set(p.wallet, { wallet: p.wallet, shoeLevel: p.shoeLevel, coreLevel: p.coreLevel, xp: p.xp, streakDays: p.streakDays, maxStreakDays: p.maxStreakDays, lastTaskDate: p.lastTaskDate, collectibleCount: cur?.collectibleCount ?? 0, updatedSlot: p.slot, updatedAt: now });
+  }
+  async insertGalleryCollectible(c: GalleryCollectible) {
+    const k = `${c.wallet}:${c.kind}`;
+    if (this.galleryCollectibles.has(k)) return false;
+    this.galleryCollectibles.set(k, c);
+    const p = this.galleryPlayers.get(c.wallet);
+    if (p) p.collectibleCount += 1;
+    return true;
+  }
+  async getGalleryPlayer(wallet: string) {
+    return this.galleryPlayers.get(wallet) ?? null;
+  }
+  async listGalleryPlayers(limit: number, offset: number) {
+    return this.galleryRanked().slice(offset, offset + limit);
+  }
+  async countGalleryPlayers() {
+    return this.galleryPlayers.size;
+  }
+  async galleryRankOf(wallet: string) {
+    const i = this.galleryRanked().findIndex((p) => p.wallet === wallet);
+    return i < 0 ? null : i + 1;
+  }
+  async searchGalleryPlayers(prefix: string, limit: number) {
+    return this.galleryRanked().filter((p) => p.wallet.startsWith(prefix)).slice(0, limit);
+  }
+  async listGalleryCollectibles(wallet: string) {
+    return [...this.galleryCollectibles.values()].filter((c) => c.wallet === wallet).sort((a, b) => a.kind - b.kind);
   }
 
   // ---- PG-B-17 ----
@@ -219,4 +258,11 @@ export class MemoryStore implements Store {
 
 function sortLeaderboard(rows: TournamentStepsRow[]) {
   return rows.sort(compareLeaderboard);
+}
+
+/** 藝廊排行：shoe_level DESC → xp DESC → wallet base58 位元組序（與 PostgreSQL 索引一致） */
+function compareGallery(a: GalleryPlayer, b: GalleryPlayer) {
+  if (a.shoeLevel !== b.shoeLevel) return b.shoeLevel - a.shoeLevel;
+  if (a.xp !== b.xp) return a.xp < b.xp ? 1 : -1;
+  return Buffer.compare(Buffer.from(a.wallet, "ascii"), Buffer.from(b.wallet, "ascii"));
 }

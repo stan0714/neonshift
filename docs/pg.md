@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.19（PG-A-20 完成） |
+| 文件版本 | v0.20（PG-G-01／G-02 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -506,8 +506,8 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
-| PG-G-01 | 藝廊 indexer：gallery_players／gallery_collectibles 投影與排行重算 | SD 11A、B-16 | FR-13.1 | 1.5 | TODO | |
-| PG-G-02 | 藝廊 API：/gallery/players、/gallery/players/{wallet}、/gallery/search | SD 11A | FR-13.1、13.2 | 1.0 | TODO | |
+| PG-G-01 | 藝廊 indexer：gallery_players／gallery_collectibles 投影與排行重算 | SD 11A、B-16 | FR-13.1 | 1.5 | WIP | 2026-09-14 完成：migration 0005、`gallery/projection.ts`（finalized only、slot 單調、(wallet, kind) 冪等）、GalleryStore（Memory／PG）；排行由索引直接查詢不需重算；vitest 1＋PG 整合 1 |
+| PG-G-02 | 藝廊 API：/gallery/players、/gallery/players/{wallet}、/gallery/search | SD 11A | FR-13.1、13.2 | 1.0 | WIP | 2026-09-14 完成：三個端點（JWT、分頁 cursor、you.rank、is_you、collectibles）；不含健康數值；vitest 1 |
 | PG-G-03 | App 藝廊列表與玩家頁（Style 12.1） | Style 12.1 | FR-13.1、13.2 | 2.0 | TODO | |
 | PG-G-04 | NFT metadata／圖片靜態託管（neonshift.cc/nft）與五階＋徽章素材 | SD 11A、Style 16.2 | FR-04.6 | 1.0 | TODO | |
 
@@ -557,6 +557,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.20 | 2026-09-14 | PG-G-01／G-02 完成（WIP）：藝廊投影與 API |
 | v0.19 | 2026-09-14 | PG-A-20 完成（WIP）、A-18 盤點 |
 | v0.18 | 2026-09-14 | PG-A-17 完成（WIP）：進化 reveal |
 | v0.17 | 2026-09-14 | PG-A-16 完成（WIP）：離線橫幅、Home inline 狀態、reference ID |

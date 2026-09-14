@@ -18,7 +18,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: url });
-    await pool.query("DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
+    await pool.query("DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
     stores = [
       { name: "postgres", store: new PostgresStore(pool) },
       { name: "memory", store: new MemoryStore() },
@@ -192,6 +192,26 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       expect(await store.listDueDeletions(new Date("2026-10-17T00:00:00Z")), name).toEqual([wallet]);
       await store.markDeletionDone(wallet);
       expect(await store.listDueDeletions(new Date("2026-10-17T00:00:00Z")), name).toEqual([]);
+    }
+  });
+
+  it("gallery：slot 單調 upsert、收藏冪等計數、排行（等級 → XP → 錢包 C 序）、搜尋", async () => {
+    for (const { name, store } of stores) {
+      const now = new Date("2026-09-14T00:00:00Z");
+      const [a, b, c] = [`G${name}aaa`, `G${name}bbb`, `G${name}ccc`];
+      await store.upsertGalleryPlayer({ wallet: a, shoeLevel: 2, coreLevel: 2, xp: 500n, streakDays: 1, maxStreakDays: 1, lastTaskDate: 1, slot: 10 }, now);
+      await store.upsertGalleryPlayer({ wallet: a, shoeLevel: 1, coreLevel: 1, xp: 100n, streakDays: 1, maxStreakDays: 1, lastTaskDate: 1, slot: 5 }, now); // 舊 slot 忽略
+      await store.upsertGalleryPlayer({ wallet: b, shoeLevel: 3, coreLevel: 3, xp: 1600n, streakDays: 2, maxStreakDays: 7, lastTaskDate: 2, slot: 11 }, now);
+      await store.upsertGalleryPlayer({ wallet: c, shoeLevel: 2, coreLevel: 2, xp: 500n, streakDays: 1, maxStreakDays: 1, lastTaskDate: 1, slot: 12 }, now);
+      expect((await store.getGalleryPlayer(a))?.xp, name).toBe(500n);
+      expect(await store.insertGalleryCollectible({ wallet: b, kind: 1, asset: "A", signature: "s", slot: 1, claimedAt: now }), name).toBe(true);
+      expect(await store.insertGalleryCollectible({ wallet: b, kind: 1, asset: "A", signature: "s", slot: 1, claimedAt: now }), name).toBe(false);
+      expect((await store.getGalleryPlayer(b))?.collectibleCount, name).toBe(1);
+      expect((await store.listGalleryPlayers(10, 0)).map((p) => p.wallet), name).toEqual([b, a, c]);
+      expect(await store.galleryRankOf(c), name).toBe(3);
+      expect(await store.countGalleryPlayers(), name).toBe(3);
+      expect((await store.searchGalleryPlayers(`G${name}b`, 10)).map((p) => p.wallet), name).toEqual([b]);
+      expect((await store.listGalleryCollectibles(b)).map((x) => x.kind), name).toEqual([1]);
     }
   });
 });

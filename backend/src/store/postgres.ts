@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -178,6 +178,53 @@ export class PostgresStore implements Store {
   async hasActiveStakedTournament(_wallet: string) {
     // 質押事實在鏈上，由 TournamentService 判斷（player routes）
     return false;
+  }
+
+  // ---- PG-G-01 ----
+  private galleryRow(x: Row): GalleryPlayer {
+    return { wallet: x.wallet as string, shoeLevel: Number(x.shoe_level), coreLevel: Number(x.core_level), xp: BigInt(x.xp as string), streakDays: Number(x.streak_days), maxStreakDays: Number(x.max_streak_days), lastTaskDate: x.last_task_date === null ? null : Number(x.last_task_date), collectibleCount: Number(x.collectible_count), updatedSlot: Number(x.updated_slot), updatedAt: x.updated_at as Date };
+  }
+  private collectibleRow(x: Row): GalleryCollectible {
+    return { wallet: x.wallet as string, kind: Number(x.kind), asset: x.asset as string, signature: x.signature as string, slot: Number(x.slot), claimedAt: x.claimed_at as Date };
+  }
+  async upsertGalleryPlayer(p: { wallet: string; shoeLevel: number; coreLevel: number; xp: bigint; streakDays: number; maxStreakDays: number; lastTaskDate: number | null; slot: number }, now: Date) {
+    await this.pool.query(
+      `INSERT INTO gallery_players (wallet, shoe_level, core_level, xp, streak_days, max_streak_days, last_task_date, first_seen_slot, updated_slot, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9)
+       ON CONFLICT (wallet) DO UPDATE SET shoe_level = EXCLUDED.shoe_level, core_level = EXCLUDED.core_level, xp = EXCLUDED.xp, streak_days = EXCLUDED.streak_days,
+         max_streak_days = EXCLUDED.max_streak_days, last_task_date = EXCLUDED.last_task_date, updated_slot = EXCLUDED.updated_slot, updated_at = EXCLUDED.updated_at
+       WHERE gallery_players.updated_slot <= EXCLUDED.updated_slot`,
+      [p.wallet, p.shoeLevel, p.coreLevel, p.xp.toString(), p.streakDays, p.maxStreakDays, p.lastTaskDate, p.slot, now],
+    );
+  }
+  async insertGalleryCollectible(c: GalleryCollectible) {
+    const r = await this.pool.query(`INSERT INTO gallery_collectibles (wallet, kind, asset, signature, slot, claimed_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (wallet, kind) DO NOTHING`, [c.wallet, c.kind, c.asset, c.signature, c.slot, c.claimedAt]);
+    if ((r.rowCount ?? 0) === 0) return false;
+    await this.pool.query(`UPDATE gallery_players SET collectible_count = collectible_count + 1 WHERE wallet = $1`, [c.wallet]);
+    return true;
+  }
+  async getGalleryPlayer(wallet: string) {
+    const r = await this.pool.query(`SELECT * FROM gallery_players WHERE wallet = $1`, [wallet]);
+    return r.rows[0] ? this.galleryRow(r.rows[0] as Row) : null;
+  }
+  async listGalleryPlayers(limit: number, offset: number) {
+    const r = await this.pool.query(`SELECT * FROM gallery_players ORDER BY shoe_level DESC, xp DESC, wallet COLLATE "C" ASC LIMIT $1 OFFSET $2`, [limit, offset]);
+    return (r.rows as Row[]).map((x) => this.galleryRow(x));
+  }
+  async countGalleryPlayers() {
+    return ((await this.pool.query(`SELECT count(*)::int AS n FROM gallery_players`)).rows[0] as { n: number }).n;
+  }
+  async galleryRankOf(wallet: string) {
+    const r = await this.pool.query(`SELECT rank FROM (SELECT wallet, row_number() OVER (ORDER BY shoe_level DESC, xp DESC, wallet COLLATE "C" ASC) AS rank FROM gallery_players) t WHERE wallet = $1`, [wallet]);
+    return r.rows[0] ? Number((r.rows[0] as { rank: string | number }).rank) : null;
+  }
+  async searchGalleryPlayers(prefix: string, limit: number) {
+    const r = await this.pool.query(`SELECT * FROM gallery_players WHERE wallet LIKE $1 || '%' ORDER BY shoe_level DESC, xp DESC, wallet COLLATE "C" ASC LIMIT $2`, [prefix.replace(/[%_\\]/g, ""), limit]);
+    return (r.rows as Row[]).map((x) => this.galleryRow(x));
+  }
+  async listGalleryCollectibles(wallet: string) {
+    const r = await this.pool.query(`SELECT * FROM gallery_collectibles WHERE wallet = $1 ORDER BY kind ASC`, [wallet]);
+    return (r.rows as Row[]).map((x) => this.collectibleRow(x));
   }
 
   // ---- PG-B-17 ----

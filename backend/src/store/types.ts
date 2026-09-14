@@ -26,7 +26,7 @@ export type Session = {
 
 export type Player = { wallet: string; firstSeenAt: Date; lastSeenAt: Date; deletedAt: Date | null };
 
-export interface Store extends ClaimStore, PlayerDataStore, TournamentStore, IndexerStore, RetentionStore {
+export interface Store extends ClaimStore, PlayerDataStore, TournamentStore, IndexerStore, RetentionStore, GalleryStore {
   insertChallenge(c: Challenge): Promise<void>;
   /** 原子消耗：只有未使用且未過期才會成功，回傳被消耗的 challenge */
   consumeChallenge(nonceHash: Buffer, now: Date): Promise<Challenge | null>;
@@ -185,4 +185,23 @@ export interface RetentionStore {
   listDueDeletions(now: Date): Promise<string[]>;
   /** 延後刪除執行完成：清 deletion_due_at（deleted_at 保留） */
   markDeletionDone(wallet: string): Promise<void>;
+}
+
+// ---------------- PG-G-01：藝廊投影 ----------------
+
+export type GalleryPlayer = { wallet: string; shoeLevel: number; coreLevel: number; xp: bigint; streakDays: number; maxStreakDays: number; lastTaskDate: number | null; collectibleCount: number; updatedSlot: number; updatedAt: Date };
+export type GalleryCollectible = { wallet: string; kind: number; asset: string; signature: string; slot: number; claimedAt: Date };
+
+export interface GalleryStore {
+  /** 事件投影（冪等）：只在 `slot` 不早於既有 `updated_slot` 時覆寫等級／XP 等欄位 */
+  upsertGalleryPlayer(p: { wallet: string; shoeLevel: number; coreLevel: number; xp: bigint; streakDays: number; maxStreakDays: number; lastTaskDate: number | null; slot: number }, now: Date): Promise<void>;
+  /** 冪等（wallet, kind）；成功新增時 collectible_count += 1 */
+  insertGalleryCollectible(c: GalleryCollectible): Promise<boolean>;
+  getGalleryPlayer(wallet: string): Promise<GalleryPlayer | null>;
+  /** 排行：shoe_level DESC → xp DESC → wallet C 序；offset 分頁 */
+  listGalleryPlayers(limit: number, offset: number): Promise<GalleryPlayer[]>;
+  countGalleryPlayers(): Promise<number>;
+  galleryRankOf(wallet: string): Promise<number | null>;
+  searchGalleryPlayers(prefix: string, limit: number): Promise<GalleryPlayer[]>;
+  listGalleryCollectibles(wallet: string): Promise<GalleryCollectible[]>;
 }

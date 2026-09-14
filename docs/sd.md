@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.11（保留清理） |
+| 文件版本 | v0.12（藝廊投影與 API） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -951,6 +951,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.12 | 2026-09-14 | PG-G-01／G-02：藝廊投影與 API 實作說明 |
 | v0.11 | 2026-09-14 | PG-B-17：保留清理實作說明 |
 | v0.10 | 2026-09-14 | PG-B-16：ChainIndexer 實作說明（IDL 驅動解碼、confirmed→finalized、orphan、projection 只吃 finalized）；ClockedIn 事件加 `max_streak_days` |
 | v0.9 | 2026-09-14 | PG-B-15：結算 manifest 端點與三方向量；ChainReader.listEntries |
@@ -973,6 +974,8 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 - 測試：LiteSVM 載入 devnet dump 的 Core 程式 `tests/fixtures/mpl_core.so`（`solana program dump CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d`），驗證 AssetV1 佈局（key／owner／update_authority／name／uri）、rent 花費 < 0.01 SOL、tSKR 不變。
 
 **後端（藝廊 API，讀鏈上）**：ChainIndexer（B-16）同步 `PlayerInitialized`／`ClockedIn`／`CollectibleClaimed` 事件到 `gallery_players (wallet, shoe_level, xp, streak_days, max_streak_days, last_task_date, updated_at)` 與 `gallery_collectibles (wallet, kind, asset, claimed_at)`；每小時（或每次事件）重算排行。
+
+**實作（2026-09-14，PG-G-01／G-02）**：migration 0005 `gallery_players`（+ `core_level`、`collectible_count`、`first_seen_slot`／`updated_slot`）與 `gallery_collectibles`（PK (wallet, kind)，含 signature／slot）。`gallery/projection.ts` 只吃 finalized 事件：PlayerInitialized 建立（已存在不重置）、ClockedIn 以 `updated_slot <= 新 slot` 才覆寫（重放／亂序安全）、CollectibleClaimed `ON CONFLICT DO NOTHING` 並遞增 `collectible_count`。排行不另行重算，直接以索引 `(shoe_level DESC, xp DESC, wallet COLLATE "C")` 查詢（`row_number()` 取本人名次）。API：`GET /gallery/players?limit≤50&cursor=offset`（含 `generated_at`、`total`、`next_cursor`、`you.rank`）、`GET /gallery/players/{wallet}`（`player`、`is_you`、`collectibles`）、`GET /gallery/search?q=base58 前綴≥2`；皆需 JWT；回應不含任何健康數值；BR-25 刪除個資不影響藝廊（純鏈上公開資料）。
 
 | Method | Path | 用途 |
 |---|---|---|
