@@ -5,7 +5,7 @@ use {
     anchor_lang::{
         prelude::Pubkey,
         solana_program::{bpf_loader_upgradeable, instruction::Instruction, program_pack::Pack, system_instruction},
-        AccountDeserialize,
+        AccountDeserialize, InstructionData, ToAccountMetas,
     },
     anchor_spl::token::spl_token,
     litesvm::{types::TransactionResult, LiteSVM},
@@ -16,6 +16,7 @@ use {
 };
 
 pub use neonshift_core::constants::*;
+use anchor_lang::prelude::Clock;
 
 pub struct Env {
     pub svm: LiteSVM,
@@ -130,4 +131,63 @@ pub fn setup_tokens(env: &mut Env, decimals: u8) -> TokenSetup {
     let reward_vault = create_token_account(&mut env.svm, &deployer, &mint, &config);
     let treasury_vault = create_token_account(&mut env.svm, &deployer, &mint, &deployer.pubkey());
     TokenSetup { mint, reward_vault, treasury_vault }
+}
+
+/// 目前鏈上時間
+pub fn now(svm: &LiteSVM) -> i64 {
+    svm.get_sysvar::<Clock>().unix_timestamp
+}
+
+/// 把鏈上時間往前撥 `seconds`，並讓 blockhash 失效以免重複交易被去重
+pub fn advance_time(svm: &mut LiteSVM, seconds: i64) {
+    let mut clock = svm.get_sysvar::<Clock>();
+    clock.unix_timestamp += seconds;
+    clock.slot += 1;
+    svm.set_sysvar(&clock);
+    svm.expire_blockhash();
+}
+
+/// 完成 initialize_config，回傳 admin keypair 與 token 帳戶
+pub struct Initialized {
+    pub admin: Keypair,
+    pub attestor: Pubkey,
+    pub tokens: TokenSetup,
+    pub config: Pubkey,
+}
+
+pub fn initialize(env: &mut Env) -> Initialized {
+    use anchor_lang::solana_program::system_program;
+    let tokens = setup_tokens(env, TSKR_DECIMALS);
+    let admin = Keypair::new();
+    env.svm.airdrop(&admin.pubkey(), 10_000_000_000).unwrap();
+    let attestor = Pubkey::new_unique();
+    let (config, _) = config_pda();
+    let deployer = env.deployer.insecure_clone();
+    let ix = Instruction::new_with_bytes(
+        neonshift_core::id(),
+        &neonshift_core::instruction::InitializeConfig { params: default_params(admin.pubkey(), attestor) }.data(),
+        neonshift_core::accounts::InitializeConfig {
+            authority: deployer.pubkey(),
+            config,
+            mint: tokens.mint,
+            reward_vault: tokens.reward_vault,
+            treasury_vault: tokens.treasury_vault,
+            program: neonshift_core::id(),
+            program_data: env.program_data,
+            token_program: spl_token::id(),
+            system_program: system_program::ID,
+        }
+        .to_account_metas(None),
+    );
+    send(&mut env.svm, &[ix], &deployer, &[]).unwrap();
+    Initialized { admin, attestor, tokens, config }
+}
+
+pub fn admin_ix(admin: &Pubkey, data: Vec<u8>) -> Instruction {
+    let (config, _) = config_pda();
+    Instruction::new_with_bytes(
+        neonshift_core::id(),
+        &data,
+        neonshift_core::accounts::AdminOnly { admin: *admin, config }.to_account_metas(None),
+    )
 }

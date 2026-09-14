@@ -22,4 +22,19 @@ pub mod neonshift_core {
     pub fn initialize_config(ctx: Context<InitializeConfig>, params: InitializeConfigParams) -> Result<()> {
         instructions::initialize_config::handle_initialize_config(ctx, params)
     }
+
+    /// 緊急停用／恢復（admin）。pause 範圍見 instructions/admin.rs
+    pub fn set_paused(ctx: Context<AdminOnly>, paused: bool) -> Result<()> {
+        instructions::admin::handle_set_paused(ctx, paused)
+    }
+
+    /// 更新 Config（admin）；影響獎勵金額的欄位受 BR-24 限制
+    pub fn update_config(ctx: Context<AdminOnly>, params: UpdateConfigParams) -> Result<()> {
+        instructions::admin::handle_update_config(ctx, params)
+    }
+
+    /// 輪替 attestor 公鑰（admin），寬限期 0～600 秒
+    pub fn rotate_attestor(ctx: Context<AdminOnly>, new_attestor: Pubkey, grace_seconds: i64) -> Result<()> {
+        instructions::admin::handle_rotate_attestor(ctx, new_attestor, grace_seconds)
+    }
 }

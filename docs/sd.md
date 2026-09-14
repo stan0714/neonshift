@@ -131,6 +131,7 @@ graph TB
 | `core_upgrade_costs` | [u64; 4] | 升至 Core 2～5 的成本 |
 | `shoe_xp_thresholds` | [u64; 5] | 跑鞋 Lv1～5 的累積 XP 門檻 |
 | `paused` | bool | 緊急停用 |
+| `paused_at` | i64 | 最近一次進入 pause 的時間（實作期新增）；BR-24 以 `now - paused_at >= 600` 判斷有效 attestation 已全部過期 |
 | `bump` | u8 | — |
 
 **PlayerProfile**（PDA seeds `["player", wallet]`）
@@ -210,8 +211,9 @@ graph TB
 | 指令 | 簽章者 | 主要檢查 | 事件 |
 |---|---|---|---|
 | `initialize_config` | 程式 upgrade authority | 僅可執行一次（Config PDA `init`）；簽章者必須等於 ProgramData 的 upgrade authority，`admin`（多簽）由參數指定。參數範圍：cluster_id ∈ {1,2}、基礎獎勵 > 0、daily_cap ≥ 最大基礎獎勵、streak_bonus 10000～20000、burn ≤ 10000、core 倍率 [0]=10000 且單調不減 ≤ 50000、升級成本 > 0、XP 門檻 [0]=0 且嚴格遞增、mint 為 6 decimals、reward vault owner = Config PDA | `ConfigInitialized` |
-| `update_config` | admin 多簽 | 參數範圍；依 BR-24 先停止新 attestation 並等待 10 分鐘，不影響已簽發證明或進行中賽事 | `ConfigUpdated` |
-| `rotate_attestor` | admin 多簽 | 設定新舊並行寬限期；計畫輪替最多 600 秒，金鑰疑似外洩時可將舊 key 立即失效 | `AttestorRotated` |
+| `set_paused` | admin 多簽 | 進入 pause 時記錄 `paused_at`（重複 pause 不重設）。pause 範圍【2026-09-14 定案】：`clock_in`、`mint_shoe`、`upgrade_core`、`join_tournament` 拒絕（6000）；`claim_prize`、`refund_all` 與管理指令不受影響，使用者永遠能取回資金 | `PauseChanged` |
+| `update_config` | admin 多簽 | 全欄位可選、整筆以 `initialize_config` 同一套規則驗證。`daily_cap`、`base_*_reward`、`streak_*`、`core_multiplier_bps` 為 BR-24 受控欄位，只能在 `paused && now - paused_at >= 600` 時更新（否則 6025）；`admin`、`burn_bps`、`core_upgrade_costs`、`shoe_xp_thresholds` 可即時更新。不影響已簽發證明或進行中賽事（賽事金額在建立時固定） | `ConfigUpdated` |
+| `rotate_attestor` | admin 多簽 | `grace_seconds` 0～600：>0 時舊鑰保留至 `now + grace`，0 表示立即失效（外洩處置）；新鑰不得為 default 或與現行相同 | `AttestorRotated` |
 | `init_player` | player | 帳戶未存在 | `PlayerInitialized` |
 | `mint_shoe` | player | `shoe_asset` 為預設值 | `ShoeMinted` |
 | `clock_in` | player | 見 3.3 | `ClockedIn` |
@@ -344,6 +346,8 @@ let amount = amount.min(remaining);         // BR-04
 | 6022 | `InvalidResultBatch` | 排名非連續、重複或與 manifest 不符 |
 | 6023 | `InvalidConfigParam` | `initialize_config`／`update_config` 參數超出允許範圍（實作期新增） |
 | 6024 | `NotUpgradeAuthority` | `initialize_config` 的簽章者不是程式 upgrade authority（實作期新增） |
+| 6025 | `RewardParamsChangeRequiresPause` | BR-24：未 pause 或 pause 未滿 600 秒即更新影響獎勵金額的參數（實作期新增） |
+| 6026 | `Unauthorized` | 管理指令簽章者不是 `Config.admin`（實作期新增） |
 
 ---
 
@@ -784,7 +788,7 @@ total_staked + treasury_injection
 
 ## 10. 設計未決事項
 
-**本版補充的實作前置條件**：賽事 Q-09／SA-Q7 尚未定案，6.2 不是完整結算協議。須固定 canonical entry 的欄位順序／位寬／endianness、名次權重與空組公式、`first_reached_at` 的可信時間來源、零人提交、錯誤 commitment 的恢復／退款流程及 vault 實際餘額對帳；不得只用帳面等式聲稱資金守恆。另需定義 `clock_in` 未鑄鞋拒絕（`initialize_config` 首次授權已於 2026-09-14 定案為 upgrade authority，見 3.2）、pause 對各指令的作用範圍，以及 NFT 轉移後 PlayerProfile 的權威歸屬。這些需求分別列入 PG-C-01、C-05、C-02、C-09 與 C-13～C-16 的完成條件，未通過前不可標 DONE。
+**本版補充的實作前置條件**：賽事 Q-09／SA-Q7 尚未定案，6.2 不是完整結算協議。須固定 canonical entry 的欄位順序／位寬／endianness、名次權重與空組公式、`first_reached_at` 的可信時間來源、零人提交、錯誤 commitment 的恢復／退款流程及 vault 實際餘額對帳；不得只用帳面等式聲稱資金守恆。另需定義 `clock_in` 未鑄鞋拒絕（`initialize_config` 首次授權已於 2026-09-14 定案為 upgrade authority，見 3.2；pause 範圍亦已定案，見 `set_paused`），以及 NFT 轉移後 PlayerProfile 的權威歸屬。這些需求分別列入 PG-C-01、C-05、C-02、C-09 與 C-13～C-16 的完成條件，未通過前不可標 DONE。
 
 | 編號 | 問題 | 阻擋 | 建議 |
 |---|---|---|---|

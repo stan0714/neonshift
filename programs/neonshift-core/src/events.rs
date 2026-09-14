@@ -12,3 +12,23 @@ pub struct ConfigInitialized {
     pub treasury_vault: Pubkey,
     pub daily_cap: u64,
 }
+
+#[event]
+pub struct ConfigUpdated {
+    pub admin: Pubkey,
+    /// 是否變更了影響獎勵金額的參數（BR-24 受控欄位）
+    pub reward_params_changed: bool,
+}
+
+#[event]
+pub struct AttestorRotated {
+    pub new_attestor: Pubkey,
+    pub prev_attestor: Pubkey,
+    pub prev_valid_until: i64,
+}
+
+#[event]
+pub struct PauseChanged {
+    pub paused: bool,
+    pub at: i64,
+}

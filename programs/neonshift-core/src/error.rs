@@ -54,4 +54,8 @@ pub enum ErrorCode {
     InvalidConfigParam, // 6023
     #[msg("簽章者不是程式的 upgrade authority")]
     NotUpgradeAuthority, // 6024
+    #[msg("影響獎勵金額的參數必須先 pause 並等待 600 秒後才能更新（BR-24）")]
+    RewardParamsChangeRequiresPause, // 6025
+    #[msg("簽章者不是 Config.admin")]
+    Unauthorized, // 6026
 }

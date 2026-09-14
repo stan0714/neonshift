@@ -36,9 +36,31 @@ pub struct Config {
     /// 跑鞋 Lv1～5 的累積 XP 門檻
     pub shoe_xp_thresholds: [u64; 5],
     pub paused: bool,
+    /// 最近一次 pause 的時間；BR-24 以此判斷有效 attestation 是否已全部過期
+    pub paused_at: i64,
     pub bump: u8,
 }
 
 impl Config {
     pub const SEED: &'static [u8] = crate::constants::CONFIG_SEED;
+
+    /// 使用者側指令（clock_in、mint_shoe、upgrade_core、join_tournament）在 pause 時拒絕；
+    /// 取回資金的 claim_prize／refund_all 與管理指令不受影響（SD 3.2 pause 範圍）。
+    pub fn require_active(&self) -> anchor_lang::Result<()> {
+        anchor_lang::require!(!self.paused, crate::error::ErrorCode::ProgramPaused);
+        Ok(())
+    }
+
+    /// BR-24：已 pause 且超過最長 attestation 有效期（600 秒），才可改動影響金額的參數
+    pub fn reward_params_unlocked(&self, now: i64) -> bool {
+        self.paused && now.saturating_sub(self.paused_at) >= attestation_core::MAX_TTL_SECONDS
+    }
+
+    /// 給定時間點可接受的 attestor 公鑰（含輪替寬限期內的舊鑰）
+    pub fn attestor_accepts(&self, key: &Pubkey, now: i64) -> bool {
+        (key == &self.attestor_pubkey && now >= self.attestor_valid_from)
+            || (self.prev_attestor_pubkey != Pubkey::default()
+                && key == &self.prev_attestor_pubkey
+                && now < self.prev_attestor_valid_until)
+    }
 }

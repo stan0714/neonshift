@@ -127,6 +127,7 @@ pub fn handle_initialize_config(ctx: Context<InitializeConfig>, params: Initiali
     config.core_upgrade_costs = params.core_upgrade_costs;
     config.shoe_xp_thresholds = params.shoe_xp_thresholds;
     config.paused = false;
+    config.paused_at = 0;
     config.bump = ctx.bumps.config;
 
     emit!(ConfigInitialized {
