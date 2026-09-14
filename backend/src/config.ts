@@ -23,6 +23,11 @@ export const configSchema = z.object({
   SIWS_URI: z.string().url().default("https://neonshift.cc"),
   /** access JWT HS256 密鑰；正式環境必填且 ≥ 32 bytes，local／test 未給時以隨機值啟動（重啟即失效） */
   JWT_SECRET: z.string().min(32).optional(),
+  /** 規則集檔案（PG-B-07） */
+  RULES_FILE: z.string().default("rules/v3.json"),
+  /** attestor signer：`http:<url>`（隔離 signer service，配 SIGNER_TOKEN）或 dev 用 `local:<keypair 路徑|base58>` */
+  ATTESTOR_SIGNER: z.string().optional(),
+  SIGNER_TOKEN: z.string().optional(),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
@@ -40,6 +45,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
   if (cfg.APP_ENV !== "local" && !cfg.JWT_SECRET) {
     throw new Error(`APP_ENV=${cfg.APP_ENV} 需要設定 JWT_SECRET`);
+  }
+  // 正式環境私鑰不得進 API process（SD 4.6）：只允許 http／kms signer
+  if (cfg.APP_ENV !== "local" && (!cfg.ATTESTOR_SIGNER || cfg.ATTESTOR_SIGNER.startsWith("local:"))) {
+    throw new Error(`APP_ENV=${cfg.APP_ENV} 需要 ATTESTOR_SIGNER=http:<url>（不可用 local:）`);
+  }
+  if (cfg.ATTESTOR_SIGNER?.startsWith("http:") && !cfg.SIGNER_TOKEN) {
+    throw new Error("ATTESTOR_SIGNER=http: 需要 SIGNER_TOKEN");
   }
   return cfg;
 }

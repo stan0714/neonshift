@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { Challenge, Player, Session, Store } from "./types.js";
+import type { AttestationRow, Challenge, ClaimResult, HealthSnapshotInput, Player, RiskDecisionInput, RuleSetRow, Session, Store } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -90,5 +90,73 @@ export class PostgresStore implements Store {
   async revokeWallet(wallet: string, now: Date) {
     const r = await this.pool.query(`UPDATE auth_sessions SET revoked_at = $2 WHERE wallet = $1 AND revoked_at IS NULL`, [wallet, now]);
     return r.rowCount ?? 0;
+  }
+
+  // ---- PG-B-11 ----
+  async ensureRuleSet(row: RuleSetRow) {
+    const r = await this.pool.query(
+      `INSERT INTO rule_sets (rules_version, rules_hash, config) VALUES ($1, $2, $3)
+       ON CONFLICT (rules_version) DO NOTHING
+       RETURNING rules_version`,
+      [row.rulesVersion, row.rulesHash, JSON.stringify(row.config)],
+    );
+    if (r.rowCount === 0) {
+      const cur = await this.pool.query(`SELECT rules_hash FROM rule_sets WHERE rules_version = $1`, [row.rulesVersion]);
+      if (!(cur.rows[0]?.rules_hash as Buffer).equals(row.rulesHash)) throw new Error(`rules_version ${row.rulesVersion} already exists with a different hash`);
+    }
+  }
+  async insertHealthSnapshot(s: HealthSnapshotInput) {
+    const r = await this.pool.query(
+      `INSERT INTO health_snapshots (wallet, task_date, task_type, attributed_steps, sleep_minutes, source_summary, step_rate_summary,
+         sleep_overlap_minutes, sensor_summary, motion_summary, client_info, input_hash)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+      [s.wallet, s.taskDate, s.taskType, s.attributedSteps, s.sleepMinutes, JSON.stringify(s.sourceSummary), s.stepRateSummary === null ? null : JSON.stringify(s.stepRateSummary),
+        s.sleepOverlapMinutes, s.sensorSummary === null ? null : JSON.stringify(s.sensorSummary), s.motionSummary === null ? null : JSON.stringify(s.motionSummary), JSON.stringify(s.clientInfo), s.inputHash],
+    );
+    return Number((r.rows[0] as Row).id);
+  }
+  async insertRiskDecision(d: RiskDecisionInput) {
+    await this.pool.query(
+      `INSERT INTO risk_decisions (snapshot_id, rules_version, risk_score, matched_rules, decision, reject_code) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [d.snapshotId, d.rulesVersion, d.riskScore, d.matchedRules, d.decision, d.rejectCode],
+    );
+  }
+  async insertAttestation(a: AttestationRow) {
+    await this.pool.query(
+      `INSERT INTO attestations (nonce, idempotency_key, request_hash, wallet, task_date, task_type, rules_version, evidence_hash, issued_at, expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [a.nonce, a.idempotencyKey, a.requestHash, a.wallet, a.taskDate, a.taskType, a.rulesVersion, a.evidenceHash, a.issuedAt, a.expiresAt],
+    );
+  }
+  async beginClaim(wallet: string, idempotencyKey: string, requestHash: Buffer, now: Date) {
+    const ins = await this.pool.query(
+      `INSERT INTO claim_results (wallet, idempotency_key, request_hash, status, created_at, updated_at)
+       VALUES ($1, $2, $3, 'processing', $4, $4)
+       ON CONFLICT (wallet, idempotency_key) DO NOTHING
+       RETURNING wallet`,
+      [wallet, idempotencyKey, requestHash, now],
+    );
+    if ((ins.rowCount ?? 0) > 0) return { acquired: true as const, existing: null };
+    const r = await this.pool.query(`SELECT * FROM claim_results WHERE wallet = $1 AND idempotency_key = $2`, [wallet, idempotencyKey]);
+    const row = r.rows[0] as Row;
+    const existing: ClaimResult = {
+      wallet: row.wallet as string,
+      idempotencyKey: row.idempotency_key as string,
+      requestHash: row.request_hash as Buffer,
+      status: row.status as ClaimResult["status"],
+      httpStatus: (row.http_status as number | null) ?? null,
+      response: row.response ?? null,
+      createdAt: row.created_at as Date,
+    };
+    return { acquired: false as const, existing };
+  }
+  async completeClaim(wallet: string, idempotencyKey: string, status: "succeeded" | "rejected", httpStatus: number, response: unknown, now: Date) {
+    await this.pool.query(
+      `UPDATE claim_results SET status = $3, http_status = $4, response = $5, updated_at = $6 WHERE wallet = $1 AND idempotency_key = $2`,
+      [wallet, idempotencyKey, status, httpStatus, JSON.stringify(response), now],
+    );
+  }
+  async releaseClaim(wallet: string, idempotencyKey: string) {
+    await this.pool.query(`DELETE FROM claim_results WHERE wallet = $1 AND idempotency_key = $2 AND status = 'processing'`, [wallet, idempotencyKey]);
   }
 }

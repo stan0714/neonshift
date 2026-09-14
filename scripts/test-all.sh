@@ -60,9 +60,12 @@ if docker info >/dev/null 2>&1; then
     docker exec "$C" pg_isready -U postgres >/dev/null 2>&1 && break
     sleep 1
   done
-  if docker exec -i "$C" psql -U postgres -d neonshift -v ON_ERROR_STOP=1 -q \
-       < backend/migrations/0001_init.sql >/dev/null 2>&1; then
-    ok "migration 套用"
+  mig_ok=1
+  for f in backend/migrations/[0-9]*.sql; do
+    docker exec -i "$C" psql -U postgres -d neonshift -v ON_ERROR_STOP=1 -q < "$f" >/dev/null 2>&1 || { mig_ok=0; echo "  失敗：$f"; break; }
+  done
+  if [ "$mig_ok" = 1 ]; then
+    ok "migration 套用（$(ls backend/migrations/[0-9]*.sql | wc -l | tr -d ' ') 個）"
     n=$(docker exec -i "$C" psql -U postgres -d neonshift -v ON_ERROR_STOP=1 -q \
           < backend/migrations/test_constraints.sql 2>&1 | grep -c "PASS")
     if docker exec -i "$C" psql -U postgres -d neonshift -v ON_ERROR_STOP=1 -q \

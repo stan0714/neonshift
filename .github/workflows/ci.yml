@@ -79,7 +79,7 @@ jobs:
         env:
           PGPASSWORD: test
         run: |
-          psql -h localhost -U postgres -d neonshift -v ON_ERROR_STOP=1 -q -f backend/migrations/0001_init.sql
+          for f in backend/migrations/[0-9]*.sql; do psql -h localhost -U postgres -d neonshift -v ON_ERROR_STOP=1 -q -f "$f"; done
           out=$(psql -h localhost -U postgres -d neonshift -v ON_ERROR_STOP=1 -q -f backend/migrations/test_constraints.sql 2>&1)
           echo "$out" | grep -E 'PASS|FAIL' || true
           ! echo "$out" | grep -q FAIL

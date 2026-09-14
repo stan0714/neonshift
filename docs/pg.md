@@ -159,7 +159,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
 | PG-B-01 | Fastify 骨架、設定載入、健康檢查端點 | SD 2.2 | — | 0.5 | WIP | src/app.ts／config.ts／db.ts／errors.ts：healthz、readyz、/v1、統一錯誤格式、redact log；9 項測試 |
-| PG-B-02 | 資料庫 schema 與 migration | SD 4.5 | — | 1.0 | WIP | 0001_init.sql 9 表＋13 項約束測試；8.2 P0/P1 補項未做 |
+| PG-B-02 | 資料庫 schema 與 migration | SD 4.5 | — | 1.0 | WIP | 0001 9 表＋13 約束測試；0002 claim_results（idempotency 處理狀態）；deletion_due_at 等 BR-25 欄位待 B-13 |
 | PG-B-03 | `/auth/nonce` 與 `/auth/verify`（SIWS） | SD 4.2 | — | 1.5 | WIP | SIWS 訊息 build／parse、/auth/nonce（32B nonce 只存雜湊、5 分鐘）、/auth/verify（domain／URI／chain／statement／時效／驗簽／原子消耗）；Store 介面＋Memory／Postgres 實作；11 單元＋整合測試 |
 | PG-B-04 | JWT 與 refresh session 輪替、重用偵測 | SD 4.2 | — | 1.5 | WIP | HS256 access 15 分鐘（iss／aud／sub／jti／iat／nbf／exp）、refresh 24 小時輪替＋重用偵測撤銷 family、/auth/refresh、/auth/logout（重複成功）、requireAuth 檢查 session 撤銷與玩家刪除 |
 | PG-B-05 | `/auth/challenge`：claim／tournament 敏感操作的單次授權 | SD 4.2 | — | 1.0 | WIP | ChallengeService：/auth/challenge（JWT 後）、32B nonce／5 分鐘整秒、綁定 wallet／purpose／task／request_hash／expiry；verifyAndConsume 先驗簽再原子消耗；6 測試；B-11／B-14 接用 |
@@ -167,8 +167,8 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-B-07 | 風險規則集載入，保存單調 `rules_version` 與獨立 `rules_hash` | SD 4.4 | BR-13 | 1.0 | WIP | rules/v3.json 設定檔＋zod strict schema；rules_version u16、rules_hash=SHA-256(canonical 不含自身)；寫入 rule_sets 於 B-11 |
 | PG-B-08 | 硬拒絕、夾限與 live check 邊界規則 | SD 4.4 | BR-07 至 BR-10, BR-12 | 1.0 | WIP | 硬拒絕 SRC_UNATTRIBUTED／SRC_MANUAL／NO_SENSOR／LIVE_MOTION_INCOMPLETE／SLEEP_RANGE、夾限後 TASK_NOT_MET（7,999／8,000、419／420 邊界）；零步數睡眠不受步數規則影響；排除來源不整筆拒 |
 | PG-B-09 | 評分規則、權重與門檻 | SD 4.4 | BR-11, BR-12 | 1.0 | WIP | freq_variance_low／no_displacement／stride／sleep_overlap 權重與門檻 60；無定位不加分（BR-11）、短暫重疊不拒（BR-12）；判定含 rules_version／hash；12 測試；資料集校準（KPI）待第三週 |
-| PG-B-10 | AttestationSigner：相容 signer 與 164 bytes 組裝／測試向量 | SD 3.5, 4.6 | BR-14, BR-15 | 1.5 | WIP | TS canonical bytes 鏡像＋20 組向量＋validate 負向測試；signer／KMS 未做 |
-| PG-B-11 | `POST /attestation/claim` 端點整合 | SD 4.3 | 全部風險規則 | 1.0 | TODO | |
+| PG-B-10 | AttestationSigner：相容 signer 與 164 bytes 組裝／測試向量 | SD 3.5, 4.6 | BR-14, BR-15 | 1.5 | WIP | AttestorSigner 介面：LocalKeypairSigner（僅 local）、HttpSignerClient（隔離 signer service，Bearer）；AttestationSigner 組 164 bytes、validate、ttl≤600、無金額；dev／demo 強制 http signer；20 組向量；KMS 選型與 signer service 部署待定 |
+| PG-B-11 | `POST /attestation/claim` 端點整合 | SD 4.3 | 全部風險規則 | 1.0 | WIP | POST /attestation/claim：JWT→schema→idempotency（processing／succeeded／rejected，409 conflict）→challenge 消耗→風險判定→snapshot／decision→簽發→attestations→保存完整回應；0002 migration；8 端到端測試（重放、409、crash 恢復）；GET /rules/version |
 | PG-B-12 | `GET /player/history` | SD 4.1 | — | 0.5 | TODO | |
 | PG-B-13 | `DELETE /player/data` 與延後刪除邏輯 | SD 4.1 | BR-25 | 1.0 | TODO | |
 | PG-B-14 | 賽事 API：current、steps、leaderboard 與逐操作 challenge | SD 4.1, 4.2 | — | 1.0 | TODO | |

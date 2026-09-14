@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import type { Db } from "./db.js";
+import { MemoryStore } from "./store/memory.js";
 
 const fakeDb = (ok: boolean, configured = true): Db => ({
   pool: configured ? ({} as Db["pool"]) : null,
@@ -10,7 +11,7 @@ const fakeDb = (ok: boolean, configured = true): Db => ({
   close: async () => {},
 });
 
-const make = (db: Db) => buildApp({ config: loadConfig({ NODE_ENV: "test", BODY_LIMIT_BYTES: "256" }), db });
+const make = (db: Db) => buildApp({ config: loadConfig({ NODE_ENV: "test", BODY_LIMIT_BYTES: "256" }), db, store: new MemoryStore() });
 
 describe("PG-B-01 Fastify 骨架", () => {
   let app: ReturnType<typeof make> | undefined;
@@ -72,9 +73,11 @@ describe("loadConfig", () => {
     expect(() =>
       loadConfig({ APP_ENV: "dev", PROGRAM_ID: "5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf", DATABASE_URL: "postgres://u:p@h/db" }),
     ).toThrow(/JWT_SECRET/);
-    expect(() =>
-      loadConfig({ APP_ENV: "dev", PROGRAM_ID: "5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf", DATABASE_URL: "postgres://u:p@h/db", JWT_SECRET: "s".repeat(32) }),
-    ).not.toThrow();
+    const dev = { APP_ENV: "dev", PROGRAM_ID: "5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf", DATABASE_URL: "postgres://u:p@h/db", JWT_SECRET: "s".repeat(32) };
+    expect(() => loadConfig(dev)).toThrow(/ATTESTOR_SIGNER/);
+    expect(() => loadConfig({ ...dev, ATTESTOR_SIGNER: "local:/tmp/k.json" })).toThrow(/不可用 local/);
+    expect(() => loadConfig({ ...dev, ATTESTOR_SIGNER: "http:https://signer.internal" })).toThrow(/SIGNER_TOKEN/);
+    expect(() => loadConfig({ ...dev, ATTESTOR_SIGNER: "http:https://signer.internal", SIGNER_TOKEN: "t" })).not.toThrow();
   });
   it("PROGRAM_ID 必須是 base58", () => {
     expect(() => loadConfig({ PROGRAM_ID: "not-base58!" })).toThrow(/base58/);

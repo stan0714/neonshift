@@ -26,7 +26,7 @@ export type Session = {
 
 export type Player = { wallet: string; firstSeenAt: Date; lastSeenAt: Date; deletedAt: Date | null };
 
-export interface Store {
+export interface Store extends ClaimStore {
   insertChallenge(c: Challenge): Promise<void>;
   /** 原子消耗：只有未使用且未過期才會成功，回傳被消耗的 challenge */
   consumeChallenge(nonceHash: Buffer, now: Date): Promise<Challenge | null>;
@@ -41,4 +41,67 @@ export interface Store {
   rotateSession(jti: string, rotatedTo: string, now: Date): Promise<void>;
   revokeFamily(familyId: string, now: Date): Promise<number>;
   revokeWallet(wallet: string, now: Date): Promise<number>;
+}
+
+// ---------------- PG-B-11：規則集、健康摘要、判定、attestation、idempotency ----------------
+
+export type RuleSetRow = { rulesVersion: number; rulesHash: Buffer; config: unknown };
+
+export type HealthSnapshotInput = {
+  wallet: string;
+  taskDate: number;
+  taskType: number;
+  attributedSteps: number | null;
+  sleepMinutes: number | null;
+  sourceSummary: unknown;
+  stepRateSummary: unknown;
+  sleepOverlapMinutes: number | null;
+  sensorSummary: unknown;
+  motionSummary: unknown;
+  clientInfo: unknown;
+  inputHash: Buffer;
+};
+
+export type RiskDecisionInput = {
+  snapshotId: number;
+  rulesVersion: number;
+  riskScore: number;
+  matchedRules: string[];
+  decision: "pass" | "reject";
+  rejectCode: string | null;
+};
+
+export type AttestationRow = {
+  nonce: Buffer;
+  idempotencyKey: string;
+  requestHash: Buffer;
+  wallet: string;
+  taskDate: number;
+  taskType: number;
+  rulesVersion: number;
+  evidenceHash: Buffer;
+  issuedAt: Date;
+  expiresAt: Date;
+};
+
+export type ClaimResult = {
+  wallet: string;
+  idempotencyKey: string;
+  requestHash: Buffer;
+  status: "processing" | "succeeded" | "rejected";
+  httpStatus: number | null;
+  response: unknown;
+  createdAt: Date;
+};
+
+export interface ClaimStore {
+  ensureRuleSet(row: RuleSetRow): Promise<void>;
+  insertHealthSnapshot(s: HealthSnapshotInput): Promise<number>;
+  insertRiskDecision(d: RiskDecisionInput): Promise<void>;
+  insertAttestation(a: AttestationRow): Promise<void>;
+  /** 原子取得處理權：不存在時建立 processing 並回 { acquired: true }；已存在回既有紀錄 */
+  beginClaim(wallet: string, idempotencyKey: string, requestHash: Buffer, now: Date): Promise<{ acquired: boolean; existing: ClaimResult | null }>;
+  completeClaim(wallet: string, idempotencyKey: string, status: "succeeded" | "rejected", httpStatus: number, response: unknown, now: Date): Promise<void>;
+  /** processing 卡住（例如 signer 成功後 process crash）時釋放，讓同 key 可重新處理 */
+  releaseClaim(wallet: string, idempotencyKey: string): Promise<void>;
 }
