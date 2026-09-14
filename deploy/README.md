@@ -5,8 +5,9 @@
 
 | 檔案 | 用途 |
 |---|---|
-| `dev.env` | 整合環境：devnet、dev program id、`api-dev.neonshift.cc` |
-| `demo.env` | 錄影與評審：devnet、demo program id、`api.neonshift.cc`；資料保留 |
+| `dev.env` | 整合環境：devnet、dev program id、`api.neonshift.cc`（l1 主機，見下） |
+| `demo.env` | 錄影與評審：devnet、demo program id、`api.neonshift.cc`；資料保留（目前與 dev 共用同一台主機，正式 demo 時再分離） |
+| `l1/` | 後端主機 `root@l1.neonshift.cc` 的 systemd／env／nginx／bootstrap／deploy 腳本 |
 | `local.env` | 本機：localnet／LiteSVM，後端 docker compose |
 
 ## 流程（依 SD 8 部署順序）
@@ -28,3 +29,25 @@ App 與後端的 build-time 參數即由同一份檔案產生（`scripts/app/bui
 - 同一環境不得混搭：App 的 `EXPO_PUBLIC_PROGRAM_ID`／`EXPO_PUBLIC_API_URL`／`EXPO_PUBLIC_CLUSTER_ID` 與後端 `PROGRAM_ID` 必須來自同一份 `<env>.env`。
 - attestor 私鑰只給後端 signer 使用；`keys.sh` 產生的 `attestor.json` 需在部署後移入 KMS／受管 secret（PG-B-10），本機檔案僅供 dev。
 - 撤銷 mint authority 不可逆；`token.sh <env> fund` 會先要求確認。
+
+## 後端主機（l1.neonshift.cc）與網站
+
+拓撲（2026-09-14）：
+
+| 元件 | 位置 | 說明 |
+|---|---|---|
+| API | `l1.neonshift.cc:6080`（`neonshift-api.service`） | `/healthz` liveness、`/readyz` DB；`APP_ENV=dev` |
+| attestor signer | 同機 `127.0.0.1:6081`（`neonshift-signer.service`） | 獨立系統帳號持有 `/etc/neonshift/keys/attestor.json`；API 以 `ATTESTOR_SIGNER=http:` 呼叫 |
+| PostgreSQL | 同機 `127.0.0.1:5432` | migration 由 `deploy.sh` 以 `schema_migrations` 記錄一次性套用 |
+| nginx | **另一台主機** | `https://api.neonshift.cc` → `l1:6080`；範本 `l1/nginx-api.neonshift.cc.conf` |
+| 靜態站 | Cloudflare Pages | `https://neonshift.cc` ← `web/`（NFT metadata、隱私政策、`assetlinks.json`、`/e/*` 落地頁） |
+
+```bash
+deploy/l1/deploy.sh bootstrap   # 第一次：安裝 Node 24／PostgreSQL、建帳號、產生 /etc/neonshift/{api,signer}.env（隨機 secret）
+deploy/l1/deploy.sh             # 之後每次：rsync → npm ci → migration → 重啟 → healthz
+ssh root@l1.neonshift.cc 'journalctl -u neonshift-api -f'
+```
+
+Cloudflare Pages：建立專案連到本 repo，**Build output directory = `web`**、不需 build 指令；自訂網域 `neonshift.cc`。`web/_headers` 設定 `assetlinks.json`／NFT 的 Content-Type 與 CORS，`web/_redirects` 讓 `/e/<slug>` 落到導引頁。
+
+秘密只在主機 `/etc/neonshift/`（root 可讀、各服務帳號唯讀），不進 repo；`OPS_TOKEN`／`METRICS_TOKEN` 需要時 `ssh root@l1.neonshift.cc 'grep -E "OPS|METRICS" /etc/neonshift/api.env'`。

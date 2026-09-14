@@ -130,7 +130,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-I-04 | CI：lint、單元測試、debug APK 產出 | SD 7 | — | 1.0 | WIP | .github/workflows/ci.yml：Rust／backend＋schema／app typecheck+jest／debug APK artifact；尚未在 GitHub 跑過 |
 | PG-I-05 | 後端骨架與 PostgreSQL docker compose | SD 2.2 | — | 0.5 | WIP | package.json、docker-compose、vitest 已建；未合併 dev |
 | PG-I-06 | Anchor 專案骨架與 localnet 測試環境 | SD 3 | — | 0.5 | WIP | programs/ Anchor 1.2 workspace＋neonshift-core 骨架＋LiteSVM 測試；anchor build 待驗證 |
-| PG-I-07 | dev／demo 分離部署腳本與 build-time 環境參數管理 | SD 8 | BR-14 | 1.5 | WIP | deploy/{dev,demo,local}.env、scripts/chain/{keys,build,deploy,token}.sh、tools/chain-admin（init-config／status／set-paused／rotate-attestor）；尚未實際部署 devnet；App／後端 build-time 參數接線待做；2026-09-14 chain-admin 新增 `tournament` 子指令（create／open／lock／start／forfeit／begin／submit／settle／cancel／show，manifest 驅動，Runbook 7.6） |
+| PG-I-07 | dev／demo 分離部署腳本與 build-time 環境參數管理 | SD 8 | BR-14 | 1.5 | WIP | deploy/{dev,demo,local}.env、scripts/chain/{keys,build,deploy,token}.sh、tools/chain-admin（init-config／status／set-paused／rotate-attestor）；尚未實際部署 devnet；App／後端 build-time 參數接線待做；2026-09-14 chain-admin 新增 `tournament` 子指令（create／open／lock／start／forfeit／begin／submit／settle／cancel／show，manifest 驅動，Runbook 7.6）；2026-09-14 後端已部署至 `root@l1.neonshift.cc`（port 6080、`/healthz`、隔離 signer 127.0.0.1:6081、PostgreSQL 17、systemd；`deploy/l1/`）。待：另一台 nginx 設定 `api.neonshift.cc`（範本已給）、Cloudflare Pages 指向 `web/` |
 | PG-I-08 | 經典 SPL Token tSKR（6 decimals）建立、固定供給、撤銷 authority | Runbook 7.4, SD 1.2 | BR-22 | 1.0 | WIP | token.sh：mint 6 decimals、reward vault owner=Config PDA、固定供給 1,000,000／預撥 200,000、撤銷 mint authority；尚未在 devnet 執行 |
 
 ---

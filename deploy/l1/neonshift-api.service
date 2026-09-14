@@ -1,0 +1,26 @@
+# /etc/systemd/system/neonshift-api.service — NeonShift 後端 API（監聽 0.0.0.0:6080，供另一台 nginx 反代 https://api.neonshift.cc）
+[Unit]
+Description=NeonShift API
+After=network-online.target postgresql.service neonshift-signer.service
+Wants=network-online.target
+Requires=neonshift-signer.service
+
+[Service]
+Type=simple
+User=neonshift
+Group=neonshift
+WorkingDirectory=/opt/neonshift/backend
+EnvironmentFile=/etc/neonshift/api.env
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=3
+# 私鑰不在本 process；限制檔案系統與權限
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/neonshift/backend
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

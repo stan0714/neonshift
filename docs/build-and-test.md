@@ -509,7 +509,7 @@ npm run admin -- tournament lock dev 202638
 npm run admin -- tournament start dev 202638
 # ends_at 後：沒收（evidence 32 bytes hex，由後端風險判定產出）→ 取 manifest → 承諾 → 分批提交 → 結算
 npm run admin -- tournament forfeit dev 202638 <wallet> <evidenceHashHex>
-curl -H "Authorization: Bearer $OPS_TOKEN" https://api-dev.neonshift.cc/v1/tournament/202638/manifest > /tmp/m.json
+curl -H "Authorization: Bearer $OPS_TOKEN" https://api.neonshift.cc/v1/tournament/202638/manifest > /tmp/m.json
 npm run admin -- tournament begin dev 202638 --manifest /tmp/m.json
 npm run admin -- tournament submit dev 202638 --manifest /tmp/m.json --batch 8   # 可中斷續傳（依鏈上 results_submitted）
 npm run admin -- tournament settle dev 202638
@@ -521,6 +521,19 @@ npm run admin -- tournament cancel dev 202638
 manifest 的 `consistent=false`（後端名單人數 ≠ 鏈上 `valid − forfeited`）代表有沒收尚未上鏈或反之，CLI 會拒絕 begin／submit。
 
 ---
+
+### 7.7 後端部署到 l1（api.neonshift.cc）
+
+後端跑在 `root@l1.neonshift.cc`，**port 6080**，健康檢查 `GET /healthz`；`https://api.neonshift.cc` 由另一台主機的 nginx 反代（範本 `deploy/l1/nginx-api.neonshift.cc.conf`）；靜態站 `web/` 部署在 Cloudflare Pages（`https://neonshift.cc`）。
+
+```bash
+deploy/l1/deploy.sh bootstrap        # 第一次（安裝 Node 24／PostgreSQL、系統帳號、/etc/neonshift/*.env 隨機 secret、systemd）
+deploy/l1/deploy.sh                  # 每次更新：rsync backend → npm ci → migration（schema_migrations 一次性）→ 重啟 signer／api → healthz
+curl -s https://api.neonshift.cc/healthz          # {"status":"ok","env":"dev","cluster_id":1}
+ssh root@l1.neonshift.cc 'journalctl -u neonshift-api -n 100 --no-pager'
+```
+
+attestor 私鑰只在 `neonshift-signer.service`（`127.0.0.1:6081`、獨立帳號）；API 透過 `ATTESTOR_SIGNER=http:http://127.0.0.1:6081` 簽章。鏈上 `Config.attestor_pubkey` 需與 `/etc/neonshift/keys/attestor.json` 一致（`init-config` 用同一把 `~/.config/neonshift/dev/attestor.json`）。
 
 ## 8. 測試包（Release APK）產出
 

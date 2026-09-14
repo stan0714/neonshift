@@ -16,6 +16,7 @@
     "vectors:check": "node --test-force-exit scripts/check-vectors-fresh.mjs",
     "dev": "tsx watch src/server.ts",
     "start": "node --import tsx src/server.ts",
+    "signer": "node --import tsx src/signer/main.ts",
     "retention:once": "node --import tsx src/retention/once.ts"
   },
   "devDependencies": {
