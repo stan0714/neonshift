@@ -21,6 +21,12 @@ jest.mock('./modules/neonshift-health/src/NeonshiftHealthModule', () => ({
     openSettings: jest.fn(),
     readSteps: jest.fn(),
     readSleepSessions: jest.fn(),
+    scheduleBackgroundSync: jest.fn(async () => ({ scheduled: true, intervalMinutes: 15 })),
+    cancelBackgroundSync: jest.fn(),
+    runBackgroundSyncNow: jest.fn(),
+    getCachedSummary: jest.fn(async () => null),
+    setCachedSummary: jest.fn(),
+    clearCache: jest.fn(),
   },
 }));
 

@@ -50,3 +50,12 @@ export type SleepSession = {
 };
 
 export type SleepResult = { sessions: SleepSession[] };
+
+/** 背景／前景同步共用的快取（SD 5.3：只存 UI 需要的最近摘要與時間） */
+export type CachedHealthSummary = {
+  taskDate: number;
+  steps: StepsResult;
+  sleep: SleepResult;
+  syncedAt: number;
+  source: 'background' | 'foreground';
+};

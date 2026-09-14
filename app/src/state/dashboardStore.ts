@@ -16,7 +16,7 @@ import { associatedTokenAddress } from '@/chain/txBuilder';
 
 import type { SleepResult, StepsResult } from '../../modules/neonshift-health';
 
-export type HealthSnapshot = { taskDate: number; steps: StepsResult | null; sleep: SleepResult | null; syncedAt: number; error: string | null };
+export type HealthSnapshot = { taskDate: number; steps: StepsResult | null; sleep: SleepResult | null; syncedAt: number; error: string | null; source: 'foreground' | 'background' | 'cache' };
 
 type State = {
   taskDate: number;
@@ -30,6 +30,8 @@ type State = {
   chainError: string | null;
   tasks: Record<TaskType, TaskStatus>;
   syncHealth: () => Promise<void>;
+  /** 啟動／離線時先顯示最近快取（前景或背景寫入），再前景同步 */
+  loadCachedHealth: () => Promise<boolean>;
   syncChain: (wallet: PublicKey) => Promise<void>;
   dispatch: (type: TaskType, ev: Parameters<typeof reduce>[1]) => void;
   /** UTC 換日：重置任務狀態並重新同步 */
@@ -49,17 +51,31 @@ export const useDashboardStore = create<State>((set, get) => ({
   chainError: null,
   tasks: { steps: 'not_met', sleep: 'not_met' },
 
+  async loadCachedHealth() {
+    const cached = await healthConnect.readCachedSummary();
+    if (!cached || cached.taskDate !== get().taskDate) return false;
+    // 只在沒有更新的前景資料時採用快取
+    const cur = get().health;
+    if (cur && cur.syncedAt >= cached.syncedAt) return false;
+    set({ health: { taskDate: cached.taskDate, steps: cached.steps, sleep: cached.sleep, syncedAt: cached.syncedAt, error: null, source: 'cache' } });
+    get().dispatch('steps', { kind: 'data', value: cached.steps.total });
+    get().dispatch('sleep', { kind: 'data', value: sleepMinutesOf(cached.sleep) });
+    return true;
+  },
+
   async syncHealth() {
     const { taskDate } = get();
     set({ healthSyncing: true });
     try {
       const [steps, sleep] = await Promise.all([healthConnect.readStepsForTaskDate(taskDate), healthConnect.readSleepForTaskDate(taskDate)]);
-      set({ health: { taskDate, steps, sleep, syncedAt: Date.now(), error: null } });
+      const syncedAt = Date.now();
+      set({ health: { taskDate, steps, sleep, syncedAt, error: null, source: 'foreground' } });
       get().dispatch('steps', { kind: 'data', value: steps.total });
       get().dispatch('sleep', { kind: 'data', value: sleepMinutesOf(sleep) });
+      void healthConnect.cacheSummary({ taskDate, steps, sleep, syncedAt, source: 'foreground' });
     } catch (e) {
       const prev = get().health;
-      set({ health: { taskDate, steps: prev?.steps ?? null, sleep: prev?.sleep ?? null, syncedAt: prev?.syncedAt ?? 0, error: e instanceof Error ? e.message : String(e) } });
+      set({ health: { taskDate, steps: prev?.steps ?? null, sleep: prev?.sleep ?? null, syncedAt: prev?.syncedAt ?? 0, error: e instanceof Error ? e.message : String(e), source: prev?.source ?? 'cache' } });
     } finally {
       set({ healthSyncing: false });
     }
@@ -107,7 +123,11 @@ export const stepsProgress = (h: HealthSnapshot | null) => progress('steps', h?.
 export const sleepProgress = (h: HealthSnapshot | null) => progress('sleep', sleepMinutesOf(h?.sleep ?? null));
 
 /** 6 decimals → 顯示字串（7.5：`150 tSKR`） */
-export const formatTskr = (units: bigint | null) => (units === null ? '—' : `${Number(units) / 1_000_000}`.replace(/\.?0+$/, ''));
+export const formatTskr = (units: bigint | null) => {
+  if (units === null) return '—';
+  const s = (Number(units) / 1_000_000).toFixed(6);
+  return s.includes('.') ? s.replace(/\.?0+$/, '') : s;
+};
 
 /** 依 Config 與 profile 估算本次任務獎勵（顯示用；鏈上才是權威） */
 export function estimateReward(cfg: ChainConfig | null, profile: PlayerProfile | null, type: TaskType): bigint | null {

@@ -31,7 +31,9 @@ export const defaultBootstrapTasks: readonly BootstrapTask[] = [
         const status = await healthConnect.getStatus();
         if (status.availability !== 'available') return { status: 'failed', detail: `Health Connect ${status.availability}` };
         const perms = await healthConnect.getPermissions();
-        return { status: 'done', detail: `permissions ${perms.state}` };
+        // FR-02.3：裝置支援且已授權背景讀取時排程 WorkManager；否則只靠前景同步
+        if (perms.state === 'granted' && perms.backgroundGranted) void healthConnect.enableBackgroundSync(15);
+        return { status: 'done', detail: `permissions ${perms.state}${perms.backgroundGranted ? ' + background' : ''}` };
       } catch (e) {
         return { status: 'failed', detail: e instanceof Error ? e.message : String(e) };
       }

@@ -1,0 +1,72 @@
+import { NavigationContainer } from '@react-navigation/native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import type { PropsWithChildren } from 'react';
+import { Alert } from 'react-native';
+
+import { ProfileScreen } from '@/screens/tabs/ProfileScreen';
+import { apiClient } from '@/services/api/ApiClient';
+import { useWalletStore } from '@/state/walletStore';
+import { ThemeProvider } from '@/theme';
+
+const mockReset = jest.fn();
+jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => ({ navigate: jest.fn(), reset: mockReset, goBack: jest.fn() }) }));
+jest.mock('@/services/api/ApiClient', () => ({
+  ...jest.requireActual('@/services/api/ApiClient'),
+  apiClient: { hasSession: jest.fn(async () => true), signOut: jest.fn(async () => {}), deleteData: jest.fn(async () => ({ status: 204, body: null })) },
+}));
+jest.mock('@/services/health/HealthConnectService', () => ({
+  healthConnect: { getPermissions: jest.fn(async () => ({ state: 'granted', granted: [], missing: [], backgroundGranted: true })), openSettings: jest.fn(), clearCache: jest.fn(async () => {}), disableBackgroundSync: jest.fn(async () => {}) },
+}));
+jest.mock('@/services/permissions/ActivityRecognition', () => ({ activityRecognition: { check: jest.fn(async () => true) } }));
+
+const Wrapper = ({ children }: PropsWithChildren) => (
+  <ThemeProvider>
+    <NavigationContainer>{children}</NavigationContainer>
+  </ThemeProvider>
+);
+
+beforeEach(() => {
+  useWalletStore.setState({ status: 'connected', session: { address: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU', publicKey: {} as never, walletUriBase: '', label: 'Phantom' }, error: null, disconnect: jest.fn(async () => useWalletStore.setState({ session: null, status: 'disconnected' })) } as never);
+  jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => {
+    const confirm = buttons?.find((b) => b.style === 'destructive');
+    confirm?.onPress?.();
+  });
+});
+
+describe('PG-A-21 Profile', () => {
+  test('顯示錢包、權限狀態、隱私說明與 tSKR 免責', async () => {
+    await render(<ProfileScreen />, { wrapper: Wrapper });
+    expect(screen.getByText('7xKXtg…osgAsU')).toBeTruthy();
+    await waitFor(() => expect(screen.getByText(/Steps & Sleep · background/)).toBeTruthy());
+    expect(screen.getByText('Allowed')).toBeTruthy();
+    expect(screen.getByText(/at most 30 days/)).toBeTruthy();
+    expect(screen.getByText(/not the official SKR/)).toBeTruthy();
+    expect(screen.getByText(/neonshift\.cc\/privacy/)).toBeTruthy();
+  });
+
+  test('刪除資料：確認後呼叫 API、清快取、停背景同步、顯示完成（204）', async () => {
+    await render(<ProfileScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByText('Signed in')).toBeTruthy());
+    fireEvent.press(screen.getByText('Delete my backend data'));
+    await waitFor(() => expect(screen.getByTestId('deletion-done')).toBeTruthy());
+    expect(apiClient.deleteData).toHaveBeenCalled();
+    const { healthConnect } = jest.requireMock('@/services/health/HealthConnectService');
+    expect(healthConnect.clearCache).toHaveBeenCalled();
+    expect(healthConnect.disableBackgroundSync).toHaveBeenCalled();
+  });
+
+  test('刪除延後（202）顯示 deletion_due_at', async () => {
+    (apiClient.deleteData as jest.Mock).mockResolvedValueOnce({ status: 202, body: { deletion_due_at: '2026-10-14T00:00:00Z' } });
+    await render(<ProfileScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByText('Signed in')).toBeTruthy());
+    fireEvent.press(screen.getByText('Delete my backend data'));
+    await waitFor(() => expect(screen.getByTestId('deletion-scheduled')).toBeTruthy());
+  });
+
+  test('斷開錢包：登出後端、撤銷授權、回 Landing（FR-01.4）', async () => {
+    await render(<ProfileScreen />, { wrapper: Wrapper });
+    fireEvent.press(screen.getByText('Disconnect wallet'));
+    await waitFor(() => expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'Landing' }] }));
+    expect(apiClient.signOut).toHaveBeenCalled();
+  });
+});

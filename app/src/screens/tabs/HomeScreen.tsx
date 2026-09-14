@@ -31,6 +31,7 @@ export function HomeScreen() {
 
   const refresh = useCallback(async () => {
     d.rollDay(Math.floor(Date.now() / 1000));
+    if (!d.health) await d.loadCachedHealth();
     await Promise.all([d.syncHealth(), session ? d.syncChain(session.publicKey) : Promise.resolve()]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
@@ -45,6 +46,7 @@ export function HomeScreen() {
   const sleep = sleepProgress(d.health);
   const syncedAgoMin = d.health?.syncedAt ? Math.round((Date.now() - d.health.syncedAt) / 60_000) : null;
   const outdated = d.health?.syncedAt ? Date.now() - d.health.syncedAt > OUTDATED_MS : false;
+  const stepsStatus = syncedAgoMin === null ? 'Not synced' : outdated ? 'Data may be outdated' : d.health?.error ? 'Offline · showing cached data' : `Updated ${syncedAgoMin} min ago`;
   const untilMidnight = secondsUntilUtcMidnight(now);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
@@ -110,7 +112,7 @@ export function HomeScreen() {
         Today
       </Text>
       <View style={styles.cards}>
-        <DataCard icon="activity" label="Steps" value={steps.value.toLocaleString()} unit="steps" goalLabel={`Goal ${steps.goal.toLocaleString()}`} ratio={steps.ratio} tint={color.mint} statusText={syncedAgoMin === null ? 'Not synced' : outdated ? 'Data may be outdated' : `Updated ${syncedAgoMin} min ago`} outdated={outdated} testID="card-steps" />
+        <DataCard icon="activity" label="Steps" value={steps.value.toLocaleString()} unit="steps" goalLabel={`Goal ${steps.goal.toLocaleString()}`} ratio={steps.ratio} tint={color.mint} statusText={stepsStatus} outdated={outdated || Boolean(d.health?.error)} testID="card-steps" />
         <View style={styles.gap} />
         <DataCard icon="moon" label="Sleep" value={`${Math.floor(sleep.value / 60)}h ${sleep.value % 60}m`} unit="" goalLabel="Goal 7h" ratio={sleep.ratio} tint={color.violet} statusText={d.health?.sleep && d.health.sleep.sessions.length === 0 ? 'No sleep session found' : ''} testID="card-sleep" />
       </View>

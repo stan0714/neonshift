@@ -202,9 +202,9 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-A-16 | 錯誤、離線與空狀態 | Style 14 | NFR 可用性 | 1.0 | TODO | |
 | PG-A-17 | 跑鞋視覺五階與進化動畫 | Style 16.2 | FR-04.4 | 1.0 | TODO | |
 | PG-A-18 | App 測試：單元、原生、E2E | SD 7 | — | 1.5 | TODO | |
-| PG-A-19 | Health Connect 背景同步（WorkManager）與前景補同步 | SD 5.1 | FR-02.3 | 1.0 | TODO | |
+| PG-A-19 | Health Connect 背景同步（WorkManager）與前景補同步 | SD 5.1 | FR-02.3 | 1.0 | WIP | Kotlin HealthReader 共用＋HealthSyncWorker（WorkManager 15 分鐘、電量限制、背景權限缺失靜默結束）＋HealthCache；JS enable／disable／cache／readCached；啟動有背景權限即排程；Dashboard 先讀快取再前景同步、離線標示；4 測試；實機背景觸發待驗證 |
 | PG-A-20 | Activity history 畫面與歷史 API 串接 | Style 2, 19.1 | FR-03.5 | 0.5 | TODO | |
-| PG-A-21 | Profile：權限、隱私、刪除資料與斷開錢包 | Style 2, 19.1; SD 5.3 | FR-01.4, BR-25 | 1.0 | TODO | |
+| PG-A-21 | Profile：權限、隱私、刪除資料與斷開錢包 | Style 2, 19.1; SD 5.3 | FR-01.4, BR-25 | 1.0 | WIP | Profile：錢包／後端 session、權限狀態與設定入口、隱私說明＋政策連結、刪除資料（204／202 deletion_due_at、清快取停背景）、斷開錢包（登出後端＋撤銷授權→Landing）、About；4 測試 |
 | PG-A-22 | 在目前 MWA／Seeker 錢包驗證並顯示成就 NFT | Style 7.4 | FR-04.5 | 0.5 | TODO | 隨成就 NFT 恢復（FR-04.5 S） |
 
 ---

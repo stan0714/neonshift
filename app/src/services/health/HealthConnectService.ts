@@ -2,7 +2,7 @@
  * HealthConnectModule 的 JS 門面（PG-A-04）。
  * 只做：UTC 任務日區間換算、權限狀態整理、錯誤分類。達標判定在 TaskEngine（PG-A-08）。
  */
-import { NeonshiftHealth, type HealthStatus, type SleepResult, type StepsResult } from '../../../modules/neonshift-health';
+import { NeonshiftHealth, type CachedHealthSummary, type HealthStatus, type SleepResult, type StepsResult } from '../../../modules/neonshift-health';
 
 export const SECONDS_PER_DAY = 86_400;
 
@@ -86,6 +86,36 @@ export const healthConnect = {
       throw mapNativeError(e);
     }
   },
+
+  // ---- PG-A-19：背景同步（FR-02.3，S 級）與快取 ----
+
+  /** 15 分鐘（WorkManager 下限）；需 READ_HEALTH_DATA_IN_BACKGROUND，未授權時工作會靜默結束 */
+  async enableBackgroundSync(intervalMinutes = 15): Promise<boolean> {
+    try {
+      const r = await NeonshiftHealth.scheduleBackgroundSync(intervalMinutes);
+      return r.scheduled;
+    } catch {
+      return false;
+    }
+  },
+  disableBackgroundSync: (): Promise<void> => NeonshiftHealth.cancelBackgroundSync(),
+
+  /** 前景同步結果寫入共用快取（供離線／下次啟動先顯示） */
+  async cacheSummary(summary: CachedHealthSummary): Promise<void> {
+    try {
+      await NeonshiftHealth.setCachedSummary(JSON.stringify(summary));
+    } catch {
+      // 快取失敗不影響主流程
+    }
+  },
+  async readCachedSummary(): Promise<CachedHealthSummary | null> {
+    try {
+      return await NeonshiftHealth.getCachedSummary();
+    } catch {
+      return null;
+    }
+  },
+  clearCache: (): Promise<void> => NeonshiftHealth.clearCache(),
 
   /** 結束時間落在任務日內的睡眠 session（BR-05） */
   async readSleepForTaskDate(taskDate: number): Promise<SleepResult> {

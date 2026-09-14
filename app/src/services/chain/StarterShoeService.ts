@@ -68,4 +68,4 @@ export const starterShoeService = {
   },
 };
 
-export const lamportsToSol = (l: number) => (l / 1_000_000_000).toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+export const lamportsToSol = (l: number) => (l / 1_000_000_000).toFixed(6).replace(/\.?0+$/, '');
