@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'xyz.neonshift.app'
+    namespace 'cc.neonshift.app'
     defaultConfig {
-        applicationId 'xyz.neonshift.app'
+        applicationId 'cc.neonshift.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

@@ -1,4 +1,4 @@
-package xyz.neonshift.app
+package cc.neonshift.app
 
 import android.app.Application
 import android.content.res.Configuration

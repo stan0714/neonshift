@@ -770,6 +770,18 @@ total_staked + treasury_injection
 
 `demo` 與 `dev` 使用**不同的 program id、attestor 金鑰、資料庫與 App build configuration**，避免測試資料污染評審環境，同時驗證 BR-14 的跨環境隔離。API base URL、program id 與 cluster id 必須在 build-time 成組選擇，禁止各自以可被使用者修改的 production runtime flag 混搭；attestor key 則以鏈上 Config 為權威並支援輪替，後端啟動時必須比對自身 public key 與 Config。
 
+**網域與識別（2026-09-14 定案）**：正式網域 `neonshift.cc`。
+
+| 項目 | 值 | 說明 |
+|---|---|---|
+| Android applicationId | `cc.neonshift.app` | 反向網域；dApp Store 送審後不可更改 |
+| API base URL（dev） | `https://api-dev.neonshift.cc/v1` | build-time 寫入 dev build |
+| API base URL（demo） | `https://api.neonshift.cc/v1` | build-time 寫入 demo build |
+| SIWS `domain`／JWT `iss` | `neonshift.cc` | 4.2 登入訊息綁定；後端拒絕其他 domain |
+| App Links | `https://neonshift.cc/e/<slug>` | 11.4 NFC／App Links；`assetlinks.json` 需列 release 簽章指紋 |
+| 隱私政策 | `https://neonshift.cc/privacy` | dApp Store 提交必填（BRD 14） |
+| 深層連結 scheme | `neonshift://` | 保留給 MWA 回呼與 dev client |
+
 部署順序：部署程式 → `initialize_config` → 鑄造 tSKR 固定供給 → 撤銷 mint authority → 撥款至獎勵金庫 → 設定 attestor 公鑰 → 後端上線 → 發佈 APK。
 
 **回滾**。Config 具 `paused` 旗標可即時停止發放，不需重新部署。程式 upgrade authority 在未完成獨立安全審查前不建議撤銷；MVP 以團隊多簽持有、記錄部署 buffer／program data 位址與可重現 build hash。若日後撤銷，必須先確認程式無法再修補且由負責人接受不可逆風險。

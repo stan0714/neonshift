@@ -1,4 +1,4 @@
-package xyz.neonshift.app
+package cc.neonshift.app
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

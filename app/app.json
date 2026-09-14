@@ -3,7 +3,7 @@
     "orientation": "portrait",
     "version": "0.1.0",
     "android": {
-      "package": "xyz.neonshift.app",
+      "package": "cc.neonshift.app",
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#050711",
@@ -28,7 +28,6 @@
     "plugins": [
       "expo-dev-client",
       "expo-secure-store",
-      "react-native-health-connect",
       [
         "expo-build-properties",
         {

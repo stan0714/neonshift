@@ -1,0 +1,50 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:1:1-20:12
+INJECTED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:1:1-20:12
+	package
+		INJECTED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml
+	xmlns:android
+		ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:1:11-69
+uses-permission#android.permission.health.READ_STEPS
+ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:3:5-76
+	android:name
+		ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:3:22-73
+uses-permission#android.permission.health.READ_SLEEP
+ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:4:5-76
+	android:name
+		ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:4:22-73
+uses-permission#android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND
+ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:5:5-96
+	android:name
+		ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:5:22-93
+application
+ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:7:5-19:19
+activity-alias#expo.modules.neonshifthealth.ViewPermissionUsageActivity
+ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:9:9-18:26
+	android:exported
+		ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:11:13-36
+	android:targetActivity
+		ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:12:13-67
+	android:permission
+		ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:13:13-80
+	android:name
+		ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:10:13-55
+intent-filter#action:name:android.intent.action.VIEW_PERMISSION_USAGE+category:name:android.intent.category.HEALTH_PERMISSIONS
+ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:14:13-17:29
+action#android.intent.action.VIEW_PERMISSION_USAGE
+ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:15:17-86
+	android:name
+		ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:15:25-83
+category#android.intent.category.HEALTH_PERMISSIONS
+ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:16:17-87
+	android:name
+		ADDED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml:16:27-84
+uses-sdk
+INJECTED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml
+INJECTED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /Users/liushih-hao/Documents/learn/project/neonshift/app/modules/neonshift-health/android/src/main/AndroidManifest.xml

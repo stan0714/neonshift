@@ -183,7 +183,7 @@ npm install lottie-react-native
     "backgroundColor": "#050711",
     "platforms": ["android"],
     "android": {
-      "package": "xyz.neonshift.app",
+      "package": "cc.neonshift.app",   // 反向網域 neonshift.cc（SD 8）
       "versionCode": 1,
       "permissions": [
         "android.permission.ACTIVITY_RECOGNITION",
@@ -385,11 +385,11 @@ npx expo run:android --device
 
 ```bash
 # 查看目前已授予的權限
-adb shell dumpsys package xyz.neonshift.app | grep -A 40 "runtime permissions"
+adb shell dumpsys package cc.neonshift.app | grep -A 40 "runtime permissions"
 
 # 開啟本 App 的 Health Connect 權限頁
 adb shell am start -a android.health.connect.action.MANAGE_HEALTH_PERMISSIONS \
-  --es android.intent.extra.PACKAGE_NAME xyz.neonshift.app
+  --es android.intent.extra.PACKAGE_NAME cc.neonshift.app
 ```
 
 ### 6.2 重測 onboarding 流程
@@ -397,18 +397,22 @@ adb shell am start -a android.health.connect.action.MANAGE_HEALTH_PERMISSIONS \
 驗收 FR-02.5 的權限拒絕引導時，把權限撤掉重來：
 
 ```bash
-adb shell pm revoke xyz.neonshift.app android.permission.health.READ_STEPS
-adb shell pm revoke xyz.neonshift.app android.permission.health.READ_SLEEP
-adb shell pm revoke xyz.neonshift.app android.permission.ACTIVITY_RECOGNITION
-adb shell pm revoke xyz.neonshift.app android.permission.ACCESS_COARSE_LOCATION
+adb shell pm revoke cc.neonshift.app android.permission.health.READ_STEPS
+adb shell pm revoke cc.neonshift.app android.permission.health.READ_SLEEP
+adb shell pm revoke cc.neonshift.app android.permission.ACTIVITY_RECOGNITION
+adb shell pm revoke cc.neonshift.app android.permission.ACCESS_COARSE_LOCATION
 
 # 或完整重置 App 狀態（含 SecureStore 與快取）
-adb shell pm clear xyz.neonshift.app
+adb shell pm clear cc.neonshift.app
 ```
 
 ### 6.3 產生測試用步數資料
 
 真實步數要靠走路，但驗證讀取邏輯時可以用其他健身 App 寫入 Health Connect，再確認本 App 的來源歸因（BR-07、BR-08）能正確排除非裝置來源。
+
+**開發診斷頁**：debug build 內建 `Health Connect (dev)` 畫面（`src/screens/dev/HealthDiagnosticsScreen.tsx`，只在 `__DEV__` 註冊），可逐項呼叫 getStatus／權限／readSteps／readSleep 並顯示原始回傳。開啟方式：`EXPO_PUBLIC_DEV_ROUTE=DevHealth npx expo start --dev-client`，冷啟動後會直接疊在 Landing 之上。
+
+**2026-09-14 Seeker 實測**：`availability=available`、API 36、SDK extension 22；framework 尚無 `getCurrentDeviceDataSource`（`spnQuerySupported=false`），因此只接受歷史 `android` 來源；權限對話框正確顯示 App 名稱與隱私政策連結；當日無任何 StepsRecord／SleepSessionRecord（`dataOrigins: []`），需實際走動或以其他 App 寫入後再驗證四種來源分類。
 
 **注意**：以第三方 App 寫入的資料**應該**被本 App 拒絕。若沒有被拒絕，代表 FR-07.1 有問題，這正是要測的重點。
 
@@ -615,7 +619,7 @@ adb install -r app-release.apk        # -r 覆蓋安裝
 debug 版與 release 版簽章不同，切換時要先移除：
 
 ```bash
-adb uninstall xyz.neonshift.app
+adb uninstall cc.neonshift.app
 adb install app-release.apk
 ```
 
@@ -648,13 +652,13 @@ Android 自 2026-09-30 起在巴西、印尼、新加坡、泰國要求已驗證
 
 ```bash
 # 只看本 App
-adb logcat --pid=$(adb shell pidof -s xyz.neonshift.app)
+adb logcat --pid=$(adb shell pidof -s cc.neonshift.app)
 
 # 只看 React Native 與錯誤
 adb logcat *:S ReactNative:V ReactNativeJS:V AndroidRuntime:E
 
 # 清空後重新觀察
-adb logcat -c && adb logcat --pid=$(adb shell pidof -s xyz.neonshift.app)
+adb logcat -c && adb logcat --pid=$(adb shell pidof -s cc.neonshift.app)
 
 # 存檔給隊友看
 adb logcat -d > /tmp/neonshift-$(date +%H%M%S).log
@@ -664,17 +668,17 @@ adb logcat -d > /tmp/neonshift-$(date +%H%M%S).log
 
 ```bash
 adb shell pm list packages | grep neonshift
-adb shell dumpsys package xyz.neonshift.app | head -40
-adb shell am force-stop xyz.neonshift.app
-adb shell pm clear xyz.neonshift.app          # 完整重置
+adb shell dumpsys package cc.neonshift.app | head -40
+adb shell am force-stop cc.neonshift.app
+adb shell pm clear cc.neonshift.app          # 完整重置
 ```
 
 ### 10.3 冷啟動時間量測（對應 BRD KPI ≤ 3 秒 P95）
 
 ```bash
 for i in $(seq 1 30); do
-  adb shell am force-stop xyz.neonshift.app
-  adb shell am start-activity -W -n xyz.neonshift.app/.MainActivity \
+  adb shell am force-stop cc.neonshift.app
+  adb shell am start-activity -W -n cc.neonshift.app/.MainActivity \
     | grep TotalTime
   sleep 2
 done
@@ -750,7 +754,7 @@ adb reverse --remove-all
 | `adb devices` 顯示 `unauthorized` | 未接受授權對話框 | 裝置上勾選一律允許；或 `adb kill-server && adb start-server` |
 | App 開啟後停在白畫面 | Metro 沒連上 | `adb reverse tcp:8081 tcp:8081` 後重開 App |
 | `Unable to load script` | 同上 | 同上，並確認 `npx expo start --dev-client` 在跑 |
-| `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | debug 與 release 簽章不同 | `adb uninstall xyz.neonshift.app` 後重裝 |
+| `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | debug 與 release 簽章不同 | `adb uninstall cc.neonshift.app` 後重裝 |
 | `INSTALL_FAILED_VERSION_DOWNGRADE` | versionCode 沒遞增 | 提高 versionCode 重新建置 |
 | Health Connect 權限請求後直接關閉 | 缺 `ViewPermissionUsageActivity` | 依 3.1 補上 activity-alias |
 | 讀到步數但全被拒絕 | 來源歸因判斷有誤 | 檢查是否硬編碼 `android`，需同時支援動態 SPN（BR-08） |
@@ -772,7 +776,7 @@ adb reverse --remove-all
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-PKG="xyz.neonshift.app"
+PKG="cc.neonshift.app"
 
 adb devices -l | grep -q "device$" || { echo "找不到裝置"; exit 1; }
 adb reverse tcp:8081 tcp:8081
@@ -809,7 +813,7 @@ echo "==> 安裝到實機：adb install -r $APK"
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-PKG="xyz.neonshift.app"
+PKG="cc.neonshift.app"
 
 adb shell pm clear "$PKG"
 for p in health.READ_STEPS health.READ_SLEEP health.READ_HEALTH_DATA_IN_BACKGROUND \

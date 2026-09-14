@@ -17,11 +17,25 @@ export function BootstrapScreen() {
   const navigation = useNavigation();
   const { phase, steps, currentLabel, result, diagnostics, retry, canUseOffline, continueOffline } = useBootstrap();
 
-  // 8.4：Back／重試／離線進入不造成重複 stack → 一律 reset
+  // 8.4：Back／重試／離線進入不造成重複 stack → 一律 reset。
+  // __DEV__：冷啟動帶 `neonshift://dev/health` 時，在 Landing 之上疊出診斷頁供實機驗證。
   useEffect(() => {
-    if (phase === 'done' && result?.kind === 'ok') {
-      navigation.reset({ index: 0, routes: [{ name: result.route }] });
-    }
+    if (phase !== 'done' || result?.kind !== 'ok') return;
+    let cancelled = false;
+    (async () => {
+      const routes: { name: 'Landing' | 'Main' | 'DevHealth' }[] = [{ name: result.route }];
+      if (__DEV__) {
+        // `EXPO_PUBLIC_DEV_ROUTE=DevHealth npx expo start` 或冷啟動帶 neonshift://dev/health
+        const url = await Linking.getInitialURL();
+        if (process.env.EXPO_PUBLIC_DEV_ROUTE === 'DevHealth' || (url && /\/dev\/health(\?|$)/.test(url))) {
+          routes.push({ name: 'DevHealth' });
+        }
+      }
+      if (!cancelled) navigation.reset({ index: routes.length - 1, routes });
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [phase, result, navigation]);
 
   // 8.4：狀態更新使用 polite announcement

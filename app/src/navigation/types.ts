@@ -24,6 +24,8 @@ export type RootParamList = {
   Onboarding: NavigatorScreenParams<OnboardingParamList>;
   Main: NavigatorScreenParams<TabParamList>;
   ActivityHistory: undefined;
+  /** __DEV__ 專用 */
+  DevHealth: undefined;
 };
 
 type AppRootParamList = RootParamList;

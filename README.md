@@ -40,3 +40,5 @@ cargo run --bin gen_vectors > ../../backend/src/lib/attestation-vectors.json
 ## 平台範圍
 
 Android 單一平台，目標裝置 Solana Mobile Seeker。iOS 不在範圍內（BRD 決策 D-04）。
+
+正式網域 `neonshift.cc`；Android package `cc.neonshift.app`（SD 8）。
