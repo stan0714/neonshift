@@ -56,7 +56,7 @@ pub fn xp_for(task_type: u8) -> Result<u64> {
     }
 }
 
-/// BR-35：以最高已達門檻推導 shoe_level（1～5）；滿階維持 5，不影響 core_level（BR-23）
+/// BR-35：以最高已達門檻推導等級（1～5）；滿階維持 5。升級免費後 core_level 與 shoe_level 皆用此值
 pub fn shoe_level_for(xp: u64, thresholds: &[u64; 5]) -> u8 {
     let mut level = PlayerProfile::MIN_LEVEL;
     for (i, t) in thresholds.iter().enumerate() {
@@ -67,7 +67,7 @@ pub fn shoe_level_for(xp: u64, thresholds: &[u64; 5]) -> u8 {
     level
 }
 
-/// 升級分配（SD 3.4）：`burn = floor(cost × burn_bps / 10_000)`、`treasury = cost - burn`
+/// 升級分配（SD 3.4；升級改為免費後保留供未來付費功能）：`burn = floor(cost × burn_bps / 10_000)`、`treasury = cost - burn`
 pub fn split_upgrade_cost(cost: u64, burn_bps: u16) -> Result<(u64, u64)> {
     let burn = (cost as u128)
         .checked_mul(burn_bps as u128)

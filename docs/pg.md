@@ -140,9 +140,9 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-C-05 | `clock_in` 檢查順序主流程 | SD 3.3 | BR-03, BR-14, BR-15 | 2.0 | WIP | clock_in 16 步、19 整合測試；跑鞋隨 profile 贈與，無鑄鞋檢查 |
 | PG-C-06 | 獎勵計算定點數、連續加成與每日上限 | SD 3.4 | BR-02, BR-04, BR-06 | 1.0 | WIP | reward.rs 定點數 u128、streak 推導、日額收斂；14 單元測試＋整合 |
 | PG-C-07 | ClaimReceipt PDA 與重放防護 | SD 3.1 | BR-03 | 1.0 | WIP | ClaimReceipt 手動建立於步驟 10；重放 6009、6010 不留 receipt |
-| PG-C-08 | XP、shoe_level、core_level 三者分離 | SD 3.1 | BR-23 | 1.0 | WIP | xp／shoe_level（BR-34／35）與 core_level 分離；shoe_level_for 邊界測試 |
+| PG-C-08 | XP、shoe_level、core_level 三者分離 | SD 3.1 | BR-23 | 1.0 | WIP | xp／等級（BR-34／35）；免費升級後 shoe_level 與 core_level 同值；新倍率自下次打卡生效（測試） |
 | PG-C-09 | `mint_shoe`（Metaplex Core） | SD 1.2 | FR-04.1 | 1.5 | DEFER | 2026-09-14 專案負責人定案：不鑄造 NFT，跑鞋隨 init_player 直接贈與（FR-04.1 改寫） |
-| PG-C-10 | `upgrade_core` 燒毀與入庫原子性 | SD 6.1 | BR-16 | 1.0 | TODO | |
+| PG-C-10 | `upgrade_core` 燒毀與入庫原子性 | SD 6.1 | BR-16 | 1.0 | DEFER | 2026-09-14 專案負責人定案：升級免費，core_level 隨 XP 與 shoe_level 同步提升（clock_in 步驟 15）；無扣款／燒毀 |
 | PG-C-11 | Tournament 帳戶、專用 vault、`open`／`lock`／`start_tournament` | SD 3.1, 3.2 | BR-18, BR-19, BR-22 | 1.5 | TODO | |
 | PG-C-12 | `join_tournament` 質押與 vault PDA | SD 3.2 | BR-22 | 1.0 | TODO | |
 | PG-C-13 | `begin_settlement`、`submit_results_batch` 與 rolling hash 驗證 | SD 3.2, 6.2 | BR-20 | 1.5 | TODO | |
@@ -197,7 +197,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-A-11 | Onboarding 四頁權限流程 | Style 10 | FR-02.5 | 1.5 | WIP | 四頁 Onboarding（Style 10.1～10.4）；Step 4 改為免費領取初階跑鞋（init_player）；Seeker 實測至 Step 4 |
 | PG-A-12 | Dashboard 儀表板 | Style 11 | FR-08.1 | 1.5 | TODO | |
 | PG-A-13 | 打卡、live motion 引導與成功特效 | Style 15 | FR-03.1, FR-08.3 | 1.0 | TODO | |
-| PG-A-14 | Gear 頁與升級流程 | Style 12 | FR-05.2 | 1.0 | TODO | |
+| PG-A-14 | Gear 頁與升級流程 | Style 12 | FR-05.2 | 1.0 | TODO | Gear 頁改為等級／倍率／下一階 XP／五階圖鑑，無升級流程（Style 12 更新） |
 | PG-A-15 | Arena 頁三種狀態 | Style 13 | FR-06.1, FR-06.2 | 1.5 | TODO | |
 | PG-A-16 | 錯誤、離線與空狀態 | Style 14 | NFR 可用性 | 1.0 | TODO | |
 | PG-A-17 | 跑鞋視覺五階與進化動畫 | Style 16.2 | FR-04.4 | 1.0 | TODO | |
@@ -455,7 +455,6 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | 項目 | 說明 |
 |---|---|
 | `PG-B-07` 至 `B-09` | 延續 M2 垂直切片，完成資料校準與 M 級 KPI 驗收 |
-| `PG-C-10` | 升級原子性 |
 | `PG-C-11` 至 `C-16` | 錦標賽全套 |
 | `PG-C-17` | 錯誤碼與事件定義 |
 | `PG-B-14` 至 `B-17` | 賽事 API 與清理排程 |
@@ -485,7 +484,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | FR-02 健康數據 | PG-A-04, PG-A-08, PG-A-11, PG-A-19 |
 | FR-03 打卡獎勵 | PG-C-04 至 C-07, PG-B-03 至 B-12, PG-A-07 至 A-10, PG-A-13, PG-A-20 |
 | FR-04 跑鞋（鏈上狀態） | PG-C-03, PG-C-08, PG-A-17 |
-| FR-05 裝備升級 | PG-C-10, PG-A-14 |
+| FR-05 免費升級 | PG-C-08, PG-A-14 |
 | FR-06 錦標賽 | PG-C-11 至 C-16, PG-B-05, PG-B-14 至 B-16, PG-A-15 |
 | FR-07 風險驗證 | PG-A-04, PG-A-05, PG-B-06 至 B-09, PG-B-19 |
 | FR-08 UI | PG-A-01, PG-A-03, PG-A-12, PG-A-16 |
@@ -546,7 +545,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
-| v0.6 | 2026-09-14 | 範圍變更（層級 2，專案負責人）：取消 NFT 鑄造，初階跑鞋隨 init_player 直接贈與、使用者不付費；PG-C-09、A-22 DEFER；BRD FR-04.1／04.5、D-02、SD 1.2／3.1／3.2／3.6／10 同步 |
+| v0.6 | 2026-09-14 | 範圍變更（層級 2，專案負責人）：取消 NFT 鑄造，初階跑鞋隨 init_player 直接贈與、使用者不付費；升級改為免費（core_level 隨 XP 與 shoe_level 同步）；PG-C-09、C-10、A-22 DEFER；BRD FR-04.1／04.5／FR-05、D-02、Q-03、SA BR-16／23、SD 1.2／3.1／3.2／3.4／3.6／10、Style 10.4／12 同步 |
 | v0.5 | 2026-09-14 | 依 feat-第一版本開發 分支現況同步狀態：PG-I-01、I-05、B-02、B-10、C-04 改為 WIP 並註記證據；未合併 dev 前不標 DONE |
 
 ## 14. 五階鞋款與優化路線補充（2026-09-14）

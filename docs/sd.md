@@ -126,9 +126,9 @@ graph TB
 | `base_sleep_reward` | u64 | 睡眠任務基礎獎勵 |
 | `streak_enabled` | bool | FR-03.6 功能開關，MVP 預設 false |
 | `streak_bonus_bps` | u16 | 啟用後加成，預設 11000；停用時一律使用 10000 |
-| `burn_bps` | u16 | 升級燒毀比例，預設 7000 |
+| `burn_bps` | u16 | 保留（升級改為免費後不使用） |
 | `core_multiplier_bps` | [u16; 5] | Core 1～5 倍率，預設 `[10000,12000,15000,18000,22000]` |
-| `core_upgrade_costs` | [u64; 4] | 升至 Core 2～5 的成本 |
+| `core_upgrade_costs` | [u64; 4] | 保留（升級改為免費後不使用） |
 | `shoe_xp_thresholds` | [u64; 5] | 跑鞋 Lv1～5 的累積 XP 門檻 |
 | `paused` | bool | 緊急停用 |
 | `paused_at` | i64 | 最近一次進入 pause 的時間（實作期新增）；BR-24 以 `now - paused_at >= 600` 判斷有效 attestation 已全部過期 |
@@ -139,8 +139,8 @@ graph TB
 | 欄位 | 型別 | 說明 |
 |---|---|---|
 | `wallet` | Pubkey | 擁有者 |
-| `core_level` | u8 | 1 至 5 |
-| `shoe_level` | u8 | 1 至 5，由 XP 門檻提升，只影響外觀／收藏狀態 |
+| `core_level` | u8 | 1 至 5，控制獎勵倍率；2026-09-14 起與 `shoe_level` 同步由 XP 推導（免費升級） |
+| `shoe_level` | u8 | 1 至 5，由 XP 門檻提升，控制外觀 |
 | `xp` | u64 | 經驗值 |
 | `last_task_date` | u32 | 最近完成任務的 UTC 日序 |
 | `streak_days` | u16 | 連續天數 |
@@ -210,12 +210,11 @@ graph TB
 | 指令 | 簽章者 | 主要檢查 | 事件 |
 |---|---|---|---|
 | `initialize_config` | 程式 upgrade authority | 僅可執行一次（Config PDA `init`）；簽章者必須等於 ProgramData 的 upgrade authority，`admin`（多簽）由參數指定。參數範圍：cluster_id ∈ {1,2}、基礎獎勵 > 0、daily_cap ≥ 最大基礎獎勵、streak_bonus 10000～20000、burn ≤ 10000、core 倍率 [0]=10000 且單調不減 ≤ 50000、升級成本 > 0、XP 門檻 [0]=0 且嚴格遞增、mint 為 6 decimals、reward vault owner = Config PDA | `ConfigInitialized` |
-| `set_paused` | admin 多簽 | 進入 pause 時記錄 `paused_at`（重複 pause 不重設）。pause 範圍【2026-09-14 定案】：`clock_in`、`upgrade_core`、`join_tournament` 拒絕（6000）；`claim_prize`、`refund_all` 與管理指令不受影響，使用者永遠能取回資金 | `PauseChanged` |
+| `set_paused` | admin 多簽 | 進入 pause 時記錄 `paused_at`（重複 pause 不重設）。pause 範圍【2026-09-14 定案】：`clock_in`、`join_tournament` 拒絕（6000）；`claim_prize`、`refund_all` 與管理指令不受影響，使用者永遠能取回資金 | `PauseChanged` |
 | `update_config` | admin 多簽 | 全欄位可選、整筆以 `initialize_config` 同一套規則驗證。`daily_cap`、`base_*_reward`、`streak_*`、`core_multiplier_bps` 為 BR-24 受控欄位，只能在 `paused && now - paused_at >= 600` 時更新（否則 6025）；`admin`、`burn_bps`、`core_upgrade_costs`、`shoe_xp_thresholds` 可即時更新。不影響已簽發證明或進行中賽事（賽事金額在建立時固定） | `ConfigUpdated` |
 | `rotate_attestor` | admin 多簽 | `grace_seconds` 0～600：>0 時舊鑰保留至 `now + grace`，0 表示立即失效（外洩處置）；新鑰不得為 default 或與現行相同 | `AttestorRotated` |
 | `init_player` | player | 帳戶未存在（PDA `init`）；需 Config 已初始化；不受 pause 影響（無資金流，onboarding 不中斷）；core／shoe level 起始 1、其餘欄位 0。**即為初階跑鞋的贈與**：不鑄造 NFT，事件含 `shoe_level` | `PlayerInitialized` |
 | `clock_in` | player | 見 3.3。需 PlayerProfile 存在（跑鞋隨 profile 贈與，無獨立鑄鞋檢查）；`ClaimReceipt` 不用 Anchor `init`，於步驟 10 手動建立以回報 6009 並保證排在 attestation 驗證之後；步驟 9 的 mint／vault／收款帳戶／token program 約束由 Anchor 在進入 handler 前檢查 | `ClockedIn` |
-| `upgrade_core` | player | 等級 < 5、餘額足夠、token program／mint／vault 正確；原子扣款 | `CoreUpgraded` |
 | `open_tournament` | admin | 狀態為 Draft | `TournamentOpened` |
 | `join_tournament` | player | 狀態為 Registration、未重複報名、mint 正確 | `TournamentJoined` |
 | `lock_tournament` | admin | 報名截止、固定得獎組人數與規則、核對專用 vault；人數不足則轉 Cancelled，否則把受上限約束的國庫挹注轉入 vault | `TournamentLocked` / `TournamentCancelled` |
@@ -245,7 +244,7 @@ graph TB
 12. 從 `Config.core_multiplier_bps[core_level - 1]` 取得倍率並計算 `amount`，再以 `min(amount, daily_cap - claimed_today)` 收斂（BR-04）。
 13. `amount == 0` 時回傳錯誤 `DailyCapReached`。
 14. 由 reward vault PDA 轉出 tSKR，更新 `claimed_today` 與 `xp`。streak 只在 `last_task_date < task_date` 時更新，同日第二項任務不重複增加。
-15. 依 `shoe_xp_thresholds` 更新 `shoe_level`；**不得**修改付費的 `core_level`。
+15. 依 `shoe_xp_thresholds` 更新等級：`shoe_level` 與 `core_level` 一起設為推導值（2026-09-14 免費升級定案；本次獎勵已在步驟 12 以舊倍率計算，新倍率自下次打卡生效）。
 16. 發出 `ClockedIn` 事件，包含 `shoe_level`、`core_level` 與實發金額。
 
 ### 3.4 獎勵計算（定點數）
@@ -284,10 +283,10 @@ let remaining = config.daily_cap.saturating_sub(profile.claimed_today);
 let amount = amount.min(remaining);         // BR-04
 ```
 
-倍率索引對應的是付費 `core_level`，不是 XP 驅動的 `shoe_level`。預設 Core 1～5 分別為 10000、12000、15000、18000、22000 bps。
+倍率索引對應 `core_level`；免費升級後它與 `shoe_level` 恆相等，皆由 XP 推導。預設 Lv1～5 分別為 10000、12000、15000、18000、22000 bps。
 `effective_streak_days` 必須在計算第 7 個連續任務日的獎勵前先推導，再於成功轉帳後寫回；同日第二項任務沿用同一值，不可累加兩次。
 
-所有 Config 金額與帳戶欄位皆使用 tSKR 最小單位；UI 才依固定 6 decimals 格式化。升級分配使用 `burn = floor(cost × burn_bps / 10_000)`、`treasury = cost - burn`，確保整數餘數歸國庫且兩者精確等於 cost。
+所有 Config 金額與帳戶欄位皆使用 tSKR 最小單位；UI 才依固定 6 decimals 格式化。（升級分配公式因免費升級作廢；`split_upgrade_cost` 保留供未來付費功能。）
 
 ### 3.5 Attestation canonical bytes【定案】
 
@@ -332,7 +331,7 @@ let amount = amount.min(remaining);         // BR-04
 | 6010 | `DailyCapReached` | 剩餘額度為 0 |
 | 6011 | `MathOverflow` | 定點數運算溢位 |
 | 6012 | `Reserved6012` | 保留（原 ShoeAlreadyMinted，NFT 取消後不用） |
-| 6013 | `MaxCoreLevel` | 已達 Lv5 |
+| 6013 | `MaxCoreLevel` | 保留（免費升級後不使用） |
 | 6014 | `InvalidTournamentState` | 狀態機不允許 |
 | 6015 | `AlreadyJoined` | 重複報名 |
 | 6016 | `InsufficientEntrants` | 有效參賽 < min_entrants |

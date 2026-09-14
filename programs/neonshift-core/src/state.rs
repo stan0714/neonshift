@@ -27,11 +27,11 @@ pub struct Config {
     pub streak_enabled: bool,
     /// 啟用後加成，預設 11000；停用時一律使用 10000
     pub streak_bonus_bps: u16,
-    /// 升級燒毀比例，預設 7000
+    /// 保留：升級改為免費（2026-09-14）後不使用
     pub burn_bps: u16,
     /// Core 1～5 倍率
     pub core_multiplier_bps: [u16; 5],
-    /// 升至 Core 2～5 的成本
+    /// 保留：升級改為免費（2026-09-14）後不使用
     pub core_upgrade_costs: [u64; 4],
     /// 跑鞋 Lv1～5 的累積 XP 門檻
     pub shoe_xp_thresholds: [u64; 5],
@@ -44,7 +44,7 @@ pub struct Config {
 impl Config {
     pub const SEED: &'static [u8] = crate::constants::CONFIG_SEED;
 
-    /// 使用者側指令（clock_in、mint_shoe、upgrade_core、join_tournament）在 pause 時拒絕；
+    /// 使用者側指令（clock_in、join_tournament）在 pause 時拒絕；
     /// 取回資金的 claim_prize／refund_all 與管理指令不受影響（SD 3.2 pause 範圍）。
     pub fn require_active(&self) -> anchor_lang::Result<()> {
         anchor_lang::require!(!self.paused, crate::error::ErrorCode::ProgramPaused);

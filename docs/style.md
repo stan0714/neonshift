@@ -562,13 +562,12 @@ Landing 後採單一步驟頁面，不使用一次塞滿五頁的 carousel。
 
 ## 12. Gear Page 規劃
 
-- 上半部：大型跑鞋、Level、XP ring、rarity／visual stage。
-- 中段：Core level、current multiplier、next multiplier。
-- 下段：升級成本、增量收益、BRD 8.3 定義的回本天數。
-- Primary CTA：`Upgrade core · 60 tSKR`。
-- 餘額不足：disabled CTA + `Need 18 more tSKR`。
-- 確認 sheet 必須顯示 burn、treasury 分配、最終 multiplier 和不可逆提示。
-- 升級完成只播放一次 reveal，並提供 transaction link。
+（2026-09-14 改為免費升級：無升級 CTA、無費用與燒毀資訊）
+
+- 上半部：大型跑鞋、Level、XP ring、visual stage。
+- 中段：current multiplier、next multiplier、距下一階所需 XP。
+- 下段：五階圖鑑（已解鎖／Preview），不顯示任何成本或回本天數。
+- 無 Primary CTA；升級在打卡交易內自動發生，達門檻時只播放一次 reveal 並提供 transaction link。
 
 ---
 

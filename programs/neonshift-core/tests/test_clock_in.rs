@@ -285,7 +285,8 @@ fn next_day_resets_daily_cap_and_increments_streak() {
 
 #[test]
 fn streak_bonus_applies_on_seventh_consecutive_day() {
-    let mut w = world_with(|p| p.streak_enabled = true);
+    // 門檻拉高讓等級維持 Lv1，只觀察 streak 效果
+    let mut w = world_with(|p| { p.streak_enabled = true; p.shoe_xp_thresholds = [0, 10_000, 20_000, 30_000, 40_000]; });
     for day in 1..=7 {
         let a = w.args(TASK_STEPS);
         w.clock_in(a).unwrap();
@@ -305,14 +306,22 @@ fn streak_bonus_applies_on_seventh_consecutive_day() {
 }
 
 #[test]
-fn xp_raises_shoe_level_but_never_core_level() {
+fn xp_raises_shoe_and_core_level_together_and_multiplier_applies_next_claim() {
+    // 升級免費（2026-09-14）：達門檻時 shoe_level 與 core_level 一起提升；本次獎勵仍用升級前倍率
     let mut w = world_with(|p| p.shoe_xp_thresholds = [0, 100, 150, 250, 400]);
-    w.clock_in(w.args(TASK_STEPS)).unwrap(); // xp 100 → Lv2
+    let a = w.args(TASK_STEPS);
+    w.clock_in(a).unwrap(); // xp 100 → Lv2
+    let r: ClaimReceipt = read(&w.env.svm, &receipt_pda(&w.wallet(), a.task_date, TASK_STEPS));
+    assert_eq!(r.amount, 10 * TSKR_UNIT, "本次以 Lv1 倍率 1.0x 計算");
     let p = w.profile();
-    assert_eq!((p.xp, p.shoe_level, p.core_level), (100, 2, 1));
-    w.clock_in(w.args(TASK_SLEEP)).unwrap(); // xp 150 → Lv3
+    assert_eq!((p.xp, p.shoe_level, p.core_level), (100, 2, 2));
+
+    let s = w.args(TASK_SLEEP);
+    w.clock_in(s).unwrap(); // 以 Lv2 1.2x：5 × 1.2 = 6；xp 150 → Lv3
+    let r: ClaimReceipt = read(&w.env.svm, &receipt_pda(&w.wallet(), s.task_date, TASK_SLEEP));
+    assert_eq!(r.amount, 6 * TSKR_UNIT);
     let p = w.profile();
-    assert_eq!((p.xp, p.shoe_level, p.core_level), (150, 3, 1));
+    assert_eq!((p.xp, p.shoe_level, p.core_level), (150, 3, 3));
 }
 
 #[test]

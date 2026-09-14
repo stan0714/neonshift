@@ -149,8 +149,11 @@ pub fn handle_clock_in(ctx: Context<ClockIn>, args: AttestationArgs) -> Result<(
         profile.last_task_date = att.task_date;
     }
 
-    // 15. 依 XP 門檻更新 shoe_level；不動 core_level（BR-23）
-    profile.shoe_level = shoe_level_for(profile.xp, &config.shoe_xp_thresholds);
+    // 15. 依 XP 門檻更新等級。2026-09-14 定案：升級免費，core_level 與 shoe_level 一起由 XP 推導
+    //     （本次獎勵已在步驟 12 以升級前的 core_level 計算；新倍率自下一次打卡生效）
+    let level = shoe_level_for(profile.xp, &config.shoe_xp_thresholds);
+    profile.shoe_level = level;
+    profile.core_level = level;
 
     // 寫入 receipt 內容（帳戶已於步驟 10 建立）
     {
