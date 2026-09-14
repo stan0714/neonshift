@@ -412,7 +412,9 @@ adb shell pm clear cc.neonshift.app
 
 **開發診斷頁**：debug build 內建 `Health Connect (dev)` 畫面（`src/screens/dev/HealthDiagnosticsScreen.tsx`，只在 `__DEV__` 註冊），可逐項呼叫 getStatus／權限／readSteps／readSleep 並顯示原始回傳。開啟方式：`EXPO_PUBLIC_DEV_ROUTE=DevHealth npx expo start --dev-client`，冷啟動後會直接疊在 Landing 之上。
 
-**2026-09-14 Seeker 實測**：`availability=available`、API 36、SDK extension 22；framework 尚無 `getCurrentDeviceDataSource`（`spnQuerySupported=false`），因此只接受歷史 `android` 來源；權限對話框正確顯示 App 名稱與隱私政策連結；當日無任何 StepsRecord／SleepSessionRecord（`dataOrigins: []`），需實際走動或以其他 App 寫入後再驗證四種來源分類。
+**Metro 注意**：修改 `src/` 後若實機仍載入舊畫面，重啟 `npx expo start --clear`（本機 watchman 監看偶爾失效）。原生模組（`modules/`）改動一律要重新 `assembleDebug`。
+
+**2026-09-14 Seeker 實測**：`availability=available`、API 36、SDK extension 22；framework 尚無 `getCurrentDeviceDataSource`（`spnQuerySupported=false`），因此只接受歷史 `android` 來源；權限對話框正確顯示 App 名稱與隱私政策連結；當日無任何 StepsRecord／SleepSessionRecord（`dataOrigins: []`），需實際走動或以其他 App 寫入後再驗證四種來源分類。SensorModule 靜置實測：取樣 49.5 Hz、兩視窗各約 495 點、step counter 可用、step_delta 0；診斷頁 `Sensors` 區可重跑 20 秒 live motion check（步行時 `dominant_freq_hz` 應落在 1.5～2.5、`step_delta` ≥ 10）。
 
 **注意**：以第三方 App 寫入的資料**應該**被本 App 拒絕。若沒有被拒絕，代表 FR-07.1 有問題，這正是要測的重點。
 

@@ -3,6 +3,8 @@ import { StyleSheet, View } from 'react-native';
 
 import { Button, Chip, Screen, Surface } from '@/components';
 import { healthConnect, taskDateOf, type HealthPermissionSummary } from '@/services/health/HealthConnectService';
+import { liveMotion, toSensorSummaryPayload } from '@/services/sensors/LiveMotionService';
+import type { LiveMotionProgress, LiveMotionSummary, SensorCapabilities } from '../../../modules/neonshift-sensors';
 import { space, Text } from '@/theme';
 import type { HealthStatus, SleepResult, StepsResult } from '../../../modules/neonshift-health';
 
@@ -16,6 +18,9 @@ export function HealthDiagnosticsScreen() {
   const [steps, setSteps] = useState<StepsResult | null>(null);
   const [sleep, setSleep] = useState<SleepResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [caps, setCaps] = useState<SensorCapabilities | null>(null);
+  const [progress, setProgress] = useState<LiveMotionProgress | null>(null);
+  const [motion, setMotion] = useState<LiveMotionSummary | null>(null);
 
   const run = useCallback(async (fn: () => Promise<void>) => {
     setError(null);
@@ -42,6 +47,23 @@ export function HealthDiagnosticsScreen() {
       <Button label={`readSteps (task_date ${today})`} variant="secondary" style={styles.btn} onPress={() => run(async () => setSteps(await healthConnect.readStepsForTaskDate(today)))} />
       <Button label="readSleep" variant="secondary" style={styles.btn} onPress={() => run(async () => setSleep(await healthConnect.readSleepForTaskDate(today)))} />
 
+      <Text variant="heading2" style={styles.section}>Sensors</Text>
+      <Button label="getCapabilities" variant="secondary" style={styles.btn} onPress={() => run(async () => setCaps(await liveMotion.getCapabilities()))} />
+      <Button
+        label={progress && progress.elapsedSeconds < progress.durationSeconds ? `Sampling… ${progress.elapsedSeconds}/${progress.durationSeconds}s` : 'startLiveMotionCheck (20s)'}
+        style={styles.btn}
+        disabled={Boolean(progress && progress.elapsedSeconds < progress.durationSeconds)}
+        onPress={() =>
+          run(async () => {
+            setMotion(null);
+            const s = await liveMotion.run(setProgress);
+            setProgress(null);
+            setMotion(s);
+          })
+        }
+      />
+      <Button label="cancel" variant="secondary" style={styles.btn} onPress={() => run(() => liveMotion.cancel())} />
+
       {error ? (
         <Surface style={styles.card}>
           <Text variant="bodySmall" tone="danger">{error}</Text>
@@ -51,6 +73,9 @@ export function HealthDiagnosticsScreen() {
       {perm ? <Dump title="permissions" value={perm} /> : null}
       {steps ? <Dump title="steps" value={steps} /> : null}
       {sleep ? <Dump title="sleep" value={sleep} /> : null}
+      {caps ? <Dump title="sensors" value={caps} /> : null}
+      {motion ? <Dump title="sensor_summary (payload)" value={toSensorSummaryPayload(motion)} /> : null}
+      {motion ? <Dump title="live motion (raw summary)" value={motion} /> : null}
     </Screen>
   );
 }
@@ -69,6 +94,7 @@ function Dump({ title, value }: { title: string; value: unknown }) {
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.m },
   btn: { marginTop: space.s },
+  section: { marginTop: space.xl },
   card: { marginTop: space.m },
   mono: { fontFamily: 'monospace', marginTop: space.xs },
 });

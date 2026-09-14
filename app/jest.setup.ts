@@ -23,3 +23,13 @@ jest.mock('./modules/neonshift-health/src/NeonshiftHealthModule', () => ({
     readSleepSessions: jest.fn(),
   },
 }));
+
+jest.mock('./modules/neonshift-sensors/src/NeonshiftSensorsModule', () => ({
+  __esModule: true,
+  default: {
+    getCapabilities: jest.fn(),
+    startLiveMotionCheck: jest.fn(),
+    cancelLiveMotionCheck: jest.fn(),
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+  },
+}));
