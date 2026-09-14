@@ -5,6 +5,7 @@ import { Bullet, Button, InlineState, OnboardingLayout } from '@/components';
 import { HealthError, healthConnect, type HealthPermissionSummary } from '@/services/health/HealthConnectService';
 import { useOnboardingStore } from '@/state/onboardingStore';
 import { color } from '@/theme';
+import { useT } from '@/i18n';
 
 type Phase = 'idle' | 'checking' | 'requesting' | 'granted' | 'denied' | 'unavailable' | 'update_required' | 'unsupported';
 
@@ -13,6 +14,7 @@ type Phase = 'idle' | 'checking' | 'requesting' | 'granted' | 'denied' | 'unavai
  * 先說明只讀 Steps 與 Sleep，再由 CTA 觸發系統權限頁；拒絕後提供設定入口與 Not now，不反覆彈出。
  */
 export function HealthAccessScreen() {
+  const { t } = useT();
   const navigation = useNavigation();
   const onboarding = useOnboardingStore();
   const [phase, setPhase] = useState<Phase>('idle');
@@ -71,43 +73,39 @@ export function HealthAccessScreen() {
   return (
     <OnboardingLayout
       step={2}
-      title="Power missions with Health Connect"
-      lead="NeonShift reads only your Steps and Sleep from Health Connect to check daily missions."
+      title={t('health.title')}
+      lead={t('health.lead')}
       testID="onboarding-health"
       actions={
         <>
           {phase === 'granted' ? (
-            <Button label="Continue" onPress={next} />
+            <Button label={t('common.continue')} onPress={next} />
           ) : blocked ? (
-            <Button label="Continue without health data" variant="secondary" onPress={defer} />
+            <Button label={t('health.continueWithout')} variant="secondary" onPress={defer} />
           ) : (
-            <Button label="Allow health access" loading={phase === 'requesting' || phase === 'checking'} loadingLabel="Opening Health Connect…" onPress={request} />
+            <Button label={t('health.allow')} loading={phase === 'requesting' || phase === 'checking'} loadingLabel={t('health.opening')} onPress={request} />
           )}
-          {phase === 'denied' ? <Button label="Open Health Connect settings" variant="secondary" style={{ marginTop: 12 }} onPress={() => void healthConnect.openSettings()} /> : null}
-          {phase !== 'granted' ? <Button label="Not now" variant="secondary" style={{ marginTop: 12 }} onPress={defer} /> : null}
+          {phase === 'denied' ? <Button label={t('health.openSettings')} variant="secondary" style={{ marginTop: 12 }} onPress={() => void healthConnect.openSettings()} /> : null}
+          {phase !== 'granted' ? <Button label={t('common.notNow')} variant="secondary" style={{ marginTop: 12 }} onPress={defer} /> : null}
         </>
       }
     >
-      <Bullet icon="activity" text="Steps: unlock the daily 8,000-step mission." />
-      <Bullet icon="moon" text="Sleep: unlock the 7-hour rest mission." tint={color.violet} />
-      <Bullet icon="database" text="Only summaries reach our servers, kept for at most 30 days." tint={color.cyan} />
-      <Bullet icon="settings" text="Manage later in Settings. Raw records never leave your device." tint={color.textSecondary} />
+      <Bullet icon="activity" text={t('health.bullet1')} />
+      <Bullet icon="moon" text={t('health.bullet2')} tint={color.violet} />
+      <Bullet icon="database" text={t('health.bullet3')} tint={color.cyan} />
+      <Bullet icon="settings" text={t('health.bullet4')} tint={color.textSecondary} />
 
       {phase === 'denied' ? (
         <InlineState
           kind="warning"
-          title="Health access is off"
-          body={
-            summary?.state === 'partial'
-              ? 'Only some data types were allowed. Missions need both Steps and Sleep. Review access in Health Connect settings.'
-              : 'Missions stay locked until access is allowed. Nothing else changes; you can enable it any time in Health Connect settings.'
-          }
+          title={t('health.off.title')}
+          body={summary?.state === 'partial' ? t('health.off.partial') : t('health.off.denied')}
           testID="health-denied"
         />
       ) : null}
-      {phase === 'unavailable' ? <InlineState kind="error" title="Health Connect is unavailable" body="This device does not provide Health Connect, so step and sleep missions cannot run here." /> : null}
-      {phase === 'update_required' ? <InlineState kind="warning" title="Health Connect needs an update" body="Update Health Connect from the Play Store, then come back to allow access." /> : null}
-      {phase === 'unsupported' ? <InlineState kind="warning" title="Device steps not supported" body="This Health Connect version cannot attribute steps to the device. Missions may be limited until the system updates." /> : null}
+      {phase === 'unavailable' ? <InlineState kind="error" title={t('health.unavailable.title')} body={t('health.unavailable.body')} /> : null}
+      {phase === 'update_required' ? <InlineState kind="warning" title={t('health.update.title')} body={t('health.update.body')} /> : null}
+      {phase === 'unsupported' ? <InlineState kind="warning" title={t('health.unsupported.title')} body={t('health.unsupported.body')} /> : null}
     </OnboardingLayout>
   );
 }

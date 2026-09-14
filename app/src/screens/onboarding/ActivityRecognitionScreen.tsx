@@ -6,12 +6,14 @@ import { Bullet, Button, InlineState, OnboardingLayout } from '@/components';
 import { activityRecognition, type ActivityPermissionResult } from '@/services/permissions/ActivityRecognition';
 import { useOnboardingStore } from '@/state/onboardingStore';
 import { color } from '@/theme';
+import { useT } from '@/i18n';
 
 /**
  * Onboarding 3／4 — Activity Recognition（Style 10.3）。
  * 獨立說明其用於動作特徵摘要與提高作弊成本；不宣稱可完全證明真人步行。
  */
 export function ActivityRecognitionScreen() {
+  const { t } = useT();
   const navigation = useNavigation();
   const onboarding = useOnboardingStore();
   const [result, setResult] = useState<ActivityPermissionResult | 'unknown'>('unknown');
@@ -48,26 +50,26 @@ export function ActivityRecognitionScreen() {
   return (
     <OnboardingLayout
       step={3}
-      title="Add a short motion check"
-      lead="Before your first step claim each day, NeonShift samples your phone's motion for 20 seconds while you walk."
+      title={t('activity.title')}
+      lead={t('activity.lead')}
       testID="onboarding-activity"
       actions={
         <>
           {result === 'granted' ? (
-            <Button label="Continue" onPress={next} />
+            <Button label={t('common.continue')} onPress={next} />
           ) : (
-            <Button label="Allow activity recognition" loading={busy} loadingLabel="Requesting…" onPress={request} />
+            <Button label={t('activity.allow')} loading={busy} loadingLabel={t('activity.requesting')} onPress={request} />
           )}
-          {result === 'never_ask_again' ? <Button label="Open app settings" variant="secondary" style={{ marginTop: 12 }} onPress={() => void Linking.openSettings()} /> : null}
-          {result !== 'granted' ? <Button label="Not now" variant="secondary" style={{ marginTop: 12 }} onPress={defer} /> : null}
+          {result === 'never_ask_again' ? <Button label={t('activity.openSettings')} variant="secondary" style={{ marginTop: 12 }} onPress={() => void Linking.openSettings()} /> : null}
+          {result !== 'granted' ? <Button label={t('common.notNow')} variant="secondary" style={{ marginTop: 12 }} onPress={defer} /> : null}
         </>
       }
     >
-      <Bullet icon="bar-chart-2" text="Only a statistical summary (cadence, rhythm, amplitude) is produced. No raw motion data is stored or uploaded." />
-      <Bullet icon="shield" text="This raises the cost of faking steps. It is one signal among several, not proof of a real walk." tint={color.cyan} />
-      <Bullet icon="clock" text="Runs in the foreground only, for 20 seconds, when you clock in." tint={color.textSecondary} />
+      <Bullet icon="bar-chart-2" text={t('activity.bullet1')} />
+      <Bullet icon="shield" text={t('activity.bullet2')} tint={color.cyan} />
+      <Bullet icon="clock" text={t('activity.bullet3')} tint={color.textSecondary} />
       {result === 'denied' || result === 'never_ask_again' ? (
-        <InlineState kind="warning" title="Motion check unavailable" body="Step missions need this check to submit a claim. Sleep missions are not affected. You can allow it later from Settings." testID="activity-denied" />
+        <InlineState kind="warning" title={t('activity.denied.title')} body={t('activity.denied.body')} testID="activity-denied" />
       ) : null}
     </OnboardingLayout>
   );

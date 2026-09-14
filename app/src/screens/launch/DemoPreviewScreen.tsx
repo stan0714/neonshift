@@ -5,45 +5,48 @@ import { Button, Chip, Screen, Surface, Wordmark } from '@/components';
 import { ShoeHero } from '@/components/ShoeHero';
 import { SHOE_PROGRESSION } from '@/config/shoeProgression';
 import { space, Text } from '@/theme';
+import { stageDetail, stageName } from '@/domain/collectibles';
+import { useT } from '@/i18n';
 
 /**
  * Demo Preview（Style 9.3）：帶 `DEMO` badge 的唯讀瀏覽，不建立錢包、NFT 或健康資料假象。
  * 唯讀 Dashboard 內容待 PG-A-12 完成後以 demo 模式渲染；目前先呈現說明與返回。
  */
 export function DemoPreviewScreen() {
+  const { t } = useT();
   const navigation = useNavigation();
   return (
     <Screen scroll testID="demo-preview-screen">
       <View style={styles.header}>
         <Wordmark withMark />
         <View style={styles.chips}>
-          <Chip label="DEMO" kind="level" />
-          <Chip label="DEVNET" kind="devnet" style={styles.chipGap} />
+          <Chip label={t('common.demo')} kind="level" />
+          <Chip label={t('common.devnet')} kind="devnet" style={styles.chipGap} />
         </View>
       </View>
       <Surface style={styles.card}>
-        <Text variant="heading2">Read-only preview</Text>
+        <Text variant="heading2">{t('demo.title')}</Text>
         <Text variant="body" tone="secondary" style={styles.body}>
-          Browse how missions, gear and the weekend arena work. Nothing here is saved, and no wallet, NFT or health data is created.
+          {t('demo.body')}
         </Text>
       </Surface>
       {SHOE_PROGRESSION.stages.map((stage) => (
         <Surface key={stage.level} style={styles.card}>
-          <Text variant="heading2">{stage.name} · LV. {stage.level}</Text>
+          <Text variant="heading2">{stageName(t, stage.level)} · {t('common.lv', { n: stage.level })}</Text>
           <View style={{ alignItems: 'center' }}><ShoeHero level={stage.level} active={false} /></View>
-          <Text variant="body">{stage.xp.toLocaleString()} total XP</Text>
-          <Text variant="caption" tone="secondary">{stage.detail}</Text>
-          <Text variant="caption" tone="muted">{stage.xp === 0 ? 'Unlocked after minting' : `${Math.ceil(stage.xp / 150)} task days with both daily missions`}</Text>
+          <Text variant="body">{t('demo.totalXp', { n: stage.xp })}</Text>
+          <Text variant="caption" tone="secondary">{stageDetail(t, stage.level)}</Text>
+          <Text variant="caption" tone="muted">{stage.xp === 0 ? t('demo.unlockedStart') : t('demo.taskDays', { n: Math.ceil(stage.xp / 150) })}</Text>
         </Surface>
       ))}
       <Text variant="caption" tone="secondary" style={styles.body}>
-        Preview rules: steps +100 XP, sleep +50 XP per successful daily claim. Shoe level changes appearance; paid Core upgrades change rewards. Final rules follow onchain configuration.
+        {t('demo.rules')}
       </Text>
       <View style={styles.actions}>
-        <Button label="Connect wallet" onPress={() => navigation.navigate('Onboarding', { screen: 'WalletConnect' })} />
-        <Button label="Back" variant="secondary" style={styles.secondary} onPress={() => navigation.goBack()} />
+        <Button label={t('common.connectWallet')} onPress={() => navigation.navigate('Onboarding', { screen: 'WalletConnect' })} />
+        <Button label={t('common.back')} variant="secondary" style={styles.secondary} onPress={() => navigation.goBack()} />
         {__DEV__ ? (
-          <Button label="Dev: open tabs" variant="secondary" style={styles.secondary} onPress={() => navigation.navigate('Main', { screen: 'Profile' })} />
+          <Button label={t('demo.devOpenTabs')} variant="secondary" style={styles.secondary} onPress={() => navigation.navigate('Main', { screen: 'Profile' })} />
         ) : null}
       </View>
     </Screen>

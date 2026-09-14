@@ -46,11 +46,12 @@ export type BootstrapPhase =
 
 export const BOOTSTRAP_TIMING = { showAfterMs: 300, slowAfterMs: 3_000, stalledAfterMs: 10_000 } as const;
 
+/** i18n key（畫面以 t() 翻譯；PG-A-23） */
 export const LOADING_COPY = {
-  default: 'Syncing your shift',
-  profile: 'Restoring your profile',
-  health: 'Checking health access',
-  wallet: 'Restoring wallet session',
-  network: 'Contacting devnet',
-  offline: 'Live data unavailable',
+  default: 'boot.syncing',
+  profile: 'boot.profile',
+  health: 'boot.health',
+  wallet: 'boot.wallet',
+  network: 'boot.network',
+  offline: 'boot.offline',
 } as const;

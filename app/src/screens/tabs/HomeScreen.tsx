@@ -15,6 +15,7 @@ import { shortAddress, useWalletStore } from '@/state/walletStore';
 import { color, space, Text, useTheme } from '@/theme';
 
 import { ClockInSheet } from './ClockInSheet';
+import { useT } from '@/i18n';
 
 const OUTDATED_MS = 30 * 60 * 1000;
 
@@ -23,6 +24,7 @@ const OUTDATED_MS = 30 * 60 * 1000;
  * 打卡按鈕只在對應任務 ready 時可用；離線／未同步時停用並說明原因（SD 5.3）。
  */
 export function HomeScreen() {
+  const { t, locale } = useT();
   const navigation = useNavigation();
   const { screenPaddingX } = useTheme();
   const insets = useSafeAreaInsets();
@@ -50,10 +52,10 @@ export function HomeScreen() {
   const sleep = sleepProgress(d.health);
   const syncedAgoMin = d.health?.syncedAt ? Math.round((Date.now() - d.health.syncedAt) / 60_000) : null;
   const outdated = d.health?.syncedAt ? Date.now() - d.health.syncedAt > OUTDATED_MS : false;
-  const stepsStatus = syncedAgoMin === null ? 'Not synced' : outdated ? 'Data may be outdated' : d.health?.error ? 'Offline · showing cached data' : `Updated ${syncedAgoMin} min ago`;
+  const stepsStatus = syncedAgoMin === null ? t('home.notSynced') : outdated ? t('home.outdated') : d.health?.error ? t('home.offlineCached') : t('home.updatedAgo', { n: syncedAgoMin });
   const untilMidnight = secondsUntilUtcMidnight(now);
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const greeting = hour < 12 ? t('home.morning') : hour < 18 ? t('home.afternoon') : t('home.evening');
 
   const startClaim = (type: TaskType) => {
     if (!session || !d.config) return;
@@ -88,13 +90,14 @@ export function HomeScreen() {
   );
 
   const disabledReason = useMemo(() => {
-    if (!session) return 'Connect your wallet';
-    if (!APP_CONFIG.chainConfigured) return 'Onchain program not configured in this build';
-    if (!APP_CONFIG.backendConfigured) return 'Backend not configured in this build';
-    if (d.config?.paused) return 'Claims are paused right now';
-    if (d.health?.error && !d.health.steps) return 'Health data unavailable';
+    if (!session) return t('common.reasonConnectWallet');
+    if (!APP_CONFIG.chainConfigured) return t('common.reasonChain');
+    if (!APP_CONFIG.backendConfigured) return t('common.reasonBackend');
+    if (d.config?.paused) return t('common.reasonPaused');
+    if (d.health?.error && !d.health.steps) return t('home.reasonHealth');
     return undefined;
-  }, [session, d.config, d.health]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, d.config, d.health, locale]);
 
   const stepsReward = estimateReward(d.config, d.profile, 'steps');
   const sleepReward = estimateReward(d.config, d.profile, 'sleep');
@@ -110,53 +113,53 @@ export function HomeScreen() {
         <View>
           <Text variant="heading2">{greeting}</Text>
           <Text variant="bodySmall" tone="secondary" numeric>
-            {session ? shortAddress(session.address) : 'Not connected'} · {formatTskr(d.balance)} {APP_CONFIG.tokenSymbol}
+            {session ? shortAddress(session.address) : t('common.notConnected')} · {formatTskr(d.balance)} {APP_CONFIG.tokenSymbol}
           </Text>
         </View>
-        <Chip label="DEVNET" kind="devnet" />
+        <Chip label={t('common.devnet')} kind="devnet" />
       </View>
 
       <View style={[styles.header, styles.section]}>
         <Text variant="label" tone="muted" uppercase>
-          Today
+          {t('home.today')}
         </Text>
         <View style={styles.links}>
           <Pressable onPress={() => navigation.navigate('Gallery')} accessibilityRole="link" hitSlop={8} testID="home-gallery-link">
             <Text variant="label" tone="cyan" uppercase>
-              Gallery
+              {t('home.gallery')}
             </Text>
           </Pressable>
           <Pressable onPress={() => navigation.navigate('ActivityHistory')} accessibilityRole="link" hitSlop={8} testID="home-activity-link">
             <Text variant="label" tone="cyan" uppercase>
-              Activity ›
+              {t('home.activity')}
             </Text>
           </Pressable>
         </View>
       </View>
       <View style={styles.cards}>
-        <DataCard icon="activity" label="Steps" value={steps.value.toLocaleString()} unit="steps" goalLabel={`Goal ${steps.goal.toLocaleString()}`} ratio={steps.ratio} tint={color.mint} statusText={stepsStatus} outdated={outdated || Boolean(d.health?.error)} testID="card-steps" />
+        <DataCard icon="activity" label={t('home.steps')} value={steps.value.toLocaleString()} unit={t('home.stepsUnit')} goalLabel={t('home.goal', { n: steps.goal })} ratio={steps.ratio} tint={color.mint} statusText={stepsStatus} outdated={outdated || Boolean(d.health?.error)} testID="card-steps" />
         <View style={styles.gap} />
-        <DataCard icon="moon" label="Sleep" value={`${Math.floor(sleep.value / 60)}h ${sleep.value % 60}m`} unit="" goalLabel="Goal 7h" ratio={sleep.ratio} tint={color.violet} statusText={d.health?.sleep && d.health.sleep.sessions.length === 0 ? 'No sleep session found' : ''} testID="card-sleep" />
+        <DataCard icon="moon" label={t('home.sleep')} value={t('home.sleepValue', { h: Math.floor(sleep.value / 60), m: sleep.value % 60 })} unit="" goalLabel={t('home.goalSleep')} ratio={sleep.ratio} tint={color.violet} statusText={d.health?.sleep && d.health.sleep.sessions.length === 0 ? t('home.noSleep') : ''} testID="card-sleep" />
       </View>
       <Text variant="caption" tone="muted" style={styles.utc}>
-        UTC day resets in {Math.floor(untilMidnight / 3600)}h {Math.floor((untilMidnight % 3600) / 60)}m
+        {t('home.utcReset', { h: Math.floor(untilMidnight / 3600), m: Math.floor((untilMidnight % 3600) / 60) })}
       </Text>
 
       {/* Style 14 inline states：說明發生什麼、資料是否安全、下一步 */}
       {permissions && permissions.state !== 'granted' ? (
-        <InlineState kind="warning" title="Health access is off" body="Missions need Steps and Sleep from Health Connect. Nothing is read until you allow it; cached numbers stay on this phone." action={{ label: 'Review access', onPress: () => navigation.navigate('Onboarding', { screen: 'HealthAccess' }) }} testID="state-health-off" />
+        <InlineState kind="warning" title={t('home.healthOff.title')} body={t('home.healthOff.body')} action={{ label: t('home.healthOff.action'), onPress: () => navigation.navigate('Onboarding', { screen: 'HealthAccess' }) }} testID="state-health-off" />
       ) : null}
       {d.health?.error && permissions?.state === 'granted' ? (
-        <InlineState kind="warning" title="Health data unavailable" body={`Health Connect did not answer. Showing the last synced numbers; nothing was sent anywhere. ${d.health.error}`} action={{ label: 'Try again', onPress: () => void d.syncHealth(), loading: d.healthSyncing }} testID="state-health-error" />
+        <InlineState kind="warning" title={t('home.healthErr.title')} body={t('home.healthErr.body', { error: d.health.error })} action={{ label: t('common.tryAgain'), onPress: () => void d.syncHealth(), loading: d.healthSyncing }} testID="state-health-error" />
       ) : null}
       {d.chainError && APP_CONFIG.chainConfigured && session ? (
-        <InlineState kind="warning" title="Devnet is taking a break" body={`Could not read your onchain profile. Your tSKR and progress are safe onchain; showing cached values. ${d.chainError}`} action={{ label: 'Retry', onPress: () => void d.syncChain(session.publicKey) }} testID="state-chain-error" />
+        <InlineState kind="warning" title={t('common.devnetBreak')} body={t('home.chainErr.body', { error: d.chainError })} action={{ label: t('common.retry'), onPress: () => void d.syncChain(session.publicKey) }} testID="state-chain-error" />
       ) : null}
 
-      <Pressable onPress={() => navigation.navigate('Main', { screen: 'Gear' })} style={styles.hero} accessibilityRole="button" accessibilityLabel="Open gear">
+      <Pressable onPress={() => navigation.navigate('Main', { screen: 'Gear' })} style={styles.hero} accessibilityRole="button" accessibilityLabel={t('home.openGear')}>
         <ShoeHero level={(d.profile?.shoeLevel ?? 1) as 1 | 2 | 3 | 4 | 5} size={200} />
         <Text variant="label" tone="secondary" uppercase style={styles.heroCaption}>
-          LV. {d.profile?.shoeLevel ?? 1} · {d.profile ? `${d.profile.xp} XP` : 'No profile yet'} · {d.config && d.profile ? `${(d.config.coreMultiplierBps[d.profile.coreLevel - 1] ?? 10_000) / 10_000}×` : '1.0×'}
+          {t('common.lv', { n: d.profile?.shoeLevel ?? 1 })} · {d.profile ? t('common.xp', { n: Number(d.profile.xp) }) : t('home.noProfile')} · {d.config && d.profile ? `${(d.config.coreMultiplierBps[d.profile.coreLevel - 1] ?? 10_000) / 10_000}×` : '1.0×'}
         </Text>
       </Pressable>
 
@@ -164,7 +167,7 @@ export function HomeScreen() {
       <MissionCard type="sleep" status={d.tasks.sleep} progress={sleep} rewardLabel={sleepReward !== null ? `${formatTskr(sleepReward)} tSKR` : null} onPress={() => startClaim('sleep')} disabledReason={disabledReason} testID="mission-sleep" />
 
       <Text variant="caption" tone="muted" style={styles.disclaimer}>
-        Test Token · No monetary value
+        {t('common.testToken')}
       </Text>
 
       <ClockInSheet visible={sheetInput !== null} input={sheetInput} onClose={() => setSheetInput(null)} onPhase={onPhase} />

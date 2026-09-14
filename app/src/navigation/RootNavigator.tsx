@@ -14,6 +14,7 @@ import { MainTabs } from './MainTabs';
 import { OnboardingNavigator } from './OnboardingNavigator';
 import { navigationTheme } from './theme';
 import type { RootParamList } from './types';
+import { useT } from '@/i18n';
 
 const Stack = createNativeStackNavigator<RootParamList>();
 
@@ -35,6 +36,7 @@ const linking: LinkingOptions<RootParamList> = {
 
 /** Root：Bootstrap → Landing → Onboarding → Main（SD 5.2）。頁面 transition ≤ 320ms（Style 15）。 */
 export function RootNavigator() {
+  const { t } = useT();
   return (
     <NavigationContainer theme={navigationTheme} linking={linking}>
       <Stack.Navigator
@@ -56,16 +58,16 @@ export function RootNavigator() {
           component={ActivityHistoryScreen}
           options={{
             headerShown: true,
-            title: 'Activity',
+            title: t('nav.activity'),
             animation: 'slide_from_right',
             headerStyle: { backgroundColor: color.surface },
             headerTintColor: color.textPrimary,
           }}
         />
-        <Stack.Screen name="Gallery" component={GalleryScreen} options={{ headerShown: true, title: 'Gallery', animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
-        <Stack.Screen name="GalleryPlayer" component={GalleryPlayerScreen} options={{ headerShown: true, title: 'Player', animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
-        <Stack.Screen name="Events" component={EventsScreen} options={{ headerShown: true, title: 'Events', animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
-        <Stack.Screen name="EventDetail" component={EventDetailScreen} options={{ headerShown: true, title: 'Event', animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="Gallery" component={GalleryScreen} options={{ headerShown: true, title: t('nav.gallery'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="GalleryPlayer" component={GalleryPlayerScreen} options={{ headerShown: true, title: t('nav.player'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="Events" component={EventsScreen} options={{ headerShown: true, title: t('nav.events'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="EventDetail" component={EventDetailScreen} options={{ headerShown: true, title: t('nav.event'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         {__DEV__ ? <Stack.Screen name="DevHealth" component={HealthDiagnosticsScreen} options={{ headerShown: true, title: 'Health Connect (dev)', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} /> : null}
       </Stack.Navigator>
     </NavigationContainer>

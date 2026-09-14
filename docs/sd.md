@@ -1025,3 +1025,27 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 逐期摘要與歷史有效等級必須可由鏈上事件追溯；未 finalized 的 indexer 資料不作歷史 PB 能力證明。鞋階 NFT 依最高實際達成判定；PB／活動 NFT 依 eligibility registry 的能力快照與唯一 receipt 判定，不依現持有 NFT。舊種類與新增期別成就需不同唯一性 key，避免重新升階重複鑄造。
 
 新權限與維持參數尚未部署；此前 SD 3／12 內與本章衝突的永久 XP 升級規則僅記錄現有實作。上線須一次完成鏈上規則、客戶端、索引與遷移，不先以 UI 假裝已降級。具體 canonical 欄位、帳戶空間、batch 上限及費用待正式 PG 拆項後實作驗證。
+
+## 15. 首次成就 NFT 契約補充
+
+依 [首次里程碑與紀念 NFT](./commemorative-nfts.md) 第 4 章，新增 first_5k／first_10k／first_half／first_marathon／first_finish 類別。首次類 stable key 綁 wallet、category、environment、verification class；來源 revision 只在 eligibility 中更新，不改 receipt 唯一性。活動／年度類另帶 event／year，明確區別終身一次與每期一次。
+
+不沿用「每次破 PB 一個新 achievement ID」為首次章重分配 ID；重傳／更早資料回填／失效後重新達標沿用同 key。claim_achievement 必須驗證 key 與已核准 registry 對應，原子鑄造與 receipt；轉出資產不恢復資格。半馬／全馬初期只啟用 organizer 類別，device 類別須通過長距離品質驗收才開。
+
+長期紀念索引與保存政策需獨立同意，不延長原健康摘要 30 天；精確成績／日期不預設寫入公開 metadata。NFT 與來源更正狀態分開讀取，圖片失效只回退呈現，不重鑄。
+
+## 16. GPS 運動模組契約（待實作）
+
+計算與資料基準見 [GPS 運動規格](./walk-run-tracking.md) 第 3～7 章；對應 PG-R-01／03～06／10／12。擬新增以下模組，實際路徑在實作 PR 定案：
+
+| 模組 | 職責與邊界 |
+|---|---|
+| WorkoutRecorder | 管理 Walking／Running session、權限、定位服務、單調時間及手動暫停；同時只允許一個主動 session |
+| LocalWorkoutStore | 加密軌跡、checkpoint 與操作 ID；先持久化再回報成功，恢复去重；清除 session 時清除點與圈 |
+| GpsMetricsEngine | 合格點判定、距離／完整 5 秒窗、split／lap 插值；純計算可由固定軌跡重播，保存規則版本 |
+| WorkoutSummarySync | 沿用第 13 章運動摘要入口，以 wallet＋session ID 去重、revision 防覆寫；只同步同意的摘要與圈，原始座標不得進請求或日誌 |
+| WorkoutScreens | 開始／記錄／暫停／摘要；展示來源與品質，串接 PB／首次資格結果，不由 UI 自行授予 NFT |
+
+同步契約須拒絕非有限數值、負距離／時長、圈界越界及不支援的 sport／版本；伺服器衍生欄位不可由客戶端覆寫。相同 revision 重試返回同結果，過期 revision 回傳衝突，刪除 tombstone 阻止離線舊資料重建。裝置摘要仍屬裝置來源，欄位合法不等於運動真實性已驗證。
+
+Indoor 不啟用 GPS 推算距離，僅接可信裝置／已標記來源；缺來源顯示缺值。背景服務與定位權限依 Android／Expo 實作時官方文件驗證，不假設鎖屏與 process 被殺時持續可用。測試以專章 7 的固定軌跡、圈界、跳點、暫停、恢復及實機證據作 PG-R-10 完成門檻。

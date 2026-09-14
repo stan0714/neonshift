@@ -5,6 +5,7 @@ import { create } from 'zustand';
 import type { TournamentEntry } from '@/chain/accounts';
 import { ApiError, apiClient, type LeaderboardResponse, type TournamentCurrentResponse, type TournamentView } from '@/services/api/ApiClient';
 import { ClaimError } from '@/services/chain/StarterShoeService';
+import { t as tr } from '@/i18n';
 import { tournamentService } from '@/services/tournament/TournamentService';
 
 export type ArenaAction = 'join' | 'steps' | 'claim' | 'refund';
@@ -84,7 +85,7 @@ export const useArenaStore = create<State>((set, get) => ({
     set({ busy: 'join', outcome: null });
     try {
       const r = await tournamentService.join(wallet, t.week_id, mint);
-      set({ outcome: { kind: 'success', action: 'join', message: r.alreadyJoined ? 'You are already entered.' : `Entered · Tx ${r.signature?.slice(0, 8)}…` } });
+      set({ outcome: { kind: 'success', action: 'join', message: r.alreadyJoined ? tr('arena.msg.alreadyEntered') : tr('arena.msg.entered', { tx: r.signature?.slice(0, 8) ?? '' }) } });
       await get().refresh(wallet);
     } catch (e) {
       set({ outcome: fail('join', e) });
@@ -99,7 +100,7 @@ export const useArenaStore = create<State>((set, get) => ({
     set({ busy: 'steps', outcome: null });
     try {
       const r = await tournamentService.submitSteps(t, client);
-      set({ outcome: { kind: 'success', action: 'steps', message: r.accepted ? `${r.verified_steps.toLocaleString()} verified steps · rank #${r.rank ?? '—'}` : `Already at ${r.verified_steps.toLocaleString()} verified steps` } });
+      set({ outcome: { kind: 'success', action: 'steps', message: r.accepted ? tr('arena.msg.stepsAccepted', { n: r.verified_steps, rank: r.rank ?? '—' }) : tr('arena.msg.stepsSame', { n: r.verified_steps }) } });
       const cur = get().current;
       if (cur?.player) set({ current: { ...cur, player: { ...cur.player, verified_steps: r.verified_steps, rank: r.rank } } });
       const lb = await apiClient.tournamentLeaderboard(t.week_id).catch(() => null);
@@ -118,7 +119,7 @@ export const useArenaStore = create<State>((set, get) => ({
     set({ busy: action, outcome: null });
     try {
       const r = await tournamentService.claim(wallet, t.week_id, mint, kind);
-      set({ outcome: { kind: 'success', action, message: r.alreadySettled ? 'Already paid out to your wallet.' : `${kind === 'prize' ? 'Prize and refund' : 'Stake refund'} sent · Tx ${r.signature?.slice(0, 8)}…` } });
+      set({ outcome: { kind: 'success', action, message: r.alreadySettled ? tr('arena.msg.alreadyPaid') : tr(kind === 'prize' ? 'arena.msg.prizeSent' : 'arena.msg.refundSent', { tx: r.signature?.slice(0, 8) ?? '' }) } });
       await get().refresh(wallet);
     } catch (e) {
       set({ outcome: fail(action, e) });

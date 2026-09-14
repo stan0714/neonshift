@@ -52,10 +52,10 @@ describe('每日任務狀態機（SA 6.3）', () => {
     expect(run('not_met', [{ kind: 'submit' }])).toBe('not_met');
   });
   test('CTA 文案（Style 7.3）', () => {
-    expect(ctaFor('not_met', progress('steps', 0))).toEqual({ label: 'Keep moving', enabled: false });
-    expect(ctaFor('ready', progress('steps', 9_000))).toEqual({ label: 'Clock In', enabled: true });
+    expect(ctaFor('not_met', progress('steps', 0))).toEqual({ label: 'mission.cta.keepMoving', enabled: false });
+    expect(ctaFor('ready', progress('steps', 9_000))).toEqual({ label: 'mission.cta.clockIn', enabled: true });
     expect(ctaFor('verifying', progress('steps', 9_000)).enabled).toBe(false);
-    expect(ctaFor('rejected', progress('steps', 9_000))).toEqual({ label: 'Try again', enabled: true });
-    expect(ctaFor('claimed', progress('steps', 9_000))).toEqual({ label: 'Claimed', enabled: false });
+    expect(ctaFor('rejected', progress('steps', 9_000))).toEqual({ label: 'mission.cta.tryAgain', enabled: true });
+    expect(ctaFor('claimed', progress('steps', 9_000))).toEqual({ label: 'mission.cta.claimed', enabled: false });
   });
 });

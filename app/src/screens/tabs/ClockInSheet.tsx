@@ -8,6 +8,7 @@ import type { TaskType } from '@/domain/taskEngine';
 import { runClaimFlow, type ClaimInput, type ClaimPhase } from '@/services/claim/ClaimFlow';
 import { liveMotion } from '@/services/sensors/LiveMotionService';
 import { color, radius, space, Text } from '@/theme';
+import { useT, type TKey } from '@/i18n';
 
 type Props = {
   visible: boolean;
@@ -16,22 +17,15 @@ type Props = {
   onPhase: (p: ClaimPhase) => void;
 };
 
-/** SA 附錄 A 拒絕碼 → 使用者可見文案（不揭露門檻） */
-const REJECT_COPY: Record<string, { title: string; body: string }> = {
-  SRC_UNATTRIBUTED: { title: 'Steps not attributed', body: 'Only steps counted by this phone qualify. Third-party or synced data is not used.' },
-  SRC_MANUAL: { title: 'Manual steps not counted', body: 'Manually entered steps do not count toward missions.' },
-  NO_SENSOR: { title: 'Motion check missing', body: 'Complete the 20-second motion check before claiming.' },
-  LIVE_MOTION_INCOMPLETE: { title: 'Not enough movement recorded', body: 'Walk normally for the full 20 seconds in a safe place, then try again.' },
-  TASK_NOT_MET: { title: 'Goal not reached yet', body: 'After filtering, your verified progress is below the goal. Keep moving.' },
-  SLEEP_RANGE: { title: 'Sleep duration out of range', body: 'Sessions between 3 and 12 hours qualify.' },
-  RISK_SCORE: { title: 'Claim could not be verified', body: 'This claim did not pass verification. You can try again tomorrow.' },
-};
+/** SA 附錄 A 拒絕碼 → 使用者可見文案（不揭露門檻；i18n key `clock.reject.<code>.*`） */
+const REJECT_CODES = ['SRC_UNATTRIBUTED', 'SRC_MANUAL', 'NO_SENSOR', 'LIVE_MOTION_INCOMPLETE', 'TASK_NOT_MET', 'SLEEP_RANGE', 'RISK_SCORE'];
 
 /**
  * 打卡引導（PG-A-13，Style 7.3／15）：live motion 倒數 → Verifying → Open wallet → Confirming → Confirmed／Failed。
  * 成功一次 medium haptic；loading／失敗不震動；文案說明資料／資金是否安全與下一步。
  */
 export function ClockInSheet({ visible, input, onClose, onPhase }: Props) {
+  const { t } = useT();
   const [phase, setPhase] = useState<ClaimPhase | null>(null);
   const running = useRef(false);
 
@@ -64,10 +58,10 @@ export function ClockInSheet({ visible, input, onClose, onPhase }: Props) {
     <Modal visible={visible} transparent animationType="fade" onRequestClose={cancel}>
       <View style={styles.scrim}>
         <Surface hero style={styles.sheet} testID="clockin-sheet">
-          <Text variant="heading2">{input?.taskType === 'steps' ? 'Step mission' : 'Sleep mission'}</Text>
+          <Text variant="heading2">{input?.taskType === 'steps' ? t('mission.steps') : t('mission.sleep')}</Text>
           {phase ? <PhaseView phase={phase} taskType={input?.taskType ?? 'steps'} /> : null}
           <View style={styles.actions}>
-            {terminal ? <Button label="Done" onPress={onClose} /> : <Button label={phase?.kind === 'live_motion' ? 'Cancel check' : 'Cancel'} variant="secondary" onPress={cancel} disabled={phase?.kind === 'awaiting_signature' || phase?.kind === 'confirming'} disabledReason={phase?.kind === 'confirming' ? 'Waiting for the network to confirm' : undefined} />}
+            {terminal ? <Button label={t('clock.done')} onPress={onClose} /> : <Button label={phase?.kind === 'live_motion' ? t('clock.cancelCheck') : t('common.cancel')} variant="secondary" onPress={cancel} disabled={phase?.kind === 'awaiting_signature' || phase?.kind === 'confirming'} disabledReason={phase?.kind === 'confirming' ? t('clock.waitingNetwork') : undefined} />}
           </View>
         </Surface>
       </View>
@@ -76,6 +70,7 @@ export function ClockInSheet({ visible, input, onClose, onPhase }: Props) {
 }
 
 function PhaseView({ phase, taskType }: { phase: ClaimPhase; taskType: TaskType }) {
+  const { t } = useT();
   switch (phase.kind) {
     case 'live_motion': {
       const p = phase.progress;
@@ -83,14 +78,14 @@ function PhaseView({ phase, taskType }: { phase: ClaimPhase; taskType: TaskType 
       return (
         <View style={styles.block} testID="phase-live-motion">
           <Text variant="body" tone="secondary">
-            Walk normally for 20 seconds while holding your phone. Only a motion summary is kept.
+            {t('clock.motionLead')}
           </Text>
           <View style={styles.countRow}>
             <Text variant="displayL" numeric tone="mint">
               {p ? Math.max(0, p.durationSeconds - p.elapsedSeconds) : 20}
             </Text>
             <Text variant="bodySmall" tone="muted" style={styles.countUnit}>
-              s left · window {p ? p.windowIndex + 1 : 1}/{p?.windowCount ?? 2}
+              {t('clock.motionCount', { i: p ? p.windowIndex + 1 : 1, n: p?.windowCount ?? 2 })}
             </Text>
           </View>
           <View style={styles.track}>
@@ -100,23 +95,23 @@ function PhaseView({ phase, taskType }: { phase: ClaimPhase; taskType: TaskType 
       );
     }
     case 'verifying':
-      return <Step icon="shield" text="Verifying your data with the attestor…" tint={color.cyan} testID="phase-verifying" />;
+      return <Step icon="shield" text={t('clock.verifying')} tint={color.cyan} testID="phase-verifying" />;
     case 'awaiting_signature':
-      return <Step icon="credit-card" text="Approve the claim in your wallet." tint={color.violet} testID="phase-wallet" />;
+      return <Step icon="credit-card" text={t('clock.approve')} tint={color.violet} testID="phase-wallet" />;
     case 'confirming':
-      return <Step icon="clock" text="Transaction sent. Waiting for devnet confirmation…" tint={color.cyan} testID="phase-confirming" />;
+      return <Step icon="clock" text={t('clock.confirming')} tint={color.cyan} testID="phase-confirming" />;
     case 'confirmed':
       return (
-        <InlineState kind="success" title={`${taskType === 'steps' ? 'Step' : 'Sleep'} mission claimed`} body={phase.signature ? `tSKR sent to your wallet. Tx ${phase.signature.slice(0, 8)}…` : 'tSKR sent to your wallet.'} testID="phase-confirmed" />
+        <InlineState kind="success" title={taskType === 'steps' ? t('clock.claimed.steps') : t('clock.claimed.sleep')} body={phase.signature ? t('clock.claimed.bodyTx', { tx: phase.signature.slice(0, 8) }) : t('clock.claimed.body')} testID="phase-confirmed" />
       );
     case 'already_claimed':
-      return <InlineState kind="info" title="Already claimed today" body="This mission was already claimed for today. Nothing was charged." testID="phase-already" />;
+      return <InlineState kind="info" title={t('clock.already.title')} body={t('clock.already.body')} testID="phase-already" />;
     case 'rejected': {
-      const c = REJECT_COPY[phase.code] ?? { title: 'Claim not verified', body: phase.message };
-      return <InlineState kind="warning" title={c.title} body={`${c.body}${phase.effectiveValue !== undefined ? ` Verified today: ${phase.effectiveValue.toLocaleString()}.` : ''}`} testID="phase-rejected" />;
+      const c = REJECT_CODES.includes(phase.code) ? { title: t(`clock.reject.${phase.code}.title` as TKey), body: t(`clock.reject.${phase.code}.body` as TKey) } : { title: t('clock.notVerified'), body: phase.message };
+      return <InlineState kind="warning" title={c.title} body={`${c.body}${phase.effectiveValue !== undefined ? t('clock.verifiedToday', { n: phase.effectiveValue }) : ''}`} testID="phase-rejected" />;
     }
     case 'failed':
-      return <InlineState kind="error" title={phase.code === 'CANCELLED' || phase.code === 'REJECTED' ? 'Request canceled' : 'Something interrupted your shift'} body={`${phase.message} Your wallet was not charged unless a transaction shows in it; retrying will never claim twice.`} referenceId={phase.referenceId} testID="phase-failed" />;
+      return <InlineState kind="error" title={phase.code === 'CANCELLED' || phase.code === 'REJECTED' ? t('common.requestCanceled') : t('common.somethingInterrupted')} body={t('clock.failed.body', { message: phase.message })} referenceId={phase.referenceId} testID="phase-failed" />;
     default:
       return null;
   }

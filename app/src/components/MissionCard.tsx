@@ -5,6 +5,7 @@ import { Button } from '@/components/Button';
 import { Surface } from '@/components/Surface';
 import { ctaFor, type TaskProgress, type TaskStatus, type TaskType } from '@/domain/taskEngine';
 import { color, space, Text } from '@/theme';
+import { useT, type TKey } from '@/i18n';
 
 type Props = {
   type: TaskType;
@@ -18,13 +19,13 @@ type Props = {
 
 /** 7.3 Mission Card：狀態視覺與 CTA 一一對應（In progress／Ready／Verifying／Wallet approval／Confirming／Claimed／Failed）。 */
 export function MissionCard({ type, status, progress, rewardLabel, onPress, disabledReason, testID }: Props) {
+  const { t } = useT();
   const cta = ctaFor(status, progress);
-  const title = type === 'steps' ? 'Step mission' : 'Sleep mission';
+  const title = type === 'steps' ? t('mission.steps') : t('mission.sleep');
   const icon: React.ComponentProps<typeof Feather>['name'] =
     status === 'claimed' ? 'check-circle' : status === 'rejected' ? 'alert-triangle' : status === 'awaiting_signature' ? 'credit-card' : type === 'steps' ? 'activity' : 'moon';
   const tint = status === 'claimed' ? color.success : status === 'rejected' ? color.danger : status === 'awaiting_signature' ? color.violet : status === 'verifying' || status === 'confirming' ? color.cyan : type === 'steps' ? color.mint : color.violet;
-  const headline =
-    status === 'ready' ? 'READY TO CLOCK IN' : status === 'claimed' ? 'CLAIMED TODAY' : status === 'rejected' ? 'NOT VERIFIED' : status === 'verifying' ? 'VERIFYING' : status === 'awaiting_signature' ? 'WALLET APPROVAL' : status === 'confirming' ? 'CONFIRMING' : 'IN PROGRESS';
+  const headline = t(`mission.headline.${status === 'ready' || status === 'claimed' || status === 'rejected' || status === 'verifying' || status === 'awaiting_signature' || status === 'confirming' ? status : 'not_met'}` as TKey);
 
   return (
     <Surface active={status === 'ready'} style={styles.card} testID={testID}>
@@ -39,15 +40,15 @@ export function MissionCard({ type, status, progress, rewardLabel, onPress, disa
         {rewardLabel ? <Text variant="title" tone="secondary">{`  ·  +${rewardLabel}`}</Text> : null}
       </Text>
       <Text variant="bodySmall" tone="secondary">
-        {progress.met ? `Goal reached (${progress.value.toLocaleString()} / ${progress.goal.toLocaleString()})` : `${progress.remaining.toLocaleString()} to go`}
+        {progress.met ? t('mission.goalReached', { value: progress.value, goal: progress.goal }) : t('mission.toGo', { n: progress.remaining })}
       </Text>
       <Button
-        label={cta.label}
+        label={t(cta.label)}
         variant={status === 'ready' || status === 'awaiting_signature' ? 'primary' : 'secondary'}
         disabled={!cta.enabled || Boolean(disabledReason)}
         disabledReason={disabledReason}
         loading={status === 'verifying' || status === 'confirming'}
-        loadingLabel={cta.label}
+        loadingLabel={t(cta.label)}
         onPress={onPress}
         style={styles.cta}
       />

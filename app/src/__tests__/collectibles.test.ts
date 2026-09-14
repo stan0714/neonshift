@@ -3,7 +3,8 @@ import { PublicKey } from '@solana/web3.js';
 import type { PlayerProfile } from '@/chain/accounts';
 import { claimCollectibleInstruction } from '@/chain/instructions';
 import { assetPda, collectiblePda, discriminator, MPL_CORE_PROGRAM_ID } from '@/chain/program';
-import { COLLECTIBLES, collectibleStatus, isEligible } from '@/domain/collectibles';
+import { COLLECTIBLES, collectibleName, collectibleStatus, isEligible } from '@/domain/collectibles';
+import { translate } from '@/i18n';
 import { collectibleService } from '@/services/chain/CollectibleService';
 import { ClaimError } from '@/services/chain/StarterShoeService';
 import { useCollectibleStore } from '@/state/collectibleStore';
@@ -49,7 +50,10 @@ describe('domain/collectibles（與鏈上 eligible() 一致）', () => {
   });
 
   test('目錄：五階跑鞋名稱對齊 Style 16.2，kind 不重複', () => {
-    expect(COLLECTIBLES.filter((c) => c.group === 'shoe').map((c) => c.name)).toEqual(['Shoe · Origin', 'Shoe · Pulse', 'Shoe · Phase', 'Shoe · Surge', 'Shoe · Zenith']);
+    const en = (k: Parameters<typeof translate>[1], p?: Record<string, string | number>) => translate('en', k, p);
+    expect(COLLECTIBLES.filter((c) => c.group === 'shoe').map((c) => collectibleName(en, c))).toEqual(['Shoe · Origin', 'Shoe · Pulse', 'Shoe · Phase', 'Shoe · Surge', 'Shoe · Zenith']);
+    const zh = (k: Parameters<typeof translate>[1], p?: Record<string, string | number>) => translate('zh-TW', k, p);
+    expect(collectibleName(zh, COLLECTIBLES[0]!)).toBe('跑鞋 · 原點');
     expect(new Set(COLLECTIBLES.map((c) => c.kind)).size).toBe(COLLECTIBLES.length);
   });
 });

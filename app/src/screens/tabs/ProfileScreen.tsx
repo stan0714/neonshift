@@ -12,6 +12,7 @@ import { useDashboardStore } from '@/state/dashboardStore';
 import { useOnboardingStore } from '@/state/onboardingStore';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
 import { color, space, Text } from '@/theme';
+import { useLocaleStore, useT, type TKey } from '@/i18n';
 
 type Deletion = { state: 'idle' | 'working' | 'done' | 'scheduled' | 'error'; dueAt?: string; message?: string; referenceId?: string };
 
@@ -20,6 +21,7 @@ type Deletion = { state: 'idle' | 'working' | 'done' | 'scheduled' | 'error'; du
  * 高風險操作（刪除、斷開）用 centered confirmation dialog（7.7），說明資料／資金是否受影響與下一步。
  */
 export function ProfileScreen() {
+  const { t } = useT();
   const navigation = useNavigation();
   const wallet = useWalletStore();
   const onboarding = useOnboardingStore();
@@ -28,6 +30,8 @@ export function ProfileScreen() {
   const [activity, setActivity] = useState<boolean | null>(null);
   const [backend, setBackend] = useState<boolean | null>(null);
   const [deletion, setDeletion] = useState<Deletion>({ state: 'idle' });
+  const localeSetting = useLocaleStore((s) => s.setting);
+  const setLocaleSetting = useLocaleStore((s) => s.setSetting);
 
   const refresh = useCallback(async () => {
     setHealth(await healthConnect.getPermissions().catch(() => null));
@@ -40,10 +44,10 @@ export function ProfileScreen() {
   }, [refresh]);
 
   const disconnect = () => {
-    Alert.alert('Disconnect wallet?', 'Your wallet authorization and backend session on this phone will be removed. Onchain data and tSKR stay in your wallet. You can connect again any time.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('profile.disconnect.title'), t('profile.disconnect.body'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Disconnect',
+        text: t('profile.disconnect.ok'),
         style: 'destructive',
         onPress: async () => {
           await apiClient.signOut().catch(() => {});
@@ -57,12 +61,12 @@ export function ProfileScreen() {
 
   const deleteData = () => {
     Alert.alert(
-      'Delete my backend data?',
-      'This removes your health summaries, verification records and sessions from NeonShift servers and signs you out. Onchain records (wallet, claims, tSKR) are public and cannot be deleted. If you have an active staked tournament, settlement summaries are kept until it settles, never beyond 30 days.',
+      t('profile.delete.title'),
+      t('profile.delete.body'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete data',
+          text: t('profile.delete.ok'),
           style: 'destructive',
           onPress: async () => {
             setDeletion({ state: 'working' });
@@ -89,48 +93,56 @@ export function ProfileScreen() {
   return (
     <Screen scroll insideTabs testID="profile-screen">
       <View style={styles.header}>
-        <Text variant="heading1">Profile</Text>
-        <Chip label="DEVNET" kind="devnet" />
+        <Text variant="heading1">{t('profile.title')}</Text>
+        <Chip label={t('common.devnet')} kind="devnet" />
       </View>
 
-      <Section title="Wallet">
-        <Row icon="credit-card" label={wallet.session ? shortAddress(wallet.session.address, 6) : 'Not connected'} detail={wallet.session?.label ?? `Solana ${APP_CONFIG.cluster}`} />
-        <Row icon="server" label="Backend session" detail={backend === null ? '…' : backend ? 'Signed in' : 'Signed out'} />
-        {wallet.session ? <Button label="Disconnect wallet" variant="danger" style={styles.btn} onPress={disconnect} /> : <Button label="Connect wallet" style={styles.btn} onPress={() => navigation.navigate('Onboarding', { screen: 'WalletConnect' })} />}
+      <Section title={t('profile.wallet')}>
+        <Row icon="credit-card" label={wallet.session ? shortAddress(wallet.session.address, 6) : t('common.notConnected')} detail={wallet.session?.label ?? `Solana ${APP_CONFIG.cluster}`} />
+        <Row icon="server" label={t('profile.backendSession')} detail={backend === null ? '…' : backend ? t('profile.signedIn') : t('profile.signedOut')} />
+        {wallet.session ? <Button label={t('profile.disconnectWallet')} variant="danger" style={styles.btn} onPress={disconnect} /> : <Button label={t('common.connectWallet')} style={styles.btn} onPress={() => navigation.navigate('Onboarding', { screen: 'WalletConnect' })} />}
       </Section>
 
-      <Section title="Permissions">
-        <Row icon="activity" label="Health Connect" detail={health ? (health.state === 'granted' ? `Steps & Sleep${health.backgroundGranted ? ' · background' : ''}` : health.state === 'partial' ? 'Partial' : 'Off') : '…'} tint={health?.state === 'granted' ? color.success : color.warning} />
-        <Row icon="bar-chart-2" label="Activity recognition" detail={activity === null ? '…' : activity ? 'Allowed' : 'Off'} tint={activity ? color.success : color.warning} />
+      <Section title={t('profile.permissions')}>
+        <Row icon="activity" label={t('profile.healthConnect')} detail={health ? (health.state === 'granted' ? `${t('profile.stepsSleep')}${health.backgroundGranted ? t('profile.background') : ''}` : health.state === 'partial' ? t('profile.partial') : t('profile.off')) : '…'} tint={health?.state === 'granted' ? color.success : color.warning} />
+        <Row icon="bar-chart-2" label={t('profile.activity')} detail={activity === null ? '…' : activity ? t('profile.allowed') : t('profile.off')} tint={activity ? color.success : color.warning} />
         <View style={styles.rowBtns}>
-          <Button label="Health Connect settings" variant="secondary" style={styles.half} onPress={() => void healthConnect.openSettings()} />
-          <Button label="App settings" variant="secondary" style={styles.half} onPress={() => void Linking.openSettings()} />
+          <Button label={t('profile.hcSettings')} variant="secondary" style={styles.half} onPress={() => void healthConnect.openSettings()} />
+          <Button label={t('profile.appSettings')} variant="secondary" style={styles.half} onPress={() => void Linking.openSettings()} />
         </View>
       </Section>
 
-      <Section title="Privacy">
+      <Section title={t('profile.language')}>
+        <View style={styles.rowBtns} accessibilityRole="radiogroup" accessibilityLabel={t('profile.language')}>
+          {(['system', 'en', 'zh-TW'] as const).map((s) => (
+            <Button key={s} label={t(`profile.language.${s}` as TKey)} variant={localeSetting === s ? 'primary' : 'secondary'} style={styles.third} onPress={() => void setLocaleSetting(s)} accessibilityState={{ selected: localeSetting === s }} testID={`lang-${s}`} />
+          ))}
+        </View>
+      </Section>
+
+      <Section title={t('profile.privacy')}>
         <Text variant="bodySmall" tone="secondary">
-          Only summaries reach our servers and are kept for at most 30 days. Raw sensor and step records never leave this phone. Wallet address, claims and tSKR live onchain and are public.
+          {t('profile.privacyBody')}
         </Text>
         <Pressable onPress={() => void Linking.openURL(`${APP_CONFIG.siteUrl}/privacy`)} accessibilityRole="link" style={styles.link}>
           <Text variant="bodySmall" tone="cyan">
-            Privacy policy · {APP_CONFIG.siteUrl.replace('https://', '')}/privacy
+            {t('profile.privacyLink', { url: `${APP_CONFIG.siteUrl.replace('https://', '')}/privacy` })}
           </Text>
         </Pressable>
-        <Button label="Delete my backend data" variant="danger" style={styles.btn} onPress={deleteData} loading={deletion.state === 'working'} loadingLabel="Deleting…" disabled={!backend} disabledReason={backend === false ? 'Sign in to manage server data' : undefined} />
-        {deletion.state === 'done' ? <InlineState kind="success" title="Backend data deleted" body="Your server-side data was removed and you were signed out. Onchain records remain public." testID="deletion-done" /> : null}
-        {deletion.state === 'scheduled' ? <InlineState kind="info" title="Deletion scheduled" body={`Sessions revoked now; remaining tournament summaries are deleted by ${deletion.dueAt ? new Date(deletion.dueAt).toLocaleString() : 'the retention limit'}.`} testID="deletion-scheduled" /> : null}
-        {deletion.state === 'error' ? <InlineState kind="error" title="Something interrupted your shift" body={`${deletion.message ?? ''} Nothing was deleted.`} referenceId={deletion.referenceId} action={{ label: 'Try again', onPress: deleteData }} testID="deletion-error" /> : null}
+        <Button label={t('profile.deleteData')} variant="danger" style={styles.btn} onPress={deleteData} loading={deletion.state === 'working'} loadingLabel={t('profile.deleting')} disabled={!backend} disabledReason={backend === false ? t('profile.deleteReason') : undefined} />
+        {deletion.state === 'done' ? <InlineState kind="success" title={t('profile.deleted.title')} body={t('profile.deleted.body')} testID="deletion-done" /> : null}
+        {deletion.state === 'scheduled' ? <InlineState kind="info" title={t('profile.scheduled.title')} body={t('profile.scheduled.body', { when: deletion.dueAt ? new Date(deletion.dueAt).toLocaleString() : t('profile.retentionLimit') })} testID="deletion-scheduled" /> : null}
+        {deletion.state === 'error' ? <InlineState kind="error" title={t('common.somethingInterrupted')} body={t('profile.deleteErr.body', { message: deletion.message ?? '' })} referenceId={deletion.referenceId} action={{ label: t('common.tryAgain'), onPress: deleteData }} testID="deletion-error" /> : null}
       </Section>
 
-      <Section title="About">
-        <Row icon="info" label="NeonShift 0.1.0" detail={`${APP_CONFIG.chainConfigured ? `Program ${shortAddress(APP_CONFIG.programId, 6)}` : 'Onchain program not configured'} · ${APP_CONFIG.backendConfigured ? APP_CONFIG.apiUrl : 'Backend not configured'}`} />
-        <Row icon="refresh-cw" label="Health sync" detail={dashboard.health?.syncedAt ? `${dashboard.health.source} · ${new Date(dashboard.health.syncedAt).toLocaleTimeString()}` : 'Not synced yet'} />
+      <Section title={t('profile.about')}>
+        <Row icon="info" label="NeonShift 0.1.0" detail={`${APP_CONFIG.chainConfigured ? t('profile.program', { id: shortAddress(APP_CONFIG.programId, 6) }) : t('profile.noProgram')} · ${APP_CONFIG.backendConfigured ? APP_CONFIG.apiUrl : t('profile.noBackend')}`} />
+        <Row icon="refresh-cw" label={t('profile.healthSync')} detail={dashboard.health?.syncedAt ? `${dashboard.health.source} · ${new Date(dashboard.health.syncedAt).toLocaleTimeString()}` : t('profile.notSyncedYet')} />
         <Text variant="caption" tone="muted" style={styles.disclaimer}>
-          Test Token · No monetary value. tSKR is a devnet test token and is not the official SKR.
+          {t('profile.aboutDisclaimer')}
         </Text>
-        {__DEV__ ? <Button label="Health Connect diagnostics" variant="secondary" style={styles.btn} onPress={() => navigation.navigate('DevHealth')} /> : null}
-        {__DEV__ ? <Button label="Reset onboarding flags" variant="secondary" style={styles.btn} onPress={() => void onboarding.reset()} /> : null}
+        {__DEV__ ? <Button label={t('profile.devDiag')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('DevHealth')} /> : null}
+        {__DEV__ ? <Button label={t('profile.devReset')} variant="secondary" style={styles.btn} onPress={() => void onboarding.reset()} /> : null}
       </Section>
     </Screen>
   );
@@ -168,6 +180,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: space.xs },
   rowText: { marginLeft: space.s, flex: 1 },
   rowBtns: { flexDirection: 'row', marginTop: space.s, gap: space.xs },
+  third: { flex: 1 },
   half: { flex: 1 },
   btn: { marginTop: space.m },
   link: { marginTop: space.s, minHeight: 48, justifyContent: 'center' },

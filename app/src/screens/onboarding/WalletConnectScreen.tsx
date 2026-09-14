@@ -6,24 +6,17 @@ import { APP_CONFIG } from '@/config/app';
 import type { WalletErrorCode } from '@/services/wallet/WalletService';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
 import { color } from '@/theme';
+import { useT, type TKey } from '@/i18n';
 
 /** Style 10.1／14 的錯誤文案：說明發生什麼、資料是否安全、下一步 */
-const ERROR_COPY: Record<WalletErrorCode, { title: string; body: string }> = {
-  REJECTED: { title: 'Request canceled', body: 'You closed the wallet before approving. Nothing was signed. Try again when you are ready.' },
-  WALLET_UNAVAILABLE: {
-    title: 'No compatible wallet found',
-    body: 'NeonShift connects through Mobile Wallet Adapter. Install a Seeker-compatible wallet (for example Seed Vault Wallet or Phantom) and try again.',
-  },
-  SESSION_EXPIRED: { title: 'Wallet session expired', body: 'Your previous authorization is no longer valid. Connect again to continue.' },
-  NETWORK_ERROR: { title: 'Devnet is taking a break', body: 'The wallet session timed out. Check your connection and retry.' },
-  UNKNOWN: { title: 'Something interrupted your shift', body: 'The wallet did not respond as expected. Nothing was signed. Try again.' },
-};
+const ERROR_CODES: WalletErrorCode[] = ['REJECTED', 'WALLET_UNAVAILABLE', 'SESSION_EXPIRED', 'NETWORK_ERROR', 'UNKNOWN'];
 
 /**
  * Onboarding 1／4 — Wallet Connection（Style 10.1）。
  * MWA 會開啟相容錢包；NeonShift 不會取得 seed phrase。
  */
 export function WalletConnectScreen() {
+  const { t } = useT();
   const navigation = useNavigation();
   const { status, session, error, connect, clearError } = useWalletStore();
 
@@ -33,20 +26,21 @@ export function WalletConnectScreen() {
     }
   }, [status, session, navigation]);
 
-  const copy = error ? ERROR_COPY[error.code] : null;
+  const code = error && ERROR_CODES.includes(error.code) ? error.code : error ? 'UNKNOWN' : null;
+  const copy = code ? { title: t(`wallet.err.${code}.title` as TKey), body: t(`wallet.err.${code}.body` as TKey) } : null;
 
   return (
     <OnboardingLayout
       step={1}
-      title="Connect your mission wallet"
-      lead="NeonShift opens your Solana Mobile wallet to link an account. Your seed phrase never leaves the wallet."
+      title={t('wallet.title')}
+      lead={t('wallet.lead')}
       testID="onboarding-wallet"
       actions={
         <>
           <Button
-            label={status === 'connecting' ? 'Connect wallet' : session ? `Continue as ${shortAddress(session.address)}` : 'Connect wallet'}
+            label={status === 'connecting' ? t('common.connectWallet') : session ? t('wallet.continueAs', { address: shortAddress(session.address) }) : t('common.connectWallet')}
             loading={status === 'connecting'}
-            loadingLabel="Opening wallet…"
+            loadingLabel={t('wallet.opening')}
             onPress={() => {
               clearError();
               void connect();
@@ -55,9 +49,9 @@ export function WalletConnectScreen() {
         </>
       }
     >
-      <Bullet icon="shield" text="Approve once in your wallet. NeonShift only receives your public address." />
-      <Bullet icon="globe" text={`Network: Solana ${APP_CONFIG.cluster === 'devnet' ? 'Devnet' : APP_CONFIG.cluster}`} />
-      <Bullet icon="info" text={`Rewards use ${APP_CONFIG.tokenSymbol} test tokens with no monetary value.`} tint={color.warning} />
+      <Bullet icon="shield" text={t('wallet.bullet1')} />
+      <Bullet icon="globe" text={t('wallet.bullet2', { network: APP_CONFIG.cluster === 'devnet' ? 'Devnet' : APP_CONFIG.cluster })} />
+      <Bullet icon="info" text={t('wallet.bullet3', { symbol: APP_CONFIG.tokenSymbol })} tint={color.warning} />
       {copy ? <InlineState kind={error?.code === 'WALLET_UNAVAILABLE' ? 'warning' : 'error'} title={copy.title} body={copy.body} testID="wallet-error" /> : null}
     </OnboardingLayout>
   );

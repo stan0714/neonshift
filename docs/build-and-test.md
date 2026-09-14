@@ -490,6 +490,7 @@ anchor deploy --provider.cluster devnet
 - 鏈上測試用 LiteSVM 在程序內執行：`cargo test -p neonshift-core`。**不要**用 `anchor test`，它會嘗試啟動 `surfpool` 本機 validator。
 - 程式 keypair 在 `programs/target/deploy/neonshift_core-keypair.json`（gitignore）。第一次 clone 後若 `declare_id!` 與本機 keypair 不同，執行 `anchor keys sync` 或依 PG-I-07 取得對應環境的 keypair；dev／demo 各自一把，不共用。
 - `claim_collectible` 測試需要 Metaplex Core 程式：`programs/neonshift-core/tests/fixtures/mpl_core.so` 是 devnet dump（`solana program dump CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d <path> --url https://api.devnet.solana.com`，約 856 KB，已入庫）。Core 升版時重新 dump 並核對 `src/mpl_core.rs` 的指令佈局。
+- App 文案：一律走 `app/src/i18n`（`useT()` 於元件、`t()` 於 store／service），新增文案同時補 `en.ts` 與 `zh-TW.ts`；`i18n.test.tsx` 會擋 key 不一致。語言由 expo-localization 跟隨系統，Profile 可切換。
 - 統一入口 `scripts/test-all.sh` 會依序跑 Rust／向量／DB／後端／App／鏈上六個區段。
 
 ### 7.6 週末錦標賽操作（PG-C-11～C-16／B-14／B-15）

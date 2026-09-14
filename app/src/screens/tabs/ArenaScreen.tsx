@@ -11,6 +11,7 @@ import { useArenaStore, worstCaseLoss } from '@/state/arenaStore';
 import { formatTskr, useDashboardStore } from '@/state/dashboardStore';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
+import { useT, type TKey } from '@/i18n';
 
 const fmtUtc = (unix: number) => new Date(unix * 1000).toISOString().replace('T', ' ').slice(5, 16) + ' UTC';
 const fmtLocal = (unix: number) => new Date(unix * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -21,6 +22,7 @@ const tskr = (units: string | bigint) => `${formatTskr(typeof units === 'string'
  * 賽事狀態由後端讀鏈上；質押、領獎、退款走 MWA；步數回報走錢包簽章 challenge。
  */
 export function ArenaScreen() {
+  const { t, locale } = useT();
   const navigation = useNavigation();
   const session = useWalletStore((s) => s.session);
   const config = useDashboardStore((s) => s.config);
@@ -38,24 +40,25 @@ export function ArenaScreen() {
     return () => clearInterval(t);
   }, [refresh]);
 
-  const t = a.current?.tournament ?? null;
+  const tt = a.current?.tournament ?? null;
   const joined = a.current?.player?.joined || a.entry !== null;
   const disabledReason = useMemo(() => {
-    if (!session) return 'Connect your wallet';
-    if (!APP_CONFIG.backendConfigured) return 'Backend not configured in this build';
-    if (!APP_CONFIG.chainConfigured) return 'Onchain program not configured in this build';
-    if (!config) return 'Waiting for onchain config';
+    if (!session) return t('common.reasonConnectWallet');
+    if (!APP_CONFIG.backendConfigured) return t('common.reasonBackend');
+    if (!APP_CONFIG.chainConfigured) return t('common.reasonChain');
+    if (!config) return t('common.reasonWaitConfig');
     return undefined;
-  }, [session, config]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, config, locale]);
 
   const confirmJoin = (tt: TournamentView) => {
     if (!session || !config) return;
     Alert.alert(
-      `Stake ${tskr(tt.stake_amount)} to enter?`,
-      `Your stake goes to the tournament vault until settlement. If you do not place, you get ${tt.loser_refund_bps / 100}% back — the most you can lose is ${tskr(worstCaseLoss(tt))}. Forfeited entries (rule violations) get nothing back. Test token, no monetary value.`,
+      t('arena.confirm.title', { stake: tskr(tt.stake_amount) }),
+      t('arena.confirm.body', { refund: tt.loser_refund_bps / 100, loss: tskr(worstCaseLoss(tt)) }),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Stake & enter', onPress: () => void a.join(session.publicKey, config.mint) },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('arena.confirm.ok'), onPress: () => void a.join(session.publicKey, config.mint) },
       ],
     );
   };
@@ -63,120 +66,120 @@ export function ArenaScreen() {
   return (
     <Screen scroll insideTabs testID="arena-screen" refreshControl={<RefreshControl refreshing={a.loading} onRefresh={() => void refresh()} tintColor={color.mint} />}>
       <View style={styles.header}>
-        <Text variant="heading1">Arena</Text>
-        <Chip label="DEVNET" kind="devnet" />
+        <Text variant="heading1">{t('arena.title')}</Text>
+        <Chip label={t('common.devnet')} kind="devnet" />
       </View>
 
       {a.outcome ? (
-        <Pressable onPress={a.dismissOutcome} accessibilityRole="button" accessibilityLabel="Dismiss">
-          <InlineState kind={a.outcome.kind === 'success' ? 'success' : a.outcome.code === 'REJECTED' ? 'warning' : 'error'} title={outcomeTitle(a.outcome)} body={a.outcome.message} testID={`arena-${a.outcome.kind}`} />
+        <Pressable onPress={a.dismissOutcome} accessibilityRole="button" accessibilityLabel={t('common.dismiss')}>
+          <InlineState kind={a.outcome.kind === 'success' ? 'success' : a.outcome.code === 'REJECTED' ? 'warning' : 'error'} title={outcomeTitle(t, a.outcome)} body={a.outcome.message} testID={`arena-${a.outcome.kind}`} />
         </Pressable>
       ) : null}
-      {a.needsSignIn && !t ? (
+      {a.needsSignIn && !tt ? (
         <Surface style={styles.card} testID="arena-signin">
-          <Text variant="title">Sign in to enter the arena</Text>
+          <Text variant="title">{t('arena.signin.title')}</Text>
           <Text variant="bodySmall" tone="secondary" style={styles.mt}>
-            Tournaments need a backend session. Sign the sign-in message with your wallet — no transaction, no fees.
+            {t('arena.signin.body')}
           </Text>
-          <Button label="Sign in with wallet" style={styles.mt} onPress={() => session && void a.signIn(session.publicKey)} loading={a.loading} loadingLabel="Signing in…" disabled={!session} disabledReason={session ? undefined : 'Connect your wallet'} testID="arena-signin-btn" />
+          <Button label={t('arena.signin.btn')} style={styles.mt} onPress={() => session && void a.signIn(session.publicKey)} loading={a.loading} loadingLabel={t('arena.signin.loading')} disabled={!session} disabledReason={session ? undefined : t('common.reasonConnectWallet')} testID="arena-signin-btn" />
         </Surface>
       ) : null}
-      {a.error && !t ? <InlineState kind={APP_CONFIG.backendConfigured ? 'error' : 'info'} title={APP_CONFIG.backendConfigured ? 'Arena unavailable' : 'Backend not configured'} body={APP_CONFIG.backendConfigured ? `Could not load the tournament. ${a.error}` : 'This build has no backend URL, so tournaments are not available.'} testID="arena-error" /> : null}
+      {a.error && !tt ? <InlineState kind={APP_CONFIG.backendConfigured ? 'error' : 'info'} title={APP_CONFIG.backendConfigured ? t('arena.unavailable') : t('arena.noBackend')} body={APP_CONFIG.backendConfigured ? t('arena.unavailableBody', { error: a.error }) : t('arena.noBackendBody')} testID="arena-error" /> : null}
 
-      {!t && !a.error && !a.needsSignIn ? (
+      {!tt && !a.error && !a.needsSignIn ? (
         a.loading ? null : (
           <Surface style={styles.card} testID="arena-empty">
-            <Text variant="title">No tournament this week</Text>
+            <Text variant="title">{t('arena.empty.title')}</Text>
             <Text variant="bodySmall" tone="secondary" style={styles.mt}>
-              Weekend step marathons open on Fridays. Keep clocking in — XP counts every day.
+              {t('arena.empty.body')}
             </Text>
           </Surface>
         )
       ) : null}
 
-      {t ? (
+      {tt ? (
         <>
           <Surface hero style={styles.card} testID="arena-tournament">
             <View style={styles.rowBetween}>
               <Text variant="label" tone="muted" uppercase>
-                Week {Math.floor(t.week_id / 100)} · W{String(t.week_id % 100).padStart(2, '0')}
+                {t('arena.week', { year: Math.floor(tt.week_id / 100), week: String(tt.week_id % 100).padStart(2, '0') })}
               </Text>
-              <Chip label={statusLabel(t.status)} kind={t.status === 'running' ? 'synced' : t.status === 'cancelled' ? 'offline' : 'level'} />
+              <Chip label={t(`arena.status.${tt.status}` as TKey)} kind={tt.status === 'running' ? 'synced' : tt.status === 'cancelled' ? 'offline' : 'level'} />
             </View>
             <Text variant="heading2" style={styles.mt}>
-              Weekend step marathon
+              {t('arena.marathon')}
             </Text>
-            <Row icon="clock" label="Window (UTC)" value={`${fmtUtc(t.starts_at)} → ${fmtUtc(t.ends_at)}`} />
-            <Row icon="map-pin" label="Your local time" value={`${fmtLocal(t.starts_at)} → ${fmtLocal(t.ends_at)}`} />
-            <Row icon="lock" label="Entry stake" value={tskr(t.stake_amount)} />
-            <Row icon="users" label="Entrants" value={`${t.entrant_count} · min ${t.min_entrants}${t.status !== 'registration' && t.status !== 'draft' ? ` · winners ${t.group_a_size + t.group_b_size} (A ${t.group_a_size} · B ${t.group_b_size})` : ''}`} />
-            <Row icon="percent" label="Rules" value={`Winners refund 100% · others ${t.loser_refund_bps / 100}% · pool split A ${t.prize_a_bps / 100}% / B ${t.prize_b_bps / 100}% · rules v${t.rules_version}`} />
-            {t.status === 'registration' ? <Row icon="calendar" label="Registration closes" value={`${fmtLocal(t.registration_ends_at)} (${remaining(t.registration_ends_at - now)})`} /> : null}
+            <Row icon="clock" label={t('arena.window')} value={`${fmtUtc(tt.starts_at)} → ${fmtUtc(tt.ends_at)}`} />
+            <Row icon="map-pin" label={t('arena.localTime')} value={`${fmtLocal(tt.starts_at)} → ${fmtLocal(tt.ends_at)}`} />
+            <Row icon="lock" label={t('arena.stake')} value={tskr(tt.stake_amount)} />
+            <Row icon="users" label={t('arena.entrants')} value={`${t('arena.entrantsValue', { n: tt.entrant_count, min: tt.min_entrants })}${tt.status !== 'registration' && tt.status !== 'draft' ? t('arena.winnersValue', { w: tt.group_a_size + tt.group_b_size, a: tt.group_a_size, b: tt.group_b_size }) : ''}`} />
+            <Row icon="percent" label={t('arena.rules')} value={t('arena.rulesValue', { refund: tt.loser_refund_bps / 100, a: tt.prize_a_bps / 100, b: tt.prize_b_bps / 100, v: tt.rules_version })} />
+            {tt.status === 'registration' ? <Row icon="calendar" label={t('arena.regCloses')} value={t('arena.regClosesValue', { when: fmtLocal(tt.registration_ends_at), remaining: remaining(t, tt.registration_ends_at - now) })} /> : null}
           </Surface>
 
           {/* 13.1 未報名 */}
-          {t.status === 'registration' && !joined ? (
+          {tt.status === 'registration' && !joined ? (
             <View style={styles.ctaBlock}>
-              <Button label={`Stake ${tskr(t.stake_amount)} to enter`} onPress={() => confirmJoin(t)} loading={a.busy === 'join'} loadingLabel="Entering…" disabled={!t.registration_open || Boolean(disabledReason) || a.busy !== null} disabledReason={disabledReason ?? (!t.registration_open ? 'Registration closed' : undefined)} testID="arena-join" />
+              <Button label={t('arena.join', { stake: tskr(tt.stake_amount) })} onPress={() => confirmJoin(tt)} loading={a.busy === 'join'} loadingLabel={t('arena.entering')} disabled={!tt.registration_open || Boolean(disabledReason) || a.busy !== null} disabledReason={disabledReason ?? (!tt.registration_open ? t('arena.regClosed') : undefined)} testID="arena-join" />
               <Text variant="caption" tone="muted" style={styles.mt}>
-                Worst case you lose {tskr(worstCaseLoss(t))}. Cancelled tournaments (under {t.min_entrants} entrants) refund everything.
+                {t('arena.worstCase', { loss: tskr(worstCaseLoss(tt)), min: tt.min_entrants })}
               </Text>
             </View>
           ) : null}
-          {t.status === 'registration' && joined ? <InlineState kind="success" title="You are in" body="Your stake is in the vault. Come back when the window opens to report steps." testID="arena-joined" /> : null}
-          {t.status === 'locked' ? <InlineState kind="info" title={joined ? 'Locked in' : 'Registration closed'} body={`Groups are fixed: ${t.group_a_size + t.group_b_size} winners out of ${t.valid_entrant_count}. Starts ${fmtLocal(t.starts_at)}.`} testID="arena-locked" /> : null}
+          {tt.status === 'registration' && joined ? <InlineState kind="success" title={t('arena.joined.title')} body={t('arena.joined.body')} testID="arena-joined" /> : null}
+          {tt.status === 'locked' ? <InlineState kind="info" title={joined ? t('arena.locked.in') : t('arena.regClosed')} body={t('arena.locked.body', { w: tt.group_a_size + tt.group_b_size, n: tt.valid_entrant_count, when: fmtLocal(tt.starts_at) })} testID="arena-locked" /> : null}
 
           {/* 13.2 進行中 */}
-          {t.status === 'running' ? (
+          {tt.status === 'running' ? (
             <Surface style={styles.card} testID="arena-running">
               <View style={styles.rowBetween}>
-                <Stat label="Your rank" value={joined ? (a.current?.player?.rank ? `#${a.current.player.rank}` : '—') : 'Not entered'} tint={color.mint} />
-                <Stat label="Verified steps" value={joined ? (a.current?.player?.verified_steps ?? 0).toLocaleString() : '—'} tint={color.cyan} />
-                <Stat label="Ends in" value={remaining(t.ends_at - now)} tint={color.violet} />
+                <Stat label={t('arena.yourRank')} value={joined ? (a.current?.player?.rank ? `#${a.current.player.rank}` : '—') : t('arena.notEntered')} tint={color.mint} />
+                <Stat label={t('arena.verifiedSteps')} value={joined ? (a.current?.player?.verified_steps ?? 0).toLocaleString() : '—'} tint={color.cyan} />
+                <Stat label={t('arena.endsIn')} value={remaining(t, tt.ends_at - now)} tint={color.violet} />
               </View>
               {joined ? (
-                <Button label="Report verified steps" variant="primary" style={styles.mt} onPress={() => void a.submitSteps({ appVersion: '0.1.0', deviceModel: 'Android', osApi: 34, sdkExtension: 0 })} loading={a.busy === 'steps'} loadingLabel="Verifying…" disabled={Boolean(disabledReason) || a.busy !== null} disabledReason={disabledReason} testID="arena-steps" />
+                <Button label={t('arena.report')} variant="primary" style={styles.mt} onPress={() => void a.submitSteps({ appVersion: '0.1.0', deviceModel: 'Android', osApi: 34, sdkExtension: 0 })} loading={a.busy === 'steps'} loadingLabel={t('arena.verifying')} disabled={Boolean(disabledReason) || a.busy !== null} disabledReason={disabledReason} testID="arena-steps" />
               ) : (
                 <Text variant="bodySmall" tone="secondary" style={styles.mt}>
-                  You did not enter this week. Watch the board and join next time.
+                  {t('arena.notEnteredBody')}
                 </Text>
               )}
               <Text variant="caption" tone="muted" style={styles.mt}>
-                Steps are read from Health Connect for the window only, signed by your wallet and verified server-side. Scores never decrease.
+                {t('arena.stepsNote')}
               </Text>
             </Surface>
           ) : null}
 
           {/* 13.3 結算 */}
-          {t.status === 'settling' ? <InlineState kind="info" title="Settlement in progress" body="Results are being committed onchain. Ranks shown below are not final until settlement completes." testID="arena-settling" /> : null}
-          {t.status === 'settled' && joined ? (
+          {tt.status === 'settling' ? <InlineState kind="info" title={t('arena.settling.title')} body={t('arena.settling.body')} testID="arena-settling" /> : null}
+          {tt.status === 'settled' && joined ? (
             <Surface style={styles.card} testID="arena-settled">
               {a.entry?.forfeited ? (
-                <InlineState kind="error" title="Entry forfeited" body={`This entry was forfeited under rules v${t.rules_version}; the stake stays in the prize pool. Evidence is recorded onchain. To appeal, contact support@neonshift.cc with your wallet address.`} testID="arena-forfeited" />
+                <InlineState kind="error" title={t('arena.forfeited.title')} body={t('arena.forfeited.body', { v: tt.rules_version })} testID="arena-forfeited" />
               ) : (
                 <>
                   <View style={styles.rowBetween}>
-                    <Stat label="Final rank" value={a.entry?.rank ? `#${a.entry.rank}` : '—'} tint={color.mint} />
-                    <Stat label="Group" value={a.entry?.group === 1 ? 'A' : a.entry?.group === 2 ? 'B' : 'None'} tint={color.violet} />
-                    <Stat label="Payout" value={a.entry?.settled ? 'Paid' : 'Ready'} tint={a.entry?.settled ? color.success : color.cyan} />
+                    <Stat label={t('arena.finalRank')} value={a.entry?.rank ? `#${a.entry.rank}` : '—'} tint={color.mint} />
+                    <Stat label={t('arena.group')} value={a.entry?.group === 1 ? 'A' : a.entry?.group === 2 ? 'B' : t('arena.groupNone')} tint={color.violet} />
+                    <Stat label={t('arena.payout')} value={a.entry?.settled ? t('arena.paid') : t('arena.ready')} tint={a.entry?.settled ? color.success : color.cyan} />
                   </View>
                   <Text variant="bodySmall" tone="secondary" style={styles.mt}>
-                    {a.entry?.group ? `Winner: 100% stake refund plus your share of the ${a.entry.group === 1 ? 'A' : 'B'} pool.` : `Stake refund ${t.loser_refund_bps / 100}%; no prize this time.`}
-                    {t.settlement ? ` Pool ${tskr(t.settlement.distributable_pool)}.` : ''}
+                    {a.entry?.group ? t('arena.winnerBody', { group: a.entry.group === 1 ? 'A' : 'B' }) : t('arena.loserBody', { refund: tt.loser_refund_bps / 100 })}
+                    {tt.settlement ? t('arena.pool', { pool: tskr(tt.settlement.distributable_pool) }) : ''}
                   </Text>
-                  {!a.entry?.settled ? <Button label="Claim payout" style={styles.mt} onPress={() => session && config && void a.claim(session.publicKey, config.mint, 'prize')} loading={a.busy === 'claim'} loadingLabel="Claiming…" disabled={Boolean(disabledReason) || a.busy !== null} disabledReason={disabledReason} testID="arena-claim" /> : null}
+                  {!a.entry?.settled ? <Button label={t('arena.claimPayout')} style={styles.mt} onPress={() => session && config && void a.claim(session.publicKey, config.mint, 'prize')} loading={a.busy === 'claim'} loadingLabel={t('arena.claiming')} disabled={Boolean(disabledReason) || a.busy !== null} disabledReason={disabledReason} testID="arena-claim" /> : null}
                 </>
               )}
             </Surface>
           ) : null}
-          {t.status === 'cancelled' && joined ? (
+          {tt.status === 'cancelled' && joined ? (
             <Surface style={styles.card} testID="arena-cancelled">
-              <Text variant="title">Tournament cancelled</Text>
+              <Text variant="title">{t('arena.cancelled.title')}</Text>
               <Text variant="bodySmall" tone="secondary" style={styles.mt}>
-                Not enough entrants or the tournament was cancelled. Your full stake is refundable.
+                {t('arena.cancelled.body')}
               </Text>
-              {!a.entry?.settled && !a.entry?.forfeited ? <Button label="Refund my stake" style={styles.mt} onPress={() => session && config && void a.claim(session.publicKey, config.mint, 'refund')} loading={a.busy === 'refund'} loadingLabel="Refunding…" disabled={Boolean(disabledReason) || a.busy !== null} disabledReason={disabledReason} testID="arena-refund" /> : null}
-              {a.entry?.settled ? <Chip label="Refunded" kind="synced" style={styles.mt} /> : null}
+              {!a.entry?.settled && !a.entry?.forfeited ? <Button label={t('arena.refund')} style={styles.mt} onPress={() => session && config && void a.claim(session.publicKey, config.mint, 'refund')} loading={a.busy === 'refund'} loadingLabel={t('arena.refunding')} disabled={Boolean(disabledReason) || a.busy !== null} disabledReason={disabledReason} testID="arena-refund" /> : null}
+              {a.entry?.settled ? <Chip label={t('arena.refunded')} kind="synced" style={styles.mt} /> : null}
             </Surface>
           ) : null}
 
@@ -185,31 +188,31 @@ export function ArenaScreen() {
             <View style={styles.board} testID="arena-leaderboard">
               <View style={styles.rowBetween}>
                 <Text variant="label" tone="muted" uppercase>
-                  Leaderboard
+                  {t('arena.leaderboard')}
                 </Text>
                 <Text variant="caption" tone="muted">
-                  Updated {new Date(a.leaderboard.generated_at).toLocaleTimeString()} · {a.leaderboard.total_players} players
+                  {t('arena.updated', { time: new Date(a.leaderboard.generated_at).toLocaleTimeString(), n: a.leaderboard.total_players })}
                 </Text>
               </View>
-              {t.status === 'settling' ? (
+              {tt.status === 'settling' ? (
                 <Text variant="caption" tone="warning" style={styles.mt}>
-                  Pending verification — not final
+                  {t('arena.pending')}
                 </Text>
               ) : null}
               {a.leaderboard.entries.length === 0 ? (
                 <Text variant="bodySmall" tone="secondary" style={styles.mt}>
-                  No verified steps yet.
+                  {t('arena.noSteps')}
                 </Text>
               ) : (
                 a.leaderboard.entries.slice(0, 25).map((e) => {
                   const you = session?.address === e.wallet;
                   return (
-                    <Pressable key={e.wallet} onPress={() => navigation.navigate('GalleryPlayer', { wallet: e.wallet })} accessibilityRole="button" accessibilityLabel={`${you ? 'You' : shortAddress(e.wallet)}, rank ${e.rank}. Open player`} style={[styles.boardRow, you && styles.boardRowYou]} testID={you ? 'leaderboard-you' : `leaderboard-${e.rank}`}>
+                    <Pressable key={e.wallet} onPress={() => navigation.navigate('GalleryPlayer', { wallet: e.wallet })} accessibilityRole="button" accessibilityLabel={t('arena.openPlayer', { name: you ? t('common.you') : shortAddress(e.wallet), rank: e.rank })} style={[styles.boardRow, you && styles.boardRowYou]} testID={you ? 'leaderboard-you' : `leaderboard-${e.rank}`}>
                       <Text variant="title" numeric style={styles.rank}>
                         #{e.rank}
                       </Text>
                       <Text variant="body" numeric style={styles.wallet}>
-                        {you ? 'You' : shortAddress(e.wallet)}
+                        {you ? t('common.you') : shortAddress(e.wallet)}
                       </Text>
                       <Text variant="body" numeric tone={you ? 'mint' : 'primary'}>
                         {e.verified_steps.toLocaleString()}
@@ -224,7 +227,7 @@ export function ArenaScreen() {
                     #{a.leaderboard.you.rank}
                   </Text>
                   <Text variant="body" numeric style={styles.wallet}>
-                    You
+                    {t('common.you')}
                   </Text>
                   <Text variant="body" numeric tone="mint">
                     {a.leaderboard.you.verified_steps.toLocaleString()}
@@ -236,12 +239,12 @@ export function ArenaScreen() {
         </>
       ) : null}
 
-      <Pressable onPress={() => navigation.navigate('Events')} accessibilityRole="button" accessibilityLabel="Partner events" style={styles.eventsLink} testID="arena-events-link">
+      <Pressable onPress={() => navigation.navigate('Events')} accessibilityRole="button" accessibilityLabel={t('arena.events')} style={styles.eventsLink} testID="arena-events-link">
         <Surface style={styles.rowBetween}>
           <View style={styles.flex}>
-            <Text variant="title">Partner events</Text>
+            <Text variant="title">{t('arena.events')}</Text>
             <Text variant="caption" tone="muted">
-              Runs and walks with organizers · register, check in, collect perks
+              {t('arena.eventsBody')}
             </Text>
           </View>
           <Feather name="chevron-right" size={20} color={color.textMuted} />
@@ -249,7 +252,7 @@ export function ArenaScreen() {
       </Pressable>
 
       <Text variant="caption" tone="muted" style={styles.disclaimer}>
-        Test Token · No monetary value
+        {t('common.testToken')}
       </Text>
     </Screen>
   );
@@ -284,16 +287,10 @@ function Stat({ label, value, tint }: { label: string; value: string; tint: stri
   );
 }
 
-const statusLabel = (s: TournamentView['status']) => ({ draft: 'Draft', registration: 'Registration', locked: 'Locked', running: 'Live', settling: 'Settling', settled: 'Settled', cancelled: 'Cancelled' })[s];
-const remaining = (secs: number) => (secs <= 0 ? 'ended' : secs < 3600 ? `${Math.ceil(secs / 60)}m` : `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`);
-const outcomeTitle = (o: NonNullable<ReturnType<typeof useArenaStore.getState>['outcome']>) =>
-  o.kind === 'success'
-    ? { join: 'Entered the arena', steps: 'Steps verified', claim: 'Payout claimed', refund: 'Stake refunded' }[o.action]
-    : o.code === 'REJECTED'
-      ? 'Wallet approval cancelled'
-      : o.code === 'NETWORK_ERROR'
-        ? 'Network unavailable'
-        : { join: 'Could not enter', steps: 'Steps not verified', claim: 'Payout failed', refund: 'Refund failed' }[o.action];
+type T = ReturnType<typeof useT>['t'];
+const remaining = (t: T, secs: number) => (secs <= 0 ? t('arena.ended') : secs < 3600 ? t('arena.minutes', { n: Math.ceil(secs / 60) }) : t('arena.hoursMinutes', { h: Math.floor(secs / 3600), m: Math.floor((secs % 3600) / 60) }));
+const outcomeTitle = (t: T, o: NonNullable<ReturnType<typeof useArenaStore.getState>['outcome']>) =>
+  o.kind === 'success' ? t(`arena.ok.${o.action}` as TKey) : o.code === 'REJECTED' ? t('gear.walletCancelled') : o.code === 'NETWORK_ERROR' ? t('gear.networkUnavailable') : t(`arena.err.${o.action}` as TKey);
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.m },

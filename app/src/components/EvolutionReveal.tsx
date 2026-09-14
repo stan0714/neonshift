@@ -5,17 +5,19 @@ import { Animated, Easing, Linking, Modal, Pressable, StyleSheet, View } from 'r
 import { Button } from '@/components/Button';
 import { ShoeHero } from '@/components/ShoeHero';
 import { APP_CONFIG } from '@/config/app';
-import { SHOE_PROGRESSION } from '@/config/shoeProgression';
+import { stageDetail, stageName } from '@/domain/collectibles';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useDashboardStore } from '@/state/dashboardStore';
 import { useLevelRevealStore } from '@/state/levelRevealStore';
 import { color, motion, radius, space, Text } from '@/theme';
+import { useT } from '@/i18n';
 
 /**
  * 進化 reveal（PG-A-17，Style 12／15／16.2）：舊鞋淡出、新鞋放大進場，motion.celebration 只播一次，
  * success haptic 一次；Reduce Motion 時直接顯示新鞋。掛在 tabs 層，觀察 dashboardStore.profile.shoeLevel。
  */
 export function EvolutionReveal() {
+  const { t } = useT();
   const level = useDashboardStore((s) => s.profile?.shoeLevel ?? null);
   const reveal = useLevelRevealStore();
   const reduceMotion = useReduceMotion();
@@ -36,15 +38,14 @@ export function EvolutionReveal() {
 
   const p = reveal.pending;
   if (!p) return null;
-  const stage = SHOE_PROGRESSION.stages[p.to - 1];
   const explorer = reveal.lastTxSignature ? `https://explorer.solana.com/tx/${reveal.lastTxSignature}?cluster=${APP_CONFIG.cluster}` : null;
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={() => void reveal.acknowledge()} statusBarTranslucent>
-      <Pressable style={styles.scrim} onPress={() => void reveal.acknowledge()} accessibilityLabel="Dismiss" testID="reveal-scrim" />
+      <Pressable style={styles.scrim} onPress={() => void reveal.acknowledge()} accessibilityLabel={t('common.dismiss')} testID="reveal-scrim" />
       <View style={styles.card} accessibilityViewIsModal testID="evolution-reveal">
         <Text variant="label" tone="mint" uppercase>
-          Gear evolved
+          {t('common.gearEvolved')}
         </Text>
         <View style={styles.stage}>
           <Animated.View style={[StyleSheet.absoluteFill, styles.center, { opacity: progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0, 0] }), transform: [{ scale: progress.interpolate({ inputRange: [0, 0.5], outputRange: [1, 0.85], extrapolate: 'clamp' }) }] }]}>
@@ -55,16 +56,16 @@ export function EvolutionReveal() {
           </Animated.View>
         </View>
         <Text variant="heading2" style={styles.title}>
-          Lv.{p.to} · {stage.name}
+          {t('common.lvDot', { n: p.to })} · {stageName(t, p.to)}
         </Text>
         <Text variant="bodySmall" tone="secondary" style={styles.body}>
-          {stage.detail}. Your multiplier follows your level — no fees, nothing to burn. Claim the Lv.{p.to} collectible in Gear.
+          {t('reveal.body', { detail: stageDetail(t, p.to), level: p.to })}
         </Text>
-        <Button label="Nice" onPress={() => void reveal.acknowledge()} style={styles.btn} testID="reveal-ok" />
+        <Button label={t('common.nice')} onPress={() => void reveal.acknowledge()} style={styles.btn} testID="reveal-ok" />
         {explorer ? (
           <Pressable onPress={() => void Linking.openURL(explorer)} accessibilityRole="link" style={styles.link} testID="reveal-tx">
             <Text variant="bodySmall" tone="cyan">
-              View transaction
+              {t('common.viewTransaction')}
             </Text>
           </Pressable>
         ) : null}

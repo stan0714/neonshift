@@ -12,6 +12,7 @@ import { HomeScreen } from "@/screens/tabs/HomeScreen";
 import { ProfileScreen } from "@/screens/tabs/ProfileScreen";
 
 import type { TabParamList } from "./types";
+import { useT } from "@/i18n";
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
@@ -49,6 +50,7 @@ function TabIcon({
  * icon 與 label 同時顯示；active 為 mint 文字＋低強度 glow，inactive 為 textMuted。
  */
 export function MainTabs() {
+  const { t } = useT();
   const insets = useSafeAreaInsets();
   return (
     <>
@@ -72,10 +74,10 @@ export function MainTabs() {
           ),
         })}
       >
-        <Tab.Screen name="Home" component={HomeScreen} />
-        <Tab.Screen name="Gear" component={GearScreen} />
-        <Tab.Screen name="Arena" component={ArenaScreen} />
-        <Tab.Screen name="Profile" component={ProfileScreen} />
+        <Tab.Screen name="Home" component={HomeScreen} options={{ title: t("nav.home") }} />
+        <Tab.Screen name="Gear" component={GearScreen} options={{ title: t("nav.gear") }} />
+        <Tab.Screen name="Arena" component={ArenaScreen} options={{ title: t("nav.arena") }} />
+        <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: t("nav.profile") }} />
       </Tab.Navigator>
       <EvolutionReveal />
     </>

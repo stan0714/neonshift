@@ -9,6 +9,7 @@ import { ClaimError, lamportsToSol, starterShoeService, type ClaimQuote } from '
 import { useOnboardingStore } from '@/state/onboardingStore';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
 import { color, space, Text } from '@/theme';
+import { useT, type TKey } from '@/i18n';
 
 type Phase = 'idle' | 'claiming' | 'success' | 'error';
 
@@ -18,6 +19,7 @@ type Phase = 'idle' | 'claiming' | 'success' | 'error';
  * Owner、Expected result、Fee（僅 rent＋交易費）；失敗保留重試，重試不會建立第二個 profile。
  */
 export function StarterShoeScreen() {
+  const { t } = useT();
   const navigation = useNavigation();
   const session = useWalletStore((s) => s.session);
   const onboarding = useOnboardingStore();
@@ -45,25 +47,18 @@ export function StarterShoeScreen() {
     }
   };
 
-  const errorCopy = error
-    ? {
-        NOT_AVAILABLE: { title: 'Onchain claim not enabled in this build', body: 'This build has no program configured. Your wallet and permissions are saved; nothing was charged.' },
-        REJECTED: { title: 'Request canceled', body: 'You closed the wallet before approving. No profile was created and no fee was paid.' },
-        NETWORK_ERROR: { title: 'Devnet is taking a break', body: 'The transaction could not be sent. Your wallet was not charged. Retry in a moment.' },
-        FAILED: { title: 'Something interrupted your shift', body: 'The claim did not complete. Retrying is safe: your wallet can only ever hold one profile.' },
-      }[error.code]
-    : null;
+  const errorCopy = error ? { title: t(`starter.err.${error.code}.title` as TKey), body: t(`starter.err.${error.code}.body` as TKey) } : null;
 
   return (
     <OnboardingLayout
       step={4}
-      title="Claim your starter shoe"
-      lead="Your gear lives onchain and evolves with every verified mission. It is a gift: no purchase, no NFT sale, just approve the account setup in your wallet."
+      title={t('starter.title')}
+      lead={t('starter.lead')}
       testID="onboarding-shoe"
       actions={
         <>
-          <Button label="Claim starter shoe" loading={phase === 'claiming'} loadingLabel="Waiting for wallet…" disabled={!session || phase === 'success'} disabledReason={!session ? 'Connect a wallet first' : undefined} onPress={claim} />
-          <Button label="Back" variant="secondary" style={styles.secondary} onPress={() => navigation.goBack()} />
+          <Button label={t('starter.claim')} loading={phase === 'claiming'} loadingLabel={t('starter.waiting')} disabled={!session || phase === 'success'} disabledReason={!session ? t('starter.connectFirst') : undefined} onPress={claim} />
+          <Button label={t('common.back')} variant="secondary" style={styles.secondary} onPress={() => navigation.goBack()} />
         </>
       }
     >
@@ -71,17 +66,17 @@ export function StarterShoeScreen() {
         <ShoeHero level={1} size={200} active={phase !== 'success'} />
       </View>
       <Surface hero>
-        <Row label="Action" value="Create your player profile and receive the starter shoe" />
-        <Row label="Asset" value={quote?.shoeName ?? '—'} />
-        <Row label="Network" value={quote?.network ?? `Solana ${APP_CONFIG.cluster}`} />
-        <Row label="Owner" value={session ? shortAddress(session.address) : 'Not connected'} />
-        <Row label="Expected result" value="One Lv.1 shoe on your profile. Free; never a second one." />
-        <Row label="Network fee" value={quote ? `~${lamportsToSol(quote.estimatedFeeLamports)} SOL (account rent + fee)` : '—'} last />
+        <Row label={t('starter.action')} value={t('starter.actionValue')} />
+        <Row label={t('starter.asset')} value={t('starter.assetName')} />
+        <Row label={t('starter.network')} value={quote?.network ?? `Solana ${APP_CONFIG.cluster}`} />
+        <Row label={t('starter.owner')} value={session ? shortAddress(session.address) : t('common.notConnected')} />
+        <Row label={t('starter.expected')} value={t('starter.expectedValue')} />
+        <Row label={t('starter.fee')} value={quote ? t('starter.feeValue', { sol: lamportsToSol(quote.estimatedFeeLamports) }) : '—'} last />
       </Surface>
       <Text variant="caption" tone="muted" style={styles.note}>
         Test Token · No monetary value. Runs on Solana devnet.
       </Text>
-      {phase === 'success' ? <InlineState kind="success" title="Starter shoe received" body="Welcome to your first shift." testID="claim-success" /> : null}
+      {phase === 'success' ? <InlineState kind="success" title={t('starter.success.title')} body={t('starter.success.body')} testID="claim-success" /> : null}
       {errorCopy ? <InlineState kind={error?.code === 'NOT_AVAILABLE' ? 'info' : 'error'} title={errorCopy.title} body={errorCopy.body} testID="claim-error" /> : null}
     </OnboardingLayout>
   );

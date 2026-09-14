@@ -7,6 +7,7 @@ import { useBootstrap, type StepState } from '@/bootstrap';
 import { Button, Chip, PulseMark, Screen, Surface, Wordmark } from '@/components';
 import { APP_CONFIG } from '@/config/app';
 import { color, space, Text } from '@/theme';
+import { useT, type TKey } from '@/i18n';
 
 /**
  * App Bootstrap Loading（Style 8.2）。
@@ -14,6 +15,7 @@ import { color, space, Text } from '@/theme';
  * > 10s 顯示 Retry、診斷摘要並停止無限 spinner。強制更新／維護中各有明確狀態，不偽裝成一般 loading。
  */
 export function BootstrapScreen() {
+  const { t } = useT();
   const navigation = useNavigation();
   const { phase, steps, currentLabel, result, diagnostics, retry, canUseOffline, continueOffline } = useBootstrap();
 
@@ -42,7 +44,7 @@ export function BootstrapScreen() {
 
   // 8.4：狀態更新使用 polite announcement
   useEffect(() => {
-    if (currentLabel) AccessibilityInfo.announceForAccessibility(currentLabel);
+    if (currentLabel) AccessibilityInfo.announceForAccessibility(t(currentLabel as TKey));
   }, [currentLabel]);
 
   if (phase === 'hidden' || phase === 'done') {
@@ -51,13 +53,13 @@ export function BootstrapScreen() {
 
   const showSteps = phase === 'slow' || phase === 'stalled';
   const headline =
-    phase === 'forceUpdate' ? 'Update required' : phase === 'maintenance' ? 'Under maintenance' : (currentLabel ?? 'Syncing your shift');
+    phase === 'forceUpdate' ? t('boot.updateRequired') : phase === 'maintenance' ? t('boot.maintenance') : t((currentLabel ?? 'boot.syncing') as TKey);
 
   return (
     <Screen testID="bootstrap-screen">
       <View style={styles.header}>
         <Wordmark />
-        <Chip label="DEVNET" kind="devnet" />
+        <Chip label={t('common.devnet')} kind="devnet" />
       </View>
 
       <View style={styles.hero}>
@@ -67,17 +69,17 @@ export function BootstrapScreen() {
         </Text>
         {phase === 'stalled' ? (
           <Text variant="bodySmall" tone="secondary" style={styles.sub}>
-            This is taking longer than expected.
+            {t('boot.takingLonger')}
           </Text>
         ) : null}
         {phase === 'forceUpdate' ? (
           <Text variant="bodySmall" tone="secondary" style={styles.sub}>
-            {result?.kind === 'blocked' && result.detail ? result.detail : 'This version is no longer supported.'}
+            {result?.kind === 'blocked' && result.detail ? result.detail : t('boot.unsupported')}
           </Text>
         ) : null}
         {phase === 'maintenance' ? (
           <Text variant="bodySmall" tone="secondary" style={styles.sub}>
-            {result?.kind === 'blocked' && result.retryAfter ? `Expected back ${result.retryAfter}` : 'Please try again shortly.'}
+            {result?.kind === 'blocked' && result.retryAfter ? t('boot.expectedBack', { when: result.retryAfter }) : t('boot.tryShortly')}
           </Text>
         ) : null}
       </View>
@@ -91,7 +93,7 @@ export function BootstrapScreen() {
       ) : null}
 
       {phase === 'stalled' && diagnostics.length ? (
-        <View style={styles.diag} accessibilityLabel="Diagnostics">
+        <View style={styles.diag} accessibilityLabel={t('boot.diagnostics')}>
           {diagnostics.map((d) => (
             <Text key={d} variant="caption" tone="muted">
               {d}
@@ -101,21 +103,23 @@ export function BootstrapScreen() {
       ) : null}
 
       <View style={styles.actions}>
-        {phase === 'stalled' || phase === 'maintenance' ? <Button label="Retry" onPress={retry} /> : null}
-        {phase === 'forceUpdate' ? <Button label="Update app" onPress={() => Linking.openURL(APP_CONFIG.storeUrl)} /> : null}
+        {phase === 'stalled' || phase === 'maintenance' ? <Button label={t('common.retry')} onPress={retry} /> : null}
+        {phase === 'forceUpdate' ? <Button label={t('boot.updateApp')} onPress={() => Linking.openURL(APP_CONFIG.storeUrl)} /> : null}
         {canUseOffline ? (
-          <Button label="Use offline data" variant="secondary" onPress={continueOffline} style={styles.secondary} />
+          <Button label={t('boot.useOffline')} variant="secondary" onPress={continueOffline} style={styles.secondary} />
         ) : null}
       </View>
 
       <Text variant="caption" tone="muted" style={styles.footer}>
-        Test environment · tSKR has no monetary value
+        {t('boot.footer')}
       </Text>
     </Screen>
   );
 }
 
 function StepRow({ step }: { step: StepState }) {
+  const { t } = useT();
+  const label = t(step.label as TKey);
   const icon = {
     pending: <Feather name="circle" size={20} color={color.textMuted} />,
     running: <ActivityIndicator size="small" color={color.cyan} />,
@@ -125,10 +129,10 @@ function StepRow({ step }: { step: StepState }) {
   }[step.status];
   const tone = step.status === 'done' ? 'primary' : step.status === 'failed' ? 'warning' : 'secondary';
   return (
-    <View style={styles.stepRow} accessible accessibilityLabel={`${step.label}: ${step.status}`}>
+    <View style={styles.stepRow} accessible accessibilityLabel={`${label}: ${step.status}`}>
       <View style={styles.stepIcon}>{icon}</View>
       <Text variant="body" tone={tone}>
-        {step.label}
+        {label}
       </Text>
     </View>
   );

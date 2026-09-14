@@ -5,6 +5,7 @@ import { Chip } from '@/components/Chip';
 import { Screen } from '@/components/Screen';
 import { Wordmark } from '@/components/brand/Wordmark';
 import { space, Text } from '@/theme';
+import { useT } from '@/i18n';
 
 type Props = PropsWithChildren<{
   step: 1 | 2 | 3 | 4;
@@ -19,14 +20,15 @@ const TOTAL = 4;
 
 /** Style 10：Landing 後採單一步驟頁面，不用 carousel；Header 固定品牌 mark 與 DEVNET badge。 */
 export function OnboardingLayout({ step, title, lead, actions, children, testID }: Props) {
+  const { t } = useT();
   return (
     <Screen scroll testID={testID} style={styles.content}>
       <View style={styles.header}>
         <Wordmark withMark />
-        <Chip label="DEVNET" kind="devnet" />
+        <Chip label={t('common.devnet')} kind="devnet" />
       </View>
-      <Text variant="label" tone="muted" uppercase style={styles.step} accessibilityLabel={`Step ${step} of ${TOTAL}`}>
-        Step {step} / {TOTAL}
+      <Text variant="label" tone="muted" uppercase style={styles.step} accessibilityLabel={t('onb.stepA11y', { n: step, total: TOTAL })}>
+        {t('onb.step', { n: step, total: TOTAL })}
       </Text>
       <Text variant="heading1" accessibilityRole="header">
         {title}

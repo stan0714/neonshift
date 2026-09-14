@@ -83,24 +83,26 @@ export function reduce(status: TaskStatus, ev: TaskEvent, type: TaskType): TaskS
   }
 }
 
-/** Style 7.3 Mission Card 對應：CTA 文案與是否可按 */
-export function ctaFor(status: TaskStatus, p: TaskProgress): { label: string; enabled: boolean } {
+export type MissionCtaKey = 'mission.cta.keepMoving' | 'mission.cta.clockIn' | 'mission.cta.verifying' | 'mission.cta.openWallet' | 'mission.cta.viewTx' | 'mission.cta.claimed' | 'mission.cta.tryAgain';
+
+/** Style 7.3 Mission Card 對應：CTA 文案（i18n key）與是否可按 */
+export function ctaFor(status: TaskStatus, p: TaskProgress): { label: MissionCtaKey; enabled: boolean } {
   switch (status) {
     case 'not_met':
-      return { label: 'Keep moving', enabled: false };
+      return { label: 'mission.cta.keepMoving', enabled: false };
     case 'ready':
-      return { label: 'Clock In', enabled: true };
+      return { label: 'mission.cta.clockIn', enabled: true };
     case 'verifying':
-      return { label: 'Verifying…', enabled: false };
+      return { label: 'mission.cta.verifying', enabled: false };
     case 'awaiting_signature':
-      return { label: 'Open wallet', enabled: true };
+      return { label: 'mission.cta.openWallet', enabled: true };
     case 'confirming':
-      return { label: 'View transaction', enabled: true };
+      return { label: 'mission.cta.viewTx', enabled: true };
     case 'claimed':
-      return { label: 'Claimed', enabled: false };
+      return { label: 'mission.cta.claimed', enabled: false };
     case 'rejected':
-      return { label: p.met ? 'Try again' : 'Keep moving', enabled: p.met };
+      return { label: p.met ? 'mission.cta.tryAgain' : 'mission.cta.keepMoving', enabled: p.met };
     default:
-      return { label: 'Clock In', enabled: false };
+      return { label: 'mission.cta.clockIn', enabled: false };
   }
 }

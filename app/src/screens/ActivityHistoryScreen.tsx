@@ -7,6 +7,7 @@ import { APP_CONFIG } from '@/config/app';
 import { ApiError, apiClient, type HistoryResponse } from '@/services/api/ApiClient';
 import { formatTskr } from '@/state/dashboardStore';
 import { color, radius, space, Text } from '@/theme';
+import { useT } from '@/i18n';
 
 const dateOf = (taskDate: number) => new Date(taskDate * 86_400_000).toISOString().slice(0, 10);
 
@@ -16,6 +17,7 @@ const dateOf = (taskDate: number) => new Date(taskDate * 86_400_000).toISOString
  * 只顯示保留期內資料（BR-25），空／錯誤狀態依 Style 14。
  */
 export function ActivityHistoryScreen() {
+  const { t } = useT();
   const [data, setData] = useState<HistoryResponse | null>(null);
   const [error, setError] = useState<{ message: string; code: string; ref?: string } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,27 +44,27 @@ export function ActivityHistoryScreen() {
   return (
     <Screen scroll testID="activity-screen" refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} tintColor={color.mint} />}>
       <View style={styles.stats}>
-        <Stat label="Earned · 30d" value={data ? `${formatTskr(BigInt(data.total_earned))} ${APP_CONFIG.tokenSymbol}` : '—'} tint={color.mint} />
-        <Stat label="Clock-ins" value={data ? String(claims) : '—'} tint={color.cyan} />
-        <Stat label="Onchain" value={data ? `${redeemed}/${claims}` : '—'} tint={color.violet} />
+        <Stat label={t('act.earned')} value={data ? `${formatTskr(BigInt(data.total_earned))} ${APP_CONFIG.tokenSymbol}` : '—'} tint={color.mint} />
+        <Stat label={t('act.clockIns')} value={data ? String(claims) : '—'} tint={color.cyan} />
+        <Stat label={t('act.onchain')} value={data ? `${redeemed}/${claims}` : '—'} tint={color.violet} />
       </View>
       <Text variant="caption" tone="muted" style={styles.note}>
-        Server keeps at most {data?.retention_days ?? 30} days of summaries. Onchain receipts are permanent and public.
+        {t('act.note', { days: data?.retention_days ?? 30 })}
       </Text>
 
       {error ? (
         error.code === 'NO_SESSION' ? (
-          <InlineState kind="info" title="Sign in to see your history" body="History comes from your backend session. Sign in from the Arena tab or reconnect your wallet." testID="activity-signin" />
+          <InlineState kind="info" title={t('act.signin.title')} body={t('act.signin.body')} testID="activity-signin" />
         ) : (
-          <InlineState kind={error.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={error.code === 'NETWORK_ERROR' ? 'Devnet is taking a break' : 'Something interrupted your shift'} body={`${error.message} Your records are safe; nothing changed.`} referenceId={error.ref} action={{ label: 'Try again', onPress: () => void load(), loading }} testID="activity-error" />
+          <InlineState kind={error.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={error.code === 'NETWORK_ERROR' ? t('common.devnetBreak') : t('common.somethingInterrupted')} body={t('act.errBody', { message: error.message })} referenceId={error.ref} action={{ label: t('common.tryAgain'), onPress: () => void load(), loading }} testID="activity-error" />
         )
       ) : null}
 
       {data && data.items.length === 0 ? (
         <Surface style={styles.card} testID="activity-empty">
-          <Text variant="title">No clock-ins yet</Text>
+          <Text variant="title">{t('act.empty.title')}</Text>
           <Text variant="bodySmall" tone="secondary" style={styles.mt}>
-            Hit 8,000 steps or 7 hours of sleep and clock in from Home. Records show here for 30 days.
+            {t('act.empty.body')}
           </Text>
         </Surface>
       ) : null}
@@ -74,9 +76,9 @@ export function ActivityHistoryScreen() {
             <Surface style={styles.row}>
               <Feather name={i.task_type === 'steps' ? 'activity' : 'moon'} size={20} color={i.task_type === 'steps' ? color.mint : color.violet} />
               <View style={styles.rowText}>
-                <Text variant="title">{i.task_type === 'steps' ? 'Step mission' : 'Sleep mission'}</Text>
+                <Text variant="title">{i.task_type === 'steps' ? t('mission.steps') : t('mission.sleep')}</Text>
                 <Text variant="caption" tone="muted" numeric>
-                  {dateOf(i.task_date)} UTC{i.xp !== null ? ` · ${i.xp.toLocaleString()} XP` : ''}
+                  {t('act.dateXp', { date: dateOf(i.task_date) })}{i.xp !== null ? ` · ${t('common.xp', { n: i.xp })}` : ''}
                 </Text>
               </View>
               <View style={styles.rowRight}>
@@ -84,7 +86,7 @@ export function ActivityHistoryScreen() {
                   {i.amount ? `+${formatTskr(BigInt(i.amount))}` : '—'}
                 </Text>
                 <Text variant="caption" tone={i.redeemed_signature ? 'success' : 'muted'}>
-                  {i.redeemed_signature ? 'Onchain' : 'Not redeemed'}
+                  {i.redeemed_signature ? t('act.onchain') : t('act.notRedeemed')}
                 </Text>
               </View>
             </Surface>
@@ -93,7 +95,7 @@ export function ActivityHistoryScreen() {
       })}
 
       <Text variant="caption" tone="muted" style={styles.disclaimer}>
-        Test Token · No monetary value
+        {t('common.testToken')}
       </Text>
     </Screen>
   );

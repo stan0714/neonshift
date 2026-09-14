@@ -49,7 +49,8 @@
           "imageWidth": 160,
           "resizeMode": "contain"
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "platforms": [
       "android"

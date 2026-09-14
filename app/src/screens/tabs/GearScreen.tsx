@@ -10,6 +10,10 @@ import { APP_CONFIG } from "@/config/app";
 import { SHOE_PROGRESSION, type ShoeLevel } from "@/config/shoeProgression";
 import {
   COLLECTIBLES,
+  collectibleName,
+  collectibleUnlock,
+  stageDetail,
+  stageName,
   collectibleStatus,
   type Collectible,
   type CollectibleStatus,
@@ -18,6 +22,7 @@ import { useCollectibleStore } from "@/state/collectibleStore";
 import { useDashboardStore } from "@/state/dashboardStore";
 import { useWalletStore } from "@/state/walletStore";
 import { color, radius, space, Text } from "@/theme";
+import { useT, type TKey } from "@/i18n";
 
 const RING = 132;
 const STROKE = 6;
@@ -28,6 +33,7 @@ const STROKE = 6;
  * 這裡沒有升級 CTA；領取成就 NFT 免費，只付 devnet rent。
  */
 export function GearScreen() {
+  const { t, locale } = useT();
   const session = useWalletStore((s) => s.session);
   const d = useDashboardStore();
   const c = useCollectibleStore();
@@ -69,13 +75,13 @@ export function GearScreen() {
     `${((bps ?? 10_000) / 10_000).toFixed(2).replace(/0$/, "")}×`;
 
   const claimDisabledReason = useMemo(() => {
-    if (!session) return "Connect your wallet";
-    if (!APP_CONFIG.chainConfigured)
-      return "Onchain program not configured in this build";
-    if (!d.profile) return "Claim your starter shoe first";
-    if (d.config?.paused) return "Claims are paused right now";
+    if (!session) return t("common.reasonConnectWallet");
+    if (!APP_CONFIG.chainConfigured) return t("common.reasonChain");
+    if (!d.profile) return t("gear.reasonStarter");
+    if (d.config?.paused) return t("common.reasonPaused");
     return undefined;
-  }, [session, d.profile, d.config]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, d.profile, d.config, locale]);
 
   const items = COLLECTIBLES.map((item) => ({
     item,
@@ -99,8 +105,8 @@ export function GearScreen() {
       }
     >
       <View style={styles.header}>
-        <Text variant="heading1">Gear</Text>
-        <Chip label="DEVNET" kind="devnet" />
+        <Text variant="heading1">{t("gear.title")}</Text>
+        <Chip label={t("common.devnet")} kind="devnet" />
       </View>
 
       <Surface hero style={styles.heroCard} testID="gear-hero">
@@ -111,13 +117,13 @@ export function GearScreen() {
               {level}
             </Text>
             <Text variant="label" tone="muted" uppercase>
-              Level
+              {t("common.level")}
             </Text>
           </XpRing>
           <View style={styles.heroMeta}>
-            <Text variant="title">{stage.name}</Text>
+            <Text variant="title">{stageName(t, level)}</Text>
             <Text variant="bodySmall" tone="secondary">
-              {stage.detail}
+              {stageDetail(t, level)}
             </Text>
             <Text
               variant="bodySmall"
@@ -125,11 +131,11 @@ export function GearScreen() {
               numeric
               style={styles.xpLine}
             >
-              {d.profile ? `${xp.toLocaleString()} XP` : "No profile yet"}
+              {d.profile ? t("common.xp", { n: xp }) : t("home.noProfile")}
               {nextXp !== null && d.profile
-                ? ` · ${Math.max(0, nextXp - xp).toLocaleString()} XP to Lv.${level + 1}`
+                ? t("gear.xpToNext", { n: Math.max(0, nextXp - xp), level: level + 1 })
                 : nextXp === null
-                  ? " · Max level"
+                  ? t("gear.maxLevel")
                   : ""}
             </Text>
           </View>
@@ -138,13 +144,13 @@ export function GearScreen() {
 
       <View style={styles.stats}>
         <Stat
-          label="Current multiplier"
+          label={t("gear.currentMultiplier")}
           value={fmtX(multipliers[(d.profile?.coreLevel ?? 1) - 1])}
           tint={color.mint}
         />
         <View style={styles.gap} />
         <Stat
-          label="Next multiplier"
+          label={t("gear.nextMultiplier")}
           value={
             nextXp === null ? "—" : fmtX(multipliers[d.profile?.coreLevel ?? 1])
           }
@@ -152,27 +158,25 @@ export function GearScreen() {
         />
         <View style={styles.gap} />
         <Stat
-          label="Next level"
-          value={nextXp === null ? "Max" : `${nextXp.toLocaleString()} XP`}
+          label={t("gear.nextLevel")}
+          value={nextXp === null ? t("gear.max") : t("common.xp", { n: nextXp })}
           tint={color.cyan}
         />
       </View>
       <Text variant="caption" tone="muted" style={styles.note}>
-        Levels rise automatically with XP when you clock in. No fees, nothing to
-        burn.
+        {t("gear.note")}
       </Text>
 
       <View style={styles.sectionHead}>
         <Text variant="label" tone="muted" uppercase>
-          My collection
+          {t("gear.myCollection")}
         </Text>
         <Text variant="label" tone="secondary" numeric>
           {claimedCount}/{COLLECTIBLES.length}
         </Text>
       </View>
       <Text variant="caption" tone="muted" style={styles.sectionNote}>
-        Achievement NFTs are free to claim — you only pay devnet rent. One of
-        each, forever in your wallet.
+        {t("gear.collectionNote")}
       </Text>
 
       {c.outcome?.kind === "success" ? (
@@ -180,10 +184,10 @@ export function GearScreen() {
           kind="success"
           title={
             c.outcome.result.alreadyClaimed
-              ? "Already in your wallet"
-              : "Collectible claimed"
+              ? t("gear.alreadyInWallet")
+              : t("gear.collectibleClaimed")
           }
-          body={`${nameOf(c.outcome.result.kind)} · ${c.outcome.result.asset.slice(0, 8)}…${c.outcome.result.signature ? ` · Tx ${c.outcome.result.signature.slice(0, 8)}…` : ""}`}
+          body={`${t("gear.claimedBody", { name: nameOf(t, c.outcome.result.kind), asset: c.outcome.result.asset.slice(0, 8) })}${c.outcome.result.signature ? t("gear.claimedTx", { tx: c.outcome.result.signature.slice(0, 8) }) : ""}`}
           onDismiss={c.dismissOutcome}
           testID="collectible-success"
         />
@@ -193,15 +197,15 @@ export function GearScreen() {
           kind={c.outcome.code === "REJECTED" ? "warning" : "error"}
           title={
             c.outcome.code === "REJECTED"
-              ? "Wallet approval cancelled"
+              ? t("gear.walletCancelled")
               : c.outcome.code === "NETWORK_ERROR"
-                ? "Network unavailable"
-                : "Claim did not go through"
+                ? t("gear.networkUnavailable")
+                : t("gear.claimFailed")
           }
           body={
             c.outcome.code === "REJECTED"
-              ? "Nothing was sent. You can claim it any time."
-              : `${c.outcome.message} Nothing was charged beyond network fees; try again.`
+              ? t("gear.nothingSent")
+              : t("gear.failedBody", { message: c.outcome.message })
           }
           onDismiss={c.dismissOutcome}
           testID="collectible-error"
@@ -210,8 +214,8 @@ export function GearScreen() {
       {c.error ? (
         <InlineState
           kind="warning"
-          title="Collection may be outdated"
-          body={`Could not read your receipts from the network. ${c.error}`}
+          title={t("gear.outdated.title")}
+          body={t("gear.outdated.body", { error: c.error })}
           testID="collectible-outdated"
         />
       ) : null}
@@ -222,7 +226,7 @@ export function GearScreen() {
         uppercase
         style={styles.groupTitle}
       >
-        Shoes
+        {t("gear.shoes")}
       </Text>
       <View style={styles.grid}>
         {shoes.map(({ item, status }) => (
@@ -245,7 +249,7 @@ export function GearScreen() {
         uppercase
         style={styles.groupTitle}
       >
-        Badges
+        {t("gear.badges")}
       </Text>
       <View style={styles.grid}>
         {badges.map(({ item, status }) => (
@@ -264,14 +268,17 @@ export function GearScreen() {
       </View>
 
       <Text variant="caption" tone="muted" style={styles.disclaimer}>
-        Test Token · No monetary value
+        {t("common.testToken")}
       </Text>
     </Screen>
   );
 }
 
-const nameOf = (kind: number) =>
-  COLLECTIBLES.find((x) => x.kind === kind)?.name ?? "NFT";
+type T = ReturnType<typeof useT>["t"];
+const nameOf = (t: T, kind: number) => {
+  const c = COLLECTIBLES.find((x) => x.kind === kind);
+  return c ? collectibleName(t, c) : "NFT";
+};
 
 function XpRing({
   ratio,
@@ -282,6 +289,7 @@ function XpRing({
   tint: string;
   children: React.ReactNode;
 }) {
+  const { t } = useT();
   const r = (RING - STROKE) / 2;
   const circ = 2 * Math.PI * r;
   return (
@@ -290,7 +298,7 @@ function XpRing({
       accessible
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(ratio * 100) }}
-      accessibilityLabel={`XP progress ${Math.round(ratio * 100)} percent`}
+      accessibilityLabel={t("gear.xpProgress", { n: Math.round(ratio * 100) })}
     >
       <Svg width={RING} height={RING} style={StyleSheet.absoluteFill}>
         <Circle
@@ -382,6 +390,7 @@ function Tile({
   disabledReason,
   onClaim,
 }: TileProps) {
+  const { t } = useT();
   const locked = status === "locked";
   const tint = item.shoeLevel
     ? SHOE_PROGRESSION.stages[item.shoeLevel - 1].tint
@@ -395,7 +404,7 @@ function Tile({
         level={status === "claimed" ? "elevated" : "surface"}
         style={[styles.tile, locked && styles.tileLocked]}
         testID={`collectible-${item.kind}`}
-        accessibilityLabel={`${item.name}, ${status}`}
+        accessibilityLabel={t("gear.a11yTile", { name: collectibleName(t, item), status: t(`gear.status.${status}` as TKey) })}
       >
         <View style={styles.tileArt}>
           {item.shoeLevel ? (
@@ -430,23 +439,23 @@ function Tile({
           ) : null}
         </View>
         <Text variant="title" numberOfLines={1}>
-          {item.name}
+          {collectibleName(t, item)}
         </Text>
         {status === "claimed" ? (
           <Text variant="label" tone="success" uppercase>
-            Claimed
+            {t("gear.claimed")}
           </Text>
         ) : null}
         {status === "locked" ? (
           <Text variant="caption" tone="muted">
-            {item.unlock}
+            {collectibleUnlock(t, item)}
           </Text>
         ) : null}
         {status === "claimable" ? (
           <Button
-            label="Claim"
+            label={t("gear.claim")}
             loading={claiming}
-            loadingLabel="Claiming…"
+            loadingLabel={t("gear.claiming")}
             onPress={onClaim}
             disabled={busy || Boolean(disabledReason)}
             disabledReason={disabledReason}
