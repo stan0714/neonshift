@@ -566,8 +566,15 @@ Landing 後採單一步驟頁面，不使用一次塞滿五頁的 carousel。
 
 - 上半部：大型跑鞋、Level、XP ring、visual stage。
 - 中段：current multiplier、next multiplier、距下一階所需 XP。
-- 下段：五階圖鑑（已解鎖／Preview），不顯示任何成本或回本天數。
-- 無 Primary CTA；升級在打卡交易內自動發生，達門檻時只播放一次 reveal 並提供 transaction link。
+- 下段 **My collection**：成就 NFT 網格，三種狀態——`Claimed`（實圖）、`Claimable`（mint border＋`Claim` 按鈕，免費、只付 devnet rent 的說明）、`Locked`（灰階＋解鎖條件，例如 `Reach Lv.3`、`7-day streak`）。每種成就最多一枚。
+- 升級在打卡交易內自動發生，達門檻時只播放一次 reveal 並提供 transaction link；領取 NFT 成功播放一次 reveal。
+
+### 12.1 Gallery（FR-13，2026-09-14 新增）
+
+- 入口：Home 次要入口與 Arena 排行榜；不新增 tab。
+- 列表：排名、短地址（或標籤）、Lv. badge、XP、收藏數；可搜尋錢包地址；顯示 `Updated <time>`。
+- 玩家頁：頂部大跑鞋（依對方等級）、Lv／XP／streak／最近打卡日，下方 NFT 網格（只顯示已領取）；不顯示任何健康數值；自己的頁面標示 `You`。
+- 空狀態：`No collectibles yet` 與該玩家距下一階的說明；載入失敗依 14 章。
 
 ---
 

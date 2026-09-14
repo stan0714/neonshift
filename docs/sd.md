@@ -32,7 +32,7 @@
 | 議題 | 選項 | 決定 | 理由 |
 |---|---|---|---|
 | 獎勵發放 | 鏈上驗證 attestation vs 後端轉帳 | **鏈上驗證**【定案】 | 後端轉帳無法對評審展示去信任成分，且違反 C-03 |
-| 跑鞋資產 | NFT（Metaplex Core）vs 純 PDA 狀態 | **純 PDA 狀態**【2026-09-14 定案】 | 不鑄造 NFT；Lv.1 跑鞋隨 `init_player` 直接贈與，外觀由 XP 推導的 `shoe_level` 決定，使用者不付費 |
+| 跑鞋資產 | NFT（Metaplex Core）vs 純 PDA 狀態 | **等級＝純 PDA 狀態；NFT＝成就收藏**【2026-09-14 定案】 | Lv.1 跑鞋隨 `init_player` 直接贈與、外觀由 XP 推導；達等級／里程碑後玩家以 `claim_collectible` 免費鑄造 Metaplex Core NFT 作收藏與藝廊展示（FR-04.6、FR-13） |
 | 獎勵狀態 | 寫入 NFT metadata vs 獨立 PDA | **獨立 PDA**【定案】 | metadata 更新需額外簽章且可能延遲，不適合作計算來源 |
 | 排行榜 | 全程上鏈 vs 鏈下計算結算時上鏈 | **鏈下計算**【定案】 | 每小時更新全程上鏈成本過高 |
 | 後端語言 | Node.js vs Rust | **Node.js（TypeScript）**【草案】 | 與前端共用型別，四週內迭代快 |
@@ -143,6 +143,7 @@ graph TB
 | `shoe_level` | u8 | 1 至 5，由 XP 門檻提升，控制外觀 |
 | `xp` | u64 | 經驗值 |
 | `last_task_date` | u32 | 最近完成任務的 UTC 日序 |
+| `max_streak_days` | u16 | 歷史最高連續天數（實作期新增，供連續 7 天徽章資格；斷日不下降） |
 | `streak_days` | u16 | 連續天數 |
 | `claimed_today` | u64 | 當日已領取量，`task_date` 變更時歸零 |
 | `today_date` | u32 | `claimed_today` 對應的日序 |
@@ -214,6 +215,7 @@ graph TB
 | `update_config` | admin 多簽 | 全欄位可選、整筆以 `initialize_config` 同一套規則驗證。`daily_cap`、`base_*_reward`、`streak_*`、`core_multiplier_bps` 為 BR-24 受控欄位，只能在 `paused && now - paused_at >= 600` 時更新（否則 6025）；`admin`、`burn_bps`、`core_upgrade_costs`、`shoe_xp_thresholds` 可即時更新。不影響已簽發證明或進行中賽事（賽事金額在建立時固定） | `ConfigUpdated` |
 | `rotate_attestor` | admin 多簽 | `grace_seconds` 0～600：>0 時舊鑰保留至 `now + grace`，0 表示立即失效（外洩處置）；新鑰不得為 default 或與現行相同 | `AttestorRotated` |
 | `init_player` | player | 帳戶未存在（PDA `init`）；需 Config 已初始化；不受 pause 影響（無資金流，onboarding 不中斷）；core／shoe level 起始 1、其餘欄位 0。**即為初階跑鞋的贈與**：不鑄造 NFT，事件含 `shoe_level` | `PlayerInitialized` |
+| `claim_collectible` | player | 成就收藏 NFT（FR-04.6）。參數 `kind`（u8：1～5 = 跑鞋 Lv1～5；101 首次打卡；102 連續 7 天；110+n 錦標賽名次 n）。資格以鏈上狀態驗證：跑鞋 kind ≤ `PlayerProfile.shoe_level`；首次打卡 `xp > 0`；連續 7 天 `streak_days ≥ 7`（曾達成即永久可領，以 PlayerProfile 新增 `max_streak_days` 記錄）；名次由 TournamentEntry。`CollectibleReceipt` PDA `["collectible", wallet, kind]` `init` 保證每種一枚；CPI Metaplex Core `create` 鑄造到玩家錢包，玩家付 rent；不收 tSKR；受 pause 影響（避免暫停期間大量鑄造） | `CollectibleClaimed` |
 | `clock_in` | player | 見 3.3。需 PlayerProfile 存在（跑鞋隨 profile 贈與，無獨立鑄鞋檢查）；`ClaimReceipt` 不用 Anchor `init`，於步驟 10 手動建立以回報 6009 並保證排在 attestation 驗證之後；步驟 9 的 mint／vault／收款帳戶／token program 約束由 Anchor 在進入 handler 前檢查 | `ClockedIn` |
 | `open_tournament` | admin | 狀態為 Draft | `TournamentOpened` |
 | `join_tournament` | player | 狀態為 Registration、未重複報名、mint 正確 | `TournamentJoined` |
@@ -913,6 +915,24 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+
+## 11A. 成就 NFT 與藝廊（2026-09-14 新增，對應 FR-04.6、FR-13）
+
+**鏈上**：`claim_collectible` 見 3.2；`CollectibleReceipt { wallet, kind, asset, claimed_at, bump }`。NFT 為 Metaplex Core asset，collection 一個（NeonShift Achievements），名稱／URI 由程式依 `kind` 從 Config 的 `collectible_base_uri` 組成（`<base>/<kind>.json`），metadata JSON 與圖片由 `neonshift.cc/nft/` 靜態託管（style.md 16.2 五階視覺、徽章另出圖）。屬性只作呈現，不作獎勵計算來源。
+
+**後端（藝廊 API，讀鏈上）**：ChainIndexer（B-16）同步 `PlayerInitialized`／`ClockedIn`／`CollectibleClaimed` 事件到 `gallery_players (wallet, shoe_level, xp, streak_days, max_streak_days, last_task_date, updated_at)` 與 `gallery_collectibles (wallet, kind, asset, claimed_at)`；每小時（或每次事件）重算排行。
+
+| Method | Path | 用途 |
+|---|---|---|
+| GET | `/gallery/players?sort=xp&limit=50&cursor=` | 排行（等級 → XP → 錢包位元組序），含 `generated_at` |
+| GET | `/gallery/players/{wallet}` | 玩家公開頁：等級、XP、連續／最高連續、最近打卡日、收藏清單 |
+| GET | `/gallery/search?q=<wallet prefix>` | 錢包地址前綴搜尋 |
+
+藝廊端點不需登入（公開資料），受一般速率限制；不回任何健康數值。
+
+**App**：Gear 頁下半部「My collection」（已領取／可領取／未解鎖；可領取者按 `Claim` 走 MWA 簽 `claim_collectible`）；Arena 排行榜與新的 Gallery 入口（Home 次要入口，不新增 tab）列出玩家，點進玩家頁（`GalleryPlayerScreen`）。NFT 圖片以 URI 載入，失敗顯示品牌 placeholder（Style 14）。
+
+**未決**：mpl-core crate 與 Anchor 1.2／solana 3.x 的相依相容性需在 PG-C-09 先 PoC；不相容時改由後端以專案錢包代鑄（玩家不簽）並在 SD 記錄替代方案。
 
 ## 12. 跑鞋成長與素材替換契約
 
