@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.12（藝廊投影與 API） |
+| 文件版本 | v0.13（合作活動權限模型） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -856,6 +856,8 @@ total_staked + treasury_injection
 
 所有非公開 API 沿用 wallet session，操作時查 DB 的有效組織／活動角色，不把 org_id 或 role 的 client input／過期 JWT 當授權。owner 管理合作成員；staff 僅限授權 event／checkpoint；result editor 匯入，publisher 發布。發布／更正／核銷／成員權限變更需近期登入及 audit log；停權立即生效。跨組織、資源枚舉、CSV 匯出都使用相同權限檢查。合作方無鏈上 admin 權限。
 
+**實作（2026-09-14，PG-E-01）**：migration 0006 建立 11.3 全部表（含複合 FK、狀態／庫存／成績邊界約束、`events.revision` 樂觀鎖、`event_rule_revisions` 只增不改）。`partner/authz.ts`：`accessFor`／`requireEventRole(allowed, {checkpointId})`／`requireOrgOwner` 由 DB 有效資料推導角色（成員未撤銷、組織未停權、活動角色未撤銷；owner 全權；staff 可限定 checkpoint）；無權者對不存在或無角色的活動一律 404、角色不足 403 `ROLE_FORBIDDEN`；`requireRecentLogin`（登入時間 = session family 起點，30 分鐘）回 403 `RECENT_LOGIN_REQUIRED`；`audit` 寫 `event_audit_logs`（含 request id，不含核銷 token／健康資料）。Store 介面 `PartnerStore`（Memory／PostgreSQL 同行為）。
+
 ### 11.2 API 契約
 
 下列路徑加 `/v1`。UUID 作資源 ID；寫入 API 使用 SD 4.3 的 idempotency 規則；時間為 UTC RFC 3339，數量及成績只接受有界非負整數。GET 公開投影不回傳內部名單、wallet、聯絡資料或核銷 token。
@@ -951,6 +953,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.13 | 2026-09-14 | PG-E-01：合作活動 schema 與授權服務實作說明 |
 | v0.12 | 2026-09-14 | PG-G-01／G-02：藝廊投影與 API 實作說明 |
 | v0.11 | 2026-09-14 | PG-B-17：保留清理實作說明 |
 | v0.10 | 2026-09-14 | PG-B-16：ChainIndexer 實作說明（IDL 驅動解碼、confirmed→finalized、orphan、projection 只吃 finalized）；ClockedIn 事件加 `max_streak_days` |

@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, PartnerMembership, PartnerOrganization, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -180,6 +180,139 @@ export class PostgresStore implements Store {
     return false;
   }
 
+  // ---- PG-E-01 ----
+  private orgRow(x: Row): PartnerOrganization {
+    return { orgId: x.org_id as string, name: x.name as string, slug: x.slug as string, createdBy: x.created_by as string, createdAt: x.created_at as Date, suspendedAt: (x.suspended_at as Date | null) ?? null };
+  }
+  private membershipRow(x: Row): PartnerMembership {
+    return { orgId: x.org_id as string, wallet: x.wallet as string, role: x.role as PartnerMembership["role"], grantedBy: x.granted_by as string, grantedAt: x.granted_at as Date, revokedAt: (x.revoked_at as Date | null) ?? null };
+  }
+  private partnerEventRow(x: Row): EventRow {
+    return {
+      eventId: x.event_id as string, orgId: x.org_id as string, slug: x.slug as string, title: x.title as string, description: x.description as string, state: x.state as EventState, timezone: x.timezone as string,
+      registrationOpensAt: (x.registration_opens_at as Date | null) ?? null, registrationClosesAt: (x.registration_closes_at as Date | null) ?? null, startsAt: (x.starts_at as Date | null) ?? null, endsAt: (x.ends_at as Date | null) ?? null,
+      capacity: Number(x.capacity), registrationCount: Number(x.registration_count), currentRuleRevision: (x.current_rule_revision as string | null) ?? null, tournamentAddress: (x.tournament_address as string | null) ?? null,
+      revision: Number(x.revision), cancelReason: (x.cancel_reason as string | null) ?? null, createdBy: x.created_by as string, createdAt: x.created_at as Date, updatedAt: x.updated_at as Date, publishedAt: (x.published_at as Date | null) ?? null, cancelledAt: (x.cancelled_at as Date | null) ?? null,
+    };
+  }
+  private ruleRow(x: Row): EventRuleRevision {
+    return { revisionId: x.revision_id as string, eventId: x.event_id as string, version: Number(x.version), rules: x.rules, rulesHash: x.rules_hash as Buffer, createdBy: x.created_by as string, createdAt: x.created_at as Date, publishedAt: (x.published_at as Date | null) ?? null };
+  }
+  private roleRow(x: Row): EventRoleGrant {
+    return { eventId: x.event_id as string, wallet: x.wallet as string, role: x.role as EventRole, checkpointId: (x.checkpoint_id as string | null) ?? null, grantedBy: x.granted_by as string, grantedAt: x.granted_at as Date, revokedAt: (x.revoked_at as Date | null) ?? null };
+  }
+  async createOrganization(o: Omit<PartnerOrganization, "createdAt" | "suspendedAt">, now: Date) {
+    const r = await this.pool.query(`INSERT INTO partner_organizations (org_id, name, slug, created_by, created_at) VALUES ($1,$2,$3,$4,$5) RETURNING *`, [o.orgId, o.name, o.slug, o.createdBy, now]);
+    return this.orgRow(r.rows[0] as Row);
+  }
+  async getOrganization(orgId: string) {
+    const r = await this.pool.query(`SELECT * FROM partner_organizations WHERE org_id = $1`, [orgId]);
+    return r.rows[0] ? this.orgRow(r.rows[0] as Row) : null;
+  }
+  async getOrganizationBySlug(slug: string) {
+    const r = await this.pool.query(`SELECT * FROM partner_organizations WHERE slug = $1`, [slug]);
+    return r.rows[0] ? this.orgRow(r.rows[0] as Row) : null;
+  }
+  async upsertMembership(m: Omit<PartnerMembership, "grantedAt" | "revokedAt">, now: Date) {
+    await this.pool.query(`INSERT INTO partner_memberships (org_id, wallet, role, granted_by, granted_at) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (org_id, wallet) DO UPDATE SET role = EXCLUDED.role, granted_by = EXCLUDED.granted_by, granted_at = EXCLUDED.granted_at, revoked_at = NULL`, [m.orgId, m.wallet, m.role, m.grantedBy, now]);
+  }
+  async revokeMembership(orgId: string, wallet: string, now: Date) {
+    return ((await this.pool.query(`UPDATE partner_memberships SET revoked_at = $3 WHERE org_id = $1 AND wallet = $2 AND revoked_at IS NULL`, [orgId, wallet, now])).rowCount ?? 0) > 0;
+  }
+  async listMemberships(wallet: string) {
+    const r = await this.pool.query(`SELECT m.* FROM partner_memberships m JOIN partner_organizations o ON o.org_id = m.org_id WHERE m.wallet = $1 AND m.revoked_at IS NULL AND o.suspended_at IS NULL`, [wallet]);
+    return (r.rows as Row[]).map((x) => this.membershipRow(x));
+  }
+  async getMembership(orgId: string, wallet: string) {
+    const r = await this.pool.query(`SELECT * FROM partner_memberships WHERE org_id = $1 AND wallet = $2`, [orgId, wallet]);
+    return r.rows[0] ? this.membershipRow(r.rows[0] as Row) : null;
+  }
+  async createEvent(e: Parameters<Store["createEvent"]>[0], now: Date) {
+    const r = await this.pool.query(
+      `INSERT INTO events (event_id, org_id, slug, title, description, timezone, registration_opens_at, registration_closes_at, starts_at, ends_at, capacity, tournament_address, created_by, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14) RETURNING *`,
+      [e.eventId, e.orgId, e.slug, e.title, e.description, e.timezone, e.registrationOpensAt, e.registrationClosesAt, e.startsAt, e.endsAt, e.capacity, e.tournamentAddress, e.createdBy, now],
+    );
+    return this.partnerEventRow(r.rows[0] as Row);
+  }
+  async getEvent(eventId: string) {
+    const r = await this.pool.query(`SELECT * FROM events WHERE event_id = $1`, [eventId]);
+    return r.rows[0] ? this.partnerEventRow(r.rows[0] as Row) : null;
+  }
+  async getEventBySlug(slug: string) {
+    const r = await this.pool.query(`SELECT * FROM events WHERE slug = $1`, [slug]);
+    return r.rows[0] ? this.partnerEventRow(r.rows[0] as Row) : null;
+  }
+  async updateEvent(eventId: string, expectedRevision: number, patch: EventPatch, now: Date) {
+    const cols: Record<string, string> = { title: "title", description: "description", timezone: "timezone", registrationOpensAt: "registration_opens_at", registrationClosesAt: "registration_closes_at", startsAt: "starts_at", endsAt: "ends_at", capacity: "capacity", tournamentAddress: "tournament_address" };
+    const sets: string[] = [];
+    const args: unknown[] = [eventId, expectedRevision, now];
+    for (const [k, col] of Object.entries(cols)) {
+      if (k in patch) {
+        args.push((patch as Record<string, unknown>)[k]);
+        sets.push(`${col} = $${args.length}`);
+      }
+    }
+    const r = await this.pool.query(`UPDATE events SET ${[...sets, "revision = revision + 1", "updated_at = $3"].join(", ")} WHERE event_id = $1 AND revision = $2 RETURNING *`, args);
+    return r.rows[0] ? this.partnerEventRow(r.rows[0] as Row) : null;
+  }
+  async transitionEvent(eventId: string, from: EventState[], to: EventState, extra: { cancelReason?: string; currentRuleRevision?: string }, now: Date) {
+    const r = await this.pool.query(
+      `UPDATE events SET state = $3, revision = revision + 1, updated_at = $4,
+         published_at = CASE WHEN $3 = 'published' THEN $4 ELSE published_at END,
+         current_rule_revision = CASE WHEN $3 = 'published' AND $5::uuid IS NOT NULL THEN $5::uuid ELSE current_rule_revision END,
+         cancelled_at = CASE WHEN $3 = 'cancelled' THEN $4 ELSE cancelled_at END,
+         cancel_reason = CASE WHEN $3 = 'cancelled' THEN $6 ELSE cancel_reason END
+       WHERE event_id = $1 AND state = ANY($2::text[]) RETURNING *`,
+      [eventId, from, to, now, extra.currentRuleRevision ?? null, extra.cancelReason ?? null],
+    );
+    return r.rows[0] ? this.partnerEventRow(r.rows[0] as Row) : null;
+  }
+  async listPublishedEvents(limit: number, offset: number) {
+    const r = await this.pool.query(`SELECT * FROM events WHERE state = 'published' ORDER BY starts_at ASC NULLS LAST LIMIT $1 OFFSET $2`, [limit, offset]);
+    return (r.rows as Row[]).map((x) => this.partnerEventRow(x));
+  }
+  async listOrgEvents(orgId: string) {
+    const r = await this.pool.query(`SELECT * FROM events WHERE org_id = $1 ORDER BY created_at DESC`, [orgId]);
+    return (r.rows as Row[]).map((x) => this.partnerEventRow(x));
+  }
+  async addRuleRevision(rv: Omit<EventRuleRevision, "createdAt" | "publishedAt">, now: Date) {
+    const r = await this.pool.query(`INSERT INTO event_rule_revisions (revision_id, event_id, version, rules, rules_hash, created_by, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`, [rv.revisionId, rv.eventId, rv.version, JSON.stringify(rv.rules), rv.rulesHash, rv.createdBy, now]);
+    return this.ruleRow(r.rows[0] as Row);
+  }
+  async getRuleRevision(revisionId: string) {
+    const r = await this.pool.query(`SELECT * FROM event_rule_revisions WHERE revision_id = $1`, [revisionId]);
+    return r.rows[0] ? this.ruleRow(r.rows[0] as Row) : null;
+  }
+  async listRuleRevisions(eventId: string) {
+    const r = await this.pool.query(`SELECT * FROM event_rule_revisions WHERE event_id = $1 ORDER BY version ASC`, [eventId]);
+    return (r.rows as Row[]).map((x) => this.ruleRow(x));
+  }
+  async markRuleRevisionPublished(revisionId: string, now: Date) {
+    await this.pool.query(`UPDATE event_rule_revisions SET published_at = COALESCE(published_at, $2) WHERE revision_id = $1`, [revisionId, now]);
+  }
+  async upsertEventRole(g: Omit<EventRoleGrant, "grantedAt" | "revokedAt">, now: Date) {
+    await this.pool.query(`INSERT INTO event_roles (event_id, wallet, role, checkpoint_id, granted_by, granted_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (event_id, wallet, role) DO UPDATE SET checkpoint_id = EXCLUDED.checkpoint_id, granted_by = EXCLUDED.granted_by, granted_at = EXCLUDED.granted_at, revoked_at = NULL`, [g.eventId, g.wallet, g.role, g.checkpointId, g.grantedBy, now]);
+  }
+  async revokeEventRole(eventId: string, wallet: string, role: EventRole, now: Date) {
+    return ((await this.pool.query(`UPDATE event_roles SET revoked_at = $4 WHERE event_id = $1 AND wallet = $2 AND role = $3 AND revoked_at IS NULL`, [eventId, wallet, role, now])).rowCount ?? 0) > 0;
+  }
+  async listEventRoles(eventId: string, wallet: string) {
+    const r = await this.pool.query(`SELECT * FROM event_roles WHERE event_id = $1 AND wallet = $2 AND revoked_at IS NULL`, [eventId, wallet]);
+    return (r.rows as Row[]).map((x) => this.roleRow(x));
+  }
+  async listEventRolesForWallet(wallet: string) {
+    const r = await this.pool.query(`SELECT * FROM event_roles WHERE wallet = $1 AND revoked_at IS NULL`, [wallet]);
+    return (r.rows as Row[]).map((x) => this.roleRow(x));
+  }
+  async appendAudit(entry: AuditEntry, now: Date) {
+    await this.pool.query(`INSERT INTO event_audit_logs (event_id, org_id, actor_wallet, action, target, revision_id, request_id, details, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [entry.eventId, entry.orgId, entry.actorWallet, entry.action, entry.target, entry.revisionId, entry.requestId, JSON.stringify(entry.details ?? {}), now]);
+  }
+  async listAudit(eventId: string, limit: number) {
+    const r = await this.pool.query(`SELECT * FROM event_audit_logs WHERE event_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2`, [eventId, limit]);
+    return (r.rows as Row[]).map((x) => ({ eventId: x.event_id as string | null, orgId: x.org_id as string | null, actorWallet: x.actor_wallet as string, action: x.action as string, target: (x.target as string | null) ?? null, revisionId: (x.revision_id as string | null) ?? null, requestId: (x.request_id as string | null) ?? null, details: x.details, createdAt: x.created_at as Date }));
+  }
+
   // ---- PG-G-01 ----
   private galleryRow(x: Row): GalleryPlayer {
     return { wallet: x.wallet as string, shoeLevel: Number(x.shoe_level), coreLevel: Number(x.core_level), xp: BigInt(x.xp as string), streakDays: Number(x.streak_days), maxStreakDays: Number(x.max_streak_days), lastTaskDate: x.last_task_date === null ? null : Number(x.last_task_date), collectibleCount: Number(x.collectible_count), updatedSlot: Number(x.updated_slot), updatedAt: x.updated_at as Date };
@@ -225,6 +358,12 @@ export class PostgresStore implements Store {
   async listGalleryCollectibles(wallet: string) {
     const r = await this.pool.query(`SELECT * FROM gallery_collectibles WHERE wallet = $1 ORDER BY kind ASC`, [wallet]);
     return (r.rows as Row[]).map((x) => this.collectibleRow(x));
+  }
+
+  async familyFirstExpiresAt(familyId: string) {
+    const r = await this.pool.query(`SELECT min(expires_at) AS t FROM auth_sessions WHERE family_id = $1`, [familyId]);
+    const t = (r.rows[0] as { t: Date | null } | undefined)?.t ?? null;
+    return t;
   }
 
   // ---- PG-B-17 ----

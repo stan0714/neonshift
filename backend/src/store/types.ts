@@ -26,7 +26,7 @@ export type Session = {
 
 export type Player = { wallet: string; firstSeenAt: Date; lastSeenAt: Date; deletedAt: Date | null };
 
-export interface Store extends ClaimStore, PlayerDataStore, TournamentStore, IndexerStore, RetentionStore, GalleryStore {
+export interface Store extends ClaimStore, PlayerDataStore, TournamentStore, IndexerStore, RetentionStore, GalleryStore, PartnerStore {
   insertChallenge(c: Challenge): Promise<void>;
   /** 原子消耗：只有未使用且未過期才會成功，回傳被消耗的 challenge */
   consumeChallenge(nonceHash: Buffer, now: Date): Promise<Challenge | null>;
@@ -41,6 +41,8 @@ export interface Store extends ClaimStore, PlayerDataStore, TournamentStore, Ind
   rotateSession(jti: string, rotatedTo: string, now: Date): Promise<void>;
   revokeFamily(familyId: string, now: Date): Promise<number>;
   revokeWallet(wallet: string, now: Date): Promise<number>;
+  /** family 最早 session 的到期時間（登入時間 = 該值 − REFRESH_TTL）；供「近期登入」檢查（SD 11.1） */
+  familyFirstExpiresAt(familyId: string): Promise<Date | null>;
 }
 
 // ---------------- PG-B-11：規則集、健康摘要、判定、attestation、idempotency ----------------
@@ -204,4 +206,58 @@ export interface GalleryStore {
   galleryRankOf(wallet: string): Promise<number | null>;
   searchGalleryPlayers(prefix: string, limit: number): Promise<GalleryPlayer[]>;
   listGalleryCollectibles(wallet: string): Promise<GalleryCollectible[]>;
+}
+
+// ---------------- PG-E-01：合作組織、角色與活動 ----------------
+
+export type OrgRole = "owner" | "member";
+export type EventRole = "staff" | "result_editor" | "publisher";
+export type EventState = "draft" | "published" | "cancelled" | "completed";
+
+export type PartnerOrganization = { orgId: string; name: string; slug: string; createdBy: string; createdAt: Date; suspendedAt: Date | null };
+export type PartnerMembership = { orgId: string; wallet: string; role: OrgRole; grantedBy: string; grantedAt: Date; revokedAt: Date | null };
+export type EventRow = {
+  eventId: string; orgId: string; slug: string; title: string; description: string; state: EventState; timezone: string;
+  registrationOpensAt: Date | null; registrationClosesAt: Date | null; startsAt: Date | null; endsAt: Date | null;
+  capacity: number; registrationCount: number; currentRuleRevision: string | null; tournamentAddress: string | null;
+  revision: number; cancelReason: string | null; createdBy: string; createdAt: Date; updatedAt: Date; publishedAt: Date | null; cancelledAt: Date | null;
+};
+export type EventPatch = Partial<Pick<EventRow, "title" | "description" | "timezone" | "registrationOpensAt" | "registrationClosesAt" | "startsAt" | "endsAt" | "capacity" | "tournamentAddress">>;
+export type EventRuleRevision = { revisionId: string; eventId: string; version: number; rules: unknown; rulesHash: Buffer; createdBy: string; createdAt: Date; publishedAt: Date | null };
+export type EventRoleGrant = { eventId: string; wallet: string; role: EventRole; checkpointId: string | null; grantedBy: string; grantedAt: Date; revokedAt: Date | null };
+export type AuditEntry = { eventId: string | null; orgId: string | null; actorWallet: string; action: string; target: string | null; revisionId: string | null; requestId: string | null; details: unknown };
+
+export interface PartnerStore {
+  createOrganization(o: Omit<PartnerOrganization, "createdAt" | "suspendedAt">, now: Date): Promise<PartnerOrganization>;
+  getOrganization(orgId: string): Promise<PartnerOrganization | null>;
+  getOrganizationBySlug(slug: string): Promise<PartnerOrganization | null>;
+  /** upsert：已存在則更新角色並清除 revoked_at */
+  upsertMembership(m: Omit<PartnerMembership, "grantedAt" | "revokedAt">, now: Date): Promise<void>;
+  revokeMembership(orgId: string, wallet: string, now: Date): Promise<boolean>;
+  /** 有效（未撤銷、組織未停權）成員資格 */
+  listMemberships(wallet: string): Promise<PartnerMembership[]>;
+  getMembership(orgId: string, wallet: string): Promise<PartnerMembership | null>;
+
+  createEvent(e: Omit<EventRow, "state" | "registrationCount" | "currentRuleRevision" | "revision" | "cancelReason" | "createdAt" | "updatedAt" | "publishedAt" | "cancelledAt">, now: Date): Promise<EventRow>;
+  getEvent(eventId: string): Promise<EventRow | null>;
+  getEventBySlug(slug: string): Promise<EventRow | null>;
+  /** 樂觀鎖：`expectedRevision` 不符回 null，不寫入 */
+  updateEvent(eventId: string, expectedRevision: number, patch: EventPatch, now: Date): Promise<EventRow | null>;
+  /** 狀態轉移（同時寫 published_at／cancelled_at／cancel_reason／current_rule_revision）；from 不符回 null */
+  transitionEvent(eventId: string, from: EventState[], to: EventState, extra: { cancelReason?: string; currentRuleRevision?: string }, now: Date): Promise<EventRow | null>;
+  listPublishedEvents(limit: number, offset: number): Promise<EventRow[]>;
+  listOrgEvents(orgId: string): Promise<EventRow[]>;
+
+  addRuleRevision(r: Omit<EventRuleRevision, "createdAt" | "publishedAt">, now: Date): Promise<EventRuleRevision>;
+  getRuleRevision(revisionId: string): Promise<EventRuleRevision | null>;
+  listRuleRevisions(eventId: string): Promise<EventRuleRevision[]>;
+  markRuleRevisionPublished(revisionId: string, now: Date): Promise<void>;
+
+  upsertEventRole(g: Omit<EventRoleGrant, "grantedAt" | "revokedAt">, now: Date): Promise<void>;
+  revokeEventRole(eventId: string, wallet: string, role: EventRole, now: Date): Promise<boolean>;
+  listEventRoles(eventId: string, wallet: string): Promise<EventRoleGrant[]>;
+  listEventRolesForWallet(wallet: string): Promise<EventRoleGrant[]>;
+
+  appendAudit(entry: AuditEntry, now: Date): Promise<void>;
+  listAudit(eventId: string, limit: number): Promise<(AuditEntry & { createdAt: Date })[]>;
 }

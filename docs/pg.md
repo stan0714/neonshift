@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.23（PG-D 交付物） |
+| 文件版本 | v0.24（PG-E-01 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -518,7 +518,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
-| PG-E-01 | 合作組織、角色與活動權限模型／migration | SD 11.1、11.3 | BR-26 | 2.0 | TODO | |
+| PG-E-01 | 合作組織、角色與活動權限模型／migration | SD 11.1、11.3 | BR-26 | 2.0 | WIP | 2026-09-14 完成：migration 0006（18 表、複合 FK、約束、樂觀鎖）、`PartnerStore`（Memory／PG）、`PartnerAuthz`（DB 推導角色、checkpoint 限定、404 防枚舉、近期登入、audit）；auth 新增 `loginAt`；vitest 4＋PG 整合 1 |
 | PG-E-02 | 合作管理介面、活動生命週期與規則版本 | SD 11.1～11.3 | FR-09、BR-27、BR-33 | 3.0 | TODO | |
 | PG-E-03 | App 活動列表／詳情、宣傳連結與報名容量 | SD 11.1、11.2 | FR-09、FR-10、BR-28 | 3.0 | TODO | |
 | PG-E-04 | NFC／App Links、QR 備援與可選卡片綁定 | SD 11.4 | FR-11.1、FR-11.3、BR-29 | 2.5 | TODO | |
@@ -558,6 +558,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.24 | 2026-09-14 | PG-E-01 完成（WIP）：合作活動 schema 與授權 |
 | v0.23 | 2026-09-14 | PG-D-01～D-06（WIP）：簽章、上架素材與隱私政策、Demo 腳本、Pitch 大綱、README、經濟模擬（消耗比待決） |
 | v0.22 | 2026-09-14 | PG-G-04 完成（WIP）：NFT metadata／圖片素材 |
 | v0.21 | 2026-09-14 | PG-G-03 完成（WIP）：App 藝廊 |

@@ -148,7 +148,7 @@ export class AuthService {
   }
 
   /** Bearer 驗證：JWT 有效且其 session 未撤銷、玩家未刪除 */
-  async authenticate(bearer: string): Promise<{ wallet: string; sessionJti: string }> {
+  async authenticate(bearer: string): Promise<{ wallet: string; sessionJti: string; loginAt: Date }> {
     const now = this.now();
     let claims;
     try {
@@ -160,7 +160,10 @@ export class AuthService {
     if (!session || session.revokedAt || session.wallet !== claims.sub) throw new ApiError(401, "SESSION_REVOKED", "session revoked");
     const player = await this.store.getPlayer(claims.sub);
     if (!player || player.deletedAt) throw new ApiError(403, "PLAYER_DELETED", "this wallet's data was deleted");
-    return { wallet: claims.sub, sessionJti: claims.sid };
+    // 登入時間 = family 最早 session 的到期 − REFRESH_TTL（輪替會延長到期，family 起點不變）
+    const first = await this.store.familyFirstExpiresAt(session.familyId);
+    const loginAt = first ? new Date(first.getTime() - REFRESH_TTL_SECONDS * 1000) : now;
+    return { wallet: claims.sub, sessionJti: claims.sid, loginAt };
   }
 
   private async issueSession(wallet: string, familyId: string, now: Date): Promise<TokenPair & { sessionJti: string; pair: TokenPair }> {

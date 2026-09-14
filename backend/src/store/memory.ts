@@ -1,5 +1,5 @@
 import { compareLeaderboard } from "./leaderboard.js";
-import type { AttestationRow, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, PartnerMembership, PartnerOrganization, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -17,6 +17,12 @@ export class MemoryStore implements Store {
   redeemed = new Map<string, string>();
   galleryPlayers = new Map<string, GalleryPlayer>();
   galleryCollectibles = new Map<string, GalleryCollectible>();
+  orgs = new Map<string, PartnerOrganization>();
+  memberships = new Map<string, PartnerMembership>();
+  events = new Map<string, EventRow>();
+  ruleRevisions = new Map<string, EventRuleRevision>();
+  eventRoles = new Map<string, EventRoleGrant>();
+  audit: (AuditEntry & { createdAt: Date })[] = [];
 
   async insertChallenge(c: Challenge) {
     const k = c.nonceHash.toString("hex");
@@ -116,6 +122,112 @@ export class MemoryStore implements Store {
     return false;
   }
 
+  // ---- PG-E-01 ----
+  async createOrganization(o: Omit<PartnerOrganization, "createdAt" | "suspendedAt">, now: Date) {
+    if ([...this.orgs.values()].some((x) => x.slug === o.slug)) throw new Error("duplicate slug");
+    const row = { ...o, createdAt: now, suspendedAt: null };
+    this.orgs.set(o.orgId, row);
+    return row;
+  }
+  async getOrganization(orgId: string) {
+    return this.orgs.get(orgId) ?? null;
+  }
+  async getOrganizationBySlug(slug: string) {
+    return [...this.orgs.values()].find((x) => x.slug === slug) ?? null;
+  }
+  async upsertMembership(m: Omit<PartnerMembership, "grantedAt" | "revokedAt">, now: Date) {
+    this.memberships.set(`${m.orgId}:${m.wallet}`, { ...m, grantedAt: now, revokedAt: null });
+  }
+  async revokeMembership(orgId: string, wallet: string, now: Date) {
+    const m = this.memberships.get(`${orgId}:${wallet}`);
+    if (!m || m.revokedAt) return false;
+    m.revokedAt = now;
+    return true;
+  }
+  async listMemberships(wallet: string) {
+    return [...this.memberships.values()].filter((m) => m.wallet === wallet && !m.revokedAt && !this.orgs.get(m.orgId)?.suspendedAt);
+  }
+  async getMembership(orgId: string, wallet: string) {
+    return this.memberships.get(`${orgId}:${wallet}`) ?? null;
+  }
+  async createEvent(e: Parameters<Store["createEvent"]>[0], now: Date) {
+    if ([...this.events.values()].some((x) => x.slug === e.slug)) throw new Error("duplicate slug");
+    const row: EventRow = { ...e, state: "draft", registrationCount: 0, currentRuleRevision: null, revision: 1, cancelReason: null, createdAt: now, updatedAt: now, publishedAt: null, cancelledAt: null };
+    this.events.set(e.eventId, row);
+    return row;
+  }
+  async getEvent(eventId: string) {
+    return this.events.get(eventId) ?? null;
+  }
+  async getEventBySlug(slug: string) {
+    return [...this.events.values()].find((x) => x.slug === slug) ?? null;
+  }
+  async updateEvent(eventId: string, expectedRevision: number, patch: EventPatch, now: Date) {
+    const e = this.events.get(eventId);
+    if (!e || e.revision !== expectedRevision) return null;
+    Object.assign(e, patch, { revision: e.revision + 1, updatedAt: now });
+    return e;
+  }
+  async transitionEvent(eventId: string, from: EventState[], to: EventState, extra: { cancelReason?: string; currentRuleRevision?: string }, now: Date) {
+    const e = this.events.get(eventId);
+    if (!e || !from.includes(e.state)) return null;
+    e.state = to;
+    e.revision += 1;
+    e.updatedAt = now;
+    if (to === "published") {
+      e.publishedAt = now;
+      if (extra.currentRuleRevision) e.currentRuleRevision = extra.currentRuleRevision;
+    }
+    if (to === "cancelled") {
+      e.cancelledAt = now;
+      e.cancelReason = extra.cancelReason ?? null;
+    }
+    return e;
+  }
+  async listPublishedEvents(limit: number, offset: number) {
+    return [...this.events.values()].filter((e) => e.state === "published").sort((a, b) => (a.startsAt?.getTime() ?? 0) - (b.startsAt?.getTime() ?? 0)).slice(offset, offset + limit);
+  }
+  async listOrgEvents(orgId: string) {
+    return [...this.events.values()].filter((e) => e.orgId === orgId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  async addRuleRevision(r: Omit<EventRuleRevision, "createdAt" | "publishedAt">, now: Date) {
+    if ([...this.ruleRevisions.values()].some((x) => x.eventId === r.eventId && x.version === r.version)) throw new Error("duplicate version");
+    const row = { ...r, createdAt: now, publishedAt: null };
+    this.ruleRevisions.set(r.revisionId, row);
+    return row;
+  }
+  async getRuleRevision(revisionId: string) {
+    return this.ruleRevisions.get(revisionId) ?? null;
+  }
+  async listRuleRevisions(eventId: string) {
+    return [...this.ruleRevisions.values()].filter((x) => x.eventId === eventId).sort((a, b) => a.version - b.version);
+  }
+  async markRuleRevisionPublished(revisionId: string, now: Date) {
+    const r = this.ruleRevisions.get(revisionId);
+    if (r) r.publishedAt = now;
+  }
+  async upsertEventRole(g: Omit<EventRoleGrant, "grantedAt" | "revokedAt">, now: Date) {
+    this.eventRoles.set(`${g.eventId}:${g.wallet}:${g.role}`, { ...g, grantedAt: now, revokedAt: null });
+  }
+  async revokeEventRole(eventId: string, wallet: string, role: EventRole, now: Date) {
+    const g = this.eventRoles.get(`${eventId}:${wallet}:${role}`);
+    if (!g || g.revokedAt) return false;
+    g.revokedAt = now;
+    return true;
+  }
+  async listEventRoles(eventId: string, wallet: string) {
+    return [...this.eventRoles.values()].filter((g) => g.eventId === eventId && g.wallet === wallet && !g.revokedAt);
+  }
+  async listEventRolesForWallet(wallet: string) {
+    return [...this.eventRoles.values()].filter((g) => g.wallet === wallet && !g.revokedAt);
+  }
+  async appendAudit(entry: AuditEntry, now: Date) {
+    this.audit.push({ ...entry, createdAt: now });
+  }
+  async listAudit(eventId: string, limit: number) {
+    return this.audit.filter((a) => a.eventId === eventId).slice(-limit).reverse();
+  }
+
   // ---- PG-G-01 ----
   private galleryRanked() {
     return [...this.galleryPlayers.values()].sort(compareGallery);
@@ -151,6 +263,11 @@ export class MemoryStore implements Store {
   }
   async listGalleryCollectibles(wallet: string) {
     return [...this.galleryCollectibles.values()].filter((c) => c.wallet === wallet).sort((a, b) => a.kind - b.kind);
+  }
+
+  async familyFirstExpiresAt(familyId: string) {
+    const t = [...this.sessions.values()].filter((x) => x.familyId === familyId).map((x) => x.expiresAt.getTime());
+    return t.length ? new Date(Math.min(...t)) : null;
   }
 
   // ---- PG-B-17 ----

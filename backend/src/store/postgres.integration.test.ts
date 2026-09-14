@@ -18,7 +18,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: url });
-    await pool.query("DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
+    await pool.query("DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; DELETE FROM event_rule_revisions; UPDATE events SET current_rule_revision = NULL; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
     stores = [
       { name: "postgres", store: new PostgresStore(pool) },
       { name: "memory", store: new MemoryStore() },
@@ -212,6 +212,44 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       expect(await store.countGalleryPlayers(), name).toBe(3);
       expect((await store.searchGalleryPlayers(`G${name}b`, 10)).map((p) => p.wallet), name).toEqual([b]);
       expect((await store.listGalleryCollectibles(b)).map((x) => x.kind), name).toEqual([1]);
+    }
+  });
+
+  it("partner：組織／成員 upsert 與撤銷、活動樂觀鎖與狀態轉移、規則版本、活動角色、稽核", async () => {
+    for (const { name, store } of stores) {
+      const now = new Date("2026-09-14T00:00:00Z");
+      const orgId = randomUUID();
+      const owner = "P" + name;
+      await store.createOrganization({ orgId, name: "Org " + name, slug: "org-" + name, createdBy: owner }, now);
+      await store.upsertMembership({ orgId, wallet: owner, role: "owner", grantedBy: owner }, now);
+      expect((await store.listMemberships(owner)).map((m) => m.role), name).toEqual(["owner"]);
+      expect(await store.revokeMembership(orgId, owner, now), name).toBe(true);
+      expect(await store.listMemberships(owner), name).toEqual([]);
+      await store.upsertMembership({ orgId, wallet: owner, role: "owner", grantedBy: owner }, now); // 復原
+      expect((await store.getMembership(orgId, owner))?.revokedAt, name).toBeNull();
+
+      const eventId = randomUUID();
+      const e = await store.createEvent({ eventId, orgId, slug: "ev-" + name, title: "T", description: "", timezone: "UTC", registrationOpensAt: null, registrationClosesAt: null, startsAt: null, endsAt: null, capacity: 10, tournamentAddress: null, createdBy: owner }, now);
+      expect([e.state, e.revision], name).toEqual(["draft", 1]);
+      expect(await store.updateEvent(eventId, 99, { title: "X" }, now), name).toBeNull(); // 版本不符
+      const u = await store.updateEvent(eventId, 1, { title: "River 5K", capacity: 50 }, now);
+      expect([u?.title, u?.capacity, u?.revision], name).toEqual(["River 5K", 50, 2]);
+      const rev = await store.addRuleRevision({ revisionId: randomUUID(), eventId, version: 1, rules: { distance_m: 5000 }, rulesHash: Buffer.alloc(32, 1), createdBy: owner }, now);
+      expect(await store.transitionEvent(eventId, ["published"], "cancelled", {}, now), name).toBeNull(); // from 不符
+      const pub = await store.transitionEvent(eventId, ["draft"], "published", { currentRuleRevision: rev.revisionId }, now);
+      expect([pub?.state, pub?.currentRuleRevision, pub?.publishedAt !== null], name).toEqual(["published", rev.revisionId, true]);
+      await store.markRuleRevisionPublished(rev.revisionId, now);
+      expect((await store.listRuleRevisions(eventId))[0]?.publishedAt, name).not.toBeNull();
+      expect((await store.listPublishedEvents(10, 0)).map((x) => x.eventId), name).toContain(eventId);
+      const can = await store.transitionEvent(eventId, ["published"], "cancelled", { cancelReason: "weather" }, now);
+      expect([can?.state, can?.cancelReason], name).toEqual(["cancelled", "weather"]);
+
+      await store.upsertEventRole({ eventId, wallet: "S" + name, role: "staff", checkpointId: null, grantedBy: owner }, now);
+      expect((await store.listEventRoles(eventId, "S" + name)).map((g) => g.role), name).toEqual(["staff"]);
+      expect(await store.revokeEventRole(eventId, "S" + name, "staff", now), name).toBe(true);
+      expect(await store.listEventRolesForWallet("S" + name), name).toEqual([]);
+      await store.appendAudit({ eventId, orgId, actorWallet: owner, action: "event.cancel", target: null, revisionId: null, requestId: "r", details: { reason: "weather" } }, now);
+      expect((await store.listAudit(eventId, 5))[0]?.action, name).toBe("event.cancel");
     }
   });
 });

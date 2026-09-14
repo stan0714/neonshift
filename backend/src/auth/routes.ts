@@ -6,7 +6,7 @@ import type { AuthService } from "./service.js";
 
 declare module "fastify" {
   interface FastifyRequest {
-    auth?: { wallet: string; sessionJti: string };
+    auth?: { wallet: string; sessionJti: string; loginAt: Date };
   }
 }
 
