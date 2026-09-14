@@ -65,7 +65,9 @@ export type LeaderboardResponse = { week_id: number; status: TournamentStatus; g
 export type TournamentStepsResponse = { week_id: number; verified_steps: number; submitted_steps: number; accepted: boolean; first_reached_at: string | null; rank: number | null };
 export type GalleryPlayerView = { rank: number | null; wallet: string; shoe_level: number; core_level: number; xp: string; streak_days: number; max_streak_days: number; last_task_date: number | null; collectible_count: number; updated_at: string };
 export type GalleryListResponse = { generated_at: string; total: number; next_cursor: string | null; players: GalleryPlayerView[]; you: { rank: number } | null };
-export type GalleryPlayerResponse = { player: GalleryPlayerView; is_you: boolean; collectibles: { kind: number; asset: string; signature: string; claimed_at: string }[] };
+export type GalleryAchievement = { achievement_id: string; asset: string | null; series: 'pb_speed' | 'pb_distance'; category: PbCategory; verification_class: 'organizer' | 'device'; environment: string; record: 'current' | 'historical' | 'invalidated'; public: boolean; value: string | null; achieved_on: string | null; image: string; name: string; minted_at: string | null; minted_signature: string | null; metadata_uri: string };
+export type GalleryAchievementDetail = GalleryAchievement & { original_achiever: string; metadata: Record<string, unknown>; network: string; explorer_url: string };
+export type GalleryPlayerResponse = { player: GalleryPlayerView; is_you: boolean; hidden?: boolean; collectibles: { kind: number; asset: string; signature: string; claimed_at: string }[]; achievements?: GalleryAchievement[] };
 export type PartnerEventView = {
   event_id: string; slug: string; title: string; description: string; state: 'draft' | 'published' | 'cancelled' | 'completed'; timezone: string;
   registration_opens_at: string | null; registration_closes_at: string | null; starts_at: string | null; ends_at: string | null;
@@ -262,6 +264,18 @@ export class ApiClient {
   myWorkouts(q: { limit?: number; offset?: number } = {}): Promise<{ items: WorkoutSummary[]; rules_version: number }> {
     const qs = Object.entries(q).filter(([, v]) => v !== undefined).map(([k, v]) => `${k}=${v}`).join('&');
     return this.request('GET', `/me/workouts${qs ? `?${qs}` : ''}`);
+  }
+
+  galleryAchievement(asset: string): Promise<GalleryAchievementDetail> {
+    return this.request('GET', `/gallery/achievements/${encodeURIComponent(asset)}`);
+  }
+
+  galleryPrivacy(): Promise<{ hidden: boolean }> {
+    return this.request('GET', '/me/gallery-privacy');
+  }
+
+  setGalleryPrivacy(hidden: boolean): Promise<{ hidden: boolean }> {
+    return this.request('PATCH', '/me/gallery-privacy', { hidden });
   }
 
   mintIntent(pbId: string, publicConsent: boolean): Promise<MintIntent> {

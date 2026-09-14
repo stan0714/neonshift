@@ -136,6 +136,58 @@ for (const b of badges) {
   index.push({ kind: b.kind, name: json.name, uri: `${BASE}/${b.kind}.json` });
 }
 writeFileSync(resolve(OUT, "index.json"), JSON.stringify({ base: BASE, collectibles: index }, null, 2) + "\n");
+
+// ---- PG-R-09：PB 成就作品（activity-running-gallery 6.1）：Speed＝青藍斜向光軌＋切線式計時環；Distance＝紫→青綠等高弧線＋里程節點。
+// 抽象生成圖案，不畫真實 GPS 路線；1:1、文字可辨識；metadata 由後端 /v1/nft/achievements/<id>.json 依公開同意產生，這裡只出圖。
+const pbCategories = [
+  { key: "fastest_1k", label: "1K", series: "speed" },
+  { key: "fastest_5k", label: "5K", series: "speed" },
+  { key: "fastest_10k", label: "10K", series: "speed" },
+  { key: "fastest_half", label: "HALF", series: "speed" },
+  { key: "fastest_marathon", label: "42K", series: "speed" },
+  { key: "longest_run", label: "DISTANCE", series: "distance" },
+];
+function pbSpeedSvg(label, cls) {
+  const tint = cls === "organizer" ? color.mint : color.cyan;
+  const trails = [0, 1, 2, 3, 4].map((i) => `<path d="M${-40 + i * 70} 560 L${300 + i * 70} -60" stroke="${tint}" stroke-opacity="${0.12 + i * 0.06}" stroke-width="${18 - i * 2}" stroke-linecap="round"/>`).join("");
+  const ticks = Array.from({ length: 24 }, (_, i) => { const a = (i / 24) * Math.PI * 2; const r1 = i % 6 === 0 ? 150 : 165; return `<line x1="${(260 + Math.cos(a) * r1).toFixed(1)}" y1="${(250 + Math.sin(a) * r1).toFixed(1)}" x2="${(260 + Math.cos(a) * 180).toFixed(1)}" y2="${(250 + Math.sin(a) * 180).toFixed(1)}" stroke="${tint}" stroke-opacity="${i % 6 === 0 ? 0.9 : 0.4}" stroke-width="${i % 6 === 0 ? 5 : 3}"/>`; }).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 520" width="520" height="520">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${color.canvas}"/><stop offset="1" stop-color="${color.surface}"/></linearGradient><radialGradient id="halo"><stop offset="0" stop-color="${tint}" stop-opacity="0.28"/><stop offset="1" stop-color="${tint}" stop-opacity="0"/></radialGradient><clipPath id="c"><rect width="520" height="520" rx="48"/></clipPath></defs>
+<rect width="520" height="520" rx="48" fill="url(#bg)"/>
+<g clip-path="url(#c)">${trails}</g>
+<circle cx="260" cy="250" r="190" fill="url(#halo)"/>
+<circle cx="260" cy="250" r="180" fill="none" stroke="${tint}" stroke-opacity="0.5" stroke-width="2"/>
+${ticks}
+<path d="M260 190 L${(260 + Math.cos(-Math.PI / 3) * 140).toFixed(1)} ${(190 + Math.sin(-Math.PI / 3) * 140 + 60).toFixed(1)}" stroke="${color.textPrimary}" stroke-width="6" stroke-linecap="round"/>
+<circle cx="260" cy="190" r="10" fill="${color.textPrimary}"/>
+<text x="260" y="330" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="64" font-weight="800" letter-spacing="2" fill="${color.textPrimary}">${label}</text>
+<text x="260" y="452" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="3" fill="${color.textPrimary}">PERSONAL BEST · SPEED</text>
+<text x="260" y="486" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="16" letter-spacing="3" fill="${cls === "organizer" ? color.mint : color.textMuted}">${cls === "organizer" ? "OFFICIAL RESULT" : "DEVICE RECORDED"}</text>
+</svg>`;
+}
+function pbDistanceSvg(cls) {
+  const arcs = [0, 1, 2, 3, 4, 5].map((i) => { const r = 70 + i * 28; const c = i % 2 ? color.violet : color.mint; return `<path d="M${260 - r} 300 A${r} ${r} 0 0 1 ${260 + r} 300" fill="none" stroke="${c}" stroke-opacity="${0.35 + i * 0.1}" stroke-width="6" stroke-linecap="round"/>`; }).join("");
+  const nodes = [0, 1, 2, 3, 4].map((i) => { const a = Math.PI + (i / 4) * Math.PI; const r = 210; return `<circle cx="${(260 + Math.cos(a) * r).toFixed(1)}" cy="${(300 + Math.sin(a) * r).toFixed(1)}" r="8" fill="${i === 4 ? color.mint : color.violet}"/>`; }).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 520" width="520" height="520">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color.canvas}"/><stop offset="1" stop-color="${color.surface}"/></linearGradient><linearGradient id="arc" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${color.violet}"/><stop offset="1" stop-color="${color.mint}"/></linearGradient></defs>
+<rect width="520" height="520" rx="48" fill="url(#bg)"/>
+${arcs}
+<path d="M50 300 A210 210 0 0 1 470 300" fill="none" stroke="url(#arc)" stroke-width="10" stroke-linecap="round"/>
+${nodes}
+<text x="260" y="292" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="56" font-weight="800" letter-spacing="2" fill="${color.textPrimary}">LONGEST</text>
+<text x="260" y="452" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="3" fill="${color.textPrimary}">PERSONAL BEST · DISTANCE</text>
+<text x="260" y="486" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="16" letter-spacing="3" fill="${cls === "organizer" ? color.mint : color.textMuted}">${cls === "organizer" ? "OFFICIAL RESULT" : "DEVICE RECORDED"}</text>
+</svg>`;
+}
+mkdirSync(resolve(OUT, "achievements"), { recursive: true });
+const pbFiles = [];
+for (const c of pbCategories) for (const cls of ["organizer", "device"]) {
+  const file = `${c.key}-${cls}.svg`;
+  writeFileSync(resolve(OUT, "achievements", file), c.series === "speed" ? pbSpeedSvg(c.label, cls) : pbDistanceSvg(cls));
+  pbFiles.push(file);
+}
+writeFileSync(resolve(OUT, "achievements", "index.json"), JSON.stringify({ base: `${BASE}/achievements`, files: pbFiles, note: "metadata served by api.neonshift.cc/v1/nft/achievements/<id>.json" }, null, 2) + "\n");
+console.log(`wrote ${pbFiles.length} achievement artworks`);
 // PNG fallback（Style 16.2；部分錢包不渲染 SVG）：需要 rsvg-convert（brew install librsvg）
 import { execFileSync } from "node:child_process";
 let png = 0;

@@ -13,7 +13,7 @@ import { useWalletStore } from '@/state/walletStore';
 import { ThemeProvider } from '@/theme';
 
 jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => ({ navigate: jest.fn(), reset: jest.fn(), goBack: jest.fn() }), useIsFocused: () => true }));
-jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { hasSession: jest.fn(async () => false), signOut: jest.fn(), deleteData: jest.fn() } }));
+jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { hasSession: jest.fn(async () => false), signOut: jest.fn(), deleteData: jest.fn(), galleryPrivacy: jest.fn(async () => ({ hidden: false })), setGalleryPrivacy: jest.fn() } }));
 jest.mock('@/services/health/HealthConnectService', () => ({ healthConnect: { getPermissions: jest.fn(async () => ({ state: 'granted', granted: [], missing: [], backgroundGranted: false })), openSettings: jest.fn(), clearCache: jest.fn(), disableBackgroundSync: jest.fn() } }));
 jest.mock('@/services/permissions/ActivityRecognition', () => ({ activityRecognition: { check: jest.fn(async () => true) } }));
 

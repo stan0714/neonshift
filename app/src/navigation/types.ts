@@ -33,6 +33,8 @@ export type RootParamList = {
   /** 藝廊（FR-13，Style 12.1）：全站排行與任意玩家公開頁 */
   Gallery: undefined;
   GalleryPlayer: { wallet: string };
+  /** PB 成就 NFT 詳情（R-09） */
+  AchievementDetail: { asset: string };
   /** 合作活動（FR-09～FR-12，SD 11）：列表與詳情；detail 可帶宣傳來源 */
   Events: undefined;
   EventDetail: { idOrSlug: string; source?: string; /** NFC／QR 標籤 opaque reference（`?tag=`） */ tag?: string };

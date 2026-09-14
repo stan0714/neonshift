@@ -1,5 +1,5 @@
 import { NavigationContainer } from '@react-navigation/native';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { PropsWithChildren } from 'react';
 import { Alert } from 'react-native';
 
@@ -12,7 +12,7 @@ const mockReset = jest.fn();
 jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => ({ navigate: jest.fn(), reset: mockReset, goBack: jest.fn() }) }));
 jest.mock('@/services/api/ApiClient', () => ({
   ...jest.requireActual('@/services/api/ApiClient'),
-  apiClient: { hasSession: jest.fn(async () => true), signOut: jest.fn(async () => {}), deleteData: jest.fn(async () => ({ status: 204, body: null })) },
+  apiClient: { hasSession: jest.fn(async () => true), galleryPrivacy: jest.fn(async () => ({ hidden: false })), setGalleryPrivacy: jest.fn(async (hidden: boolean) => ({ hidden })), signOut: jest.fn(async () => {}), deleteData: jest.fn(async () => ({ status: 204, body: null })) },
 }));
 jest.mock('@/services/health/HealthConnectService', () => ({
   healthConnect: { getPermissions: jest.fn(async () => ({ state: 'granted', granted: [], missing: [], backgroundGranted: true })), openSettings: jest.fn(), clearCache: jest.fn(async () => {}), disableBackgroundSync: jest.fn(async () => {}) },
@@ -44,6 +44,17 @@ describe('PG-A-21 Profile', () => {
     expect(screen.getByText(/neonshift\.cc\/privacy/)).toBeTruthy();
   });
 
+  test('PG-R-09：藝廊開關與跑步歷程入口', async () => {
+    const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<string, jest.Mock>;
+    await render(<ProfileScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('profile-gallery-switch')).toBeTruthy());
+    expect(screen.getByTestId('profile-gallery-switch').props.value).toBe(true);
+    await fireEvent(screen.getByTestId('profile-gallery-switch'), 'valueChange', false);
+    await waitFor(() => expect(api.setGalleryPrivacy).toHaveBeenCalledWith(true));
+    await waitFor(() => expect(screen.getByTestId('profile-gallery-switch').props.value).toBe(false));
+    expect(screen.getByTestId('profile-running-history')).toBeTruthy();
+    await act(async () => {});
+  });
   test('刪除資料：確認後呼叫 API、清快取、停背景同步、顯示完成（204）', async () => {
     await render(<ProfileScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByText('Signed in')).toBeTruthy());

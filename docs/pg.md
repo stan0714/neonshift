@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.38（PG-R-08 完成，待 devnet 升級） |
+| 文件版本 | v0.39（PG-R-09 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -565,6 +565,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.39 | 2026-09-15 | PG-R-09 完成（WIP）：藝廊 PB 卡、NFT 詳情、退出藝廊、作品 |
 | v0.38 | 2026-09-14 | PG-R-08 完成（WIP）：成就證明格式、registry、claim_achievement、簽發與 App 鑄造流程 |
 | v0.37 | 2026-09-14 | PG-R-07 完成（WIP）：PB 分組、版本鏈與更正重算 |
 | v0.36 | 2026-09-14 | PG-R-03／R-06 完成（WIP）：GPS 記錄器、本機加密軌跡、前景服務、恢復、記錄／摘要畫面 |
@@ -674,7 +675,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-R-06 | 記錄畫面、暫停／結束、摘要與分圈表 | walk-run-tracking 6；Style 23 | FR-18.1～5 | 3.0 | WIP | 2026-09-14 完成：`WorkoutStart`（運動／地點／自動圈／分段單位、室內導向匯入、權限引導）、`WorkoutRecord`（跑步配速／走路速度大數字、時間距離、GPS 與暫停狀態、Lap／Pause／Resume／Finish 確認、返回鍵鎖定）、`WorkoutSummary`（統計、needs_review、同步狀態與重試、Splits／Laps／Quality 分頁、跑道等效）、Workouts 入口與恢復提示；Style 23.2；Jest 3。待：實機視覺與 30 分鐘鎖屏驗收（R-10） |
 | PG-R-07 | 主辦方／裝置 PB 分組與修正重算 | activity-running-gallery 5 | FR-15.1、BR-38 | 3.0 | WIP | 2026-09-14 完成：migration 0010 `pb_revisions`；`pb/compute.ts`（候選：workout 需 pb_eligible、固定距離只用連續完整分段的最短覆蓋區間、半馬／全馬僅主辦方、最遠 ≥ 1 km；result 依距離 ≤ 1% 歸類；key＝discipline＋category＋environment＋verification_class＋timing_basis＋rules_major；Baseline → 嚴格改善）；`PersonalBestService.recompute`（冪等 sync：pb_id 穩定、previous 鏈、來源刪除／更正 → invalidated、重現恢復），觸發於匯入／刪除／成績發布；`GET /me/personal-bests`（imported_since）；App Workouts 頁 PB 區塊；vitest 5＋PG 整合 1、Jest。待：chip／gun 計時基準（成績 CSV 尚無欄位）、R-08 成就簽發 |
 | PG-R-08 | PB eligibility registry、簽發、claim_achievement／receipt | activity-running-gallery 7；SD 13 | FR-15.2、BR-39、40 | 5.0 | WIP | 2026-09-14 完成：attestation-core `achievement`（NEONSHIFT_ACHIEVEMENT_V1、194 bytes、TTL 900 s、向量 10 組；TS 逐 byte一致）；鏈上 `AchievementEligibility`／`AchievementReceipt`、`set_achievement_eligibility`（admin）、`claim_achievement`（ed25519 證明＋registry revision／metadata_hash＋唯一 receipt＋Core 鑄造）、錯誤 6037～6040、LiteSVM 3；後端 migration 0011、mint-intent（穩定 ID、canonical metadata／hash、逐次公開同意、費用揭露、簽章）、ops registry 端點、撤銷同步（invalidated → revoke_pending → revoked）、indexer minted、metadata 端點、signer service 接受 194；chain-admin `sync-achievements`；App `claimAchievementInstruction`、`achievementService`、PB 區塊鑄造流程（同意 → 待核准／費用確認 → 錢包）；vitest 2＋PG 整合 1、Jest 3。**待：devnet 程式升級（600 KB，需 ≈ 3.05 SOL buffer rent；admin 1.2 SOL）**、實機鑄造、藝廊 PB 卡（R-09） |
-| PG-R-09 | PB 櫃／藝廊／公開同意與保留刪除整合 | activity-running-gallery 6；Style 20 | FR-13.5、13.6 | 2.5 | TODO | 待指派 |
+| PG-R-09 | PB 櫃／藝廊／公開同意與保留刪除整合 | activity-running-gallery 6；Style 20 | FR-13.5、13.6 | 2.5 | WIP | 2026-09-15 完成：migration 0012 `gallery_prefs`（退出只停止展示；排行／計數／搜尋／名次排除、他人 404、本人可見；player 刪除自動隱藏）；玩家頁 `achievements` 公開投影（系列、類別、來源、Current／Historical／Invalidated、公開同意才有值）、`GET /gallery/achievements/{asset}` NFT 詳情（原達成者、鑄造日期、network、Explorer）、`/me/gallery-privacy`；12 張 PB 作品（Speed 計時環／Distance 里程弧，`web/nft/achievements/`）；App PbCard、Gallery 篩選 All／Shoes／Events／Personal best、PB 櫃連結、NFT 詳情頁、Profile 藝廊開關與「跑步歷程與 PB 櫃」入口；vitest 1＋PG 整合 1、Jest 4。待：Events 篩選（活動 NFT 未實作）、現持有人（需鏈上查詢） |
 | PG-R-10 | 距離／速度／圈數、NFT 重放與實機長時間驗收 | walk-run-tracking 7；activity-running-gallery 8 | FR-14、15、18 | 4.0 | TODO | 待指派 |
 | PG-R-11 | MET 熱量估算與模型／體重同意 | activity-running-gallery 4.1 | FR-14.3 | 2.0 | TODO | 待指派；模型定案後開發 |
 | PG-R-12 | 400m 跑道等效圈模式與提示 | walk-run-tracking 5 | FR-18.6 | 1.5 | TODO | 待指派；不含實體過線偵測 |

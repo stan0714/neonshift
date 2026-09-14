@@ -899,20 +899,32 @@ export class PostgresStore implements Store {
     const r = await this.pool.query(`SELECT * FROM gallery_players WHERE wallet = $1`, [wallet]);
     return r.rows[0] ? this.galleryRow(r.rows[0] as Row) : null;
   }
+  private static readonly GALLERY_VISIBLE = `NOT EXISTS (SELECT 1 FROM gallery_prefs gp WHERE gp.wallet = gallery_players.wallet AND gp.hidden)`;
   async listGalleryPlayers(limit: number, offset: number) {
-    const r = await this.pool.query(`SELECT * FROM gallery_players ORDER BY shoe_level DESC, xp DESC, wallet COLLATE "C" ASC LIMIT $1 OFFSET $2`, [limit, offset]);
+    const r = await this.pool.query(`SELECT * FROM gallery_players WHERE ${PostgresStore.GALLERY_VISIBLE} ORDER BY shoe_level DESC, xp DESC, wallet COLLATE "C" ASC LIMIT $1 OFFSET $2`, [limit, offset]);
     return (r.rows as Row[]).map((x) => this.galleryRow(x));
   }
   async countGalleryPlayers() {
-    return ((await this.pool.query(`SELECT count(*)::int AS n FROM gallery_players`)).rows[0] as { n: number }).n;
+    return ((await this.pool.query(`SELECT count(*)::int AS n FROM gallery_players WHERE ${PostgresStore.GALLERY_VISIBLE}`)).rows[0] as { n: number }).n;
   }
   async galleryRankOf(wallet: string) {
-    const r = await this.pool.query(`SELECT rank FROM (SELECT wallet, row_number() OVER (ORDER BY shoe_level DESC, xp DESC, wallet COLLATE "C" ASC) AS rank FROM gallery_players) t WHERE wallet = $1`, [wallet]);
+    const r = await this.pool.query(`SELECT rank FROM (SELECT wallet, row_number() OVER (ORDER BY shoe_level DESC, xp DESC, wallet COLLATE "C" ASC) AS rank FROM gallery_players WHERE ${PostgresStore.GALLERY_VISIBLE}) t WHERE wallet = $1`, [wallet]);
     return r.rows[0] ? Number((r.rows[0] as { rank: string | number }).rank) : null;
   }
   async searchGalleryPlayers(prefix: string, limit: number) {
-    const r = await this.pool.query(`SELECT * FROM gallery_players WHERE wallet LIKE $1 || '%' ORDER BY shoe_level DESC, xp DESC, wallet COLLATE "C" ASC LIMIT $2`, [prefix.replace(/[%_\\]/g, ""), limit]);
+    const r = await this.pool.query(`SELECT * FROM gallery_players WHERE wallet LIKE $1 || '%' AND ${PostgresStore.GALLERY_VISIBLE} ORDER BY shoe_level DESC, xp DESC, wallet COLLATE "C" ASC LIMIT $2`, [prefix.replace(/[%_\\]/g, ""), limit]);
     return (r.rows as Row[]).map((x) => this.galleryRow(x));
+  }
+  async setGalleryHidden(wallet: string, hidden: boolean, now: Date) {
+    await this.pool.query(`INSERT INTO gallery_prefs (wallet, hidden, updated_at) VALUES ($1,$2,$3) ON CONFLICT (wallet) DO UPDATE SET hidden = EXCLUDED.hidden, updated_at = EXCLUDED.updated_at`, [wallet, hidden, now]);
+  }
+  async isGalleryHidden(wallet: string) {
+    const r = await this.pool.query(`SELECT hidden FROM gallery_prefs WHERE wallet = $1`, [wallet]);
+    return Boolean((r.rows[0] as { hidden?: boolean } | undefined)?.hidden);
+  }
+  async getAchievementByAsset(asset: string) {
+    const r = await this.pool.query(`SELECT * FROM achievements WHERE asset = $1`, [asset]);
+    return r.rows[0] ? this.achievementRow(r.rows[0] as Row) : null;
   }
   async listGalleryCollectibles(wallet: string) {
     const r = await this.pool.query(`SELECT * FROM gallery_collectibles WHERE wallet = $1 ORDER BY kind ASC`, [wallet]);
@@ -1051,7 +1063,8 @@ export class PostgresStore implements Store {
         await client.query(`DELETE FROM tournament_steps WHERE wallet = $1`, [wallet]);
         await client.query(`UPDATE workout_sessions SET possible_duplicate_of = NULL WHERE wallet = $1`, [wallet]);
         await client.query(`DELETE FROM workout_sessions WHERE wallet = $1`, [wallet]); // PG-R-01：運動摘要一併刪除
-        await client.query(`DELETE FROM achievements WHERE wallet = $1 AND status <> 'minted'`, [wallet]); // PG-R-08：未鑄造刪除；已鑄造保留鏈上事實
+        await client.query(`DELETE FROM achievements WHERE wallet = $1 AND minted_signature IS NULL`, [wallet]); // PG-R-08：未鑄造刪除；已鑄造保留鏈上事實
+        await client.query(`INSERT INTO gallery_prefs (wallet, hidden, updated_at) VALUES ($1, true, $2) ON CONFLICT (wallet) DO UPDATE SET hidden = true, updated_at = EXCLUDED.updated_at`, [wallet, now]); // PG-R-09：停止藝廊展示
         await client.query(`UPDATE pb_revisions SET previous_pb_id = NULL WHERE wallet = $1`, [wallet]);
         await client.query(`DELETE FROM pb_revisions WHERE wallet = $1 AND pb_id NOT IN (SELECT pb_id FROM achievements WHERE wallet = $1)`, [wallet]); // PG-R-07：PB 一併刪除（已鑄造成就的 PB 列保留）
       }

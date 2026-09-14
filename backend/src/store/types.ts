@@ -206,6 +206,11 @@ export interface GalleryStore {
   galleryRankOf(wallet: string): Promise<number | null>;
   searchGalleryPlayers(prefix: string, limit: number): Promise<GalleryPlayer[]>;
   listGalleryCollectibles(wallet: string): Promise<GalleryCollectible[]>;
+  /** PG-R-09：退出／加入藝廊展示（只影響 App 展示） */
+  setGalleryHidden(wallet: string, hidden: boolean, now: Date): Promise<void>;
+  isGalleryHidden(wallet: string): Promise<boolean>;
+  /** 依 asset 位址找已鑄造成就（藝廊詳情） */
+  getAchievementByAsset(asset: string): Promise<Achievement | null>;
 }
 
 // ---------------- PG-E-01：合作組織、角色與活動 ----------------

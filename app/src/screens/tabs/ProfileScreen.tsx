@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import { APP_CONFIG } from '@/config/app';
@@ -30,6 +30,20 @@ export function ProfileScreen() {
   const [activity, setActivity] = useState<boolean | null>(null);
   const [backend, setBackend] = useState<boolean | null>(null);
   const [deletion, setDeletion] = useState<Deletion>({ state: 'idle' });
+  // PG-R-09：藝廊展示偏好（退出只停止展示）
+  const [galleryShown, setGalleryShownState] = useState(true);
+  const [galleryBusy, setGalleryBusy] = useState(false);
+  const setGalleryShown = async (shown: boolean) => {
+    setGalleryBusy(true);
+    try {
+      const r = await apiClient.setGalleryPrivacy(!shown);
+      setGalleryShownState(!r.hidden);
+    } catch {
+      /* 保持原值 */
+    } finally {
+      setGalleryBusy(false);
+    }
+  };
   const localeSetting = useLocaleStore((s) => s.setting);
   const setLocaleSetting = useLocaleStore((s) => s.setSetting);
 
@@ -37,6 +51,7 @@ export function ProfileScreen() {
     setHealth(await healthConnect.getPermissions().catch(() => null));
     setActivity(await activityRecognition.check().catch(() => null));
     setBackend(await apiClient.hasSession());
+    setGalleryShownState(!(await apiClient.galleryPrivacy().catch(() => ({ hidden: false }))).hidden);
   }, []);
 
   useEffect(() => {
@@ -127,6 +142,19 @@ export function ProfileScreen() {
         </View>
       </Section>
 
+      <Section title={t('profile.galleryTitle')}>
+        <View style={styles.rowBetween}>
+          <Text variant="bodySmall" tone="secondary" style={styles.flex}>
+            {t('profile.galleryShow')}
+          </Text>
+          <Switch value={galleryShown} onValueChange={(v) => void setGalleryShown(v)} disabled={!wallet.session || galleryBusy} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('profile.galleryShow')} testID="profile-gallery-switch" />
+        </View>
+        <Text variant="caption" tone="muted" style={styles.mtXs}>
+          {t('profile.galleryBody')}
+        </Text>
+        <Button label={t('profile.runningHistory')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('Workouts')} testID="profile-running-history" />
+      </Section>
+
       <Section title={t('profile.privacy')}>
         <Text variant="bodySmall" tone="secondary">
           {t('profile.privacyBody')}
@@ -195,4 +223,7 @@ const styles = StyleSheet.create({
   btn: { marginTop: space.m },
   link: { marginTop: space.s, minHeight: 48, justifyContent: 'center' },
   disclaimer: { marginTop: space.s },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.s },
+  flex: { flex: 1 },
+  mtXs: { marginTop: space.xs },
 });

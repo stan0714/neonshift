@@ -18,7 +18,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: url });
-    await pool.query("DELETE FROM achievements; UPDATE pb_revisions SET previous_pb_id = NULL; DELETE FROM pb_revisions; UPDATE workout_sessions SET possible_duplicate_of = NULL; DELETE FROM workout_sessions; DELETE FROM event_badge_issues; DELETE FROM event_redemptions; DELETE FROM event_benefits; DELETE FROM result_revisions; DELETE FROM result_imports; DELETE FROM event_checkins; DELETE FROM checkin_challenges; DELETE FROM nfc_tags; DELETE FROM checkpoints; DELETE FROM campaign_aggregates; DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; UPDATE events SET current_rule_revision = NULL; DELETE FROM event_rule_revisions; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
+    await pool.query("DELETE FROM gallery_prefs; DELETE FROM achievements; UPDATE pb_revisions SET previous_pb_id = NULL; DELETE FROM pb_revisions; UPDATE workout_sessions SET possible_duplicate_of = NULL; DELETE FROM workout_sessions; DELETE FROM event_badge_issues; DELETE FROM event_redemptions; DELETE FROM event_benefits; DELETE FROM result_revisions; DELETE FROM result_imports; DELETE FROM event_checkins; DELETE FROM checkin_challenges; DELETE FROM nfc_tags; DELETE FROM checkpoints; DELETE FROM campaign_aggregates; DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; UPDATE events SET current_rule_revision = NULL; DELETE FROM event_rule_revisions; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
     stores = [
       { name: "postgres", store: new PostgresStore(pool) },
       { name: "memory", store: new MemoryStore() },
@@ -398,6 +398,26 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       await store.deletePlayerData(wallet, t0, null);
       expect((await store.listAchievements(wallet)).length, name).toBe(1); // 已鑄造保留
       expect((await store.listPbRevisions(wallet)).length, name).toBe(1); // 其 PB 列保留
+    }
+  });
+  it("gallery_prefs（R-09）：hidden 排除排行／計數／搜尋／名次，本人仍可 get；再顯示恢復；getAchievementByAsset", async () => {
+    for (const { name, store } of stores) {
+      const t0 = new Date("2026-09-14T00:00:00Z");
+      const a = "GH" + name + "A";
+      const b = "GH" + name + "B";
+      await store.upsertGalleryPlayer({ wallet: a, shoeLevel: 3, coreLevel: 1, xp: 100n, streakDays: 0, maxStreakDays: 0, lastTaskDate: null, slot: 1 }, t0);
+      await store.upsertGalleryPlayer({ wallet: b, shoeLevel: 2, coreLevel: 1, xp: 50n, streakDays: 0, maxStreakDays: 0, lastTaskDate: null, slot: 1 }, t0);
+      const before = await store.countGalleryPlayers();
+      await store.setGalleryHidden(a, true, t0);
+      expect(await store.isGalleryHidden(a), name).toBe(true);
+      expect(await store.countGalleryPlayers(), name).toBe(before - 1);
+      expect((await store.listGalleryPlayers(100, 0)).some((p) => p.wallet === a), name).toBe(false);
+      expect(await store.galleryRankOf(a), name).toBeNull();
+      expect((await store.searchGalleryPlayers("GH" + name, 10)).map((p) => p.wallet), name).toEqual([b]);
+      expect((await store.getGalleryPlayer(a))?.wallet, name).toBe(a);
+      await store.setGalleryHidden(a, false, t0);
+      expect(await store.galleryRankOf(a), name).not.toBeNull();
+      expect(await store.getAchievementByAsset("NoSuchAsset"), name).toBeNull();
     }
   });
 });

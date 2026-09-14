@@ -7,6 +7,7 @@ import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../auth/routes.js";
 import type { AuthService } from "../auth/service.js";
 import { ApiError } from "../errors.js";
+import type { Achievement, PbRevision } from "../store/types.js";
 import type { GalleryPlayer, Store } from "../store/types.js";
 
 const base58 = /^[1-9A-HJ-NP-Za-km-z]{1,44}$/;
@@ -52,13 +53,63 @@ export async function galleryRoutes(app: FastifyInstance, opts: { auth: AuthServ
   app.get("/gallery/players/:wallet", { preHandler: requireAuth(auth) }, async (req) => {
     const wallet = (req.params as { wallet: string }).wallet;
     if (!base58.test(wallet) || wallet.length < 32) throw new ApiError(400, "VALIDATION", "wallet must be a base58 address");
+    const isYou = wallet === req.auth!.wallet;
+    // PG-R-09：退出藝廊者對他人 404（只停止展示，不代表鏈上資料消失）
+    if (!isYou && (await store.isGalleryHidden(wallet))) throw new ApiError(404, "NOT_FOUND", "player not found");
     const p = await store.getGalleryPlayer(wallet);
     if (!p) throw new ApiError(404, "NOT_FOUND", "player not found");
-    const [rank, collectibles] = await Promise.all([store.galleryRankOf(wallet), store.listGalleryCollectibles(wallet)]);
+    const [rank, collectibles, achievements, pbs] = await Promise.all([store.galleryRankOf(wallet), store.listGalleryCollectibles(wallet), store.listAchievements(wallet), store.listPbRevisions(wallet)]);
     return {
       player: view(p, rank),
-      is_you: wallet === req.auth!.wallet,
+      is_you: isYou,
+      hidden: isYou ? await store.isGalleryHidden(wallet) : false,
       collectibles: collectibles.map((c) => ({ kind: c.kind, asset: c.asset, signature: c.signature, claimed_at: c.claimedAt.toISOString() })),
+      achievements: achievements.filter((a) => a.mintedSignature !== null).map((a) => publicAchievement(a, pbs)),
     };
   });
+
+  /** NFT 詳情（activity-running-gallery 6.2）：作品、系列、原達成者、鑄造日期、來源、Current／Historical／Invalidated；精確值只在公開同意時 */
+  app.get("/gallery/achievements/:asset", { preHandler: requireAuth(auth) }, async (req) => {
+    const asset = (req.params as { asset: string }).asset;
+    if (!base58.test(asset) || asset.length < 32) throw new ApiError(400, "VALIDATION", "asset must be a base58 address");
+    const a = await store.getAchievementByAsset(asset);
+    if (!a || a.mintedSignature === null) throw new ApiError(404, "NOT_FOUND", "achievement not found");
+    if (a.wallet !== req.auth!.wallet && (await store.isGalleryHidden(a.wallet))) throw new ApiError(404, "NOT_FOUND", "achievement not found");
+    const pbs = await store.listPbRevisions(a.wallet);
+    return { ...publicAchievement(a, pbs), original_achiever: a.wallet, metadata: a.metadata, network: "devnet", explorer_url: `https://explorer.solana.com/address/${asset}?cluster=devnet` };
+  });
+
+  /** 藝廊展示偏好（PG-R-09）：退出只停止展示 */
+  app.get("/me/gallery-privacy", { preHandler: requireAuth(auth) }, async (req) => ({ hidden: await store.isGalleryHidden(req.auth!.wallet) }));
+  app.patch("/me/gallery-privacy", { preHandler: requireAuth(auth) }, async (req) => {
+    const hidden = (req.body as { hidden?: unknown } | undefined)?.hidden;
+    if (typeof hidden !== "boolean") throw new ApiError(422, "VALIDATION", "hidden (boolean) is required");
+    await store.setGalleryHidden(req.auth!.wallet, hidden, now());
+    return { hidden };
+  });
+}
+
+/** 公開投影：類別、系列、驗證等級、狀態；精確值只有 public_consent 時（來自 canonical metadata） */
+function publicAchievement(a: Achievement, pbs: PbRevision[]) {
+  const pb = pbs.find((p) => p.pbId === a.pbId);
+  const record: "current" | "historical" | "invalidated" = a.status === "revoked" || a.status === "revoke_pending" || !pb || pb.status === "invalidated" ? "invalidated" : pb.status === "current" ? "current" : "historical";
+  const attrs = (a.metadata.attributes as { trait_type: string; value: string }[] | undefined) ?? [];
+  const valueAttr = attrs.find((x) => x.trait_type === "Time" || x.trait_type === "Distance");
+  return {
+    achievement_id: a.achievementId,
+    asset: a.asset,
+    series: a.category === "longest_run" ? "pb_distance" : "pb_speed",
+    category: a.category,
+    verification_class: a.verificationClass,
+    environment: (attrs.find((x) => x.trait_type === "Environment")?.value as string | undefined) ?? "outdoor",
+    record,
+    public: a.publicConsent,
+    value: a.publicConsent && valueAttr ? valueAttr.value : null,
+    achieved_on: a.publicConsent ? ((attrs.find((x) => x.trait_type === "Achieved")?.value as string | undefined) ?? null) : null,
+    image: a.metadata.image as string,
+    name: a.metadata.name as string,
+    minted_at: a.mintedAt?.toISOString() ?? null,
+    minted_signature: a.mintedSignature,
+    metadata_uri: `/v1/nft/achievements/${a.achievementId}.json`,
+  };
 }

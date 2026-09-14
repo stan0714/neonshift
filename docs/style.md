@@ -784,6 +784,13 @@ export const theme = {
 - 鑄造確認先預覽作品與所有公開欄位，列出不收 tSKR、實際網路費及 rent；不以「免費」掩蓋費用。可領取／待確認／已鑄造／資料待審／已修正各有明確狀態。
 - 裝置紀錄不顯示官方認證圖章；鏈下活動徽章不標 NFT。結果修正不重播慶祝、不自動補鑄。Reduce Motion 保留靜態作品與數值，禁止熱量競賽及刺激性連續閃爍。
 
+### 20.1 實作對照（PG-R-09，2026-09-15）
+
+- Gallery 玩家頁：篩選列（All／Shoes／Events／Personal best，選中 mint 底）；「Personal bests」區二欄 1:1 `PbCard`：作品區（Speed 青藍環＋zap；Distance 紫綠弧＋map；官方 mint 色描邊）、類別標題、「系列 · 來源」caption、值或「Value kept private」、狀態 Chip（Current best＝synced／Historical best＝neutral／Invalidated＝devnet 警示，並降透明度）。本人顯示「View PB cabinet」連結（→ Workouts）與退出藝廊提示。
+- NFT 詳情 `AchievementDetail`：卡片置中 60% 寬，列表：Series、Verification、Record status、Original achiever（連結玩家頁）、Current holder（說明以 Explorer 為準）、Minted、Network、Asset；「Open in Explorer」secondary Button；Invalidated 時 warning InlineState 說明鏈上仍留歷史。
+- Profile：Gallery 區 Switch「Show me in the public gallery」＋說明退出只停止展示；「Running history & PB cabinet」按鈕。
+- 作品檔：`web/nft/achievements/<category>-<class>.svg`（見 tools/nft-assets）。
+
 ## 21. 現役鞋階、維持挑戰與歷史收藏
 
 依 [跑鞋遊戲性設計](./shoe-gameplay.md) 第 6 章。Gear 主 Hero 只展示 Active level；上方清楚分列「Active LV.3」「Highest LV.5」。XP 進度與本期維持點／活躍日為不同區塊，顯示完整期末時間與本地倒數。

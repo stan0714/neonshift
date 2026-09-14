@@ -10,8 +10,9 @@ import { COLLECTIBLES, collectibleName, stageName } from '@/domain/collectibles'
 import type { RootParamList } from '@/navigation/types';
 import { ApiError, apiClient, type GalleryListResponse, type GalleryPlayerResponse, type GalleryPlayerView } from '@/services/api/ApiClient';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
+import { PbCard } from './PbCard';
 import { color, radius, space, Text } from '@/theme';
-import { useT } from '@/i18n';
+import { useT, type TKey } from '@/i18n';
 
 type Err = { code: string; message: string; ref?: string };
 const toErr = (e: unknown): Err => (e instanceof ApiError ? { code: e.code, message: e.message, ...(e.requestId ? { ref: e.requestId } : {}) } : { code: 'UNKNOWN', message: String(e) });
@@ -128,6 +129,8 @@ export function GalleryPlayerScreen() {
   const [data, setData] = useState<GalleryPlayerResponse | null>(null);
   const [err, setErr] = useState<Err | null>(null);
   const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'shoes' | 'events' | 'pb'>('all');
+  const navigation = useNavigation();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -186,6 +189,52 @@ export function GalleryPlayerScreen() {
             {t('gal.lastClockIn', { date: p.last_task_date === null ? t('gal.never') : dateOf(p.last_task_date), core: p.core_level })}
           </Text>
 
+          {data?.is_you && data.hidden ? <InlineState kind="info" title={t('gal.hiddenNote')} testID="gallery-hidden-note" /> : null}
+          <View style={styles.filters} accessibilityRole="tablist">
+            {(['all', 'shoes', 'events', 'pb'] as const).map((f) => (
+              <Pressable key={f} onPress={() => setFilter(f)} accessibilityRole="tab" accessibilityState={{ selected: filter === f }} style={[styles.filter, filter === f && styles.filterOn]} testID={`gallery-filter-${f}`}>
+                <Text variant="caption" tone={filter === f ? undefined : 'secondary'} style={filter === f && styles.filterOnText}>
+                  {t(`gal.filter.${f}` as TKey)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {filter === 'all' || filter === 'pb' ? (
+            <>
+              <View style={styles.sectionHead}>
+                <Text variant="label" tone="muted" uppercase>
+                  {t('gal.pbSection')}
+                </Text>
+                {data?.is_you ? (
+                  <Pressable onPress={() => navigation.navigate('Workouts')} accessibilityRole="link" hitSlop={8} testID="gallery-pb-cabinet">
+                    <Text variant="label" tone="cyan" uppercase>
+                      {t('gal.pbCabinet')}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              {(data?.achievements ?? []).length === 0 ? (
+                <Text variant="bodySmall" tone="secondary" testID="gallery-no-pb">
+                  {t('gal.noPb')}
+                </Text>
+              ) : (
+                <View style={styles.grid}>
+                  {(data?.achievements ?? []).map((a) => (
+                    <View key={a.achievement_id} style={styles.cell}>
+                      <PbCard a={a} onPress={a.asset ? () => navigation.navigate('AchievementDetail', { asset: a.asset! }) : undefined} testID={`gallery-pb-${a.achievement_id}`} />
+                    </View>
+                  ))}
+                </View>
+              )}
+            </>
+          ) : null}
+          {filter === 'events' ? (
+            <Text variant="bodySmall" tone="secondary" style={styles.mt} testID="gallery-events-empty">
+              {t('gal.noPb')}
+            </Text>
+          ) : null}
+          {filter === 'all' || filter === 'shoes' ? (
+          <>
           <View style={styles.sectionHead}>
             <Text variant="label" tone="muted" uppercase>
               {t('gal.collection')}
@@ -220,6 +269,8 @@ export function GalleryPlayerScreen() {
               );
             })}
           </View>
+          </>
+          ) : null}
         </>
       ) : null}
     </Screen>
@@ -256,6 +307,10 @@ const styles = StyleSheet.create({
   stats: { flexDirection: 'row', gap: space.xs, marginTop: space.m },
   stat: { flex: 1, padding: space.s },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: space.xl, marginBottom: space.xs },
+  filters: { flexDirection: 'row', gap: space.xs, marginTop: space.m },
+  filter: { minHeight: 36, paddingHorizontal: space.s, borderRadius: radius.m, borderWidth: 1, borderColor: color.borderSubtle, alignItems: 'center', justifyContent: 'center' },
+  filterOn: { backgroundColor: color.mint, borderColor: color.mint },
+  filterOnText: { color: color.onMint },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -space.xxs },
   cell: { width: '50%', padding: space.xxs },
   tile: { flex: 1, padding: space.s, borderRadius: radius.l },

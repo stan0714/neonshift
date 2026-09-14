@@ -35,6 +35,7 @@ export class MemoryStore implements Store {
   workouts = new Map<string, WorkoutSession>();
   pbs = new Map<string, PbRevision>();
   achievements = new Map<string, Achievement>();
+  galleryHidden = new Set<string>();
   resultRevisions: ResultRevision[] = [];
   redemptions = new Map<string, EventRedemption>();
 
@@ -592,7 +593,18 @@ export class MemoryStore implements Store {
 
   // ---- PG-G-01 ----
   private galleryRanked() {
-    return [...this.galleryPlayers.values()].sort(compareGallery);
+    return [...this.galleryPlayers.values()].filter((p) => !this.galleryHidden.has(p.wallet)).sort(compareGallery);
+  }
+  async setGalleryHidden(wallet: string, hidden: boolean, _now: Date) {
+    if (hidden) this.galleryHidden.add(wallet);
+    else this.galleryHidden.delete(wallet);
+  }
+  async isGalleryHidden(wallet: string) {
+    return this.galleryHidden.has(wallet);
+  }
+  async getAchievementByAsset(asset: string) {
+    const x = [...this.achievements.values()].find((a) => a.asset === asset);
+    return x ? { ...x } : null;
   }
   async upsertGalleryPlayer(p: { wallet: string; shoeLevel: number; coreLevel: number; xp: bigint; streakDays: number; maxStreakDays: number; lastTaskDate: number | null; slot: number }, now: Date) {
     const cur = this.galleryPlayers.get(p.wallet);
@@ -614,7 +626,7 @@ export class MemoryStore implements Store {
     return this.galleryRanked().slice(offset, offset + limit);
   }
   async countGalleryPlayers() {
-    return this.galleryPlayers.size;
+    return this.galleryRanked().length;
   }
   async galleryRankOf(wallet: string) {
     const i = this.galleryRanked().findIndex((p) => p.wallet === wallet);
@@ -733,7 +745,8 @@ export class MemoryStore implements Store {
     for (const [k, r] of this.claimResults) if (r.wallet === wallet) { this.claimResults.delete(k); claimResults++; }
     await this.deleteWalletEventData(wallet, now); // BR-32：活動個人層資料一併刪除
     for (const [k, x] of this.workouts) if (x.wallet === wallet) this.workouts.delete(k); // PG-R-01：運動摘要一併刪除
-    for (const [k, x] of this.achievements) if (x.wallet === wallet && x.status !== "minted") this.achievements.delete(k); // PG-R-08：未鑄造的成就刪除；已鑄造保留鏈上事實
+    for (const [k, x] of this.achievements) if (x.wallet === wallet && x.mintedSignature === null) this.achievements.delete(k); // PG-R-08：未鑄造的成就刪除；已鑄造保留鏈上事實
+    this.galleryHidden.add(wallet); // PG-R-09：停止藝廊展示（鏈上資料無法刪除）
     for (const [k, x] of this.pbs) if (x.wallet === wallet && ![...this.achievements.values()].some((a) => a.pbId === x.pbId)) this.pbs.delete(k); // PG-R-07：PB 一併刪除
     return { deferred: false, deletionDueAt: null, deleted: { snapshots: before - this.snapshots.length, attestations, claimResults, sessions } };
   }

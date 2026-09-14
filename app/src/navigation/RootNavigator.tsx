@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { color, motion } from '@/theme';
 import { ActivityHistoryScreen } from '@/screens/ActivityHistoryScreen';
+import { AchievementDetailScreen } from '@/screens/gallery/AchievementDetailScreen';
 import { WorkoutsScreen } from '@/screens/WorkoutsScreen';
 import { WorkoutRecordScreen } from '@/screens/workouts/WorkoutRecordScreen';
 import { WorkoutStartScreen } from '@/screens/workouts/WorkoutStartScreen';
@@ -71,6 +72,7 @@ export function RootNavigator() {
         />
         <Stack.Screen name="Gallery" component={GalleryScreen} options={{ headerShown: true, title: t('nav.gallery'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="GalleryPlayer" component={GalleryPlayerScreen} options={{ headerShown: true, title: t('nav.player'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="AchievementDetail" component={AchievementDetailScreen} options={{ headerShown: true, title: t('nftd.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="Workouts" component={WorkoutsScreen} options={{ headerShown: true, title: t('nav.workouts'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="WorkoutStart" component={WorkoutStartScreen} options={{ headerShown: true, title: t('rec.start.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="WorkoutRecord" component={WorkoutRecordScreen} options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }} />

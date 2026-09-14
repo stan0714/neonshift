@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.25（成就 NFT） |
+| 文件版本 | v0.26（藝廊 PB） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -967,6 +967,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.26 | 2026-09-15 | PG-R-09：藝廊 PB 投影、NFT 詳情、退出藝廊、作品 |
 | v0.25 | 2026-09-14 | PG-R-08：成就證明格式、registry、claim_achievement、簽發與鑄造流程 |
 | v0.24 | 2026-09-14 | PG-R-07：PB 版本鏈、分組與更正重算 |
 | v0.23 | 2026-09-14 | PG-R-03／R-06：WorkoutRecorder、LocalWorkoutStore、前景服務定位、恢復與同步 |
@@ -1043,6 +1044,8 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 **實作（2026-09-14，PG-R-07）**：migration 0010 `pb_revisions`（唯一 (wallet, key…, source_kind, source_id)；status current｜historical｜invalidated；previous_pb_id 鏈）。`backend/src/pb/compute.ts` 純函式：`candidatesFromWorkout`（需 `pb_eligible`；`longest_run` ≥ 1 km；`fastest_1k／5k／10k` 只在 extras.splits 有完整、非 uncertain 的連續分段覆蓋 D 時取最短區間，只有總量不推算（BR-38）；半馬／全馬不從裝置簽發）、`candidatesFromResult`（finished 且距離與標準值誤差 ≤ 1% 歸固定距離；verification_class organizer、timing_basis elapsed）、`buildChains`（依 key 分組，achieved_at 排序，首筆 Baseline、嚴格改善才新增、相同不算、最後一筆 current）。`PersonalBestService.recompute(wallet)` 讀有效 workouts（排除 deleted）與本人各活動最新成績 → `syncPbRevisions`（同 (key, source) 保留 pb_id；不再出現者 invalidated、reason `source_removed_or_corrected`；重現恢復；PG 以 advisory lock 序列化）。觸發：`/workouts/import`（created／superseded）、`DELETE /me/workouts/{id}`、成績發布／更正（每個受影響錢包）；`DELETE /player/data` 刪除。`GET /me/personal-bests` 讀取時重算並回 groups（current／history）與 `imported_since`。R-08 的 achievement 簽發以 pb_id 為穩定 ID。
 
 **實作（2026-09-14，PG-R-08）**：證明格式 `attestation-core::achievement`（domain `NEONSHIFT_ACHIEVEMENT_V1`、194 bytes：domain 24｜version｜program_id｜cluster_id｜wallet｜achievement_id 32｜category u8｜verification_class u8｜source_revision u32｜rules_version u16｜metadata_hash 32｜issued_at i64｜expiry i64｜nonce 16；TTL ≤ 900 s；向量 `backend/src/lib/achievement-vectors.json`、TS 鏡像 `lib/achievement.ts`），與 164-byte 打卡格式不互通。鏈上：`AchievementEligibility` PDA `["eligibility", wallet, id]`（admin `set_achievement_eligibility` init_if_needed：status approved／revoked、source_revision、metadata_hash）、`claim_achievement`（前一道 ed25519 指令 194-byte 訊息、attestor 公鑰含寬限、canonical 逐 byte 比對、program／cluster／wallet、時效、registry approved 且 revision／metadata_hash／category／class 一致、`AchievementReceipt` PDA `["achievement", wallet, id]` init 唯一、Core CreateV1 到 `["aasset", wallet, id]`、URI `https://api.neonshift.cc/v1/nft/achievements/<id>.json`）；錯誤 6037 ProofMismatch／6038 NotApproved／6039 RegistryMismatch／6040 ProofExpired；事件 `AchievementClaimed`／`AchievementEligibilitySet`。後端：`achievements` 表；`achievement_id = sha256("neonshift-achievement|wallet|pb_id")`；`POST /me/achievements/{pbId}/mint-intent {public_consent}` 重算 PB 後建立／更新（metadata canonical＋sha256；同意公開才含精確值與日期）→ 狀態 pending_registry｜approved（回 15 分鐘證明與指令參數、費用估算）｜minted｜revoke_pending｜revoked；`GET /me/achievements`；`GET /nft/achievements/{id}.json`；ops `GET /ops/achievements/pending`／`POST /ops/achievements/{id}/registry`（chain-admin `sync-achievements` 送交易後回報）；PB 重算後 `reconcile`：invalidated → revoke_pending（已鑄造保留 minted 事實，藝廊標 Invalidated）、revision 變更重建 metadata 回 pending；indexer `AchievementClaimed`（finalized）→ minted＋asset；signer service 同時接受 194-byte。App：`claimAchievementInstruction`（args ＝ 訊息去 domain）、`achievementService.mint`（receipt 存在即已鑄造）、PB 區塊「Mint NFT」（同意對話 → 待核准提示或費用確認 → MWA）。**devnet 尚未升級**（程式 600 KB，buffer rent ≈ 3.05 SOL）。
+
+**實作（2026-09-15，PG-R-09）**：migration 0012 `gallery_prefs(wallet, hidden)`（與投影表分開，indexer 不會覆寫）；`listGalleryPlayers／countGalleryPlayers／galleryRankOf／searchGalleryPlayers` 排除 hidden；`GET /gallery/players/{wallet}` 對他人 404（本人回 `hidden: true` 並仍列出）、回 `achievements`（只含已鑄造：series pb_speed｜pb_distance、category、verification_class、environment、record current｜historical｜invalidated（依 PB 狀態與成就 revoked）、public、value／achieved_on 只在公開同意時、image、minted_at）；`GET /gallery/achievements/{asset}`（original_achiever、metadata、network、explorer_url；現持有人需鏈上查詢，UI 提示以 Explorer 為準）；`GET／PATCH /me/gallery-privacy`；`DELETE /player/data` 設 hidden＝true、保留已鑄造成就與其 PB 列（鏈上事實不可刪）。作品：`tools/nft-assets/build.mjs` 產生 `web/nft/achievements/<category>-<class>.svg`（Speed＝青藍斜向光軌＋切線式計時環、Distance＝紫→青綠等高弧線＋里程節點；官方＝mint 色標「OFFICIAL RESULT」、裝置標「DEVICE RECORDED」；不畫路線）。App：`PbCard`（類別／系列／來源／狀態文字、未公開顯示「數值未公開」）、GalleryPlayer 篩選與 PB 區、`AchievementDetail`、Profile 藝廊開關與跑步歷程入口。
 
 ## 14. 等級維持／權限契約（新設計待實作）
 

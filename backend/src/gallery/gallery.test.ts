@@ -90,4 +90,47 @@ describe("gallery API", () => {
     expect((await app.inject({ method: "GET", url: `/v1/gallery/search?q=x`, headers: h })).statusCode).toBe(400);
     expect((await app.inject({ method: "GET", url: `/v1/gallery/players` })).statusCode).toBe(401);
   });
+  it("PG-R-09：玩家頁含已鑄造 PB 成就（Current／Historical／Invalidated、公開同意才有值）；NFT 詳情；退出藝廊後對他人 404、排行排除、本人仍可見；player 刪除後隱藏", async () => {
+    const u = await login();
+    const h = { authorization: `Bearer ${u.token}` };
+    const viewer = await login();
+    const hv = { authorization: `Bearer ${viewer.token}` };
+    await galleryProjection(ev("ClockedIn", 1, { wallet: u.wallet, task_date: 1, shoe_level: 2, core_level: 2, xp: "500", streak_days: 1, max_streak_days: 1 }), store, now);
+    await galleryProjection(ev("ClockedIn", 2, { wallet: viewer.wallet, task_date: 1, shoe_level: 1, core_level: 1, xp: "10", streak_days: 1, max_streak_days: 1 }), store, now);
+    // 兩個 PB（Baseline → 改善）；各自成就：舊的公開、新的私密；都鑄造
+    const key = "run|fastest_5k|outdoor|device|elapsed|1";
+    const d = (id: string, value: bigint, status: "current" | "historical", base: boolean, prev: string | null) => ({ key, discipline: "run" as const, category: "fastest_5k", environment: "outdoor", verificationClass: "device", timingBasis: "elapsed", rulesMajor: 1, value, sourceKind: "workout" as const, sourceId: id, sourceRevision: 1, achievedAt: now, status, isBaseline: base, previousSourceId: prev });
+    const pbs = await store.syncPbRevisions(u.wallet, [d("a", 1_600_000n, "historical", true, null), d("b", 1_500_000n, "current", false, "a")], now);
+    const { buildMetadata, metadataHashOf, achievementIdOf } = await import("../pb/achievements.js");
+    const assetA = W();
+    const assetB = W();
+    for (const [pb, consent, asset] of [[pbs[0]!, true, assetA], [pbs[1]!, false, assetB]] as const) {
+      const id = achievementIdOf(u.wallet, pb.pbId);
+      const metadata = buildMetadata(pb, id, consent);
+      await store.upsertAchievement({ achievementId: id, wallet: u.wallet, pbId: pb.pbId, category: pb.category, verificationClass: "device", sourceRevision: 1, rulesMajor: 1, publicConsent: consent, metadata, metadataHash: metadataHashOf(metadata), status: "approved", registrySignature: "r", registryUpdatedAt: now, asset: null, mintedSignature: null, mintedAt: null }, now);
+      await galleryProjection(ev("AchievementClaimed", 10, { wallet: u.wallet, achievement_id: id, category: 2, verification_class: 2, source_revision: 1, asset }, `mint-${asset}`), store, now);
+    }
+    let body = (await app.inject({ method: "GET", url: `/v1/gallery/players/${u.wallet}`, headers: hv })).json();
+    expect(body.achievements.map((a: Record<string, unknown>) => [a.asset, a.record, a.public, a.value, a.series])).toEqual([[assetA, "historical", true, "26:40", "pb_speed"], [assetB, "current", false, null, "pb_speed"]]);
+    const detail = (await app.inject({ method: "GET", url: `/v1/gallery/achievements/${assetA}`, headers: hv })).json();
+    expect(detail).toMatchObject({ original_achiever: u.wallet, record: "historical", network: "devnet", explorer_url: expect.stringContaining(assetA) });
+    expect((await app.inject({ method: "GET", url: `/v1/gallery/achievements/${W()}`, headers: hv })).statusCode).toBe(404);
+    // 撤銷 → Invalidated
+    await store.setAchievementStatus(achievementIdOf(u.wallet, pbs[1]!.pbId), "revoked", { registrySignature: "rv" }, now);
+    body = (await app.inject({ method: "GET", url: `/v1/gallery/players/${u.wallet}`, headers: hv })).json();
+    expect(body.achievements[1].record).toBe("invalidated");
+    // 退出藝廊
+    expect((await app.inject({ method: "PATCH", url: "/v1/me/gallery-privacy", headers: h, payload: { hidden: true } })).json()).toEqual({ hidden: true });
+    expect((await app.inject({ method: "GET", url: `/v1/gallery/players/${u.wallet}`, headers: hv })).statusCode).toBe(404);
+    expect((await app.inject({ method: "GET", url: `/v1/gallery/achievements/${assetA}`, headers: hv })).statusCode).toBe(404);
+    expect((await app.inject({ method: "GET", url: "/v1/gallery/players", headers: hv })).json().total).toBe(1);
+    const mine = (await app.inject({ method: "GET", url: `/v1/gallery/players/${u.wallet}`, headers: h })).json();
+    expect([mine.is_you, mine.hidden, mine.achievements.length]).toEqual([true, true, 2]);
+    await app.inject({ method: "PATCH", url: "/v1/me/gallery-privacy", headers: h, payload: { hidden: false } });
+    expect((await app.inject({ method: "GET", url: "/v1/gallery/players", headers: hv })).json().total).toBe(2);
+    // 刪除帳號 → 隱藏；已鑄造成就仍存在於資料（鏈上事實）但不展示
+    await app.inject({ method: "DELETE", url: "/v1/player/data", headers: h });
+    expect((await app.inject({ method: "GET", url: `/v1/gallery/players/${u.wallet}`, headers: hv })).statusCode).toBe(404);
+    expect((await store.listAchievements(u.wallet)).length).toBe(2);
+  });
 });
