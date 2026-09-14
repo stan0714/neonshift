@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { color, motion } from '@/theme';
 import { ActivityHistoryScreen } from '@/screens/ActivityHistoryScreen';
 import { EventDetailScreen, EventsScreen } from '@/screens/events/EventScreens';
+import { StaffCheckInScreen } from '@/screens/events/StaffCheckInScreen';
 import { GalleryPlayerScreen, GalleryScreen } from '@/screens/gallery/GalleryScreens';
 import { BootstrapScreen } from '@/screens/launch/BootstrapScreen';
 import { DemoPreviewScreen } from '@/screens/launch/DemoPreviewScreen';
@@ -68,6 +69,7 @@ export function RootNavigator() {
         <Stack.Screen name="GalleryPlayer" component={GalleryPlayerScreen} options={{ headerShown: true, title: t('nav.player'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="Events" component={EventsScreen} options={{ headerShown: true, title: t('nav.events'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="EventDetail" component={EventDetailScreen} options={{ headerShown: true, title: t('nav.event'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="StaffCheckIn" component={StaffCheckInScreen} options={{ headerShown: true, title: t('staff.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         {__DEV__ ? <Stack.Screen name="DevHealth" component={HealthDiagnosticsScreen} options={{ headerShown: true, title: 'Health Connect (dev)', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} /> : null}
       </Stack.Navigator>
     </NavigationContainer>

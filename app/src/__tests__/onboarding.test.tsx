@@ -74,7 +74,7 @@ describe('10.2 Health Access', () => {
     expect(screen.getByText(/at most 30 days/)).toBeTruthy();
     expect(screen.getByText(/Manage later in Settings/)).toBeTruthy();
 
-    await act(async () => fireEvent.press(screen.getByText('Allow health access')));
+    await act(async () => await fireEvent.press(screen.getByText('Allow health access')));
     await waitFor(() => expect(screen.getByTestId('health-denied')).toBeTruthy());
     expect(screen.getByText(/Only some data types/)).toBeTruthy();
     expect(screen.getByText('Open Health Connect settings')).toBeTruthy();
@@ -88,7 +88,7 @@ describe('10.2 Health Access', () => {
     hc.requestRequiredPermissions.mockResolvedValue({ state: 'granted', granted: ['a', 'b'], missing: [], backgroundGranted: false });
     await render(<HealthAccessScreen />, { wrapper: Wrapper });
     await waitFor(() => screen.getByText('Allow health access'));
-    await act(async () => fireEvent.press(screen.getByText('Allow health access')));
+    await act(async () => await fireEvent.press(screen.getByText('Allow health access')));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('Onboarding', { screen: 'ActivityRecognition' }));
     expect(useOnboardingStore.getState().healthGranted).toBe(true);
   });
@@ -108,7 +108,7 @@ describe('10.3 Activity Recognition', () => {
     await render(<ActivityRecognitionScreen />, { wrapper: Wrapper });
     expect(screen.getByText(/not proof of a real walk/)).toBeTruthy();
     expect(screen.queryByText(/prove|cheat-proof/i)).toBeNull();
-    await act(async () => fireEvent.press(screen.getByText('Allow activity recognition')));
+    await act(async () => await fireEvent.press(screen.getByText('Allow activity recognition')));
     await waitFor(() => expect(screen.getByTestId('activity-denied')).toBeTruthy());
     expect(mockNavigate).not.toHaveBeenCalled();
   });
@@ -116,7 +116,7 @@ describe('10.3 Activity Recognition', () => {
   test('授予後前往 Starter Shoe', async () => {
     ar.request.mockResolvedValue('granted');
     await render(<ActivityRecognitionScreen />, { wrapper: Wrapper });
-    await act(async () => fireEvent.press(screen.getByText('Allow activity recognition')));
+    await act(async () => await fireEvent.press(screen.getByText('Allow activity recognition')));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('Onboarding', { screen: 'StarterShoe' }));
   });
 });
@@ -138,7 +138,7 @@ describe('10.4 Starter Shoe Claim（免費贈與，不鑄 NFT）', () => {
     useWalletStore.setState({ status: 'connected', session: { address: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU', publicKey: {} as never, walletUriBase: '' } });
     await render(<StarterShoeScreen />, { wrapper: Wrapper });
     expect(screen.getByText('7xKX…gAsU')).toBeTruthy();
-    await act(async () => fireEvent.press(screen.getByText('Claim starter shoe')));
+    await act(async () => await fireEvent.press(screen.getByText('Claim starter shoe')));
     await waitFor(() => expect(screen.getByTestId('claim-error')).toBeTruthy());
     expect(screen.getByText('Onchain claim not enabled in this build')).toBeTruthy();
     expect(useOnboardingStore.getState().shoeMinted).toBe(false);

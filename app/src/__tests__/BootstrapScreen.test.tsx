@@ -60,7 +60,7 @@ describe('BootstrapScreen（Style 8.2）', () => {
     await render(<BootstrapScreen />, { wrapper: Wrapper });
     expect(screen.getByText('Restoring your profile')).toBeTruthy();
     expect(screen.getByText('Contacting devnet')).toBeTruthy();
-    fireEvent.press(screen.getByText('Use offline data'));
+    await fireEvent.press(screen.getByText('Use offline data'));
     expect(mockState.continueOffline).toHaveBeenCalled();
   });
 
@@ -69,7 +69,7 @@ describe('BootstrapScreen（Style 8.2）', () => {
     await render(<BootstrapScreen />, { wrapper: Wrapper });
     expect(screen.getByText('This is taking longer than expected.')).toBeTruthy();
     expect(screen.getByText('Elapsed 10234 ms')).toBeTruthy();
-    fireEvent.press(screen.getByText('Retry'));
+    await fireEvent.press(screen.getByText('Retry'));
     expect(mockState.retry).toHaveBeenCalled();
   });
 

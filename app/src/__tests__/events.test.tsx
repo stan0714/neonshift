@@ -12,8 +12,8 @@ import { ThemeProvider } from '@/theme';
 const mockNavigate = jest.fn();
 const mockRoute = { params: { idOrSlug: 'river-5k', source: 'ig' } as { idOrSlug: string; source?: string; tag?: string } };
 jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => ({ navigate: mockNavigate }), useRoute: () => mockRoute }));
-jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { events: jest.fn(), event: jest.fn(), eventRegistration: jest.fn(), registerEvent: jest.fn(), cancelEventRegistration: jest.fn(), eventTag: jest.fn() } }));
-const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'events' | 'event' | 'eventRegistration' | 'registerEvent' | 'cancelEventRegistration' | 'eventTag', jest.Mock>;
+jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { events: jest.fn(), event: jest.fn(), eventRegistration: jest.fn(), registerEvent: jest.fn(), cancelEventRegistration: jest.fn(), eventTag: jest.fn(), partnerMe: jest.fn(async () => ({ organizations: [], event_roles: [] })), partnerCheckpoints: jest.fn(async () => ({ checkpoints: [] })), checkinChallenge: jest.fn() } }));
+const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'events' | 'event' | 'eventRegistration' | 'registerEvent' | 'cancelEventRegistration' | 'eventTag' | 'partnerMe' | 'partnerCheckpoints' | 'checkinChallenge', jest.Mock>;
 const { ApiError } = jest.requireActual('@/services/api/ApiClient');
 
 const future = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
@@ -34,13 +34,15 @@ beforeEach(() => {
 describe('EventDetailScreen', () => {
   test('顯示規則版本與容量；報名帶宣傳來源與規則版本；成功後顯示已報名', async () => {
     api.event.mockResolvedValue(ev());
-    api.registerEvent.mockResolvedValue({ registration: { status: 'registered', accepted_rule_revision: 'REV2', display_name: null, public_consent: true, registered_at: '', cancelled_at: null }, already: false });
     await render(<EventDetailScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('event-register')).toBeTruthy());
     expect(api.event).toHaveBeenCalledWith('river-5k', 'ig');
     expect(screen.getByText('Rules v2')).toBeTruthy();
     expect(screen.getByText(/distance m: 5000/)).toBeTruthy();
-    fireEvent.press(screen.getByTestId('event-register-btn'));
+    const registered = { status: 'registered', accepted_rule_revision: 'REV2', display_name: null, public_consent: false, registered_at: '', cancelled_at: null };
+    api.registerEvent.mockResolvedValue({ registration: registered, already: false });
+    api.eventRegistration.mockResolvedValue({ registration: registered }); // 報名成功後會重新 load()
+    await fireEvent.press(screen.getByTestId('event-register-btn'));
     await waitFor(() => expect(screen.getByTestId('event-registered')).toBeTruthy());
     expect(api.registerEvent).toHaveBeenCalledWith('E1', { accepted_rule_revision: 'REV2', public_consent: false }, 'ig');
     expect(screen.getByTestId('event-success')).toBeTruthy();
@@ -56,7 +58,7 @@ describe('EventDetailScreen', () => {
     api.registerEvent.mockRejectedValueOnce(new ApiError(409, 'REVISION_CONFLICT', 'rules changed'));
     await render(<EventDetailScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('event-register-btn')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('event-register-btn'));
+    await fireEvent.press(screen.getByTestId('event-register-btn'));
     await waitFor(() => expect(screen.getByText('Rules were updated')).toBeTruthy());
     await act(async () => {});
 
@@ -78,7 +80,7 @@ describe('EventDetailScreen', () => {
     await render(<EventDetailScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('event-registered')).toBeTruthy());
     api.eventRegistration.mockResolvedValue({ registration: null });
-    fireEvent.press(screen.getByText('Cancel registration'));
+    await fireEvent.press(screen.getByText('Cancel registration'));
     await waitFor(() => expect(api.cancelEventRegistration).toHaveBeenCalledWith('E1'));
     await waitFor(() => expect(screen.getByText('Registration cancelled')).toBeTruthy());
   });
@@ -114,7 +116,7 @@ describe('EventsScreen', () => {
     await render(<EventsScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByText('River 5K')).toBeTruthy());
     expect(screen.getByText('60 of 100 spots left')).toBeTruthy();
-    fireEvent.press(screen.getByTestId('event-river-5k'));
+    await fireEvent.press(screen.getByTestId('event-river-5k'));
     expect(mockNavigate).toHaveBeenCalledWith('EventDetail', { idOrSlug: 'river-5k' });
     await act(async () => {});
     api.events.mockResolvedValueOnce({ events: [], next_cursor: null });

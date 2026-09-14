@@ -414,6 +414,36 @@ export class PostgresStore implements Store {
     return ((await this.pool.query(`UPDATE nfc_tags SET revoked_at = $3 WHERE event_id = $1 AND tag_id = $2 AND revoked_at IS NULL`, [eventId, tagId, now])).rowCount ?? 0) > 0;
   }
 
+  // ---- PG-E-05 ----
+  async insertCheckinChallenge(c: { challengeHash: Buffer; eventId: string; wallet: string; checkpointId: string; expiresAt: Date }) {
+    await this.pool.query(`INSERT INTO checkin_challenges (challenge_hash, event_id, wallet, checkpoint_id, expires_at) VALUES ($1,$2,$3,$4,$5)`, [c.challengeHash, c.eventId, c.wallet, c.checkpointId, c.expiresAt]);
+  }
+  async consumeCheckinChallenge(challengeHash: Buffer, now: Date) {
+    const r = await this.pool.query(`UPDATE checkin_challenges SET used_at = $2 WHERE challenge_hash = $1 AND used_at IS NULL AND expires_at > $2 RETURNING event_id, wallet, checkpoint_id`, [challengeHash, now]);
+    const x = r.rows[0] as Row | undefined;
+    return x ? { eventId: x.event_id as string, wallet: x.wallet as string, checkpointId: x.checkpoint_id as string } : null;
+  }
+  async insertCheckin(c: { eventId: string; wallet: string; checkpointId: string; confirmedBy: string; method: "nfc" | "qr" | "manual" }, now: Date) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const r = await client.query(`INSERT INTO event_checkins (event_id, wallet, checkpoint_id, confirmed_by, confirmed_at, method) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`, [c.eventId, c.wallet, c.checkpointId, c.confirmedBy, now, c.method]);
+      const inserted = (r.rowCount ?? 0) > 0;
+      if (inserted) await client.query(`UPDATE event_participants SET status = 'checked_in' WHERE event_id = $1 AND wallet = $2 AND status = 'registered'`, [c.eventId, c.wallet]);
+      await client.query("COMMIT");
+      return inserted;
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+  async listCheckins(eventId: string, wallet?: string) {
+    const r = await this.pool.query(`SELECT * FROM event_checkins WHERE event_id = $1 ${wallet ? "AND wallet = $2" : ""} ORDER BY confirmed_at DESC`, wallet ? [eventId, wallet] : [eventId]);
+    return (r.rows as Row[]).map((x) => ({ eventId: x.event_id as string, wallet: x.wallet as string, checkpointId: x.checkpoint_id as string, confirmedBy: x.confirmed_by as string, confirmedAt: x.confirmed_at as Date, method: x.method as string }));
+  }
+
   // ---- PG-G-01 ----
   private galleryRow(x: Row): GalleryPlayer {
     return { wallet: x.wallet as string, shoeLevel: Number(x.shoe_level), coreLevel: Number(x.core_level), xp: BigInt(x.xp as string), streakDays: Number(x.streak_days), maxStreakDays: Number(x.max_streak_days), lastTaskDate: x.last_task_date === null ? null : Number(x.last_task_date), collectibleCount: Number(x.collectible_count), updatedSlot: Number(x.updated_slot), updatedAt: x.updated_at as Date };

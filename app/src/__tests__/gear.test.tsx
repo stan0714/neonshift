@@ -53,7 +53,7 @@ describe('PG-A-14 Gear', () => {
 
   test('按 Claim → 呼叫服務、顯示成功並改為 Claimed', async () => {
     await render(<GearScreen />, { wrapper: Wrapper });
-    fireEvent.press(screen.getByTestId('claim-2'));
+    await fireEvent.press(screen.getByTestId('claim-2'));
     await waitFor(() => expect(screen.getByTestId('collectible-success')).toBeTruthy());
     expect(mockClaim).toHaveBeenCalledWith(wallet, 2);
     expect(screen.getByText(/Shoe · Pulse · AssetAdd…/)).toBeTruthy();
@@ -64,7 +64,7 @@ describe('PG-A-14 Gear', () => {
     const { ClaimError } = jest.requireActual('@/services/chain/StarterShoeService');
     mockClaim.mockRejectedValueOnce(new ClaimError('REJECTED', 'cancelled'));
     await render(<GearScreen />, { wrapper: Wrapper });
-    fireEvent.press(screen.getByTestId('claim-101'));
+    await fireEvent.press(screen.getByTestId('claim-101'));
     await waitFor(() => expect(screen.getByTestId('collectible-error')).toBeTruthy());
     expect(screen.getByText('Wallet approval cancelled')).toBeTruthy();
     expect(screen.getByLabelText('First Clock-In, claimable')).toBeTruthy();

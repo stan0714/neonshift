@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.16（NFC／App Links） |
+| 文件版本 | v0.17（活動報到） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -916,6 +916,8 @@ total_staked + treasury_injection
 
 **實作（2026-09-14，PG-E-04）**：標籤內容只有 `https://neonshift.cc/e/<slug>?tag=<opaque_ref>`（24 bytes 隨機 base64url，`nfc_tags.opaque_ref` 唯一）；`POST /partner/events/{id}/tags`（staff，限授權 checkpoint；participant 載具需為已報名者，補發自動停用同人舊載具）、`POST …/tags/{tagId}/revoke`、`POST／GET /partner/events/{id}/checkpoints`；參加者感應後 `GET /events/{id}/tags/{ref}` 只回 `active｜revoked｜not_yours`（active 附站點名稱／用途與本人是否已報名），不回資格、金額或內部欄位。Android：`AndroidManifest` 加 App Links（`autoVerify`、`https://neonshift.cc/e/*`）與 `NDEF_DISCOVERED` 同 URI 的 intent-filter、`android.hardware.nfc required=false`；`web/.well-known/assetlinks.json`（debug 指紋已填，release 指紋待 Runbook 8.4）。App：`EventDetail` 解析 `?tag=` 後向後端查狀態顯示 TagBanner；未安裝時同一 URL 落到活動網頁；QR 為同一 URL 由相機 App 開啟，不需 App 內掃描器。報到／核銷動作於 E-05／E-06 接上。
 
+**實作（2026-09-14，PG-E-05）**：參加者 `POST /events/{id}/checkpoints/{cpId}/check-in-challenge`（需 session、已報名、站點用途 check_in、活動 published／live）取得 8 碼代碼（字母表去 0/O/1/I）與 `qr_payload = neonshift-checkin:<slug>:<code>`，效期 120 秒；DB 只存 `sha256(eventId|code)`，同人同站點重取即覆蓋舊 challenge。Staff `POST /partner/events/{id}/check-ins`：`{code, checkpoint_id, method:'qr'}` 由 hash 單次消耗 challenge（過期 410 `CHECKIN_CHALLENGE_EXPIRED`）；`{wallet, checkpoint_id, method:'manual', reason}` 為補登，需 `requireRecentLogin` 且理由寫入稽核；兩者皆限授權 checkpoint、報名狀態需 registered（否則 403 `NOT_ELIGIBLE`），成功把 `event_registrations.status` 設為 checked_in 並寫 `event_check_ins`；重複報到回 200 `already:true`（首次 201）。`GET /partner/events/{id}/check-ins` 供現場對帳；`/me/event-history` 附本人 `check_ins`。App：`EventDetail` 在已報名時顯示「顯示報到代碼」（感應到 check_in 站點標籤時直接帶站點，否則列站點供選）→ `CheckInCode` 顯示 QR＋代碼＋倒數與重取；有 staff／owner 角色時顯示「工作人員報到」入口 → `StaffCheckIn`（只列本人授權的 check_in 站點、代碼輸入或手動補登、結果以 InlineState 呈現、已報到計數）。相機掃描 QR 為後續項目，目前以輸入代碼取代。
+
 ### 11.5 成績、隱私與測試
 
 CSV schema v1：`participant_ref, discipline, division, finish_status, distance_m, elapsed_ms, rank`；來源、event、版本與更正原因由匯入 metadata 提供。FINISHED 要求可用成績；DNS／DNF／DSQ 不以零秒排進正常榜。欄位單位固定、缺值用 null、未知選手或重複列阻止發布；rank 若由主辦方提供即標記為來源排名，不跨不同組別／賽制混排。限制檔案大小、列數與欄位長度，CSV 匯出防試算表公式注入。發布以原子切換 current revision，並發更正以 revision 檢查；結果更正不自動追回已交付權益。
@@ -959,6 +961,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.17 | 2026-09-14 | PG-E-05：報到 challenge 與 staff 報到實作說明 |
 | v0.16 | 2026-09-14 | PG-E-04：NFC／App Links 與載具登記實作說明 |
 | v0.15 | 2026-09-14 | PG-E-03：報名 API 與 App 活動畫面 |
 | v0.14 | 2026-09-14 | PG-E-02：合作管理 API 實作說明 |

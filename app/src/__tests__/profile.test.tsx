@@ -47,7 +47,7 @@ describe('PG-A-21 Profile', () => {
   test('刪除資料：確認後呼叫 API、清快取、停背景同步、顯示完成（204）', async () => {
     await render(<ProfileScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByText('Signed in')).toBeTruthy());
-    fireEvent.press(screen.getByText('Delete my backend data'));
+    await fireEvent.press(screen.getByText('Delete my backend data'));
     await waitFor(() => expect(screen.getByTestId('deletion-done')).toBeTruthy());
     expect(apiClient.deleteData).toHaveBeenCalled();
     const { healthConnect } = jest.requireMock('@/services/health/HealthConnectService');
@@ -59,13 +59,13 @@ describe('PG-A-21 Profile', () => {
     (apiClient.deleteData as jest.Mock).mockResolvedValueOnce({ status: 202, body: { deletion_due_at: '2026-10-14T00:00:00Z' } });
     await render(<ProfileScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByText('Signed in')).toBeTruthy());
-    fireEvent.press(screen.getByText('Delete my backend data'));
+    await fireEvent.press(screen.getByText('Delete my backend data'));
     await waitFor(() => expect(screen.getByTestId('deletion-scheduled')).toBeTruthy());
   });
 
   test('斷開錢包：登出後端、撤銷授權、回 Landing（FR-01.4）', async () => {
     await render(<ProfileScreen />, { wrapper: Wrapper });
-    fireEvent.press(screen.getByText('Disconnect wallet'));
+    await fireEvent.press(screen.getByText('Disconnect wallet'));
     await waitFor(() => expect(mockReset).toHaveBeenCalledWith({ index: 0, routes: [{ name: 'Landing' }] }));
     expect(apiClient.signOut).toHaveBeenCalled();
   });

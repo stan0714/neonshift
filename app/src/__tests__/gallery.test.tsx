@@ -37,7 +37,7 @@ describe('GalleryScreen', () => {
     expect(screen.getByText('You are #2')).toBeTruthy();
     expect(screen.getByText('BBBB…BBBB')).toBeTruthy();
     expect(screen.getByText('LV. 3')).toBeTruthy();
-    fireEvent.press(screen.getByTestId('gallery-more'));
+    await fireEvent.press(screen.getByTestId('gallery-more'));
     await waitFor(() => expect(screen.getByText('CCCC…CCCC')).toBeTruthy());
     expect(screen.queryByTestId('gallery-more')).toBeNull();
     await act(async () => {}); // 讓 load() 的 finally（setLoading）在 act 內完成，避免影響下一個 render
@@ -48,7 +48,7 @@ describe('GalleryScreen', () => {
     api.gallerySearch.mockResolvedValue({ players: [player(B, 1)] });
     await render(<GalleryScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByText(/1 players/)).toBeTruthy());
-    fireEvent.changeText(screen.getByTestId('gallery-search'), 'BB');
+    await fireEvent.changeText(screen.getByTestId('gallery-search'), 'BB');
     await waitFor(() => expect(screen.getByText('1 match')).toBeTruthy());
     expect(api.gallerySearch).toHaveBeenCalledWith('BB');
   });
@@ -91,7 +91,7 @@ describe('GalleryScreen → GalleryPlayer', () => {
     api.galleryPlayers.mockResolvedValue({ generated_at: '2026-09-14T00:00:00Z', total: 1, next_cursor: null, players: [player(B, 1)], you: null });
     await render(<GalleryScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId(`gallery-row-${B}`)).toBeTruthy());
-    fireEvent.press(screen.getByTestId(`gallery-row-${B}`));
+    await fireEvent.press(screen.getByTestId(`gallery-row-${B}`));
     expect(mockNavigate).toHaveBeenCalledWith('GalleryPlayer', { wallet: B });
   });
 });

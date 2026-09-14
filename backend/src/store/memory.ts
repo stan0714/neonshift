@@ -26,6 +26,8 @@ export class MemoryStore implements Store {
   participants = new Map<string, EventParticipant>();
   checkpoints = new Map<string, Checkpoint>();
   tags = new Map<string, NfcTag>();
+  checkinChallenges = new Map<string, { challengeHash: Buffer; eventId: string; wallet: string; checkpointId: string; expiresAt: Date; usedAt: Date | null }>();
+  checkins: { eventId: string; wallet: string; checkpointId: string; confirmedBy: string; confirmedAt: Date; method: string }[] = [];
   campaign = new Map<string, { source: string; day: string; views: number; registrations: number; checkins: number; redemptions: number }>();
 
   async insertChallenge(c: Challenge) {
@@ -303,6 +305,27 @@ export class MemoryStore implements Store {
     if (!t || t.eventId !== eventId || t.revokedAt) return false;
     t.revokedAt = now;
     return true;
+  }
+
+  // ---- PG-E-05 ----
+  async insertCheckinChallenge(c: { challengeHash: Buffer; eventId: string; wallet: string; checkpointId: string; expiresAt: Date }) {
+    this.checkinChallenges.set(c.challengeHash.toString("hex"), { ...c, usedAt: null });
+  }
+  async consumeCheckinChallenge(challengeHash: Buffer, now: Date) {
+    const c = this.checkinChallenges.get(challengeHash.toString("hex"));
+    if (!c || c.usedAt || c.expiresAt <= now) return null;
+    c.usedAt = now;
+    return { eventId: c.eventId, wallet: c.wallet, checkpointId: c.checkpointId };
+  }
+  async insertCheckin(c: { eventId: string; wallet: string; checkpointId: string; confirmedBy: string; method: "nfc" | "qr" | "manual" }, now: Date) {
+    if (this.checkins.some((x) => x.eventId === c.eventId && x.wallet === c.wallet && x.checkpointId === c.checkpointId)) return false;
+    this.checkins.push({ ...c, confirmedAt: now });
+    const p = this.participants.get(`${c.eventId}:${c.wallet}`);
+    if (p && p.status === "registered") p.status = "checked_in";
+    return true;
+  }
+  async listCheckins(eventId: string, wallet?: string) {
+    return this.checkins.filter((x) => x.eventId === eventId && (!wallet || x.wallet === wallet));
   }
 
   // ---- PG-G-01 ----

@@ -30,6 +30,8 @@ export type RootParamList = {
   /** 合作活動（FR-09～FR-12，SD 11）：列表與詳情；detail 可帶宣傳來源 */
   Events: undefined;
   EventDetail: { idOrSlug: string; source?: string; /** NFC／QR 標籤 opaque reference（`?tag=`） */ tag?: string };
+  /** 工作人員報到（E-05）：需該活動 staff 角色 */
+  StaffCheckIn: { eventId: string; slug: string };
   /** __DEV__ 專用 */
   DevHealth: undefined;
 };

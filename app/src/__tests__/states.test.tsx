@@ -49,7 +49,7 @@ describe('Home inline states（Style 14）', () => {
   test('健康權限關閉 → Health access is off + Review access；devnet 讀取失敗 → Devnet is taking a break + Retry', async () => {
     await render(<HomeScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('state-health-off')).toBeTruthy());
-    fireEvent.press(screen.getByText('Review access'));
+    await fireEvent.press(screen.getByText('Review access'));
     expect(mockNavigate).toHaveBeenCalledWith('Onboarding', { screen: 'HealthAccess' });
     await waitFor(() => expect(screen.getByTestId('state-chain-error')).toBeTruthy());
     expect(screen.getByText(/safe onchain; showing cached values/)).toBeTruthy();
@@ -62,7 +62,7 @@ describe('InlineState reference ID', () => {
     const onPress = jest.fn();
     await render(<InlineState kind="error" title="Something interrupted your shift" body="x" referenceId="req-1234" action={{ label: 'Try again', onPress }} />, { wrapper: Wrapper });
     expect(screen.getByText('Ref req-1234')).toBeTruthy();
-    fireEvent.press(screen.getByText('Try again'));
+    await fireEvent.press(screen.getByText('Try again'));
     expect(onPress).toHaveBeenCalled();
   });
 });

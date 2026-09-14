@@ -57,7 +57,7 @@ describe('語言切換', () => {
 
     await render(<ProfileScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByText('語言')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('lang-en'));
+    await fireEvent.press(screen.getByTestId('lang-en'));
     await waitFor(() => expect(screen.getByText('Language')).toBeTruthy());
     expect(await SecureStore.getItemAsync('neonshift.locale.v1')).toBe('en');
     expect(useLocaleStore.getState().locale).toBe('en');

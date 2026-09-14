@@ -6,6 +6,8 @@ import { Alert, Pressable, RefreshControl, StyleSheet, Switch, View } from 'reac
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import type { RootParamList } from '@/navigation/types';
 import { ApiError, apiClient, type EventRegistration, type PartnerEventView, type TagState } from '@/services/api/ApiClient';
+
+import { CheckInCode } from './CheckInCode';
 import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
 import { useT, type TKey } from '@/i18n';
@@ -91,6 +93,7 @@ export function EventsScreen() {
 export function EventDetailScreen() {
   const { t } = useT();
   const { params } = useRoute<RouteProp<RootParamList, 'EventDetail'>>();
+  const navigation = useNavigation();
   const session = useWalletStore((s) => s.session);
   const [event, setEvent] = useState<PartnerEventView | null>(null);
   const [reg, setReg] = useState<EventRegistration | null>(null);
@@ -100,6 +103,8 @@ export function EventDetailScreen() {
   const [consent, setConsent] = useState(false);
   const [outcome, setOutcome] = useState<{ kind: 'success' | 'error'; title: string; body: string; ref?: string } | null>(null);
   const [tag, setTag] = useState<TagState | 'checking' | 'unknown' | 'signin' | null>(params.tag ? 'checking' : null);
+  const [staff, setStaff] = useState(false);
+  const [showCode, setShowCode] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -112,6 +117,7 @@ export function EventDetailScreen() {
       } catch (x) {
         if (x instanceof ApiError && x.code === 'NO_SESSION') setNeedsSignIn(true);
       }
+      apiClient.partnerMe().then((me) => setStaff(me.event_roles.some((r) => r.event_id === e.event_id && r.role === 'staff') || me.organizations.some((o) => o.role === 'owner'))).catch(() => setStaff(false));
       // PG-E-04：標籤只提供 opaque reference，資格與狀態一律向後端查（SD 11.4）
       if (params.tag) {
         try {
@@ -182,6 +188,7 @@ export function EventDetailScreen() {
     <Screen scroll testID="event-detail-screen">
       {err ? <InlineState kind={err.code === 'NOT_FOUND' ? 'info' : 'error'} title={err.code === 'NOT_FOUND' ? t('ev.notFound.title') : t('common.somethingInterrupted')} body={err.code === 'NOT_FOUND' ? t('ev.notFound.body') : t('ev.errBody', { message: err.message })} referenceId={err.ref} action={err.code === 'NOT_FOUND' ? undefined : { label: t('common.tryAgain'), onPress: () => void load() }} testID="event-error" /> : null}
       {event && tag ? <TagBanner tag={tag} /> : null}
+      {event && staff ? <Button label={t('ev.staffLink')} variant="secondary" style={styles.card} onPress={() => navigation.navigate('StaffCheckIn', { eventId: event.event_id, slug: event.slug })} testID="event-staff-link" /> : null}
       {event ? (
         <>
           <Surface hero>
@@ -229,6 +236,13 @@ export function EventDetailScreen() {
               <Text variant="bodySmall" tone="secondary" style={styles.mt}>
                 {t('ev.acceptedRules', { v: event.rules?.revision_id === reg?.accepted_rule_revision ? (event.rules?.version ?? '') : t('ev.earlier') })}{reg?.status === 'checked_in' ? t('ev.checkedIn') : t('ev.checkInHint')}
               </Text>
+              {reg?.status !== 'checked_in' && tag && typeof tag === 'object' && tag.status === 'active' && tag.checkpoint?.purpose === 'check_in' ? (
+                <CheckInCode eventId={event.event_id} checkpointId={tag.checkpoint.checkpoint_id} checkpointName={tag.checkpoint.name} />
+              ) : reg?.status !== 'checked_in' && showCode ? (
+                <CheckInPicker eventId={event.event_id} />
+              ) : reg?.status !== 'checked_in' ? (
+                <Button label={t('ci.show')} variant="secondary" style={styles.mt} onPress={() => setShowCode(true)} testID="event-show-code" />
+              ) : null}
               {window !== 'closed' && reg?.status !== 'checked_in' ? <Button label={t('ev.cancel.ok')} variant="danger" style={styles.mt} onPress={cancel} loading={busy} disabled={busy} /> : null}
             </Surface>
           ) : needsSignIn ? (
@@ -252,6 +266,39 @@ export function EventDetailScreen() {
         </>
       ) : null}
     </Screen>
+  );
+}
+
+/** 無標籤時：讓參加者選報到站點後顯示代碼 */
+function CheckInPicker({ eventId }: { eventId: string }) {
+  const { t } = useT();
+  const [cps, setCps] = useState<{ checkpoint_id: string; name: string }[] | null>(null);
+  const [cp, setCp] = useState<{ checkpoint_id: string; name: string } | null>(null);
+  useEffect(() => {
+    apiClient
+      .partnerCheckpoints(eventId)
+      .then((r) => {
+        const list = r.checkpoints.filter((c) => c.purpose === 'check_in');
+        setCps(list);
+        setCp(list[0] ?? null);
+      })
+      .catch(() => setCps([]));
+  }, [eventId]);
+  if (cps === null) return null;
+  if (cps.length === 0) return <InlineState kind="info" title={t('ci.title')} body={t('ev.checkInHint')} testID="checkin-no-checkpoint" />;
+  return (
+    <>
+      {cps.length > 1 ? (
+        <View style={[styles.rowBetween, styles.mt]}>
+          {cps.map((c) => (
+            <Pressable key={c.checkpoint_id} onPress={() => setCp(c)} accessibilityRole="radio" accessibilityState={{ selected: cp?.checkpoint_id === c.checkpoint_id }}>
+              <Chip label={c.name} kind={cp?.checkpoint_id === c.checkpoint_id ? 'synced' : 'neutral'} />
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      {cp ? <CheckInCode eventId={eventId} checkpointId={cp.checkpoint_id} checkpointName={cp.name} /> : null}
+    </>
   );
 }
 

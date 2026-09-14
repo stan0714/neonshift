@@ -50,7 +50,7 @@ describe('EvolutionReveal', () => {
     expect(screen.getByTestId('reveal-tx')).toBeTruthy();
     const haptics = jest.requireMock('expo-haptics');
     expect(haptics.notificationAsync).toHaveBeenCalledTimes(1);
-    fireEvent.press(screen.getByTestId('reveal-ok'));
+    await fireEvent.press(screen.getByTestId('reveal-ok'));
     await waitFor(() => expect(screen.queryByTestId('evolution-reveal')).toBeNull());
     expect(useLevelRevealStore.getState().lastSeen).toBe(2);
   });

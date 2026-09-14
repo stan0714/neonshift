@@ -282,6 +282,14 @@ export interface PartnerStore {
   getTagByRef(opaqueRef: string): Promise<NfcTag | null>;
   listTags(eventId: string): Promise<NfcTag[]>;
   revokeTag(eventId: string, tagId: string, now: Date): Promise<boolean>;
+
+  // ---- PG-E-05：報到 ----
+  insertCheckinChallenge(c: { challengeHash: Buffer; eventId: string; wallet: string; checkpointId: string; expiresAt: Date }): Promise<void>;
+  /** 原子消耗：未使用且未過期才成功 */
+  consumeCheckinChallenge(challengeHash: Buffer, now: Date): Promise<{ eventId: string; wallet: string; checkpointId: string } | null>;
+  /** 冪等：同 (event, wallet, checkpoint) 已存在回 false；成功時 participant 狀態改 checked_in */
+  insertCheckin(c: { eventId: string; wallet: string; checkpointId: string; confirmedBy: string; method: "nfc" | "qr" | "manual" }, now: Date): Promise<boolean>;
+  listCheckins(eventId: string, wallet?: string): Promise<{ eventId: string; wallet: string; checkpointId: string; confirmedBy: string; confirmedAt: Date; method: string }[]>;
 }
 
 export type Checkpoint = { checkpointId: string; eventId: string; name: string; purpose: "check_in" | "redemption" | "info" };

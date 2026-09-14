@@ -8,12 +8,14 @@ import { z } from "zod";
 
 import { requireAuth } from "../auth/routes.js";
 import type { AuthService } from "../auth/service.js";
+import { sha256 } from "../auth/tokens.js";
 import { canonicalize, type Json } from "../claim/canonical.js";
 import { ApiError } from "../errors.js";
 import type { EventRow, EventRuleRevision, Store } from "../store/types.js";
 import { PartnerAuthz } from "./authz.js";
 
 const uuid = z.string().uuid();
+export const CHECKIN_CHALLENGE_SECONDS = 120;
 const base58 = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
 const slug = z.string().regex(/^[a-z0-9][a-z0-9-]{1,62}$/);
 const iso = z.string().datetime({ offset: true }).transform((s) => new Date(s));
@@ -170,7 +172,8 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
     return {
       items: await Promise.all(parts.map(async (p) => {
         const e = await store.getEvent(p.eventId);
-        return { event: e ? { event_id: e.eventId, slug: e.slug, title: e.title, state: e.state, starts_at: e.startsAt?.toISOString() ?? null, ends_at: e.endsAt?.toISOString() ?? null } : null, registration: participantView(p) };
+        const checkins = await store.listCheckins(p.eventId, p.wallet);
+        return { event: e ? { event_id: e.eventId, slug: e.slug, title: e.title, state: e.state, starts_at: e.startsAt?.toISOString() ?? null, ends_at: e.endsAt?.toISOString() ?? null } : null, registration: participantView(p), check_ins: checkins.map((c) => ({ checkpoint_id: c.checkpointId, confirmed_at: c.confirmedAt.toISOString(), method: c.method })) };
       })),
     };
   });
@@ -239,6 +242,61 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
     const cp = tag.checkpointId ? await store.getCheckpoint(e.eventId, tag.checkpointId) : null;
     const registration = await store.getParticipant(e.eventId, req.auth!.wallet);
     return { status: "active" as const, purpose: tag.purpose, checkpoint: cp ? { checkpoint_id: cp.checkpointId, name: cp.name, purpose: cp.purpose } : null, registered: !!registration && registration.status !== "cancelled", event_state: e.state };
+  });
+
+  // ---- PG-E-05：報到 ----
+  /** 參加者取得短期 challenge（120 秒；顯示為 QR／代碼給 staff）；只存 hash */
+  app.post("/events/:id/check-in-challenges", { preHandler: requireAuth(auth) }, async (req, reply) => {
+    const e = await resolveEvent((req.params as { id: string }).id);
+    const b = parse(z.object({ checkpoint_id: uuid }).strict(), req.body);
+    const p = await store.getParticipant(e.eventId, req.auth!.wallet);
+    if (!p || p.status === "cancelled") throw new ApiError(403, "NOT_ELIGIBLE", "register for this event first");
+    if (e.state !== "published") throw new ApiError(409, "EVENT_CANCELLED", `event is ${e.state}`);
+    const cp = await store.getCheckpoint(e.eventId, b.checkpoint_id);
+    if (!cp || cp.purpose !== "check_in") throw new ApiError(422, "VALIDATION", "checkpoint is not a check-in point");
+    // 人類可讀 8 碼（去掉易混淆字元）＋機器碼；staff 輸入任一皆可
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const bytes = randomBytes(8);
+    const code = [...bytes].map((x) => alphabet[x % alphabet.length]).join("");
+    const t = now();
+    const expiresAt = new Date(t.getTime() + CHECKIN_CHALLENGE_SECONDS * 1000);
+    await store.insertCheckinChallenge({ challengeHash: sha256(Buffer.from(`${e.eventId}|${code}`)), eventId: e.eventId, wallet: req.auth!.wallet, checkpointId: cp.checkpointId, expiresAt });
+    return reply.status(201).send({ code, expires_at: expiresAt.toISOString(), checkpoint: { checkpoint_id: cp.checkpointId, name: cp.name }, qr_payload: `neonshift-checkin:${e.slug}:${code}` });
+  });
+
+  /** staff 確認到場：驗證 challenge（原子消耗）、站點授權、名單；冪等 */
+  app.post("/partner/events/:id/check-ins", { preHandler: requireAuth(auth) }, async (req, reply) => {
+    const id = parse(uuid, (req.params as { id: string }).id);
+    const b = parse(z.object({ code: z.string().min(6).max(64).optional(), wallet: base58.optional(), checkpoint_id: uuid, method: z.enum(["nfc", "qr", "manual"]).default("qr"), reason: z.string().max(200).optional() }).strict(), req.body);
+    const access = await authz.requireEventRole(id, req.auth!.wallet, ["staff"], { checkpointId: b.checkpoint_id });
+    const t = now();
+    let wallet: string;
+    if (b.code) {
+      const code = b.code.trim().toUpperCase().replace(/^NEONSHIFT-CHECKIN:[^:]+:/i, "");
+      const consumed = await store.consumeCheckinChallenge(sha256(Buffer.from(`${id}|${code}`)), t);
+      if (!consumed) throw new ApiError(410, "CHECKIN_CHALLENGE_EXPIRED", "code expired, already used or unknown");
+      if (consumed.checkpointId !== b.checkpoint_id) throw new ApiError(409, "CHECKIN_CHALLENGE_EXPIRED", "code was issued for a different checkpoint");
+      wallet = consumed.wallet;
+    } else if (b.wallet && b.method === "manual") {
+      // 補登：需理由、留稽核；不降低名單檢查
+      if (!b.reason || b.reason.length < 3) throw new ApiError(422, "VALIDATION", "manual check-in requires a reason");
+      authz.requireRecentLogin(req);
+      wallet = b.wallet;
+    } else {
+      throw new ApiError(422, "VALIDATION", "code (qr/nfc) or wallet+reason (manual) is required");
+    }
+    const p = await store.getParticipant(id, wallet);
+    if (!p || p.status === "cancelled") throw new ApiError(403, "NOT_ELIGIBLE", "wallet is not on the participant list");
+    const inserted = await store.insertCheckin({ eventId: id, wallet, checkpointId: b.checkpoint_id, confirmedBy: req.auth!.wallet, method: b.method }, t);
+    await store.bumpCampaign(id, "onsite", day(), "checkins");
+    await authz.audit(req, { eventId: id, orgId: access.event.orgId, action: inserted ? "checkin.confirm" : "checkin.repeat", target: wallet, details: { checkpoint_id: b.checkpoint_id, method: b.method, ...(b.reason ? { reason: b.reason } : {}) } });
+    return reply.status(inserted ? 201 : 200).send({ wallet, checkpoint_id: b.checkpoint_id, display_name: p.displayName, already: !inserted, confirmed_at: t.toISOString() });
+  });
+
+  app.get("/partner/events/:id/check-ins", { preHandler: requireAuth(auth) }, async (req) => {
+    const id = parse(uuid, (req.params as { id: string }).id);
+    await authz.requireEventRole(id, req.auth!.wallet, ["staff", "result_editor", "publisher"]);
+    return { check_ins: (await store.listCheckins(id)).map((c) => ({ wallet: c.wallet, checkpoint_id: c.checkpointId, confirmed_by: c.confirmedBy, confirmed_at: c.confirmedAt.toISOString(), method: c.method })) };
   });
 
   app.get("/partner/events/:id/campaign-summary", { preHandler: requireAuth(auth) }, async (req) => {

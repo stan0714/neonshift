@@ -211,4 +211,51 @@ describe("PG-E-02 partner API", () => {
     // 未報名錢包不可登記參加者載具
     expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/tags`, headers: owner.h, payload: { purpose: "participant", participant_wallet: other.wallet } })).json().error.code).toBe("NOT_ELIGIBLE");
   });
+
+  it("報到：參加者取 120 秒代碼 → staff 於授權站點確認（原子消耗、冪等、名單）；過期／重用／錯站點拒絕；手動補登需理由與近期登入", async () => {
+    const { owner, orgId } = await orgWithOwner();
+    const ev = j(await app.inject({ method: "POST", url: "/v1/partner/events", headers: owner.h, payload: draft(orgId) }));
+    const rev = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/rule-revisions`, headers: owner.h, payload: { rules: {} } }));
+    await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/publish`, headers: owner.h, payload: { revision_id: rev.revision_id } });
+    const gate = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/checkpoints`, headers: owner.h, payload: { name: "Gate", purpose: "check_in" } }));
+    const booth = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/checkpoints`, headers: owner.h, payload: { name: "Booth", purpose: "redemption" } }));
+    const staff = await login();
+    await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/roles`, headers: owner.h, payload: { wallet: staff.wallet, role: "staff", checkpoint_id: gate.checkpoint_id } });
+    const p = await login();
+    // 未報名不可取 challenge
+    expect((await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/check-in-challenges`, headers: p.h, payload: { checkpoint_id: gate.checkpoint_id } })).statusCode).toBe(403);
+    await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: p.h, payload: { accepted_rule_revision: rev.revision_id, display_name: "Alice" } });
+    expect((await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/check-in-challenges`, headers: p.h, payload: { checkpoint_id: booth.checkpoint_id } })).statusCode).toBe(422);
+    const ch = j(await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/check-in-challenges`, headers: p.h, payload: { checkpoint_id: gate.checkpoint_id } }));
+    expect(ch.code).toMatch(/^[A-HJ-NP-Z2-9]{8}$/);
+    expect(ch.qr_payload).toBe(`neonshift-checkin:river-5k:${ch.code}`);
+    // 錯站點（staff 未授權 booth）→ 403；staff 用 gate 確認
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/check-ins`, headers: staff.h, payload: { code: ch.code, checkpoint_id: booth.checkpoint_id } })).json().error.code).toBe("ROLE_FORBIDDEN");
+    let r = await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/check-ins`, headers: staff.h, payload: { code: ch.qr_payload, checkpoint_id: gate.checkpoint_id, method: "qr" } });
+    expect(r.statusCode).toBe(201);
+    expect(j(r)).toMatchObject({ wallet: p.wallet, display_name: "Alice", already: false });
+    // 代碼已消耗 → 410
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/check-ins`, headers: staff.h, payload: { code: ch.code, checkpoint_id: gate.checkpoint_id } })).statusCode).toBe(410);
+    // 參加者狀態與歷史
+    expect(j(await app.inject({ method: "GET", url: `/v1/events/${ev.event_id}/registration`, headers: p.h })).registration.status).toBe("checked_in");
+    expect(j(await app.inject({ method: "GET", url: `/v1/me/event-history`, headers: p.h })).items[0].check_ins).toHaveLength(1);
+    // 再取一次代碼、再確認 → 冪等 200 already
+    const ch2 = j(await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/check-in-challenges`, headers: p.h, payload: { checkpoint_id: gate.checkpoint_id } }));
+    r = await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/check-ins`, headers: staff.h, payload: { code: ch2.code, checkpoint_id: gate.checkpoint_id } });
+    expect([r.statusCode, j(r).already]).toEqual([200, true]);
+    // 過期
+    const ch3 = j(await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/check-in-challenges`, headers: p.h, payload: { checkpoint_id: gate.checkpoint_id } }));
+    clock = new Date(clock.getTime() + 121_000);
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/check-ins`, headers: staff.h, payload: { code: ch3.code, checkpoint_id: gate.checkpoint_id } })).statusCode).toBe(410);
+    // 手動補登：需理由；非名單 403
+    const q = await login();
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/check-ins`, headers: staff.h, payload: { wallet: q.wallet, checkpoint_id: gate.checkpoint_id, method: "manual" } })).statusCode).toBe(422);
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/check-ins`, headers: staff.h, payload: { wallet: q.wallet, checkpoint_id: gate.checkpoint_id, method: "manual", reason: "phone died" } })).statusCode).toBe(403);
+    await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: q.h, payload: { accepted_rule_revision: rev.revision_id } });
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/check-ins`, headers: staff.h, payload: { wallet: q.wallet, checkpoint_id: gate.checkpoint_id, method: "manual", reason: "phone died" } })).statusCode).toBe(201);
+    const list = j(await app.inject({ method: "GET", url: `/v1/partner/events/${ev.event_id}/check-ins`, headers: staff.h })).check_ins;
+    expect(list.map((c: { method: string }) => c.method).sort()).toEqual(["manual", "qr"]);
+    const audit = j(await app.inject({ method: "GET", url: `/v1/partner/events/${ev.event_id}/audit`, headers: owner.h })).entries as { action: string; details: { reason?: string } }[];
+    expect(audit.find((a) => a.action === "checkin.confirm" && a.details.reason === "phone died")).toBeTruthy();
+  });
 });

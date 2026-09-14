@@ -54,7 +54,7 @@ describe('PG-A-15 Arena', () => {
     expect(screen.getByText('50 tSKR')).toBeTruthy();
     expect(screen.getByText(/4 · min 10/)).toBeTruthy();
     expect(screen.getByText(/Worst case you lose 25 tSKR/)).toBeTruthy();
-    fireEvent.press(screen.getByTestId('arena-join'));
+    await fireEvent.press(screen.getByTestId('arena-join'));
     await waitFor(() => expect(mockSvc.join).toHaveBeenCalledWith(wallet, 202638, mint));
     expect((Alert.alert as jest.Mock).mock.calls[0][1]).toMatch(/the most you can lose is 25 tSKR/);
     await waitFor(() => expect(screen.getByTestId('arena-success')).toBeTruthy());
@@ -77,7 +77,7 @@ describe('PG-A-15 Arena', () => {
     expect(screen.getByTestId('leaderboard-you')).toBeTruthy();
     expect(screen.getByText('AAAA…AAAA')).toBeTruthy();
     expect(screen.getByText('You')).toBeTruthy();
-    fireEvent.press(screen.getByTestId('arena-steps'));
+    await fireEvent.press(screen.getByTestId('arena-steps'));
     await waitFor(() => expect(mockSvc.submitSteps).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByText(/12,345 verified steps · rank #2/)).toBeTruthy());
   });
@@ -91,7 +91,7 @@ describe('PG-A-15 Arena', () => {
     expect(screen.getByText('B')).toBeTruthy();
     expect(screen.getByText(/share of the B pool/)).toBeTruthy();
     expect(screen.getByText(/Pool 775 tSKR/)).toBeTruthy();
-    fireEvent.press(screen.getByTestId('arena-claim'));
+    await fireEvent.press(screen.getByTestId('arena-claim'));
     await waitFor(() => expect(mockSvc.claim).toHaveBeenCalledWith(wallet, 202638, mint, 'prize'));
 
     mockSvc.entry.mockResolvedValue({ stake: BigInt(0), finalSteps: BigInt(0), rank: 0, group: 0, forfeited: true, settled: false, joinedAt: 0 } as never);
@@ -106,7 +106,7 @@ describe('PG-A-15 Arena', () => {
     mockApi.tournamentCurrent.mockResolvedValue(current(tournament({ status: 'cancelled' }), { joined: true, verified_steps: 0, rank: null }));
     await render(<ArenaScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('arena-refund')).toBeTruthy());
-    fireEvent.press(screen.getByTestId('arena-refund'));
+    await fireEvent.press(screen.getByTestId('arena-refund'));
     await waitFor(() => expect(mockSvc.claim).toHaveBeenCalledWith(wallet, 202638, mint, 'refund'));
 
     mockApi.tournamentCurrent.mockResolvedValue(current(null, null));
@@ -127,7 +127,7 @@ describe('PG-A-15 Arena', () => {
     await render(<ArenaScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('arena-signin')).toBeTruthy());
     expect(screen.queryByTestId('arena-error')).toBeNull();
-    fireEvent.press(screen.getByTestId('arena-signin-btn'));
+    await fireEvent.press(screen.getByTestId('arena-signin-btn'));
     await waitFor(() => expect(screen.getByTestId('arena-tournament')).toBeTruthy());
     expect(mockApi.signIn).toHaveBeenCalledWith(wallet.toBase58());
   });

@@ -74,6 +74,9 @@ export type PartnerEventView = {
 };
 export type EventRegistration = { status: 'registered' | 'cancelled' | 'checked_in'; accepted_rule_revision: string; display_name: string | null; public_consent: boolean; registered_at: string; cancelled_at: string | null };
 export type TagState = { status: 'revoked' } | { status: 'not_yours' } | { status: 'active'; purpose: 'checkpoint' | 'participant'; checkpoint: { checkpoint_id: string; name: string; purpose: 'check_in' | 'redemption' | 'info' } | null; registered: boolean; event_state: string };
+export type CheckinChallenge = { code: string; expires_at: string; checkpoint: { checkpoint_id: string; name: string }; qr_payload: string };
+export type StaffCheckinResult = { wallet: string; checkpoint_id: string; display_name: string | null; already: boolean; confirmed_at: string };
+export type PartnerMe = { organizations: { org_id: string; role: string; name: string | null }[]; event_roles: { event_id: string; role: string; checkpoint_id: string | null }[] };
 export type HistoryItem = { task_date: number; task_type: 'steps' | 'sleep'; issued_at: string; expires_at: string; redeemed_signature: string | null; amount: string | null; xp: number | null; shoe_level: number | null };
 export type HistoryResponse = { days: number; retention_days: number; total_earned: string; items: HistoryItem[] };
 
@@ -200,6 +203,26 @@ export class ApiClient {
 
   eventTag(eventId: string, ref: string): Promise<TagState> {
     return this.request<TagState>('GET', `/events/${encodeURIComponent(eventId)}/tags/${encodeURIComponent(ref)}`);
+  }
+
+  checkinChallenge(eventId: string, checkpointId: string): Promise<CheckinChallenge> {
+    return this.request('POST', `/events/${encodeURIComponent(eventId)}/check-in-challenges`, { checkpoint_id: checkpointId });
+  }
+
+  partnerMe(): Promise<PartnerMe> {
+    return this.request('GET', '/partner/me');
+  }
+
+  partnerCheckpoints(eventId: string): Promise<{ checkpoints: { checkpoint_id: string; name: string; purpose: 'check_in' | 'redemption' | 'info' }[] }> {
+    return this.request('GET', `/partner/events/${encodeURIComponent(eventId)}/checkpoints`);
+  }
+
+  staffCheckin(eventId: string, body: { code?: string; wallet?: string; checkpoint_id: string; method: 'qr' | 'nfc' | 'manual'; reason?: string }): Promise<StaffCheckinResult> {
+    return this.request('POST', `/partner/events/${encodeURIComponent(eventId)}/check-ins`, body);
+  }
+
+  staffCheckins(eventId: string): Promise<{ check_ins: { wallet: string; checkpoint_id: string; confirmed_at: string; method: string }[] }> {
+    return this.request('GET', `/partner/events/${encodeURIComponent(eventId)}/check-ins`);
   }
 
   cancelEventRegistration(eventId: string): Promise<unknown> {
