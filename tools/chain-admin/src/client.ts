@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { AnchorProvider, BN, Program, Wallet, type Idl } from "@coral-xyz/anchor";
+// @coral-xyz/anchor 是 CJS，Node ESM 無法靜態偵測 BN 等具名匯出：改 default import 再解構
+import anchor, { type Idl } from "@coral-xyz/anchor";
+const { AnchorProvider, BN, Program, Wallet } = anchor;
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 
 import { loadEnv, loadKeypair, ROOT, require_, type DeployEnv } from "./env.js";
@@ -24,7 +26,7 @@ export type Ctx = {
   connection: Connection;
   admin: Keypair;
   programId: PublicKey;
-  program: Program;
+  program: InstanceType<typeof Program>;
   configPda: PublicKey;
 };
 

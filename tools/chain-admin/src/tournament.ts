@@ -8,7 +8,8 @@
  *   tournament show <env> <weekId>
  */
 import { readFileSync } from "node:fs";
-import { BN } from "@coral-xyz/anchor";
+import anchor from "@coral-xyz/anchor";
+const { BN } = anchor;
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 

@@ -5,7 +5,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-neonshift_core = "5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf"
+neonshift_core = "6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA"
 
 [programs.localnet]
 neonshift_core = "6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA"
