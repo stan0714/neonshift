@@ -120,11 +120,18 @@ export function HomeScreen() {
         <Text variant="label" tone="muted" uppercase>
           Today
         </Text>
-        <Pressable onPress={() => navigation.navigate('ActivityHistory')} accessibilityRole="link" hitSlop={8} testID="home-activity-link">
-          <Text variant="label" tone="cyan" uppercase>
-            Activity ›
-          </Text>
-        </Pressable>
+        <View style={styles.links}>
+          <Pressable onPress={() => navigation.navigate('Gallery')} accessibilityRole="link" hitSlop={8} testID="home-gallery-link">
+            <Text variant="label" tone="cyan" uppercase>
+              Gallery
+            </Text>
+          </Pressable>
+          <Pressable onPress={() => navigation.navigate('ActivityHistory')} accessibilityRole="link" hitSlop={8} testID="home-activity-link">
+            <Text variant="label" tone="cyan" uppercase>
+              Activity ›
+            </Text>
+          </Pressable>
+        </View>
       </View>
       <View style={styles.cards}>
         <DataCard icon="activity" label="Steps" value={steps.value.toLocaleString()} unit="steps" goalLabel={`Goal ${steps.goal.toLocaleString()}`} ratio={steps.ratio} tint={color.mint} statusText={stepsStatus} outdated={outdated || Boolean(d.health?.error)} testID="card-steps" />
@@ -169,6 +176,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.canvas },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   section: { marginTop: space.xl, marginBottom: space.xs },
+  links: { flexDirection: 'row', gap: space.m },
   cards: { flexDirection: 'row' },
   gap: { width: space.s },
   utc: { marginTop: space.xs },

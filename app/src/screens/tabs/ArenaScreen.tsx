@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { PublicKey } from '@solana/web3.js';
+import { useNavigation } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
@@ -20,6 +21,7 @@ const tskr = (units: string | bigint) => `${formatTskr(typeof units === 'string'
  * 賽事狀態由後端讀鏈上；質押、領獎、退款走 MWA；步數回報走錢包簽章 challenge。
  */
 export function ArenaScreen() {
+  const navigation = useNavigation();
   const session = useWalletStore((s) => s.session);
   const config = useDashboardStore((s) => s.config);
   const a = useArenaStore();
@@ -202,7 +204,7 @@ export function ArenaScreen() {
                 a.leaderboard.entries.slice(0, 25).map((e) => {
                   const you = session?.address === e.wallet;
                   return (
-                    <View key={e.wallet} style={[styles.boardRow, you && styles.boardRowYou]} testID={you ? 'leaderboard-you' : undefined}>
+                    <Pressable key={e.wallet} onPress={() => navigation.navigate('GalleryPlayer', { wallet: e.wallet })} accessibilityRole="button" accessibilityLabel={`${you ? 'You' : shortAddress(e.wallet)}, rank ${e.rank}. Open player`} style={[styles.boardRow, you && styles.boardRowYou]} testID={you ? 'leaderboard-you' : `leaderboard-${e.rank}`}>
                       <Text variant="title" numeric style={styles.rank}>
                         #{e.rank}
                       </Text>
@@ -212,7 +214,7 @@ export function ArenaScreen() {
                       <Text variant="body" numeric tone={you ? 'mint' : 'primary'}>
                         {e.verified_steps.toLocaleString()}
                       </Text>
-                    </View>
+                    </Pressable>
                   );
                 })
               )}
