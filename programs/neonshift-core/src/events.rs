@@ -32,3 +32,9 @@ pub struct PauseChanged {
     pub paused: bool,
     pub at: i64,
 }
+
+#[event]
+pub struct PlayerInitialized {
+    pub wallet: Pubkey,
+    pub profile: Pubkey,
+}

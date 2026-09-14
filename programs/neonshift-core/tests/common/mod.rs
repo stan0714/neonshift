@@ -191,3 +191,29 @@ pub fn admin_ix(admin: &Pubkey, data: Vec<u8>) -> Instruction {
         neonshift_core::accounts::AdminOnly { admin: *admin, config }.to_account_metas(None),
     )
 }
+
+pub fn player_pda(wallet: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[PLAYER_SEED, wallet.as_ref()], &neonshift_core::id())
+}
+
+pub fn init_player_ix(player: &Pubkey) -> Instruction {
+    use anchor_lang::solana_program::system_program;
+    Instruction::new_with_bytes(
+        neonshift_core::id(),
+        &neonshift_core::instruction::InitPlayer {}.data(),
+        neonshift_core::accounts::InitPlayer {
+            player: *player,
+            config: config_pda().0,
+            profile: player_pda(player).0,
+            system_program: system_program::ID,
+        }
+        .to_account_metas(None),
+    )
+}
+
+/// 建立並資助一個玩家錢包
+pub fn new_player(svm: &mut LiteSVM) -> Keypair {
+    let k = Keypair::new();
+    svm.airdrop(&k.pubkey(), 5_000_000_000).unwrap();
+    k
+}

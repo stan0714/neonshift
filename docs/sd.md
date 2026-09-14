@@ -214,7 +214,7 @@ graph TB
 | `set_paused` | admin 多簽 | 進入 pause 時記錄 `paused_at`（重複 pause 不重設）。pause 範圍【2026-09-14 定案】：`clock_in`、`mint_shoe`、`upgrade_core`、`join_tournament` 拒絕（6000）；`claim_prize`、`refund_all` 與管理指令不受影響，使用者永遠能取回資金 | `PauseChanged` |
 | `update_config` | admin 多簽 | 全欄位可選、整筆以 `initialize_config` 同一套規則驗證。`daily_cap`、`base_*_reward`、`streak_*`、`core_multiplier_bps` 為 BR-24 受控欄位，只能在 `paused && now - paused_at >= 600` 時更新（否則 6025）；`admin`、`burn_bps`、`core_upgrade_costs`、`shoe_xp_thresholds` 可即時更新。不影響已簽發證明或進行中賽事（賽事金額在建立時固定） | `ConfigUpdated` |
 | `rotate_attestor` | admin 多簽 | `grace_seconds` 0～600：>0 時舊鑰保留至 `now + grace`，0 表示立即失效（外洩處置）；新鑰不得為 default 或與現行相同 | `AttestorRotated` |
-| `init_player` | player | 帳戶未存在 | `PlayerInitialized` |
+| `init_player` | player | 帳戶未存在（PDA `init`）；需 Config 已初始化；不受 pause 影響（無資金流，onboarding 不中斷）；core／shoe level 起始 1、其餘欄位 0 | `PlayerInitialized` |
 | `mint_shoe` | player | `shoe_asset` 為預設值 | `ShoeMinted` |
 | `clock_in` | player | 見 3.3 | `ClockedIn` |
 | `upgrade_core` | player | 等級 < 5、餘額足夠、token program／mint／vault 正確；原子扣款 | `CoreUpgraded` |

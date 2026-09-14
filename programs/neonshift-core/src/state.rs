@@ -64,3 +64,35 @@ impl Config {
                 && now < self.prev_attestor_valid_until)
     }
 }
+
+/// PDA seeds `["player", wallet]`
+#[account]
+#[derive(InitSpace)]
+pub struct PlayerProfile {
+    pub wallet: Pubkey,
+    /// 跑鞋資產位址；`Pubkey::default()` 表示未鑄造
+    pub shoe_asset: Pubkey,
+    /// 1～5，只能透過付費升級改變，控制獎勵倍率（BR-23）
+    pub core_level: u8,
+    /// 1～5，由 XP 門檻自動提升，只影響外觀（BR-23）
+    pub shoe_level: u8,
+    pub xp: u64,
+    /// 最近完成任務的 UTC 日序
+    pub last_task_date: u32,
+    pub streak_days: u16,
+    /// 當日已領取量，`task_date` 變更時歸零
+    pub claimed_today: u64,
+    /// `claimed_today` 對應的日序
+    pub today_date: u32,
+    pub bump: u8,
+}
+
+impl PlayerProfile {
+    pub const SEED: &'static [u8] = crate::constants::PLAYER_SEED;
+    pub const MIN_LEVEL: u8 = 1;
+    pub const MAX_LEVEL: u8 = 5;
+
+    pub fn has_shoe(&self) -> bool {
+        self.shoe_asset != Pubkey::default()
+    }
+}

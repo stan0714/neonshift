@@ -33,6 +33,11 @@ pub mod neonshift_core {
         instructions::admin::handle_update_config(ctx, params)
     }
 
+    /// 建立 PlayerProfile PDA（玩家簽章、付 rent；每錢包一次）
+    pub fn init_player(ctx: Context<InitPlayer>) -> Result<()> {
+        instructions::init_player::handle_init_player(ctx)
+    }
+
     /// 輪替 attestor 公鑰（admin），寬限期 0～600 秒
     pub fn rotate_attestor(ctx: Context<AdminOnly>, new_attestor: Pubkey, grace_seconds: i64) -> Result<()> {
         instructions::admin::handle_rotate_attestor(ctx, new_attestor, grace_seconds)
