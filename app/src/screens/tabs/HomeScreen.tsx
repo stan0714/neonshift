@@ -129,6 +129,11 @@ export function HomeScreen() {
               {t('home.gallery')}
             </Text>
           </Pressable>
+          <Pressable onPress={() => navigation.navigate('Workouts')} accessibilityRole="link" hitSlop={8} testID="home-workouts-link">
+            <Text variant="label" tone="cyan" uppercase>
+              {t('home.workouts')}
+            </Text>
+          </Pressable>
           <Pressable onPress={() => navigation.navigate('ActivityHistory')} accessibilityRole="link" hitSlop={8} testID="home-activity-link">
             <Text variant="label" tone="cyan" uppercase>
               {t('home.activity')}

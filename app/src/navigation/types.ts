@@ -24,6 +24,8 @@ export type RootParamList = {
   Onboarding: NavigatorScreenParams<OnboardingParamList>;
   Main: NavigatorScreenParams<TabParamList>;
   ActivityHistory: undefined;
+  /** 運動紀錄（PG-R-01，FR-14.1）：匯入的跑步／健走摘要 */
+  Workouts: undefined;
   /** 藝廊（FR-13，Style 12.1）：全站排行與任意玩家公開頁 */
   Gallery: undefined;
   GalleryPlayer: { wallet: string };

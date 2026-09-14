@@ -79,6 +79,22 @@ export type StaffCheckinResult = { wallet: string; checkpoint_id: string; displa
 export type EventResultRow = { display_name: string; discipline: string; division: string | null; finish_status: 'finished' | 'dnf' | 'dns' | 'dq'; distance_m: number; elapsed_ms: number; rank: number | null; rank_source: 'organizer' | null; published_at: string };
 export type EventResults = { event_id: string; slug: string; total_finished: number; results: EventResultRow[]; non_finishers: EventResultRow[]; source: 'organizer' };
 export type MyResult = { revision_id: string; import_id: string; discipline: string; division: string | null; finish_status: 'finished' | 'dnf' | 'dns' | 'dq'; distance_m: number; elapsed_ms: number; rank: number | null; previous_revision_id: string | null; reason: string | null; published_at: string };
+// PG-R-01：運動 session 摘要（大整數以十進位字串傳遞）
+export type WorkoutOrigin = 'health_connect' | 'device' | 'gps' | 'organizer' | 'manual';
+export type WorkoutQuality = 'complete' | 'partial' | 'estimated' | 'needs_review' | 'invalid';
+export type WorkoutImportInput = {
+  sport: 'run' | 'walk'; environment?: 'outdoor' | 'indoor' | 'unknown'; origin: WorkoutOrigin; source_id: string; external_record_id: string; source_revision?: number;
+  started_at: string; ended_at: string; paused_ms?: string; distance_mm?: string | null; distance_method?: 'device' | 'gps' | 'estimated' | 'organizer' | null; steps?: number | null;
+  active_energy_mkcal?: string | null; energy_method?: 'device' | 'estimated' | 'total' | null; total_energy_mkcal?: string | null; step_length_mm?: number | null; client_flags?: string[]; extras?: Record<string, unknown>;
+};
+export type WorkoutSummary = {
+  session_id: string; sport: 'run' | 'walk'; environment: 'outdoor' | 'indoor' | 'unknown';
+  source: { origin: WorkoutOrigin; source_id: string; external_record_id: string; source_revision: number };
+  started_at: string; ended_at: string; elapsed_ms: string; paused_ms: string; status: 'saved' | 'needs_review' | 'invalid' | 'deleted'; quality: WorkoutQuality; rules_version: number; review_reasons: string[]; possible_duplicate_of: string | null;
+  metrics: { distance: { value_mm: string; method: string | null } | null; steps: number | null; active_energy: { value_mkcal: string; method: string | null } | null; total_energy: { value_mkcal: string } | null; avg_pace_s_per_km: number | null; avg_speed_kmh: number | null; step_length_mm: number | null };
+  pb_eligible: boolean; extras: Record<string, unknown>; revision: number; imported_at: string; updated_at: string;
+};
+export type WorkoutImportResult = { imported: number; results: ({ external_record_id: string; outcome: 'created' | 'superseded' | 'same' | 'stale' | 'deleted'; session: WorkoutSummary } | { external_record_id: string; outcome: 'invalid'; reasons: string[] })[] };
 export type EventBenefit = { benefit_id: string; kind: 'physical' | 'digital_badge'; name: string; remaining: number; per_person_limit: number; requires_checkin: boolean; claim_deadline: string | null };
 export type RedemptionStatus = 'reserved' | 'fulfilled' | 'expired' | 'cancelled';
 export type Redemption = { redemption_id: string; benefit_id: string; quantity: number; status: RedemptionStatus; claim_code: string | null; reserved_at: string; reserved_until: string; fulfilled_at: string | null; credential_id: string | null };
@@ -229,6 +245,20 @@ export class ApiClient {
 
   staffCheckins(eventId: string): Promise<{ check_ins: { wallet: string; checkpoint_id: string; confirmed_at: string; method: string }[] }> {
     return this.request('GET', `/partner/events/${encodeURIComponent(eventId)}/check-ins`);
+  }
+
+  // PG-R-01：運動 session
+  importWorkouts(sessions: WorkoutImportInput[]): Promise<WorkoutImportResult> {
+    return this.request('POST', '/workouts/import', { sessions });
+  }
+
+  myWorkouts(q: { limit?: number; offset?: number } = {}): Promise<{ items: WorkoutSummary[]; rules_version: number }> {
+    const qs = Object.entries(q).filter(([, v]) => v !== undefined).map(([k, v]) => `${k}=${v}`).join('&');
+    return this.request('GET', `/me/workouts${qs ? `?${qs}` : ''}`);
+  }
+
+  deleteWorkout(sessionId: string): Promise<unknown> {
+    return this.requestRaw('DELETE', `/me/workouts/${encodeURIComponent(sessionId)}`);
   }
 
   // PG-E-08：成績榜、個人成績冊、公開同意

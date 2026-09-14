@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -709,6 +709,74 @@ export class PostgresStore implements Store {
     }
     return counts;
   }
+  // ---- PG-R-01 ----
+  private workoutRow(x: Row): WorkoutSession {
+    const big = (v: unknown) => (v === null || v === undefined ? null : BigInt(v as string));
+    return {
+      sessionId: x.session_id as string, wallet: x.wallet as string, sport: x.sport as WorkoutSession["sport"], environment: x.environment as WorkoutSession["environment"], origin: x.origin as WorkoutSession["origin"],
+      sourceId: x.source_id as string, externalRecordId: x.external_record_id as string, sourceRevision: Number(x.source_revision), startedAt: x.started_at as Date, endedAt: x.ended_at as Date, elapsedMs: BigInt(x.elapsed_ms as string), pausedMs: BigInt(x.paused_ms as string),
+      status: x.status as WorkoutSession["status"], quality: x.quality as WorkoutSession["quality"], rulesVersion: Number(x.rules_version),
+      distanceMm: big(x.distance_mm), distanceMethod: (x.distance_method as WorkoutSession["distanceMethod"]) ?? null, steps: x.steps === null ? null : Number(x.steps), activeEnergyMkcal: big(x.active_energy_mkcal), energyMethod: (x.energy_method as WorkoutSession["energyMethod"]) ?? null, totalEnergyMkcal: big(x.total_energy_mkcal), stepLengthMm: x.step_length_mm === null ? null : Number(x.step_length_mm),
+      pbEligible: Boolean(x.pb_eligible), possibleDuplicateOf: (x.possible_duplicate_of as string | null) ?? null, reviewReasons: (x.review_reasons as string[]) ?? [], extras: (x.extras as Record<string, unknown>) ?? {}, requestHash: x.request_hash as Buffer, revision: Number(x.revision), importedAt: x.imported_at as Date, updatedAt: x.updated_at as Date, deletedAt: (x.deleted_at as Date | null) ?? null,
+    };
+  }
+  private static readonly WORKOUT_COLS = "wallet, sport, environment, origin, source_id, external_record_id, source_revision, started_at, ended_at, elapsed_ms, paused_ms, status, quality, rules_version, distance_mm, distance_method, steps, active_energy_mkcal, energy_method, total_energy_mkcal, step_length_mm, pb_eligible, review_reasons, extras, request_hash";
+  private workoutParams(w: Omit<WorkoutSession, "revision" | "importedAt" | "updatedAt" | "deletedAt" | "possibleDuplicateOf">) {
+    return [w.wallet, w.sport, w.environment, w.origin, w.sourceId, w.externalRecordId, w.sourceRevision, w.startedAt, w.endedAt, w.elapsedMs.toString(), w.pausedMs.toString(), w.status, w.quality, w.rulesVersion, w.distanceMm?.toString() ?? null, w.distanceMethod, w.steps, w.activeEnergyMkcal?.toString() ?? null, w.energyMethod, w.totalEnergyMkcal?.toString() ?? null, w.stepLengthMm, w.pbEligible, JSON.stringify(w.reviewReasons), JSON.stringify(w.extras), w.requestHash];
+  }
+  async upsertWorkout(w: Omit<WorkoutSession, "revision" | "importedAt" | "updatedAt" | "deletedAt" | "possibleDuplicateOf">, now: Date) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      // 同錢包序列化（跨來源重複判定需看同一時刻的其他紀錄）
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`workout:${w.wallet}`]);
+      const cur = await client.query(`SELECT * FROM workout_sessions WHERE wallet = $1 AND origin = $2 AND external_record_id = $3 FOR UPDATE`, [w.wallet, w.origin, w.externalRecordId]);
+      const existing = cur.rows[0] ? this.workoutRow(cur.rows[0] as Row) : null;
+      const dupOf = async (selfId: string | null) => {
+        const d = await client.query(
+          `SELECT session_id FROM workout_sessions WHERE wallet = $1 AND deleted_at IS NULL AND origin <> $2 AND ($5::uuid IS NULL OR session_id <> $5)
+             AND GREATEST(0, EXTRACT(EPOCH FROM (LEAST(ended_at, $4::timestamptz) - GREATEST(started_at, $3::timestamptz)))) >= 0.5 * LEAST(EXTRACT(EPOCH FROM (ended_at - started_at)), EXTRACT(EPOCH FROM ($4::timestamptz - $3::timestamptz)))
+           ORDER BY imported_at LIMIT 1`,
+          [w.wallet, w.origin, w.startedAt, w.endedAt, selfId],
+        );
+        return ((d.rows[0] as Row | undefined)?.session_id as string | undefined) ?? null;
+      };
+      if (existing) {
+        if (existing.deletedAt && w.sourceRevision <= existing.sourceRevision) { await client.query("ROLLBACK"); return { outcome: "deleted" as const, session: existing }; }
+        if (w.sourceRevision < existing.sourceRevision) { await client.query("ROLLBACK"); return { outcome: "stale" as const, session: existing }; }
+        if (w.sourceRevision === existing.sourceRevision && !existing.deletedAt) { await client.query("ROLLBACK"); return { outcome: "same" as const, session: existing }; }
+        const dup = await dupOf(existing.sessionId);
+        const sets = PostgresStore.WORKOUT_COLS.split(", ").map((c, i) => `${c} = $${i + 3}`).join(", ");
+        const r = await client.query(`UPDATE workout_sessions SET ${sets}, revision = revision + 1, updated_at = $2, deleted_at = NULL, possible_duplicate_of = $${PostgresStore.WORKOUT_COLS.split(", ").length + 3} WHERE session_id = $1 RETURNING *`, [existing.sessionId, now, ...this.workoutParams(w), dup]);
+        await client.query("COMMIT");
+        return { outcome: "superseded" as const, session: this.workoutRow(r.rows[0] as Row) };
+      }
+      const dup = await dupOf(null);
+      const n = PostgresStore.WORKOUT_COLS.split(", ").length;
+      const placeholders = Array.from({ length: n }, (_, i) => `$${i + 3}`).join(",");
+      const r = await client.query(`INSERT INTO workout_sessions (session_id, imported_at, updated_at, ${PostgresStore.WORKOUT_COLS}, possible_duplicate_of) VALUES ($1,$2,$2,${placeholders},$${n + 3}) RETURNING *`, [w.sessionId, now, ...this.workoutParams(w), dup]);
+      await client.query("COMMIT");
+      return { outcome: "created" as const, session: this.workoutRow(r.rows[0] as Row) };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+  async listWorkouts(wallet: string, limit: number, offset: number) {
+    const r = await this.pool.query(`SELECT * FROM workout_sessions WHERE wallet = $1 AND deleted_at IS NULL ORDER BY started_at DESC LIMIT $2 OFFSET $3`, [wallet, limit, offset]);
+    return (r.rows as Row[]).map((x) => this.workoutRow(x));
+  }
+  async getWorkout(wallet: string, sessionId: string) {
+    const r = await this.pool.query(`SELECT * FROM workout_sessions WHERE wallet = $1 AND session_id = $2 AND deleted_at IS NULL`, [wallet, sessionId]);
+    return r.rows[0] ? this.workoutRow(r.rows[0] as Row) : null;
+  }
+  async deleteWorkout(wallet: string, sessionId: string, now: Date) {
+    const r = await this.pool.query(`UPDATE workout_sessions SET deleted_at = $3, status = 'deleted', updated_at = $3 WHERE wallet = $1 AND session_id = $2 AND deleted_at IS NULL`, [wallet, sessionId, now]);
+    if ((r.rowCount ?? 0) > 0) await this.pool.query(`UPDATE workout_sessions SET possible_duplicate_of = NULL WHERE possible_duplicate_of = $1`, [sessionId]);
+    return (r.rowCount ?? 0) > 0;
+  }
   async listResultHistory(eventId: string, wallet: string) {
     const r = await this.pool.query(`SELECT r.* FROM result_revisions r JOIN result_imports i ON i.import_id = r.import_id WHERE r.event_id = $1 AND r.wallet = $2 ORDER BY r.published_at DESC, i.import_version DESC`, [eventId, wallet]);
     return (r.rows as Row[]).map((x) => this.revisionRow(x));
@@ -891,6 +959,8 @@ export class PostgresStore implements Store {
         attestations = (await client.query(`DELETE FROM attestations WHERE wallet = $1`, [wallet])).rowCount ?? 0;
         claimResults = (await client.query(`DELETE FROM claim_results WHERE wallet = $1`, [wallet])).rowCount ?? 0;
         await client.query(`DELETE FROM tournament_steps WHERE wallet = $1`, [wallet]);
+        await client.query(`UPDATE workout_sessions SET possible_duplicate_of = NULL WHERE wallet = $1`, [wallet]);
+        await client.query(`DELETE FROM workout_sessions WHERE wallet = $1`, [wallet]); // PG-R-01：運動摘要一併刪除
       }
       await client.query("COMMIT");
       if (!deferUntil) await this.deleteWalletEventData(wallet, now); // BR-32：活動個人層資料一併刪除（各活動獨立交易）

@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.20（活動保留） |
+| 文件版本 | v0.21（運動 session） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -967,6 +967,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.21 | 2026-09-14 | PG-R-01：運動 session 摘要 schema、去重／版本、匯入 API 與 App 清單 |
 | v0.20 | 2026-09-14 | PG-E-09：宣傳轉換、活動保留清理與 player 刪除同步 |
 | v0.19 | 2026-09-14 | PG-E-07／E-08：CSV staging、發布與更正歷史、公開榜／成績冊實作說明 |
 | v0.18 | 2026-09-14 | PG-E-06：品項庫存、原子預留／交付、數位徽章實作說明 |
@@ -1032,6 +1033,8 @@ App `config/shoeProgression.ts` 集中管理五階名稱、材質色、預覽門
 Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量只作私人參考。PB 簽章、eligibility registry、成績 revision、metadata hash 與唯一 receipt 須一起驗證，不能只新增藝廊卡片就宣稱具備可信 PB 鑄造。精確公開資訊與私人長期 PB 摘要要有獨立同意及保存政策。
 
 第 12 章素材替換契約保留；其中 Core 分離的舊驗收以最新免費同步升級規格為準。此次不變更既有免費升級鏈上程式。
+
+**實作（2026-09-14，PG-R-01）**：migration 0009 `workout_sessions`（整數毫米／毫秒／步數／毫 kcal；`UNIQUE (wallet, origin, external_record_id)`；sport 只允許 run｜walk；品質／狀態／方法 CHECK；`request_hash` sha256 canonical 請求）。`backend/src/workouts/schema.ts`：匯入 schema（大整數收十進位字串或安全整數、`.strict()` 拒絕伺服器衍生欄位）與 `derive()`：經過時間＝end−start（含暫停）、估算距離只在有校準步長時 `steps × step_length_mm`（不套通用步長）、每分鐘 250 步與 25／12 km/h（跑／走）上限超過即 needs_review、`energy_method=total` 且填 active 標記、manual 不具資格；品質 complete／partial／estimated／needs_review／invalid；`pb_eligible`＝run＋complete＋量測距離＋非手動（供 R-07／08）。API：`POST /workouts/import`（≤ 50 筆、敏感限流；每筆回 created｜superseded｜same｜stale｜deleted｜invalid）、`GET /me/workouts`、`GET／DELETE /me/workouts/{id}`（tombstone）。Store：同 (wallet, origin, external_record_id) 以 `source_revision` 決定 same／stale／superseded（revision+1、衍生重算）；tombstone 擋 ≤ 已刪 revision 的重建；跨來源時間重疊 ≥ 50% 的另一筆標 `possible_duplicate_of`（不合併、不相加，PG 以 advisory lock 序列化同錢包）；`DELETE /player/data` 一併刪除。App：`domain/workouts.ts`（Health Connect ExerciseSession → payload：RUNNING／RUNNING_TREADMILL／WALKING 才接受、m→mm、kcal→mkcal、Active／Total 分開、record id 缺時 `origin:start` 組鍵）、`services/workouts/importer.ts`（30 天、分批 50、原生模組未提供 `readExerciseSessions` 時回 unavailable）、`WorkoutsScreen`（Style 23.1）。原生 Health Connect ExerciseSession 讀取屬 PG-R-02。
 
 ## 14. 等級維持／權限契約（新設計待實作）
 

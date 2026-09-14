@@ -1,5 +1,5 @@
 import { compareLeaderboard } from "./leaderboard.js";
-import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -31,6 +31,7 @@ export class MemoryStore implements Store {
   campaign = new Map<string, { source: string; day: string; views: number; registrations: number; checkins: number; redemptions: number }>();
   benefits = new Map<string, EventBenefit>();
   resultImports = new Map<string, ResultImport>();
+  workouts = new Map<string, WorkoutSession>();
   resultRevisions: ResultRevision[] = [];
   redemptions = new Map<string, EventRedemption>();
 
@@ -473,6 +474,48 @@ export class MemoryStore implements Store {
     for (const p of [...this.participants.values()]) if (p.wallet === wallet) this.wipeWalletInEvent(p.eventId, wallet, counts);
     return counts;
   }
+  // ---- PG-R-01 ----
+  private overlapRatio(a: { startedAt: Date; endedAt: Date }, b: { startedAt: Date; endedAt: Date }) {
+    const s = Math.max(a.startedAt.getTime(), b.startedAt.getTime());
+    const e = Math.min(a.endedAt.getTime(), b.endedAt.getTime());
+    const shorter = Math.min(a.endedAt.getTime() - a.startedAt.getTime(), b.endedAt.getTime() - b.startedAt.getTime());
+    return shorter > 0 ? Math.max(0, e - s) / shorter : 0;
+  }
+  async upsertWorkout(w: Omit<WorkoutSession, "revision" | "importedAt" | "updatedAt" | "deletedAt" | "possibleDuplicateOf">, now: Date) {
+    const existing = [...this.workouts.values()].find((x) => x.wallet === w.wallet && x.origin === w.origin && x.externalRecordId === w.externalRecordId);
+    if (existing) {
+      if (existing.deletedAt && w.sourceRevision <= existing.sourceRevision) return { outcome: "deleted" as const, session: { ...existing } };
+      if (w.sourceRevision < existing.sourceRevision) return { outcome: "stale" as const, session: { ...existing } };
+      if (w.sourceRevision === existing.sourceRevision && !existing.deletedAt) return { outcome: "same" as const, session: { ...existing } };
+      const dup = this.findDuplicate(w, existing.sessionId);
+      Object.assign(existing, { ...w, sessionId: existing.sessionId, revision: existing.revision + 1, updatedAt: now, deletedAt: null, possibleDuplicateOf: dup });
+      return { outcome: "superseded" as const, session: { ...existing } };
+    }
+    const dup = this.findDuplicate(w, null);
+    const row: WorkoutSession = { ...w, revision: 1, importedAt: now, updatedAt: now, deletedAt: null, possibleDuplicateOf: dup };
+    this.workouts.set(row.sessionId, row);
+    return { outcome: "created" as const, session: { ...row } };
+  }
+  private findDuplicate(w: { wallet: string; origin: string; startedAt: Date; endedAt: Date }, selfId: string | null) {
+    const other = [...this.workouts.values()].filter((x) => x.wallet === w.wallet && x.sessionId !== selfId && !x.deletedAt && x.origin !== w.origin && this.overlapRatio(x, w) >= 0.5).sort((a, b) => a.importedAt.getTime() - b.importedAt.getTime())[0];
+    return other?.sessionId ?? null;
+  }
+  async listWorkouts(wallet: string, limit: number, offset: number) {
+    return [...this.workouts.values()].filter((x) => x.wallet === wallet && !x.deletedAt).sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime()).slice(offset, offset + limit).map((x) => ({ ...x }));
+  }
+  async getWorkout(wallet: string, sessionId: string) {
+    const x = this.workouts.get(sessionId);
+    return x && x.wallet === wallet && !x.deletedAt ? { ...x } : null;
+  }
+  async deleteWorkout(wallet: string, sessionId: string, now: Date) {
+    const x = this.workouts.get(sessionId);
+    if (!x || x.wallet !== wallet || x.deletedAt) return false;
+    x.deletedAt = now;
+    x.status = "deleted";
+    x.updatedAt = now;
+    for (const o of this.workouts.values()) if (o.possibleDuplicateOf === sessionId) o.possibleDuplicateOf = null;
+    return true;
+  }
   async listResultHistory(eventId: string, wallet: string) {
     // 同一時刻發布時以插入順序為準（後發布者在前）
     return this.resultRevisions.filter((x) => x.eventId === eventId && x.wallet === wallet).reverse().sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime()).map((x) => ({ ...x }));
@@ -620,6 +663,7 @@ export class MemoryStore implements Store {
     let claimResults = 0;
     for (const [k, r] of this.claimResults) if (r.wallet === wallet) { this.claimResults.delete(k); claimResults++; }
     await this.deleteWalletEventData(wallet, now); // BR-32：活動個人層資料一併刪除
+    for (const [k, x] of this.workouts) if (x.wallet === wallet) this.workouts.delete(k); // PG-R-01：運動摘要一併刪除
     return { deferred: false, deletionDueAt: null, deleted: { snapshots: before - this.snapshots.length, attestations, claimResults, sessions } };
   }
 }

@@ -332,7 +332,26 @@ export interface PartnerStore {
   purgeEventData(cutoff: Date, now: Date): Promise<{ events: string[]; participants: number; checkins: number; redemptions: number; results: number }>;
   /** DELETE /player/data 同步：刪除該錢包在所有活動的個人層資料（未交付預留釋放、已交付只留匿名計數） */
   deleteWalletEventData(wallet: string, now: Date): Promise<{ participants: number; checkins: number; redemptions: number; results: number }>;
+
+  // ---- PG-R-01：運動 session 摘要 ----
+  /**
+   * 去重／版本：同 (wallet, origin, external_record_id) 已存在時，source_revision 較小回 "stale"、相同回 "same"（原紀錄）、較大則取代（revision+1、狀態重算）；
+   * tombstone（deleted_at）擋掉 ≤ 已刪除 revision 的重建。跨來源時間重疊 ≥ 50% 的另一筆標 possible_duplicate_of（不合併、不相加）。
+   */
+  upsertWorkout(w: Omit<WorkoutSession, "revision" | "importedAt" | "updatedAt" | "deletedAt" | "possibleDuplicateOf">, now: Date): Promise<{ outcome: "created" | "superseded" | "same" | "stale" | "deleted"; session: WorkoutSession }>;
+  listWorkouts(wallet: string, limit: number, offset: number): Promise<WorkoutSession[]>;
+  getWorkout(wallet: string, sessionId: string): Promise<WorkoutSession | null>;
+  /** tombstone：status=deleted、deleted_at；回 false 表示不存在或已刪 */
+  deleteWorkout(wallet: string, sessionId: string, now: Date): Promise<boolean>;
 }
+
+export type WorkoutSession = {
+  sessionId: string; wallet: string; sport: "run" | "walk"; environment: "outdoor" | "indoor" | "unknown"; origin: "health_connect" | "device" | "gps" | "organizer" | "manual";
+  sourceId: string; externalRecordId: string; sourceRevision: number; startedAt: Date; endedAt: Date; elapsedMs: bigint; pausedMs: bigint;
+  status: "saved" | "needs_review" | "invalid" | "deleted"; quality: "complete" | "partial" | "estimated" | "needs_review" | "invalid"; rulesVersion: number;
+  distanceMm: bigint | null; distanceMethod: "device" | "gps" | "estimated" | "organizer" | null; steps: number | null; activeEnergyMkcal: bigint | null; energyMethod: "device" | "estimated" | "total" | null; totalEnergyMkcal: bigint | null; stepLengthMm: number | null;
+  pbEligible: boolean; possibleDuplicateOf: string | null; reviewReasons: string[]; extras: Record<string, unknown>; requestHash: Buffer; revision: number; importedAt: Date; updatedAt: Date; deletedAt: Date | null;
+};
 
 export type ResultImport = { importId: string; eventId: string; sourceKind: "csv" | "manual"; fileHash: Buffer; importVersion: number; rowCount: number; errorCount: number; stagedRows: StagedResult[]; errors: { line: number; field: string; message: string }[]; createdBy: string; createdAt: Date; publishedAt: Date | null; publishedBy: string | null };
 export type StagedResult = { line: number; wallet: string; discipline: string; division: string | null; finishStatus: "finished" | "dnf" | "dns" | "dq"; distanceM: number; elapsedMs: number; rank: number | null };

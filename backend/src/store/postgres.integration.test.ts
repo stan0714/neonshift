@@ -18,7 +18,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: url });
-    await pool.query("DELETE FROM event_badge_issues; DELETE FROM event_redemptions; DELETE FROM event_benefits; DELETE FROM result_revisions; DELETE FROM result_imports; DELETE FROM event_checkins; DELETE FROM checkin_challenges; DELETE FROM nfc_tags; DELETE FROM checkpoints; DELETE FROM campaign_aggregates; DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; UPDATE events SET current_rule_revision = NULL; DELETE FROM event_rule_revisions; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
+    await pool.query("UPDATE workout_sessions SET possible_duplicate_of = NULL; DELETE FROM workout_sessions; DELETE FROM event_badge_issues; DELETE FROM event_redemptions; DELETE FROM event_benefits; DELETE FROM result_revisions; DELETE FROM result_imports; DELETE FROM event_checkins; DELETE FROM checkin_challenges; DELETE FROM nfc_tags; DELETE FROM checkpoints; DELETE FROM campaign_aggregates; DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; UPDATE events SET current_rule_revision = NULL; DELETE FROM event_rule_revisions; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
     stores = [
       { name: "postgres", store: new PostgresStore(pool) },
       { name: "memory", store: new MemoryStore() },
@@ -331,4 +331,28 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       expect((await store.purgeEventData(new Date("2027-04-05T00:00:00Z"), later)).events, name).not.toContain(eventId);
     }
   }, 60_000); // 多筆交易；遠端 DB（SSH tunnel）每次往返較慢
+  it("workouts（R-01）：來源 revision 去重（same／stale／superseded）、跨來源可能重複、tombstone、刪除錢包", async () => {
+    for (const { name, store } of stores) {
+      const wallet = "W" + name;
+      const t0 = new Date("2026-09-14T00:00:00Z");
+      const mk = (over: Partial<Parameters<Store["upsertWorkout"]>[0]>) => ({ sessionId: randomUUID(), wallet, sport: "run" as const, environment: "outdoor" as const, origin: "health_connect" as const, sourceId: "watch", externalRecordId: "r1", sourceRevision: 1, startedAt: t0, endedAt: new Date(t0.getTime() + 1_500_000), elapsedMs: 1_500_000n, pausedMs: 0n, status: "saved" as const, quality: "complete" as const, rulesVersion: 1, distanceMm: 5_000_000n, distanceMethod: "device" as const, steps: 6000, activeEnergyMkcal: null, energyMethod: null, totalEnergyMkcal: null, stepLengthMm: null, pbEligible: true, reviewReasons: [], extras: {}, requestHash: Buffer.alloc(32, 9), ...over });
+      const a = await store.upsertWorkout(mk({}), t0);
+      expect(a.outcome, name).toBe("created");
+      expect((await store.upsertWorkout(mk({}), t0)).outcome, name).toBe("same");
+      const b = await store.upsertWorkout(mk({ sourceRevision: 2, distanceMm: 5_100_000n }), t0);
+      expect([b.outcome, b.session.sessionId === a.session.sessionId, b.session.revision, b.session.distanceMm], name).toEqual(["superseded", true, 2, 5_100_000n]);
+      expect((await store.upsertWorkout(mk({ sourceRevision: 1 }), t0)).outcome, name).toBe("stale");
+      const g = await store.upsertWorkout(mk({ origin: "gps", externalRecordId: "local", startedAt: new Date(t0.getTime() + 60_000), endedAt: new Date(t0.getTime() + 1_440_000), elapsedMs: 1_380_000n }), t0);
+      expect(g.session.possibleDuplicateOf, name).toBe(a.session.sessionId);
+      expect((await store.listWorkouts(wallet, 10, 0)).length, name).toBe(2);
+      expect(await store.deleteWorkout(wallet, a.session.sessionId, t0), name).toBe(true);
+      expect(await store.deleteWorkout(wallet, a.session.sessionId, t0), name).toBe(false);
+      expect((await store.getWorkout(wallet, g.session.sessionId))?.possibleDuplicateOf, name).toBeNull();
+      expect((await store.upsertWorkout(mk({ sourceRevision: 2 }), t0)).outcome, name).toBe("deleted");
+      expect((await store.upsertWorkout(mk({ sourceRevision: 3 }), t0)).outcome, name).toBe("superseded");
+      await store.upsertPlayer(wallet, t0);
+      await store.deletePlayerData(wallet, t0, null);
+      expect(await store.listWorkouts(wallet, 10, 0), name).toEqual([]);
+    }
+  });
 });

@@ -805,3 +805,7 @@ My collection 新增 Milestones；摘要可同時呈現首次、活動與 PB 卡
 延續既有深色、霓虹青綠／紫與數字字體設計，詳 [GPS 運動畫面規格](./walk-run-tracking.md)。開始頁分別選 Walking／Running 與戶外／室內；記錄頁走路主顯示 km/h、跑步主顯示 min/km，時間／距離為次要資訊。GPS 品質與暫停狀態需文字加圖示，不能只靠顏色。
 
 Lap／Pause 至少 48dp；Finish 置於暫停頁並確認。摘要分 Splits／Laps，未滿末段標 Partial，最高值標「最高速度（5 秒平均）」。跑道圈顯示「依距離估算」與剩餘公尺。缺值顯示 —，不使用 0 偽裝測量結果。記錄中降低動畫與裝飾，減少閱讀負擔；公開分享排除 GPS 路線。
+
+### 23.1 運動紀錄清單（PG-R-01 實作，2026-09-14）
+
+Home 「Workouts ›」進入 `WorkoutsScreen`：每筆一張 Surface — 標題「Run／Walk（· Indoor）」＋品質 Chip（Measured＝synced／Estimated、Partial＝neutral／Needs review＝devnet 警示色／Invalid＝offline），日期，四格指標（km、time、pace、kcal）以 `elevated` 底色成列；kcal 只有 Total 時顯示「350 kcal (total)」，缺值一律「—」。來源列「Source: Health Connect · <package>」＋步數；待審核原因與「可能重複」以 warning 文字列在指標下方，不合併、不相加。PB eligible 以 level Chip 標示（由後端判定，UI 不自行授予）。刪除為 caption danger 連結，需 Alert 確認並說明只移除 NeonShift 摘要。頂部「Import from Health Connect」secondary Button；原生模組未提供時以 info InlineState 說明，不假裝已匯入。
