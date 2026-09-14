@@ -1,5 +1,5 @@
 import { compareLeaderboard } from "./leaderboard.js";
-import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -32,6 +32,7 @@ export class MemoryStore implements Store {
   benefits = new Map<string, EventBenefit>();
   resultImports = new Map<string, ResultImport>();
   workouts = new Map<string, WorkoutSession>();
+  pbs = new Map<string, PbRevision>();
   resultRevisions: ResultRevision[] = [];
   redemptions = new Map<string, EventRedemption>();
 
@@ -516,6 +517,37 @@ export class MemoryStore implements Store {
     for (const o of this.workouts.values()) if (o.possibleDuplicateOf === sessionId) o.possibleDuplicateOf = null;
     return true;
   }
+  // ---- PG-R-07 ----
+  async listPbRevisions(wallet: string) {
+    return [...this.pbs.values()].filter((p) => p.wallet === wallet).map((p) => ({ ...p }));
+  }
+  async syncPbRevisions(wallet: string, desired: PbDesired[], now: Date) {
+    const mine = [...this.pbs.values()].filter((p) => p.wallet === wallet);
+    const byKey = new Map(mine.map((p) => [`${p.discipline}|${p.category}|${p.environment}|${p.verificationClass}|${p.timingBasis}|${p.rulesMajor}|${p.sourceKind}|${p.sourceId}`, p]));
+    const seen = new Set<string>();
+    for (const d of desired) {
+      const id = `${d.key}|${d.sourceKind}|${d.sourceId}`;
+      seen.add(id);
+      const prev = d.previousSourceId ? byKey.get(`${d.key}|${d.sourceKind}|${d.previousSourceId}`) ?? [...this.pbs.values()].find((p) => p.wallet === wallet && `${p.discipline}|${p.category}|${p.environment}|${p.verificationClass}|${p.timingBasis}|${p.rulesMajor}` === d.key && p.sourceId === d.previousSourceId) : null;
+      const cur = byKey.get(id);
+      if (cur) Object.assign(cur, { value: d.value, sourceRevision: d.sourceRevision, achievedAt: d.achievedAt, status: d.status, isBaseline: d.isBaseline, previousPbId: prev?.pbId ?? null, invalidatedAt: null, reason: null });
+      else {
+        const row: PbRevision = { pbId: `pb-${this.pbs.size + 1}`, wallet, discipline: d.discipline, category: d.category, environment: d.environment, verificationClass: d.verificationClass, timingBasis: d.timingBasis, rulesMajor: d.rulesMajor, value: d.value, sourceKind: d.sourceKind, sourceId: d.sourceId, sourceRevision: d.sourceRevision, achievedAt: d.achievedAt, status: d.status, isBaseline: d.isBaseline, previousPbId: prev?.pbId ?? null, createdAt: now, invalidatedAt: null, reason: null };
+        this.pbs.set(row.pbId, row);
+        byKey.set(id, row);
+      }
+    }
+    for (const p of mine) {
+      const id = `${p.discipline}|${p.category}|${p.environment}|${p.verificationClass}|${p.timingBasis}|${p.rulesMajor}|${p.sourceKind}|${p.sourceId}`;
+      if (!seen.has(id) && p.status !== "invalidated") { p.status = "invalidated"; p.invalidatedAt = now; p.reason = "source_removed_or_corrected"; }
+    }
+    return this.listPbRevisions(wallet);
+  }
+  async listCurrentResultsForWallet(wallet: string) {
+    const latest = new Map<string, ResultRevision>();
+    for (const x of [...this.resultRevisions].sort((a, b) => a.publishedAt.getTime() - b.publishedAt.getTime())) if (x.wallet === wallet) latest.set(`${x.eventId}|${x.discipline}`, x);
+    return [...latest.values()].map((x) => ({ ...x }));
+  }
   async listResultHistory(eventId: string, wallet: string) {
     // 同一時刻發布時以插入順序為準（後發布者在前）
     return this.resultRevisions.filter((x) => x.eventId === eventId && x.wallet === wallet).reverse().sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime()).map((x) => ({ ...x }));
@@ -664,6 +696,7 @@ export class MemoryStore implements Store {
     for (const [k, r] of this.claimResults) if (r.wallet === wallet) { this.claimResults.delete(k); claimResults++; }
     await this.deleteWalletEventData(wallet, now); // BR-32：活動個人層資料一併刪除
     for (const [k, x] of this.workouts) if (x.wallet === wallet) this.workouts.delete(k); // PG-R-01：運動摘要一併刪除
+    for (const [k, x] of this.pbs) if (x.wallet === wallet) this.pbs.delete(k); // PG-R-07：PB 一併刪除
     return { deferred: false, deletionDueAt: null, deleted: { snapshots: before - this.snapshots.length, attestations, claimResults, sessions } };
   }
 }

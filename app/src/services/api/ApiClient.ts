@@ -94,6 +94,10 @@ export type WorkoutSummary = {
   metrics: { distance: { value_mm: string; method: string | null } | null; steps: number | null; active_energy: { value_mkcal: string; method: string | null } | null; total_energy: { value_mkcal: string } | null; avg_pace_s_per_km: number | null; avg_speed_kmh: number | null; step_length_mm: number | null };
   pb_eligible: boolean; extras: Record<string, unknown>; revision: number; imported_at: string; updated_at: string;
 };
+export type PbCategory = 'fastest_1k' | 'fastest_5k' | 'fastest_10k' | 'fastest_half' | 'fastest_marathon' | 'longest_run';
+export type PbView = { pb_id: string; category: PbCategory; environment: string; verification_class: 'organizer' | 'device'; timing_basis: string; rules_major: number; value: string; unit: 'ms' | 'mm'; source: { kind: 'workout' | 'result'; id: string; revision: number }; achieved_at: string; status: 'current' | 'historical' | 'invalidated'; is_baseline: boolean; previous_pb_id: string | null; invalidated_at: string | null; reason: string | null };
+export type PbGroup = { key: string; category: PbCategory; environment: string; verification_class: 'organizer' | 'device'; timing_basis: string; current: PbView | null; history: PbView[] };
+export type PersonalBests = { rules_major: number; imported_since: string | null; groups: PbGroup[] };
 export type WorkoutImportResult = { imported: number; results: ({ external_record_id: string; outcome: 'created' | 'superseded' | 'same' | 'stale' | 'deleted'; session: WorkoutSummary } | { external_record_id: string; outcome: 'invalid'; reasons: string[] })[] };
 export type EventBenefit = { benefit_id: string; kind: 'physical' | 'digital_badge'; name: string; remaining: number; per_person_limit: number; requires_checkin: boolean; claim_deadline: string | null };
 export type RedemptionStatus = 'reserved' | 'fulfilled' | 'expired' | 'cancelled';
@@ -255,6 +259,10 @@ export class ApiClient {
   myWorkouts(q: { limit?: number; offset?: number } = {}): Promise<{ items: WorkoutSummary[]; rules_version: number }> {
     const qs = Object.entries(q).filter(([, v]) => v !== undefined).map(([k, v]) => `${k}=${v}`).join('&');
     return this.request('GET', `/me/workouts${qs ? `?${qs}` : ''}`);
+  }
+
+  personalBests(): Promise<PersonalBests> {
+    return this.request('GET', '/me/personal-bests');
   }
 
   deleteWorkout(sessionId: string): Promise<unknown> {

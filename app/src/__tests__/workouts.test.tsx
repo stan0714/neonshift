@@ -9,7 +9,7 @@ import { WorkoutsScreen } from '@/screens/WorkoutsScreen';
 import { importFromHealthConnect } from '@/services/workouts/importer';
 import { ThemeProvider } from '@/theme';
 
-jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { myWorkouts: jest.fn(), importWorkouts: jest.fn(), deleteWorkout: jest.fn() } }));
+jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { myWorkouts: jest.fn(), importWorkouts: jest.fn(), deleteWorkout: jest.fn(), personalBests: jest.fn(async () => ({ rules_major: 1, imported_since: '2026-09-01T00:00:00Z', groups: [{ key: 'k', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', current: { pb_id: 'p2', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', rules_major: 1, value: '1500000', unit: 'ms', source: { kind: 'workout', id: 's1', revision: 1 }, achieved_at: '2026-09-05T00:00:00Z', status: 'current', is_baseline: false, previous_pb_id: 'p1', invalidated_at: null, reason: null }, history: [{ pb_id: 'p1', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', rules_major: 1, value: '1600000', unit: 'ms', source: { kind: 'workout', id: 's0', revision: 1 }, achieved_at: '2026-09-01T00:00:00Z', status: 'historical', is_baseline: true, previous_pb_id: null, invalidated_at: null, reason: null }] }, { key: 'k2', category: 'longest_run', environment: 'outdoor', verification_class: 'organizer', timing_basis: 'elapsed', current: null, history: [{ pb_id: 'p3', category: 'longest_run', environment: 'outdoor', verification_class: 'organizer', timing_basis: 'elapsed', rules_major: 1, value: '5000000', unit: 'mm', source: { kind: 'result', id: 'r1', revision: 1 }, achieved_at: '2026-10-03T00:00:00Z', status: 'invalidated', is_baseline: true, previous_pb_id: null, invalidated_at: '2026-10-04T00:00:00Z', reason: 'source_removed_or_corrected' }] }] })) } }));
 const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'myWorkouts' | 'importWorkouts' | 'deleteWorkout', jest.Mock>;
 
 const Wrapper = ({ children }: PropsWithChildren) => (
@@ -74,6 +74,12 @@ describe('WorkoutsScreen', () => {
     api.deleteWorkout.mockResolvedValue({});
     await render(<WorkoutsScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('workout-s1')).toBeTruthy());
+    // PB 區：裝置 5K 已刷新 1 次；官方最遠被撤銷
+    await waitFor(() => expect(screen.getByTestId('pb-fastest_5k-device')).toBeTruthy());
+    expect(screen.getAllByText('25:00').length).toBeGreaterThan(1); // PB 值與 s1 時間
+    expect(screen.getByText('Improved 1×')).toBeTruthy();
+    expect(screen.getByText('From records imported since 2026-09-01')).toBeTruthy();
+    expect(screen.getByText('A record was corrected or deleted — this best was revised.')).toBeTruthy();
     expect(screen.getAllByText('5.00 km')).toHaveLength(2); // s1 與 s3 都是 5 km
     expect(screen.getAllByText('5:00 /km').length).toBeGreaterThan(0);
     expect(screen.getAllByText('320 kcal').length).toBeGreaterThan(0);

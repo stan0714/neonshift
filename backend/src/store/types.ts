@@ -343,7 +343,17 @@ export interface PartnerStore {
   getWorkout(wallet: string, sessionId: string): Promise<WorkoutSession | null>;
   /** tombstone：status=deleted、deleted_at；回 false 表示不存在或已刪 */
   deleteWorkout(wallet: string, sessionId: string, now: Date): Promise<boolean>;
+
+  // ---- PG-R-07：個人最佳 ----
+  listPbRevisions(wallet: string): Promise<PbRevision[]>;
+  /** 以目前有效候選重建：同 (key, source) 保留 pb_id；不在 desired 者 → invalidated；重新出現者恢復。回全部列 */
+  syncPbRevisions(wallet: string, desired: PbDesired[], now: Date): Promise<PbRevision[]>;
+  /** 本人在各活動的最新已發布成績（供 PB） */
+  listCurrentResultsForWallet(wallet: string): Promise<ResultRevision[]>;
 }
+
+export type PbDesired = { key: string; discipline: "run"; category: string; environment: string; verificationClass: string; timingBasis: string; rulesMajor: number; value: bigint; sourceKind: "workout" | "result"; sourceId: string; sourceRevision: number; achievedAt: Date; status: "current" | "historical"; isBaseline: boolean; previousSourceId: string | null };
+export type PbRevision = { pbId: string; wallet: string; discipline: string; category: string; environment: string; verificationClass: string; timingBasis: string; rulesMajor: number; value: bigint; sourceKind: "workout" | "result"; sourceId: string; sourceRevision: number; achievedAt: Date; status: "current" | "historical" | "invalidated"; isBaseline: boolean; previousPbId: string | null; createdAt: Date; invalidatedAt: Date | null; reason: string | null };
 
 export type WorkoutSession = {
   sessionId: string; wallet: string; sport: "run" | "walk"; environment: "outdoor" | "indoor" | "unknown"; origin: "health_connect" | "device" | "gps" | "organizer" | "manual";

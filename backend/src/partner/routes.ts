@@ -14,6 +14,7 @@ import { ApiError } from "../errors.js";
 import type { EventBenefit, EventRedemption, EventRow, EventRuleRevision, ResultImport, ResultRevision, Store } from "../store/types.js";
 import { PartnerAuthz } from "./authz.js";
 import { csvSafeCell, RESULT_CSV_MAX_BYTES, stageResultsCsv } from "./csv.js";
+import type { PersonalBestService } from "../pb/service.js";
 
 const uuid = z.string().uuid();
 export const CHECKIN_CHALLENGE_SECONDS = 120;
@@ -94,8 +95,8 @@ export function publicEventView(e: EventRow, rule: EventRuleRevision | null) {
 
 const partnerEventView = (e: EventRow) => ({ ...publicEventView(e, null), org_id: e.orgId, revision: e.revision, current_rule_revision: e.currentRuleRevision, created_by: e.createdBy, updated_at: e.updatedAt.toISOString() });
 
-export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthService; store: Store; now: () => Date }) {
-  const { auth, store, now } = opts;
+export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthService; store: Store; now: () => Date; pbs?: PersonalBestService }) {
+  const { auth, store, now, pbs } = opts;
   const authz = new PartnerAuthz(store, now);
   const ops = (req: FastifyRequest) => {
     const token = app.config.OPS_TOKEN;
@@ -467,6 +468,7 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
     if (r === "already") throw new ApiError(409, "RESULTS_ALREADY_PUBLISHED", "this import was already published");
     if (r === "has_errors") throw new ApiError(409, "RESULTS_HAVE_ERRORS", "import has errors");
     await authz.audit(req, { eventId: id, orgId: access.event.orgId, action: isCorrection ? "results.correct" : "results.publish", target: importId, details: { import_version: imp.importVersion, revisions: r.revisions, corrections: r.corrections, ...(b.reason ? { reason: b.reason } : {}) } });
+    if (pbs) for (const w of new Set(imp.stagedRows.map((x) => x.wallet))) await pbs.recompute(w); // PG-R-07／BR-40：發布或更正後重算受影響錢包的 PB
     return { import_id: importId, import_version: imp.importVersion, revisions: r.revisions, corrections: r.corrections, published_at: now().toISOString() };
   });
 

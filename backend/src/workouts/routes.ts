@@ -13,6 +13,7 @@ import type { AuthService } from "../auth/service.js";
 import { canonicalize, type Json } from "../claim/canonical.js";
 import { ApiError } from "../errors.js";
 import type { Store, WorkoutSession } from "../store/types.js";
+import type { PersonalBestService } from "../pb/service.js";
 import { derive, importBody, WORKOUT_RULES_VERSION } from "./schema.js";
 
 const uuid = z.string().uuid();
@@ -39,8 +40,8 @@ export function workoutView(w: WorkoutSession) {
   };
 }
 
-export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthService; store: Store; now: () => Date }) {
-  const { auth, store, now } = opts;
+export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthService; store: Store; now: () => Date; pbs?: PersonalBestService }) {
+  const { auth, store, now, pbs } = opts;
 
   app.post("/workouts/import", { preHandler: requireAuth(auth), config: { rateLimit: { max: app.config.RATE_LIMIT_SENSITIVE_PER_MINUTE, timeWindow: "1 minute" } } }, async (req, reply) => {
     const parsed = importBody.safeParse(req.body);
@@ -66,6 +67,7 @@ export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthServ
       if (r.outcome === "created") created += 1;
       results.push({ external_record_id: w.external_record_id, outcome: r.outcome, session: workoutView(r.session) });
     }
+    if (pbs && results.some((r) => r.outcome === "created" || r.outcome === "superseded")) await pbs.recompute(wallet); // PG-R-07：匯入後重算 PB
     return reply.status(created > 0 ? 201 : 200).send({ imported: created, results });
   });
 
@@ -88,6 +90,7 @@ export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthServ
     if (!id.success) throw new ApiError(422, "VALIDATION", "id must be a uuid");
     const ok = await store.deleteWorkout(req.auth!.wallet, id.data, now());
     if (!ok) throw new ApiError(404, "NOT_FOUND", "workout not found");
+    if (pbs) await pbs.recompute(req.auth!.wallet); // 刪除 → 撤銷候選、重算（BR-40）
     return reply.status(204).send();
   });
 }

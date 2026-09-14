@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.23（GPS 記錄） |
+| 文件版本 | v0.24（個人最佳） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -967,6 +967,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.24 | 2026-09-14 | PG-R-07：PB 版本鏈、分組與更正重算 |
 | v0.23 | 2026-09-14 | PG-R-03／R-06：WorkoutRecorder、LocalWorkoutStore、前景服務定位、恢復與同步 |
 | v0.22 | 2026-09-14 | PG-R-04／R-05：GpsMetricsEngine 規則與分段／圈數實作 |
 | v0.21 | 2026-09-14 | PG-R-01：運動 session 摘要 schema、去重／版本、匯入 API 與 App 清單 |
@@ -1037,6 +1038,8 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 第 12 章素材替換契約保留；其中 Core 分離的舊驗收以最新免費同步升級規格為準。此次不變更既有免費升級鏈上程式。
 
 **實作（2026-09-14，PG-R-01）**：migration 0009 `workout_sessions`（整數毫米／毫秒／步數／毫 kcal；`UNIQUE (wallet, origin, external_record_id)`；sport 只允許 run｜walk；品質／狀態／方法 CHECK；`request_hash` sha256 canonical 請求）。`backend/src/workouts/schema.ts`：匯入 schema（大整數收十進位字串或安全整數、`.strict()` 拒絕伺服器衍生欄位）與 `derive()`：經過時間＝end−start（含暫停）、估算距離只在有校準步長時 `steps × step_length_mm`（不套通用步長）、每分鐘 250 步與 25／12 km/h（跑／走）上限超過即 needs_review、`energy_method=total` 且填 active 標記、manual 不具資格；品質 complete／partial／estimated／needs_review／invalid；`pb_eligible`＝run＋complete＋量測距離＋非手動（供 R-07／08）。API：`POST /workouts/import`（≤ 50 筆、敏感限流；每筆回 created｜superseded｜same｜stale｜deleted｜invalid）、`GET /me/workouts`、`GET／DELETE /me/workouts/{id}`（tombstone）。Store：同 (wallet, origin, external_record_id) 以 `source_revision` 決定 same／stale／superseded（revision+1、衍生重算）；tombstone 擋 ≤ 已刪 revision 的重建；跨來源時間重疊 ≥ 50% 的另一筆標 `possible_duplicate_of`（不合併、不相加，PG 以 advisory lock 序列化同錢包）；`DELETE /player/data` 一併刪除。App：`domain/workouts.ts`（Health Connect ExerciseSession → payload：RUNNING／RUNNING_TREADMILL／WALKING 才接受、m→mm、kcal→mkcal、Active／Total 分開、record id 缺時 `origin:start` 組鍵）、`services/workouts/importer.ts`（30 天、分批 50、原生模組未提供 `readExerciseSessions` 時回 unavailable）、`WorkoutsScreen`（Style 23.1）。原生 Health Connect ExerciseSession 讀取屬 PG-R-02：`HealthReader.readExerciseSessions(start, end)` 讀結束時間落在區間、exerciseType ∈ {RUNNING, RUNNING_TREADMILL, WALKING} 的 session，對每筆以 `dataOriginFilter = session.dataOrigin`、`TimeRangeFilter(session.start, session.end)` aggregate `DistanceRecord.DISTANCE_TOTAL`／`StepsRecord.COUNT_TOTAL`／`ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL`／`TotalCaloriesBurnedRecord.ENERGY_TOTAL`（各自依已授予權限；缺者 null 並 `partialPermissions`），`version` 取 `clientRecordVersion`（無則 lastModifiedTime 秒）作 source_revision；`recordId = metadata.id`。權限：`READ_EXERCISE` 必要，其餘可選；拒絕只影響匯入。
+
+**實作（2026-09-14，PG-R-07）**：migration 0010 `pb_revisions`（唯一 (wallet, key…, source_kind, source_id)；status current｜historical｜invalidated；previous_pb_id 鏈）。`backend/src/pb/compute.ts` 純函式：`candidatesFromWorkout`（需 `pb_eligible`；`longest_run` ≥ 1 km；`fastest_1k／5k／10k` 只在 extras.splits 有完整、非 uncertain 的連續分段覆蓋 D 時取最短區間，只有總量不推算（BR-38）；半馬／全馬不從裝置簽發）、`candidatesFromResult`（finished 且距離與標準值誤差 ≤ 1% 歸固定距離；verification_class organizer、timing_basis elapsed）、`buildChains`（依 key 分組，achieved_at 排序，首筆 Baseline、嚴格改善才新增、相同不算、最後一筆 current）。`PersonalBestService.recompute(wallet)` 讀有效 workouts（排除 deleted）與本人各活動最新成績 → `syncPbRevisions`（同 (key, source) 保留 pb_id；不再出現者 invalidated、reason `source_removed_or_corrected`；重現恢復；PG 以 advisory lock 序列化）。觸發：`/workouts/import`（created／superseded）、`DELETE /me/workouts/{id}`、成績發布／更正（每個受影響錢包）；`DELETE /player/data` 刪除。`GET /me/personal-bests` 讀取時重算並回 groups（current／history）與 `imported_since`。R-08 的 achievement 簽發以 pb_id 為穩定 ID。
 
 ## 14. 等級維持／權限契約（新設計待實作）
 

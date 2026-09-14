@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -777,6 +777,54 @@ export class PostgresStore implements Store {
     if ((r.rowCount ?? 0) > 0) await this.pool.query(`UPDATE workout_sessions SET possible_duplicate_of = NULL WHERE possible_duplicate_of = $1`, [sessionId]);
     return (r.rowCount ?? 0) > 0;
   }
+  // ---- PG-R-07 ----
+  private pbRow(x: Row): PbRevision {
+    return { pbId: x.pb_id as string, wallet: x.wallet as string, discipline: x.discipline as string, category: x.category as string, environment: x.environment as string, verificationClass: x.verification_class as string, timingBasis: x.timing_basis as string, rulesMajor: Number(x.rules_major), value: BigInt(x.value as string), sourceKind: x.source_kind as PbRevision["sourceKind"], sourceId: x.source_id as string, sourceRevision: Number(x.source_revision), achievedAt: x.achieved_at as Date, status: x.status as PbRevision["status"], isBaseline: Boolean(x.is_baseline), previousPbId: (x.previous_pb_id as string | null) ?? null, createdAt: x.created_at as Date, invalidatedAt: (x.invalidated_at as Date | null) ?? null, reason: (x.reason as string | null) ?? null };
+  }
+  async listPbRevisions(wallet: string) {
+    const r = await this.pool.query(`SELECT * FROM pb_revisions WHERE wallet = $1 ORDER BY category, achieved_at`, [wallet]);
+    return (r.rows as Row[]).map((x) => this.pbRow(x));
+  }
+  async syncPbRevisions(wallet: string, desired: PbDesired[], now: Date) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`pb:${wallet}`]);
+      const cur = (await client.query(`SELECT * FROM pb_revisions WHERE wallet = $1 FOR UPDATE`, [wallet])).rows as Row[];
+      const idOf = (r: { discipline: string; category: string; environment: string; verificationClass: string; timingBasis: string; rulesMajor: number; sourceKind: string; sourceId: string }) => `${r.discipline}|${r.category}|${r.environment}|${r.verificationClass}|${r.timingBasis}|${r.rulesMajor}|${r.sourceKind}|${r.sourceId}`;
+      const existing = new Map(cur.map((x) => this.pbRow(x)).map((p) => [idOf(p), p]));
+      const seen = new Set<string>();
+      // 先建立／更新（previous 需先有 pb_id：依 desired 順序，鏈內前一筆先處理）
+      for (const d of desired) {
+        const id = `${d.key}|${d.sourceKind}|${d.sourceId}`;
+        seen.add(id);
+        const prev = d.previousSourceId ? existing.get(`${d.key}|${d.sourceKind}|${d.previousSourceId}`) ?? [...existing.values()].find((p) => `${p.discipline}|${p.category}|${p.environment}|${p.verificationClass}|${p.timingBasis}|${p.rulesMajor}` === d.key && p.sourceId === d.previousSourceId) : null;
+        const have = existing.get(id);
+        if (have) {
+          const r = await client.query(`UPDATE pb_revisions SET value = $2, source_revision = $3, achieved_at = $4, status = $5, is_baseline = $6, previous_pb_id = $7, invalidated_at = NULL, reason = NULL WHERE pb_id = $1 RETURNING *`, [have.pbId, d.value.toString(), d.sourceRevision, d.achievedAt, d.status, d.isBaseline, prev?.pbId ?? null]);
+          existing.set(id, this.pbRow(r.rows[0] as Row));
+        } else {
+          const r = await client.query(
+            `INSERT INTO pb_revisions (pb_id, wallet, discipline, category, environment, verification_class, timing_basis, rules_major, value, source_kind, source_id, source_revision, achieved_at, status, is_baseline, previous_pb_id, created_at) VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+            [wallet, d.discipline, d.category, d.environment, d.verificationClass, d.timingBasis, d.rulesMajor, d.value.toString(), d.sourceKind, d.sourceId, d.sourceRevision, d.achievedAt, d.status, d.isBaseline, prev?.pbId ?? null, now],
+          );
+          existing.set(id, this.pbRow(r.rows[0] as Row));
+        }
+      }
+      for (const [id, p] of existing) if (!seen.has(id) && p.status !== "invalidated") await client.query(`UPDATE pb_revisions SET status = 'invalidated', invalidated_at = $2, reason = 'source_removed_or_corrected' WHERE pb_id = $1`, [p.pbId, now]);
+      await client.query("COMMIT");
+      return this.listPbRevisions(wallet);
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+  async listCurrentResultsForWallet(wallet: string) {
+    const r = await this.pool.query(`SELECT DISTINCT ON (r.event_id, r.discipline) r.* FROM result_revisions r JOIN result_imports i ON i.import_id = r.import_id WHERE r.wallet = $1 ORDER BY r.event_id, r.discipline, r.published_at DESC, i.import_version DESC`, [wallet]);
+    return (r.rows as Row[]).map((x) => this.revisionRow(x));
+  }
   async listResultHistory(eventId: string, wallet: string) {
     const r = await this.pool.query(`SELECT r.* FROM result_revisions r JOIN result_imports i ON i.import_id = r.import_id WHERE r.event_id = $1 AND r.wallet = $2 ORDER BY r.published_at DESC, i.import_version DESC`, [eventId, wallet]);
     return (r.rows as Row[]).map((x) => this.revisionRow(x));
@@ -961,6 +1009,8 @@ export class PostgresStore implements Store {
         await client.query(`DELETE FROM tournament_steps WHERE wallet = $1`, [wallet]);
         await client.query(`UPDATE workout_sessions SET possible_duplicate_of = NULL WHERE wallet = $1`, [wallet]);
         await client.query(`DELETE FROM workout_sessions WHERE wallet = $1`, [wallet]); // PG-R-01：運動摘要一併刪除
+        await client.query(`UPDATE pb_revisions SET previous_pb_id = NULL WHERE wallet = $1`, [wallet]);
+        await client.query(`DELETE FROM pb_revisions WHERE wallet = $1`, [wallet]); // PG-R-07：PB 一併刪除
       }
       await client.query("COMMIT");
       if (!deferUntil) await this.deleteWalletEventData(wallet, now); // BR-32：活動個人層資料一併刪除（各活動獨立交易）

@@ -18,7 +18,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: url });
-    await pool.query("UPDATE workout_sessions SET possible_duplicate_of = NULL; DELETE FROM workout_sessions; DELETE FROM event_badge_issues; DELETE FROM event_redemptions; DELETE FROM event_benefits; DELETE FROM result_revisions; DELETE FROM result_imports; DELETE FROM event_checkins; DELETE FROM checkin_challenges; DELETE FROM nfc_tags; DELETE FROM checkpoints; DELETE FROM campaign_aggregates; DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; UPDATE events SET current_rule_revision = NULL; DELETE FROM event_rule_revisions; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
+    await pool.query("UPDATE pb_revisions SET previous_pb_id = NULL; DELETE FROM pb_revisions; UPDATE workout_sessions SET possible_duplicate_of = NULL; DELETE FROM workout_sessions; DELETE FROM event_badge_issues; DELETE FROM event_redemptions; DELETE FROM event_benefits; DELETE FROM result_revisions; DELETE FROM result_imports; DELETE FROM event_checkins; DELETE FROM checkin_challenges; DELETE FROM nfc_tags; DELETE FROM checkpoints; DELETE FROM campaign_aggregates; DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; UPDATE events SET current_rule_revision = NULL; DELETE FROM event_rule_revisions; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
     stores = [
       { name: "postgres", store: new PostgresStore(pool) },
       { name: "memory", store: new MemoryStore() },
@@ -353,6 +353,28 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       await store.upsertPlayer(wallet, t0);
       await store.deletePlayerData(wallet, t0, null);
       expect(await store.listWorkouts(wallet, 10, 0), name).toEqual([]);
+    }
+  });
+  it("pb_revisions（R-07）：sync 保留 pb_id、previous 鏈、invalidated 與恢復；listCurrentResultsForWallet", async () => {
+    for (const { name, store } of stores) {
+      const wallet = "PB" + name;
+      const t0 = new Date("2026-09-14T00:00:00Z");
+      const key = "run|fastest_5k|outdoor|device|elapsed|1";
+      const d = (sourceId: string, value: bigint, status: "current" | "historical", isBaseline: boolean, previousSourceId: string | null) => ({ key, discipline: "run" as const, category: "fastest_5k", environment: "outdoor", verificationClass: "device", timingBasis: "elapsed", rulesMajor: 1, value, sourceKind: "workout" as const, sourceId, sourceRevision: 1, achievedAt: t0, status, isBaseline, previousSourceId });
+      let rows = await store.syncPbRevisions(wallet, [d("a", 1_600_000n, "historical", true, null), d("b", 1_500_000n, "current", false, "a")], t0);
+      const a = rows.find((r) => r.sourceId === "a")!;
+      const b = rows.find((r) => r.sourceId === "b")!;
+      expect([a.status, a.isBaseline, b.status, b.previousPbId === a.pbId], name).toEqual(["historical", true, "current", true]);
+      // b 來源刪除 → invalidated；a 回 current；pb_id 不變
+      rows = await store.syncPbRevisions(wallet, [d("a", 1_600_000n, "current", true, null)], t0);
+      expect(rows.find((r) => r.sourceId === "b"), name).toMatchObject({ pbId: b.pbId, status: "invalidated", reason: "source_removed_or_corrected" });
+      expect(rows.find((r) => r.sourceId === "a"), name).toMatchObject({ pbId: a.pbId, status: "current" });
+      // b 重新出現 → 恢復
+      rows = await store.syncPbRevisions(wallet, [d("a", 1_600_000n, "historical", true, null), d("b", 1_500_000n, "current", false, "a")], t0);
+      expect(rows.find((r) => r.sourceId === "b"), name).toMatchObject({ pbId: b.pbId, status: "current", invalidatedAt: null });
+      await store.upsertPlayer(wallet, t0);
+      await store.deletePlayerData(wallet, t0, null);
+      expect(await store.listPbRevisions(wallet), name).toEqual([]);
     }
   });
 });

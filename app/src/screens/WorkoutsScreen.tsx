@@ -9,6 +9,7 @@ import { ApiError, apiClient, type WorkoutSummary } from '@/services/api/ApiClie
 import { importFromHealthConnect } from '@/services/workouts/importer';
 import type { SessionMeta } from '@/services/workouts/LocalWorkoutStore';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
+import { PersonalBests } from './workouts/PersonalBests';
 import { color, radius, space, Text } from '@/theme';
 
 /**
@@ -107,6 +108,7 @@ export function WorkoutsScreen() {
       ) : items && items.length === 0 ? (
         <InlineState kind="info" title={t('wo.empty')} testID="workouts-empty" />
       ) : null}
+      <PersonalBests reloadKey={items?.length ?? 0} />
       {items?.map((w) => (
         <Surface key={w.session_id} style={styles.card} testID={`workout-${w.session_id}`}>
           <View style={styles.rowBetween}>
