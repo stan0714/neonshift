@@ -96,3 +96,22 @@ impl PlayerProfile {
         self.shoe_asset != Pubkey::default()
     }
 }
+
+/// PDA seeds `["claim", wallet, task_date_le, task_type]`。帳戶存在即代表已領取（BR-03）。
+#[account]
+#[derive(InitSpace)]
+pub struct ClaimReceipt {
+    pub wallet: Pubkey,
+    pub task_date: u32,
+    pub task_type: u8,
+    /// 實發金額（最小單位）
+    pub amount: u64,
+    /// attestation nonce，供稽核關聯
+    pub nonce: [u8; 16],
+    pub claimed_at: i64,
+    pub bump: u8,
+}
+
+impl ClaimReceipt {
+    pub const SEED: &'static [u8] = crate::constants::CLAIM_SEED;
+}

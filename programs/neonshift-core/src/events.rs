@@ -38,3 +38,17 @@ pub struct PlayerInitialized {
     pub wallet: Pubkey,
     pub profile: Pubkey,
 }
+
+#[event]
+pub struct ClockedIn {
+    pub wallet: Pubkey,
+    pub task_date: u32,
+    pub task_type: u8,
+    /// 實發金額（已受每日上限收斂）
+    pub amount: u64,
+    pub xp: u64,
+    pub shoe_level: u8,
+    pub core_level: u8,
+    pub streak_days: u16,
+    pub nonce: [u8; 16],
+}

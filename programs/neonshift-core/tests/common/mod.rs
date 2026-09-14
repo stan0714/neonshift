@@ -113,7 +113,7 @@ pub fn default_params(admin: Pubkey, attestor: Pubkey) -> neonshift_core::Initia
         burn_bps: DEFAULT_BURN_BPS,
         core_multiplier_bps: DEFAULT_CORE_MULTIPLIER_BPS,
         core_upgrade_costs: [50 * TSKR_UNIT, 120 * TSKR_UNIT, 250 * TSKR_UNIT, 500 * TSKR_UNIT],
-        shoe_xp_thresholds: [0, 100, 300, 700, 1500],
+        shoe_xp_thresholds: DEFAULT_SHOE_XP_THRESHOLDS,
     }
 }
 
@@ -156,16 +156,25 @@ pub struct Initialized {
 }
 
 pub fn initialize(env: &mut Env) -> Initialized {
+    initialize_with(env, Pubkey::new_unique(), |_| {})
+}
+
+pub fn initialize_with(
+    env: &mut Env,
+    attestor: Pubkey,
+    tweak: impl FnOnce(&mut neonshift_core::InitializeConfigParams),
+) -> Initialized {
     use anchor_lang::solana_program::system_program;
     let tokens = setup_tokens(env, TSKR_DECIMALS);
     let admin = Keypair::new();
     env.svm.airdrop(&admin.pubkey(), 10_000_000_000).unwrap();
-    let attestor = Pubkey::new_unique();
     let (config, _) = config_pda();
     let deployer = env.deployer.insecure_clone();
+    let mut params = default_params(admin.pubkey(), attestor);
+    tweak(&mut params);
     let ix = Instruction::new_with_bytes(
         neonshift_core::id(),
-        &neonshift_core::instruction::InitializeConfig { params: default_params(admin.pubkey(), attestor) }.data(),
+        &neonshift_core::instruction::InitializeConfig { params }.data(),
         neonshift_core::accounts::InitializeConfig {
             authority: deployer.pubkey(),
             config,
@@ -217,3 +226,147 @@ pub fn new_player(svm: &mut LiteSVM) -> Keypair {
     svm.airdrop(&k.pubkey(), 5_000_000_000).unwrap();
     k
 }
+
+// ---------------- clock_in 測試工具（PG-C-04／C-05） ----------------
+
+use ed25519_dalek::{Signer as DalekSigner, SigningKey};
+use neonshift_core::AttestationArgs;
+
+/// 把鏈上時間設為指定 unix 秒
+pub fn set_time(svm: &mut LiteSVM, unix_timestamp: i64) {
+    let mut clock = svm.get_sysvar::<Clock>();
+    clock.unix_timestamp = unix_timestamp;
+    clock.slot += 1;
+    svm.set_sysvar(&clock);
+    svm.expire_blockhash();
+}
+
+pub fn task_date_of(unix: i64) -> u32 {
+    (unix.div_euclid(SECONDS_PER_DAY)) as u32
+}
+
+/// 產生 attestor 金鑰（後端 signer 的模擬）；以 Solana Keypair 的隨機 seed 建立 dalek 金鑰
+pub fn new_attestor() -> SigningKey {
+    let seed: [u8; 32] = Keypair::new().to_bytes()[..32].try_into().unwrap();
+    SigningKey::from_bytes(&seed)
+}
+
+pub fn attestor_pubkey(k: &SigningKey) -> Pubkey {
+    Pubkey::new_from_array(k.verifying_key().to_bytes())
+}
+
+/// 以鏈上目前時間為基準的合法 attestation 參數
+pub fn valid_args(svm: &LiteSVM, wallet: &Pubkey, task_type: u8) -> AttestationArgs {
+    let now = now(svm);
+    AttestationArgs {
+        version: attestation_core::VERSION,
+        program_id: neonshift_core::id(),
+        cluster_id: CLUSTER_LOCALNET,
+        wallet: *wallet,
+        task_date: task_date_of(now),
+        task_type,
+        rules_version: 3,
+        evidence_hash: [0x33; 32],
+        issued_at: now - 5,
+        not_before: now - 5,
+        expiry: now + 300,
+        nonce: {
+            let k = Keypair::new().to_bytes();
+            let mut n = [0u8; 16];
+            n.copy_from_slice(&k[..16]);
+            n
+        },
+    }
+}
+
+pub fn canonical(args: &AttestationArgs) -> [u8; 164] {
+    attestation_core::Attestation::from(args).encode()
+}
+
+/// 標準 ed25519 驗簽指令（與後端／App 的組法一致）
+pub fn ed25519_ix(attestor: &SigningKey, message: &[u8]) -> Instruction {
+    let sig = attestor.sign(message).to_bytes();
+    solana_ed25519_program::new_ed25519_instruction_with_signature(message, &sig, &attestor.verifying_key().to_bytes())
+}
+
+pub fn receipt_pda(wallet: &Pubkey, task_date: u32, task_type: u8) -> Pubkey {
+    Pubkey::find_program_address(
+        &[CLAIM_SEED, wallet.as_ref(), &task_date.to_le_bytes(), &[task_type]],
+        &neonshift_core::id(),
+    )
+    .0
+}
+
+pub struct ClockInAccounts {
+    pub reward_vault: Pubkey,
+    pub mint: Pubkey,
+    pub player_token_account: Pubkey,
+}
+
+pub fn clock_in_ix(player: &Pubkey, accts: &ClockInAccounts, args: AttestationArgs) -> Instruction {
+    use anchor_lang::solana_program::system_program;
+    Instruction::new_with_bytes(
+        neonshift_core::id(),
+        &neonshift_core::instruction::ClockIn { args }.data(),
+        neonshift_core::accounts::ClockIn {
+            player: *player,
+            config: config_pda().0,
+            profile: player_pda(player).0,
+            receipt: receipt_pda(player, args.task_date, args.task_type),
+            mint: accts.mint,
+            reward_vault: accts.reward_vault,
+            player_token_account: accts.player_token_account,
+            token_program: spl_token::id(),
+            system_program: system_program::ID,
+            instructions_sysvar: solana_sdk_ids::sysvar::instructions::ID,
+        }
+        .to_account_metas(None),
+    )
+}
+
+/// mint 到指定 token account（deployer 為 mint authority）
+pub fn mint_to(env: &mut Env, mint: &Pubkey, to: &Pubkey, amount: u64) {
+    let deployer = env.deployer.insecure_clone();
+    let ix = spl_token::instruction::mint_to(&spl_token::id(), mint, to, &deployer.pubkey(), &[], amount).unwrap();
+    send(&mut env.svm, &[ix], &deployer, &[]).unwrap();
+}
+
+pub fn token_balance(svm: &LiteSVM, account: &Pubkey) -> u64 {
+    let acc = svm.get_account(account).unwrap();
+    spl_token::state::Account::unpack(&acc.data).unwrap().amount
+}
+
+/// 在 mint_shoe（PG-C-09）完成前，直接把 profile.shoe_asset 設為非零以通過未鑄鞋檢查
+pub fn force_shoe(svm: &mut LiteSVM, wallet: &Pubkey) {
+    let (key, _) = player_pda(wallet);
+    let mut acc = svm.get_account(&key).unwrap();
+    let mut p: neonshift_core::PlayerProfile = {
+        let mut d: &[u8] = &acc.data;
+        neonshift_core::PlayerProfile::try_deserialize(&mut d).unwrap()
+    };
+    p.shoe_asset = Pubkey::new_unique();
+    let mut out = Vec::new();
+    anchor_lang::AccountSerialize::try_serialize(&p, &mut out).unwrap();
+    acc.data = out;
+    svm.set_account(key, acc).unwrap();
+}
+
+/// 一次完成：initialize（指定 attestor）、時間設定、玩家 init、鑄鞋、token 帳戶、金庫入金
+pub struct Player {
+    pub key: Keypair,
+    pub accts: ClockInAccounts,
+}
+
+pub fn ready_player(env: &mut Env, init: &Initialized) -> Player {
+    let key = new_player(&mut env.svm);
+    send(&mut env.svm, &[init_player_ix(&key.pubkey())], &key, &[]).unwrap();
+    force_shoe(&mut env.svm, &key.pubkey());
+    let deployer = env.deployer.insecure_clone();
+    let player_token_account = create_token_account(&mut env.svm, &deployer, &init.tokens.mint, &key.pubkey());
+    Player {
+        key,
+        accts: ClockInAccounts { reward_vault: init.tokens.reward_vault, mint: init.tokens.mint, player_token_account },
+    }
+}
+
+pub const T0: i64 = 1_789_000_000; // 2026-09-14 前後

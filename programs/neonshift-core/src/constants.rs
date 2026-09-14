@@ -37,3 +37,12 @@ pub const DEFAULT_BASE_SLEEP_REWARD: u64 = 5 * TSKR_UNIT;
 pub const DEFAULT_STREAK_BONUS_BPS: u16 = 11_000;
 pub const DEFAULT_BURN_BPS: u16 = 7_000;
 pub const DEFAULT_CORE_MULTIPLIER_BPS: [u16; 5] = [10_000, 12_000, 15_000, 18_000, 22_000];
+
+/// 每次成功打卡的 XP（SA BR-34）；與代幣數量獨立
+pub const XP_STEPS: u64 = 100;
+pub const XP_SLEEP: u64 = 50;
+/// 五階 XP 門檻預設值（SA BR-35）
+pub const DEFAULT_SHOE_XP_THRESHOLDS: [u64; 5] = [0, 450, 1_500, 3_600, 7_500];
+/// streak 加成生效所需連續任務日（BR-06）
+pub const STREAK_BONUS_DAYS: u16 = 7;
+pub const SECONDS_PER_DAY: i64 = 86_400;

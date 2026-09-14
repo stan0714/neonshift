@@ -60,4 +60,8 @@ pub enum ErrorCode {
     Unauthorized, // 6026
     #[msg("attestation 時間欄位不自洽（issued_at <= not_before <= expiry）")]
     InvalidAttestationWindow, // 6027
+    #[msg("尚未鑄造跑鞋，無法打卡")]
+    ShoeNotMinted, // 6028
+    #[msg("task_type 不是 1（steps）或 2（sleep）")]
+    InvalidTaskType, // 6029
 }

@@ -216,7 +216,7 @@ graph TB
 | `rotate_attestor` | admin 多簽 | `grace_seconds` 0～600：>0 時舊鑰保留至 `now + grace`，0 表示立即失效（外洩處置）；新鑰不得為 default 或與現行相同 | `AttestorRotated` |
 | `init_player` | player | 帳戶未存在（PDA `init`）；需 Config 已初始化；不受 pause 影響（無資金流，onboarding 不中斷）；core／shoe level 起始 1、其餘欄位 0 | `PlayerInitialized` |
 | `mint_shoe` | player | `shoe_asset` 為預設值 | `ShoeMinted` |
-| `clock_in` | player | 見 3.3 | `ClockedIn` |
+| `clock_in` | player | 見 3.3。需已鑄鞋（6028，SD 10 定案）；`ClaimReceipt` 不用 Anchor `init`，於步驟 10 手動建立以回報 6009 並保證排在 attestation 驗證之後；步驟 9 的 mint／vault／收款帳戶／token program 約束由 Anchor 在進入 handler 前檢查 | `ClockedIn` |
 | `upgrade_core` | player | 等級 < 5、餘額足夠、token program／mint／vault 正確；原子扣款 | `CoreUpgraded` |
 | `open_tournament` | admin | 狀態為 Draft | `TournamentOpened` |
 | `join_tournament` | player | 狀態為 Registration、未重複報名、mint 正確 | `TournamentJoined` |
@@ -349,6 +349,8 @@ let amount = amount.min(remaining);         // BR-04
 | 6025 | `RewardParamsChangeRequiresPause` | BR-24：未 pause 或 pause 未滿 600 秒即更新影響獎勵金額的參數（實作期新增） |
 | 6026 | `Unauthorized` | 管理指令簽章者不是 `Config.admin`（實作期新增） |
 | 6027 | `InvalidAttestationWindow` | attestation 時間欄位不滿足 `issued_at <= not_before <= expiry`（實作期新增；步驟 7 的前半） |
+| 6028 | `ShoeNotMinted` | `clock_in` 時 PlayerProfile 尚未鑄鞋（實作期新增） |
+| 6029 | `InvalidTaskType` | task_type 不是 1／2（實作期新增；SD 3.4 程式片段原引用此名稱） |
 
 ---
 
@@ -789,7 +791,7 @@ total_staked + treasury_injection
 
 ## 10. 設計未決事項
 
-**本版補充的實作前置條件**：賽事 Q-09／SA-Q7 尚未定案，6.2 不是完整結算協議。須固定 canonical entry 的欄位順序／位寬／endianness、名次權重與空組公式、`first_reached_at` 的可信時間來源、零人提交、錯誤 commitment 的恢復／退款流程及 vault 實際餘額對帳；不得只用帳面等式聲稱資金守恆。另需定義 `clock_in` 未鑄鞋拒絕（`initialize_config` 首次授權已於 2026-09-14 定案為 upgrade authority，見 3.2；pause 範圍亦已定案，見 `set_paused`），以及 NFT 轉移後 PlayerProfile 的權威歸屬。這些需求分別列入 PG-C-01、C-05、C-02、C-09 與 C-13～C-16 的完成條件，未通過前不可標 DONE。
+**本版補充的實作前置條件**：賽事 Q-09／SA-Q7 尚未定案，6.2 不是完整結算協議。須固定 canonical entry 的欄位順序／位寬／endianness、名次權重與空組公式、`first_reached_at` 的可信時間來源、零人提交、錯誤 commitment 的恢復／退款流程及 vault 實際餘額對帳；不得只用帳面等式聲稱資金守恆。另需定義（`initialize_config` 首次授權已於 2026-09-14 定案為 upgrade authority；pause 範圍見 `set_paused`；`clock_in` 未鑄鞋拒絕定案為 6028，皆見 3.2），以及 NFT 轉移後 PlayerProfile 的權威歸屬。這些需求分別列入 PG-C-01、C-05、C-02、C-09 與 C-13～C-16 的完成條件，未通過前不可標 DONE。
 
 | 編號 | 問題 | 阻擋 | 建議 |
 |---|---|---|---|
