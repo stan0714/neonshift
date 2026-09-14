@@ -213,7 +213,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
-| PG-D-01 | keystore、簽章設定、Release APK 流程 | Runbook 8 | — | 0.5 | TODO | |
+| PG-D-01 | keystore、簽章設定、Release APK 流程 | Runbook 8 | — | 0.5 | WIP | 2026-09-14：build.gradle 自動讀 `keystore.properties`（gitignore）切換 release 簽章；`scripts/app/build.sh <env> release` 無 keystore 即拒絕、apksigner 驗證非 debug 簽章、輸出 release-notes.txt；Runbook 8.2 更新。待：專案負責人離線產生正式 keystore（8.1）並跑一次 demo release |
 | PG-D-02 | dApp Store 素材、描述、隱私政策 | BRD 14 | NFR 隱私 | 1.5 | TODO | |
 | PG-D-03 | Demo 影片（3 分鐘內） | BRD 14 | — | 1.5 | TODO | |
 | PG-D-04 | Pitch 簡報 | BRD 14 | — | 1.0 | TODO | |

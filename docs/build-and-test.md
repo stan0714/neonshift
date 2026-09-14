@@ -543,7 +543,7 @@ echo "android/keystore.properties" >> ../../.gitignore
 
 ### 8.2 設定簽章
 
-建立 `app/android/keystore.properties`（不提交）：
+【2026-09-14 已內建】`app/android/app/build.gradle` 會自動讀取 `app/android/keystore.properties`（存在即以 release 金鑰簽章，否則退回 debug 簽章）；`scripts/app/build.sh <env> release` 在檔案不存在時直接拒絕，並以 `apksigner` 驗證產物不是 debug 簽章。只需建立 `app/android/keystore.properties`（不提交；`storeFile` 相對於 `app/android/app/`）：
 
 ```properties
 storeFile=neonshift-release.keystore

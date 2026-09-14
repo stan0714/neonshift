@@ -18,9 +18,13 @@ case "$VARIANT" in
     (cd android && ./gradlew :app:assembleDebug -q -PreactNativeArchitectures=arm64-v8a)
     OUT="android/app/build/outputs/apk/debug/app-debug.apk" ;;
   release)
-    [ -f android/app/neonshift-release.keystore ] || [ -f android/keystore.properties ] || { echo "缺少 release keystore（Runbook 8.1）" >&2; exit 2; }
+    [ -f android/keystore.properties ] || { echo "缺少 android/keystore.properties（Runbook 8.1／8.2）；release 不得以 debug 金鑰簽章" >&2; exit 2; }
     (cd android && ./gradlew :app:assembleRelease -q)
-    OUT="android/app/build/outputs/apk/release/app-release.apk" ;;
+    OUT="android/app/build/outputs/apk/release/app-release.apk"
+    # 8.4：驗證簽章不是 debug 金鑰
+    if command -v apksigner >/dev/null; then
+      apksigner verify --print-certs "$OUT" | grep -q "androiddebugkey" && { echo "release APK 仍為 debug 簽章" >&2; exit 3; }
+    fi ;;
   *) echo "未知 variant $VARIANT" >&2; exit 2 ;;
 esac
 echo "APK: app/$OUT"
