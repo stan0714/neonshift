@@ -176,7 +176,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-B-16 | ChainIndexer：finalized 事件同步、orphan 回滾與 redeemed_sig 回填 | SD 2.1, 4.5 | — | 1.0 | WIP | 2026-09-14 完成：`indexer/{events,indexer,rpc,runner}.ts`；IDL 驅動事件解碼（CPI 深度追蹤）、游標分頁、confirmed 冪等寫入、finalized 升級＋projection（redeemed_sig）、orphan 標記；migration 0004 chain_cursor；INDEXER_ENABLED 同 process 啟動；vitest 3＋PG 整合 1；ClockedIn 加 max_streak_days（供 G-01） |
 | PG-B-17 | 30 天保留清理排程 | SD 4.5 | BR-25 | 0.5 | WIP | 2026-09-14 完成：`retention/service.ts`（purgeExpired＋到期延後刪除）、RETENTION_ENABLED 同 process 或 `npm run retention:once`；Store purgeExpired／listDueDeletions／markDeletionDone（Memory／PG）；vitest 2＋PG 整合 1 |
 | PG-B-18 | 速率限制、audit log、告警與暫停流程、可觀測性指標 | SD 4.2, 9 | — | 1.0 | WIP | @fastify/rate-limit（錢包／IP，敏感端點較低上限）、結構化稽核（不含 JWT／簽章／body）、/metrics（token）計數＋延遲直方圖、Alerts：重放 >10/日／簽發量 >3× 基線 → log＋webhook（pause 由 admin CLI 執行）；4 測試 |
-| PG-B-19 | 後端測試：規則、challenge／idempotency 重放、API 整合 | SD 7 | — | 1.5 | TODO | |
+| PG-B-19 | 後端測試：規則、challenge／idempotency 重放、API 整合 | SD 7 | — | 1.5 | WIP | 2026-09-14：vitest 148（規則正負案例、canonical／向量、SIWS／JWT／refresh 重用、challenge 重放、claim 冪等／409／signer crash、player 歷史／刪除、賽事 API／manifest、indexer、retention、rate-limit／alerts）＋ PostgresStore 整合 8（需 TEST_DATABASE_URL；scripts/test-all.sh 自動帶入）。待補：Testcontainers 化與 CI |
 
 ---
 
