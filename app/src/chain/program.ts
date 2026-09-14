@@ -24,6 +24,14 @@ export const claimPda = (wallet: PublicKey, taskDate: number, taskType: number) 
   return PublicKey.findProgramAddressSync([Buffer.from('claim'), wallet.toBytes(), date, Buffer.from([taskType])], programId())[0];
 };
 
+/** 成就 NFT 領取紀錄 PDA `["collectible", wallet, kind]`（SD 3.2） */
+export const collectiblePda = (wallet: PublicKey, kind: number) => PublicKey.findProgramAddressSync([Buffer.from('collectible'), wallet.toBytes(), Buffer.from([kind])], programId())[0];
+/** 成就 NFT asset PDA `["asset", wallet, kind]`：Metaplex Core asset 位址，由程式 invoke_signed 建立 */
+export const assetPda = (wallet: PublicKey, kind: number) => PublicKey.findProgramAddressSync([Buffer.from('asset'), wallet.toBytes(), Buffer.from([kind])], programId())[0];
+
+/** Metaplex Core（SD 11A） */
+export const MPL_CORE_PROGRAM_ID = new PublicKey('CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d');
+
 /** 8-byte Anchor discriminator，直接取自 IDL，避免與程式不同步 */
 export function discriminator(instruction: string): Buffer {
   const ix = (idl as { instructions: { name: string; discriminator: number[] }[] }).instructions.find((i) => i.name === instruction);

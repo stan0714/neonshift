@@ -30,6 +30,8 @@ export function BootstrapScreen() {
         if (process.env.EXPO_PUBLIC_DEV_ROUTE === 'DevHealth' || (url && /\/dev\/health(\?|$)/.test(url))) {
           routes.push({ name: 'DevHealth' });
         }
+        // `EXPO_PUBLIC_DEV_ROUTE=Main`：程式尚未部署時直接看 tabs 版面（只有錢包已連線才有意義）
+        if (process.env.EXPO_PUBLIC_DEV_ROUTE === 'Main' && result.route !== 'Main') routes.splice(0, 1, { name: 'Landing' }, { name: 'Main' });
       }
       if (!cancelled) navigation.reset({ index: routes.length - 1, routes });
     })();

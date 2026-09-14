@@ -6,10 +6,10 @@ import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { SHOE_PROGRESSION, type ShoeLevel } from '@/config/shoeProgression';
 import { color, space, Text } from '@/theme';
 
-export type ShoeHeroProps = { level?: ShoeLevel; size?: number; active?: boolean };
+export type ShoeHeroProps = { level?: ShoeLevel; size?: number; active?: boolean; /** 右上角 `LV. n` 標籤；縮圖（收藏格）可關閉 */ badge?: boolean };
 
 /** Layered vector shoe; native-driven levitation, with a stable perspective platform. */
-export function ShoeHero({ level = 1, size = 260, active = true }: ShoeHeroProps) {
+export function ShoeHero({ level = 1, size = 260, active = true, badge = true }: ShoeHeroProps) {
   const reduceMotion = useReduceMotion();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const phase = useRef(new Animated.Value(0)).current;
@@ -124,10 +124,12 @@ export function ShoeHero({ level = 1, size = 260, active = true }: ShoeHeroProps
           {level === 5 ? <Path d="M51 100 L57 95 L63 102" stroke={color.mint} fill="none" strokeWidth={2} /> : null}
         </Svg>
       </Animated.View>
-      <View style={styles.badge}>
-        <View style={[styles.dot, { backgroundColor: tint }]} />
-        <Text variant="label" tone="secondary" uppercase>LV. {level}</Text>
-      </View>
+      {badge ? (
+        <View style={styles.badge}>
+          <View style={[styles.dot, { backgroundColor: tint }]} />
+          <Text variant="label" tone="secondary" uppercase>LV. {level}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }

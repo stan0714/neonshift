@@ -410,7 +410,7 @@ adb shell pm clear cc.neonshift.app
 
 真實步數要靠走路，但驗證讀取邏輯時可以用其他健身 App 寫入 Health Connect，再確認本 App 的來源歸因（BR-07、BR-08）能正確排除非裝置來源。
 
-**開發診斷頁**：debug build 內建 `Health Connect (dev)` 畫面（`src/screens/dev/HealthDiagnosticsScreen.tsx`，只在 `__DEV__` 註冊），可逐項呼叫 getStatus／權限／readSteps／readSleep 並顯示原始回傳。開啟方式：`EXPO_PUBLIC_DEV_ROUTE=DevHealth npx expo start --dev-client`，冷啟動後會直接疊在 Landing 之上。
+**開發診斷頁**：debug build 內建 `Health Connect (dev)` 畫面（`src/screens/dev/HealthDiagnosticsScreen.tsx`，只在 `__DEV__` 註冊），可逐項呼叫 getStatus／權限／readSteps／readSleep 並顯示原始回傳。開啟方式：`EXPO_PUBLIC_DEV_ROUTE=DevHealth npx expo start --dev-client`，冷啟動後會直接疊在 Landing 之上。`EXPO_PUBLIC_DEV_ROUTE=Main` 則在錢包已連線但尚未建立鏈上 profile（程式未部署）時直接進入 tabs 檢查版面。
 
 **Metro 注意**：修改 `src/` 後若實機仍載入舊畫面，重啟 `npx expo start --clear`（本機 watchman 監看偶爾失效）。原生模組（`modules/`）改動一律要重新 `assembleDebug`。
 

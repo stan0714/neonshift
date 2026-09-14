@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.8（PG-C-09 完成） |
+| 文件版本 | v0.9（PG-A-14 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -197,7 +197,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-A-11 | Onboarding 四頁權限流程 | Style 10 | FR-02.5 | 1.5 | WIP | 四頁 Onboarding（Style 10.1～10.4）；Step 4 改為免費領取初階跑鞋（init_player）；Seeker 實測至 Step 4 |
 | PG-A-12 | Dashboard 儀表板 | Style 11 | FR-08.1 | 1.5 | WIP | HomeScreen（Style 11）：Header／Today DataCard×2／UTC 倒數／Shoe hero／MissionCard×2／disclaimer；dashboardStore 同步 Health Connect＋鏈上 Config／Profile／餘額／receipt；Seeker 實測（截圖）；離線快取顯示待補 |
 | PG-A-13 | 打卡、live motion 引導與成功特效 | Style 15 | FR-03.1, FR-08.3 | 1.0 | WIP | ClaimFlow（live motion→verifying→challenge→claim→wallet→confirm）＋ClockInSheet 各狀態文案、拒絕碼對照、成功一次 haptic；5 測試；端到端實機待 devnet 部署與後端上線 |
-| PG-A-14 | Gear 頁與成就收藏領取 | Style 12 | FR-05.2 | 1.0 | TODO | Gear：等級／倍率／下一階 XP／五階圖鑑＋My collection（Claimed／Claimable／Locked，Claim 走 MWA 簽 claim_collectible） |
+| PG-A-14 | Gear 頁與成就收藏領取 | Style 12 | FR-05.2 | 1.0 | WIP | 2026-09-14 完成：`GearScreen`（跑鞋 hero＋Level＋XP ring、current／next multiplier、距下一階 XP、My collection 2 欄網格 Claimed／Claimable／Locked、Claim 走 MWA 簽 `claim_collectible`、成功／拒簽／失敗 inline 狀態）；`domain/collectibles.ts`（目錄＋與鏈上 eligible() 一致的資格）、`CollectibleService`（單一 RPC 查 receipt、冪等領取）、`collectibleStore`；Jest 15 案例；Seeker 版面驗證（docs/evidence/seeker-gear-*.png，程式未部署故全為 Locked）。`EXPO_PUBLIC_DEV_ROUTE=Main` 供未部署時看 tabs |
 | PG-A-15 | Arena 頁三種狀態 | Style 13 | FR-06.1, FR-06.2 | 1.5 | TODO | |
 | PG-A-16 | 錯誤、離線與空狀態 | Style 14 | NFR 可用性 | 1.0 | TODO | |
 | PG-A-17 | 跑鞋視覺五階與進化動畫 | Style 16.2 | FR-04.4 | 1.0 | TODO | |
@@ -557,6 +557,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.9 | 2026-09-14 | PG-A-14 完成（WIP）：Gear 頁與 My collection 領取流程、Seeker 版面驗證 |
 | v0.8 | 2026-09-14 | PG-C-09 完成（WIP）：手組 Metaplex Core CPI、max_streak_days、SD v0.5 實作定案 |
 | v0.7 | 2026-09-14 | 專案負責人補充：NFT 定位為免費成就收藏（跑鞋五階＋里程碑徽章，Gear 頁領取）與藝廊（全站排行＋任意玩家）；BRD FR-04.6／FR-13、SD 3.2／11A、Style 12／12.1；PG-C-09、A-14、A-22 改述並恢復 TODO，新增 PG-G-01～04（5.5 人天） |
 | v0.6 | 2026-09-14 | 範圍變更（層級 2，專案負責人）：取消 NFT 鑄造，初階跑鞋隨 init_player 直接贈與、使用者不付費；升級改為免費（core_level 隨 XP 與 shoe_level 同步）；PG-C-10 DEFER；BRD FR-04.1／04.5／FR-05、D-02、Q-03、SA BR-16／23、SD 1.2／3.1／3.2／3.4／3.6／10、Style 10.4／12 同步 |
