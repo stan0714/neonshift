@@ -13,14 +13,23 @@
     "typecheck": "tsc --noEmit",
     "db:up": "docker compose up -d",
     "db:migrate": "docker compose exec -T db psql -U neonshift -d neonshift -v ON_ERROR_STOP=1 -f - < migrations/0001_init.sql",
-    "vectors:check": "node --test-force-exit scripts/check-vectors-fresh.mjs"
+    "vectors:check": "node --test-force-exit scripts/check-vectors-fresh.mjs",
+    "dev": "tsx watch src/server.ts",
+    "start": "node --import tsx src/server.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.13",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   },
   "allowScripts": {
     "esbuild@0.21.5": true
+  },
+  "dependencies": {
+    "fastify": "^5.12.4",
+    "pg": "^8.23.0",
+    "zod": "^4.6.5"
   }
 }

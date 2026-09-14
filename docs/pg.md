@@ -118,12 +118,12 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
-| PG-I-01 | Monorepo 結構（app / backend / programs） | SD 2.1 | — | 0.5 | WIP | backend、programs 已建；app/ 待 PG-I-03 |
+| PG-I-01 | Monorepo 結構（app / backend / programs） | SD 2.1 | — | 0.5 | WIP | app／backend／programs 三目錄皆已建立；待合併 dev |
 | PG-I-02 | 校正 Build Runbook 至 SA／SD v0.2，建置 Node.js 24 LTS、JDK 與 Android SDK 環境 | Runbook 1, SD 2.2 | — | 0.5 | WIP | Runbook v0.2、scripts/env.sh、env-check.sh、.nvmrc；本機檢查通過 |
-| PG-I-03 | Expo 專案初始化、prebuild、提交 android/ | Runbook 2, 3 | C-01 | 1.0 | TODO | |
-| PG-I-04 | CI：lint、單元測試、debug APK 產出 | SD 7 | — | 1.0 | TODO | |
+| PG-I-03 | Expo 專案初始化、prebuild、提交 android/ | Runbook 2, 3 | C-01 | 1.0 | WIP | Expo SDK 57 初始化、套件、app.json、prebuild 並提交 android/；本機 assembleDebug 通過，未上實機 |
+| PG-I-04 | CI：lint、單元測試、debug APK 產出 | SD 7 | — | 1.0 | WIP | .github/workflows/ci.yml：Rust／backend＋schema／app typecheck+jest／debug APK artifact；尚未在 GitHub 跑過 |
 | PG-I-05 | 後端骨架與 PostgreSQL docker compose | SD 2.2 | — | 0.5 | WIP | package.json、docker-compose、vitest 已建；未合併 dev |
-| PG-I-06 | Anchor 專案骨架與 localnet 測試環境 | SD 3 | — | 0.5 | TODO | |
+| PG-I-06 | Anchor 專案骨架與 localnet 測試環境 | SD 3 | — | 0.5 | WIP | programs/ Anchor 1.2 workspace＋neonshift-core 骨架＋LiteSVM 測試；anchor build 待驗證 |
 | PG-I-07 | dev／demo 分離部署腳本與 build-time 環境參數管理 | SD 8 | BR-14 | 1.5 | TODO | |
 | PG-I-08 | 經典 SPL Token tSKR（6 decimals）建立、固定供給、撤銷 authority | Runbook 7.4, SD 1.2 | BR-22 | 1.0 | TODO | |
 
@@ -158,7 +158,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
-| PG-B-01 | Fastify 骨架、設定載入、健康檢查端點 | SD 2.2 | — | 0.5 | TODO | |
+| PG-B-01 | Fastify 骨架、設定載入、健康檢查端點 | SD 2.2 | — | 0.5 | WIP | src/app.ts／config.ts／db.ts／errors.ts：healthz、readyz、/v1、統一錯誤格式、redact log；9 項測試 |
 | PG-B-02 | 資料庫 schema 與 migration | SD 4.5 | — | 1.0 | WIP | 0001_init.sql 9 表＋13 項約束測試；8.2 P0/P1 補項未做 |
 | PG-B-03 | `/auth/nonce` 與 `/auth/verify`（SIWS） | SD 4.2 | — | 1.5 | TODO | |
 | PG-B-04 | JWT 與 refresh session 輪替、重用偵測 | SD 4.2 | — | 1.5 | TODO | |
@@ -184,9 +184,9 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
-| PG-A-01 | 設計 token 與深色主題 | Style 18 | FR-08.4 | 1.0 | TODO | |
-| PG-A-02 | 導航骨架與四個 Tab | SD 5.2, Style 2 | — | 0.5 | TODO | |
-| PG-A-03 | Native Launch、Bootstrap Loading、Landing／Demo Preview | Style 8, 9 | — | 1.0 | TODO | |
+| PG-A-01 | 設計 token 與深色主題 | Style 18 | FR-08.4 | 1.0 | WIP | src/theme tokens（Style 4～6、15、18）、ThemeProvider、Text、Button／Chip／Surface；token 測試 |
+| PG-A-02 | 導航骨架與四個 Tab | SD 5.2, Style 2 | — | 0.5 | WIP | RootNavigator／OnboardingNavigator／MainTabs 四分頁（icon+label、mint active）；各頁 Placeholder |
+| PG-A-03 | Native Launch、Bootstrap Loading、Landing／Demo Preview | Style 8, 9 | — | 1.0 | WIP | BrandMark SVG、adaptive icon／splash 資產、Bootstrap 300ms/3s/10s 狀態機、Landing、Demo Preview；未實機驗證 |
 | PG-A-04 | HealthConnectModule：來源歸因、aggregate 與速率摘要 | SD 5.1 | BR-05, BR-07, BR-08 | 2.5 | TODO | |
 | PG-A-05 | SensorModule：20 秒引導式 live motion check 與特徵摘要 | SD 5.1 | BR-09 | 2.0 | TODO | |
 | PG-A-06 | WalletModule：MWA 授權與 token 保存 | SD 5.1 | — | 1.5 | TODO | |
