@@ -9,6 +9,7 @@
     "admin": "tsx src/cli.ts",
     "init-config": "tsx src/cli.ts init-config",
     "status": "tsx src/cli.ts status",
+    "sync-achievements": "tsx src/cli.ts sync-achievements",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

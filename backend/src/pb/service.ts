@@ -10,6 +10,8 @@ import type { PbRevision, Store } from "../store/types.js";
 import { buildChains, candidatesFromResult, candidatesFromWorkout, keyOf, type PbCandidate } from "./compute.js";
 
 export class PersonalBestService {
+  /** PG-R-08：重算後同步成就狀態（撤銷／重建） */
+  onRecomputed: ((wallet: string, rows: PbRevision[]) => Promise<void>) | null = null;
   constructor(private readonly store: Store, private readonly now: () => Date) {}
 
   async recompute(wallet: string): Promise<PbRevision[]> {
@@ -30,7 +32,9 @@ export class PersonalBestService {
         desired.push({ key, discipline: c.discipline, category: c.category, environment: c.environment, verificationClass: c.verificationClass, timingBasis: c.timingBasis, rulesMajor: c.rulesMajor, value: c.value, sourceKind: c.sourceKind, sourceId: c.sourceId, sourceRevision: c.sourceRevision, achievedAt: c.achievedAt, status: c.status, isBaseline: c.isBaseline, previousSourceId: i > 0 ? chain[i - 1]!.sourceId : null });
       }
     }
-    return this.store.syncPbRevisions(wallet, desired, this.now());
+    const rows = await this.store.syncPbRevisions(wallet, desired, this.now());
+    if (this.onRecomputed) await this.onRecomputed(wallet, rows);
+    return rows;
   }
 }
 

@@ -7,6 +7,7 @@
  *    不刪 row。projection 只吃 finalized，因此 orphan 不需回滾 projection；UI 可讀 confirmed 快速顯示。
  * 3. 游標存 `chain_cursor`；重啟從游標續抓，最舊一批不足 1,000 筆時再往回補（`getSignaturesForAddress` 的 before 分頁）。
  */
+import type { Store } from "../store/types.js";
 import type { GalleryStore, IndexerStore } from "../store/types.js";
 import { parseProgramEvents, type DecodedEvent, type EventDecoder } from "./events.js";
 
@@ -24,7 +25,7 @@ export interface IndexerRpc {
 export type ChainEventRecord = { signature: string; eventIndex: number; slot: number; blockhash: string; name: string; payload: Record<string, unknown> };
 
 /** projection：只在事件 finalized 時呼叫；必須冪等（同一事件可能因重啟被重放） */
-export type ProjectionStore = IndexerStore & GalleryStore;
+export type ProjectionStore = IndexerStore & GalleryStore & Pick<Store, "getAchievement" | "setAchievementStatus">;
 export type Projection = (event: ChainEventRecord, store: ProjectionStore, now: Date) => Promise<void>;
 
 export const CURSOR_NAME = "neonshift_core";

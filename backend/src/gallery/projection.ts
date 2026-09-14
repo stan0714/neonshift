@@ -24,6 +24,13 @@ export const galleryProjection: Projection = async (ev, store, now) => {
       if (!(await store.getGalleryPlayer(wallet))) await store.upsertGalleryPlayer({ wallet, shoeLevel: 1, coreLevel: 1, xp: 0n, streakDays: 0, maxStreakDays: 0, lastTaskDate: null, slot: 0 }, now);
       await store.insertGalleryCollectible({ wallet, kind: num(p.kind), asset: p.asset as string, signature: ev.signature, slot: ev.slot, claimedAt: now });
       return;
+    case "AchievementClaimed": {
+      // PG-R-08：finalized 才標 minted（索引尚未確認不顯示已鑄造）
+      const id = String(p.achievement_id);
+      const cur = await store.getAchievement(id);
+      if (cur && cur.mintedSignature !== ev.signature) await store.setAchievementStatus(id, cur.status === "revoked" || cur.status === "revoke_pending" ? cur.status : "minted", { asset: p.asset as string, mintedSignature: ev.signature }, now);
+      return;
+    }
     default:
       return;
   }

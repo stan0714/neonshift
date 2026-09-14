@@ -18,7 +18,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: url });
-    await pool.query("UPDATE pb_revisions SET previous_pb_id = NULL; DELETE FROM pb_revisions; UPDATE workout_sessions SET possible_duplicate_of = NULL; DELETE FROM workout_sessions; DELETE FROM event_badge_issues; DELETE FROM event_redemptions; DELETE FROM event_benefits; DELETE FROM result_revisions; DELETE FROM result_imports; DELETE FROM event_checkins; DELETE FROM checkin_challenges; DELETE FROM nfc_tags; DELETE FROM checkpoints; DELETE FROM campaign_aggregates; DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; UPDATE events SET current_rule_revision = NULL; DELETE FROM event_rule_revisions; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
+    await pool.query("DELETE FROM achievements; UPDATE pb_revisions SET previous_pb_id = NULL; DELETE FROM pb_revisions; UPDATE workout_sessions SET possible_duplicate_of = NULL; DELETE FROM workout_sessions; DELETE FROM event_badge_issues; DELETE FROM event_redemptions; DELETE FROM event_benefits; DELETE FROM result_revisions; DELETE FROM result_imports; DELETE FROM event_checkins; DELETE FROM checkin_challenges; DELETE FROM nfc_tags; DELETE FROM checkpoints; DELETE FROM campaign_aggregates; DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; UPDATE events SET current_rule_revision = NULL; DELETE FROM event_rule_revisions; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
     stores = [
       { name: "postgres", store: new PostgresStore(pool) },
       { name: "memory", store: new MemoryStore() },
@@ -375,6 +375,29 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       await store.upsertPlayer(wallet, t0);
       await store.deletePlayerData(wallet, t0, null);
       expect(await store.listPbRevisions(wallet), name).toEqual([]);
+    }
+  });
+  it("achievements（R-08）：upsert 冪等、metadata 變更回 pending（minted 不動）、狀態轉移、依狀態列出、錢包刪除保留已鑄造", async () => {
+    for (const { name, store } of stores) {
+      const wallet = "AC" + name;
+      const t0 = new Date("2026-09-14T00:00:00Z");
+      const rows = await store.syncPbRevisions(wallet, [{ key: "run|longest_run|outdoor|device|elapsed|1", discipline: "run", category: "longest_run", environment: "outdoor", verificationClass: "device", timingBasis: "elapsed", rulesMajor: 1, value: 5_000_000n, sourceKind: "workout", sourceId: "s", sourceRevision: 1, achievedAt: t0, status: "current", isBaseline: true, previousSourceId: null }], t0);
+      const pb = rows[0]!;
+      const id = "a".repeat(64);
+      const base = { achievementId: id, wallet, pbId: pb.pbId, category: "longest_run", verificationClass: "device" as const, sourceRevision: 1, rulesMajor: 1, publicConsent: false, metadata: { name: "x" }, metadataHash: Buffer.alloc(32, 1), status: "pending_registry" as const, registrySignature: null, registryUpdatedAt: null, asset: null, mintedSignature: null, mintedAt: null };
+      const a1 = await store.upsertAchievement(base, t0);
+      expect(a1.status, name).toBe("pending_registry");
+      await store.setAchievementStatus(id, "approved", { registrySignature: "sig1" }, t0);
+      expect((await store.upsertAchievement(base, t0)).status, name).toBe("approved"); // 同 metadata → 不動
+      expect((await store.upsertAchievement({ ...base, metadataHash: Buffer.alloc(32, 2), publicConsent: true }, t0)).status, name).toBe("pending_registry"); // metadata 變 → 回 pending
+      await store.setAchievementStatus(id, "minted", { asset: "A", mintedSignature: "m" }, t0);
+      expect((await store.upsertAchievement({ ...base, metadataHash: Buffer.alloc(32, 3) }, t0)), name).toMatchObject({ status: "minted", asset: "A" }); // minted 不改
+      expect((await store.listAchievementsByStatus(["minted"], 10)).some((a) => a.achievementId === id), name).toBe(true);
+      expect((await store.getAchievementByPb(pb.pbId))?.achievementId, name).toBe(id);
+      await store.upsertPlayer(wallet, t0);
+      await store.deletePlayerData(wallet, t0, null);
+      expect((await store.listAchievements(wallet)).length, name).toBe(1); // 已鑄造保留
+      expect((await store.listPbRevisions(wallet)).length, name).toBe(1); // 其 PB 列保留
     }
   });
 });

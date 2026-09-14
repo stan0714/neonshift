@@ -1,5 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { compareLeaderboard } from "./leaderboard.js";
-import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -33,6 +34,7 @@ export class MemoryStore implements Store {
   resultImports = new Map<string, ResultImport>();
   workouts = new Map<string, WorkoutSession>();
   pbs = new Map<string, PbRevision>();
+  achievements = new Map<string, Achievement>();
   resultRevisions: ResultRevision[] = [];
   redemptions = new Map<string, EventRedemption>();
 
@@ -532,7 +534,7 @@ export class MemoryStore implements Store {
       const cur = byKey.get(id);
       if (cur) Object.assign(cur, { value: d.value, sourceRevision: d.sourceRevision, achievedAt: d.achievedAt, status: d.status, isBaseline: d.isBaseline, previousPbId: prev?.pbId ?? null, invalidatedAt: null, reason: null });
       else {
-        const row: PbRevision = { pbId: `pb-${this.pbs.size + 1}`, wallet, discipline: d.discipline, category: d.category, environment: d.environment, verificationClass: d.verificationClass, timingBasis: d.timingBasis, rulesMajor: d.rulesMajor, value: d.value, sourceKind: d.sourceKind, sourceId: d.sourceId, sourceRevision: d.sourceRevision, achievedAt: d.achievedAt, status: d.status, isBaseline: d.isBaseline, previousPbId: prev?.pbId ?? null, createdAt: now, invalidatedAt: null, reason: null };
+        const row: PbRevision = { pbId: randomUUID(), wallet, discipline: d.discipline, category: d.category, environment: d.environment, verificationClass: d.verificationClass, timingBasis: d.timingBasis, rulesMajor: d.rulesMajor, value: d.value, sourceKind: d.sourceKind, sourceId: d.sourceId, sourceRevision: d.sourceRevision, achievedAt: d.achievedAt, status: d.status, isBaseline: d.isBaseline, previousPbId: prev?.pbId ?? null, createdAt: now, invalidatedAt: null, reason: null };
         this.pbs.set(row.pbId, row);
         byKey.set(id, row);
       }
@@ -542,6 +544,41 @@ export class MemoryStore implements Store {
       if (!seen.has(id) && p.status !== "invalidated") { p.status = "invalidated"; p.invalidatedAt = now; p.reason = "source_removed_or_corrected"; }
     }
     return this.listPbRevisions(wallet);
+  }
+  // ---- PG-R-08 ----
+  async upsertAchievement(a: Omit<Achievement, "createdAt" | "updatedAt">, now: Date) {
+    const cur = this.achievements.get(a.achievementId);
+    if (cur) {
+      if (cur.status !== "minted" && !cur.metadataHash.equals(a.metadataHash)) Object.assign(cur, { metadata: a.metadata, metadataHash: a.metadataHash, publicConsent: a.publicConsent, sourceRevision: a.sourceRevision, status: "pending_registry", updatedAt: now });
+      return { ...cur };
+    }
+    const row: Achievement = { ...a, createdAt: now, updatedAt: now };
+    this.achievements.set(row.achievementId, row);
+    return { ...row };
+  }
+  async getAchievement(achievementId: string) {
+    const x = this.achievements.get(achievementId);
+    return x ? { ...x } : null;
+  }
+  async getAchievementByPb(pbId: string) {
+    const x = [...this.achievements.values()].find((a) => a.pbId === pbId);
+    return x ? { ...x } : null;
+  }
+  async listAchievements(wallet: string) {
+    return [...this.achievements.values()].filter((a) => a.wallet === wallet).map((a) => ({ ...a }));
+  }
+  async listAchievementsByStatus(status: Achievement["status"][], limit: number) {
+    return [...this.achievements.values()].filter((a) => status.includes(a.status)).slice(0, limit).map((a) => ({ ...a }));
+  }
+  async setAchievementStatus(achievementId: string, status: Achievement["status"], extra: { registrySignature?: string; asset?: string; mintedSignature?: string }, now: Date) {
+    const x = this.achievements.get(achievementId);
+    if (!x) return null;
+    x.status = status;
+    x.updatedAt = now;
+    if (extra.registrySignature !== undefined) { x.registrySignature = extra.registrySignature; x.registryUpdatedAt = now; }
+    if (extra.asset !== undefined) x.asset = extra.asset;
+    if (extra.mintedSignature !== undefined) { x.mintedSignature = extra.mintedSignature; x.mintedAt = now; }
+    return { ...x };
   }
   async listCurrentResultsForWallet(wallet: string) {
     const latest = new Map<string, ResultRevision>();
@@ -696,7 +733,8 @@ export class MemoryStore implements Store {
     for (const [k, r] of this.claimResults) if (r.wallet === wallet) { this.claimResults.delete(k); claimResults++; }
     await this.deleteWalletEventData(wallet, now); // BR-32：活動個人層資料一併刪除
     for (const [k, x] of this.workouts) if (x.wallet === wallet) this.workouts.delete(k); // PG-R-01：運動摘要一併刪除
-    for (const [k, x] of this.pbs) if (x.wallet === wallet) this.pbs.delete(k); // PG-R-07：PB 一併刪除
+    for (const [k, x] of this.achievements) if (x.wallet === wallet && x.status !== "minted") this.achievements.delete(k); // PG-R-08：未鑄造的成就刪除；已鑄造保留鏈上事實
+    for (const [k, x] of this.pbs) if (x.wallet === wallet && ![...this.achievements.values()].some((a) => a.pbId === x.pbId)) this.pbs.delete(k); // PG-R-07：PB 一併刪除
     return { deferred: false, deletionDueAt: null, deleted: { snapshots: before - this.snapshots.length, attestations, claimResults, sessions } };
   }
 }

@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -821,6 +821,48 @@ export class PostgresStore implements Store {
       client.release();
     }
   }
+  // ---- PG-R-08 ----
+  private achievementRow(x: Row): Achievement {
+    return { achievementId: x.achievement_id as string, wallet: x.wallet as string, pbId: x.pb_id as string, category: x.category as string, verificationClass: x.verification_class as Achievement["verificationClass"], sourceRevision: Number(x.source_revision), rulesMajor: Number(x.rules_major), publicConsent: Boolean(x.public_consent), metadata: x.metadata as Record<string, unknown>, metadataHash: x.metadata_hash as Buffer, status: x.status as Achievement["status"], registrySignature: (x.registry_signature as string | null) ?? null, registryUpdatedAt: (x.registry_updated_at as Date | null) ?? null, asset: (x.asset as string | null) ?? null, mintedSignature: (x.minted_signature as string | null) ?? null, mintedAt: (x.minted_at as Date | null) ?? null, createdAt: x.created_at as Date, updatedAt: x.updated_at as Date };
+  }
+  async upsertAchievement(a: Omit<Achievement, "createdAt" | "updatedAt">, now: Date) {
+    const r = await this.pool.query(
+      `INSERT INTO achievements (achievement_id, wallet, pb_id, category, verification_class, source_revision, rules_major, public_consent, metadata, metadata_hash, status, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12)
+       ON CONFLICT (achievement_id) DO UPDATE SET metadata = EXCLUDED.metadata, metadata_hash = EXCLUDED.metadata_hash, public_consent = EXCLUDED.public_consent, source_revision = EXCLUDED.source_revision, status = 'pending_registry', updated_at = EXCLUDED.updated_at
+         WHERE achievements.status <> 'minted' AND achievements.metadata_hash <> EXCLUDED.metadata_hash
+       RETURNING *`,
+      [a.achievementId, a.wallet, a.pbId, a.category, a.verificationClass, a.sourceRevision, a.rulesMajor, a.publicConsent, JSON.stringify(a.metadata), a.metadataHash, a.status, now],
+    );
+    if (r.rows[0]) return this.achievementRow(r.rows[0] as Row);
+    return (await this.getAchievement(a.achievementId))!;
+  }
+  async getAchievement(achievementId: string) {
+    const r = await this.pool.query(`SELECT * FROM achievements WHERE achievement_id = $1`, [achievementId]);
+    return r.rows[0] ? this.achievementRow(r.rows[0] as Row) : null;
+  }
+  async getAchievementByPb(pbId: string) {
+    const r = await this.pool.query(`SELECT * FROM achievements WHERE pb_id = $1`, [pbId]);
+    return r.rows[0] ? this.achievementRow(r.rows[0] as Row) : null;
+  }
+  async listAchievements(wallet: string) {
+    const r = await this.pool.query(`SELECT * FROM achievements WHERE wallet = $1 ORDER BY created_at DESC`, [wallet]);
+    return (r.rows as Row[]).map((x) => this.achievementRow(x));
+  }
+  async listAchievementsByStatus(status: Achievement["status"][], limit: number) {
+    const r = await this.pool.query(`SELECT * FROM achievements WHERE status = ANY($1) ORDER BY updated_at LIMIT $2`, [status, limit]);
+    return (r.rows as Row[]).map((x) => this.achievementRow(x));
+  }
+  async setAchievementStatus(achievementId: string, status: Achievement["status"], extra: { registrySignature?: string; asset?: string; mintedSignature?: string }, now: Date) {
+    const r = await this.pool.query(
+      `UPDATE achievements SET status = $2, updated_at = $3,
+         registry_signature = COALESCE($4, registry_signature), registry_updated_at = CASE WHEN $4 IS NULL THEN registry_updated_at ELSE $3 END,
+         asset = COALESCE($5, asset), minted_signature = COALESCE($6, minted_signature), minted_at = CASE WHEN $6 IS NULL THEN minted_at ELSE $3 END
+       WHERE achievement_id = $1 RETURNING *`,
+      [achievementId, status, now, extra.registrySignature ?? null, extra.asset ?? null, extra.mintedSignature ?? null],
+    );
+    return r.rows[0] ? this.achievementRow(r.rows[0] as Row) : null;
+  }
   async listCurrentResultsForWallet(wallet: string) {
     const r = await this.pool.query(`SELECT DISTINCT ON (r.event_id, r.discipline) r.* FROM result_revisions r JOIN result_imports i ON i.import_id = r.import_id WHERE r.wallet = $1 ORDER BY r.event_id, r.discipline, r.published_at DESC, i.import_version DESC`, [wallet]);
     return (r.rows as Row[]).map((x) => this.revisionRow(x));
@@ -1009,8 +1051,9 @@ export class PostgresStore implements Store {
         await client.query(`DELETE FROM tournament_steps WHERE wallet = $1`, [wallet]);
         await client.query(`UPDATE workout_sessions SET possible_duplicate_of = NULL WHERE wallet = $1`, [wallet]);
         await client.query(`DELETE FROM workout_sessions WHERE wallet = $1`, [wallet]); // PG-R-01：運動摘要一併刪除
+        await client.query(`DELETE FROM achievements WHERE wallet = $1 AND status <> 'minted'`, [wallet]); // PG-R-08：未鑄造刪除；已鑄造保留鏈上事實
         await client.query(`UPDATE pb_revisions SET previous_pb_id = NULL WHERE wallet = $1`, [wallet]);
-        await client.query(`DELETE FROM pb_revisions WHERE wallet = $1`, [wallet]); // PG-R-07：PB 一併刪除
+        await client.query(`DELETE FROM pb_revisions WHERE wallet = $1 AND pb_id NOT IN (SELECT pb_id FROM achievements WHERE wallet = $1)`, [wallet]); // PG-R-07：PB 一併刪除（已鑄造成就的 PB 列保留）
       }
       await client.query("COMMIT");
       if (!deferUntil) await this.deleteWalletEventData(wallet, now); // BR-32：活動個人層資料一併刪除（各活動獨立交易）

@@ -6,6 +6,7 @@
 import { timingSafeEqual } from "node:crypto";
 import Fastify, { type FastifyInstance } from "fastify";
 
+import { ACHIEVEMENT_LEN, decodeAchievement, validateAchievement } from "../lib/achievement.js";
 import { decode, validate } from "../lib/attestation.js";
 import { LocalKeypairSigner } from "./local.js";
 
@@ -41,9 +42,11 @@ export function buildSignerService({ signer, token, logger = false }: SignerServ
     const b64 = req.body?.message_b64;
     if (typeof b64 !== "string") return reply.status(400).send({ error: "BAD_REQUEST" });
     const message = Buffer.from(b64, "base64");
-    if (message.length !== MESSAGE_LEN) return reply.status(400).send({ error: "BAD_LENGTH" });
+    if (message.length !== MESSAGE_LEN && message.length !== ACHIEVEMENT_LEN) return reply.status(400).send({ error: "BAD_LENGTH" });
     try {
-      validate(decode(message));
+      // 只簽兩種 canonical 格式：164-byte 打卡 attestation、194-byte 成就證明（各自 domain／時效檢查）
+      if (message.length === ACHIEVEMENT_LEN) validateAchievement(decodeAchievement(message));
+      else validate(decode(message));
     } catch (e) {
       req.log.warn({ err: e }, "refused non-canonical attestation");
       return reply.status(400).send({ error: "INVALID_ATTESTATION" });

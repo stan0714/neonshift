@@ -350,7 +350,18 @@ export interface PartnerStore {
   syncPbRevisions(wallet: string, desired: PbDesired[], now: Date): Promise<PbRevision[]>;
   /** 本人在各活動的最新已發布成績（供 PB） */
   listCurrentResultsForWallet(wallet: string): Promise<ResultRevision[]>;
+
+  // ---- PG-R-08：成就 NFT ----
+  /** 建立或更新（未 minted 時 metadata 變更 → 回到 pending_registry） */
+  upsertAchievement(a: Omit<Achievement, "createdAt" | "updatedAt">, now: Date): Promise<Achievement>;
+  getAchievement(achievementId: string): Promise<Achievement | null>;
+  getAchievementByPb(pbId: string): Promise<Achievement | null>;
+  listAchievements(wallet: string): Promise<Achievement[]>;
+  listAchievementsByStatus(status: Achievement["status"][], limit: number): Promise<Achievement[]>;
+  setAchievementStatus(achievementId: string, status: Achievement["status"], extra: { registrySignature?: string; asset?: string; mintedSignature?: string }, now: Date): Promise<Achievement | null>;
 }
+
+export type Achievement = { achievementId: string; wallet: string; pbId: string; category: string; verificationClass: "organizer" | "device"; sourceRevision: number; rulesMajor: number; publicConsent: boolean; metadata: Record<string, unknown>; metadataHash: Buffer; status: "pending_registry" | "approved" | "minted" | "revoke_pending" | "revoked"; registrySignature: string | null; registryUpdatedAt: Date | null; asset: string | null; mintedSignature: string | null; mintedAt: Date | null; createdAt: Date; updatedAt: Date };
 
 export type PbDesired = { key: string; discipline: "run"; category: string; environment: string; verificationClass: string; timingBasis: string; rulesMajor: number; value: bigint; sourceKind: "workout" | "result"; sourceId: string; sourceRevision: number; achievedAt: Date; status: "current" | "historical"; isBaseline: boolean; previousSourceId: string | null };
 export type PbRevision = { pbId: string; wallet: string; discipline: string; category: string; environment: string; verificationClass: string; timingBasis: string; rulesMajor: number; value: bigint; sourceKind: "workout" | "result"; sourceId: string; sourceRevision: number; achievedAt: Date; status: "current" | "historical" | "invalidated"; isBaseline: boolean; previousPbId: string | null; createdAt: Date; invalidatedAt: Date | null; reason: string | null };
