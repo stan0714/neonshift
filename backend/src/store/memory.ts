@@ -1,5 +1,5 @@
 import { compareLeaderboard } from "./leaderboard.js";
-import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, PartnerMembership, PartnerOrganization, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, EventParticipant, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, PartnerMembership, PartnerOrganization, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -23,6 +23,8 @@ export class MemoryStore implements Store {
   ruleRevisions = new Map<string, EventRuleRevision>();
   eventRoles = new Map<string, EventRoleGrant>();
   audit: (AuditEntry & { createdAt: Date })[] = [];
+  participants = new Map<string, EventParticipant>();
+  campaign = new Map<string, { source: string; day: string; views: number; registrations: number; checkins: number; redemptions: number }>();
 
   async insertChallenge(c: Challenge) {
     const k = c.nonceHash.toString("hex");
@@ -226,6 +228,51 @@ export class MemoryStore implements Store {
   }
   async listAudit(eventId: string, limit: number) {
     return this.audit.filter((a) => a.eventId === eventId).slice(-limit).reverse();
+  }
+
+  // ---- PG-E-03 ----
+  async registerParticipant(p: { eventId: string; wallet: string; acceptedRuleRevision: string; displayName: string | null; publicConsent: boolean }, now: Date) {
+    const e = this.events.get(p.eventId);
+    if (!e || e.state !== "published") return "not_open" as const;
+    const k = `${p.eventId}:${p.wallet}`;
+    const cur = this.participants.get(k);
+    if (cur && cur.status !== "cancelled") return "exists" as const;
+    if (e.capacity !== 0 && e.registrationCount >= e.capacity) return "full" as const;
+    e.registrationCount += 1;
+    const row: EventParticipant = { eventId: p.eventId, wallet: p.wallet, status: "registered", acceptedRuleRevision: p.acceptedRuleRevision, displayName: p.displayName, publicConsentAt: p.publicConsent ? now : null, registeredAt: now, cancelledAt: null, retentionDueAt: null };
+    this.participants.set(k, row);
+    return row;
+  }
+  async cancelRegistration(eventId: string, wallet: string, now: Date) {
+    const cur = this.participants.get(`${eventId}:${wallet}`);
+    if (!cur || cur.status === "cancelled") return null;
+    cur.status = "cancelled";
+    cur.cancelledAt = now;
+    const e = this.events.get(eventId);
+    if (e) e.registrationCount = Math.max(0, e.registrationCount - 1);
+    return cur;
+  }
+  async getParticipant(eventId: string, wallet: string) {
+    return this.participants.get(`${eventId}:${wallet}`) ?? null;
+  }
+  async listParticipations(wallet: string) {
+    return [...this.participants.values()].filter((p) => p.wallet === wallet).sort((a, b) => b.registeredAt.getTime() - a.registeredAt.getTime());
+  }
+  async updateParticipantPrivacy(eventId: string, wallet: string, patch: { displayName?: string | null; publicConsent?: boolean }, now: Date) {
+    const cur = this.participants.get(`${eventId}:${wallet}`);
+    if (!cur) return null;
+    if (patch.displayName !== undefined) cur.displayName = patch.displayName;
+    if (patch.publicConsent !== undefined) cur.publicConsentAt = patch.publicConsent ? now : null;
+    return cur;
+  }
+  async bumpCampaign(eventId: string, source: string, day: string, field: "views" | "registrations" | "checkins" | "redemptions") {
+    const k = `${eventId}:${source}:${day}`;
+    const row = this.campaign.get(k) ?? { source, day, views: 0, registrations: 0, checkins: 0, redemptions: 0 };
+    row[field] += 1;
+    this.campaign.set(k, row);
+  }
+  async listCampaign(eventId: string) {
+    return [...this.campaign.entries()].filter(([k]) => k.startsWith(`${eventId}:`)).map(([, v]) => v);
   }
 
   // ---- PG-G-01 ----

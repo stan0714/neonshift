@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.14（合作管理 API） |
+| 文件版本 | v0.15（活動報名） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -884,6 +884,8 @@ total_staked + treasury_injection
 
 **實作（2026-09-14，PG-E-02）**：`partner/routes.ts` — `POST /partner/orgs`（OPS_TOKEN；建立組織與第一位 owner）、`GET /partner/me`、`POST／DELETE /partner/orgs/{orgId}/members`（owner、近期登入；不可撤銷自己 `LAST_OWNER`）、`GET /partner/orgs/{orgId}/events`、`POST /partner/events`（owner）、`GET /partner/events/{id}`（任一活動角色；含 rule_revisions 與 your_roles）、`PATCH /partner/events/{id}`（owner；`revision` 樂觀鎖 → `REVISION_CONFLICT`；cancelled／completed 拒改 `EVENT_CANCELLED`；容量不得低於既有報名）、`POST /partner/events/{id}/rule-revisions`（publisher；版本只增、`rules_hash` = SHA-256(RFC 8785)）、`POST /partner/events/{id}/publish`（publisher、近期登入、需 revision_id 與起訖時間；可重複發布切換規則版本）、`POST /partner/events/{id}/cancel`（原因必填）、`POST／DELETE /partner/events/{id}/roles`（owner、近期登入）、`GET /partner/events/{id}/audit`（owner）。公開 `GET /events`、`GET /events/{id|slug}` 只回已發布／已取消活動的公開投影（無 org_id、created_by、revision、名單）。合作方管理介面（網頁）待後續；目前以 API + curl／Postman 操作。
 
+**實作（2026-09-14，PG-E-03）**：報名 API — `GET /events/{id}/registration`、`POST /events/{id}/registrations?source=`（需已發布、報名窗口內、`accepted_rule_revision` 必須等於目前 `current_rule_revision` 否則 `REVISION_CONFLICT`；Store `registerParticipant` 在同一交易鎖 events 列檢查容量並 +1，取消後復用同一 participant；已報名回 200 `already: true`；額滿 `EVENT_FULL`）、`DELETE /events/{id}/registration`（開賽後不可自助取消）、`PATCH /events/{id}/registration/privacy`、`GET /me/event-history`、`GET /partner/events/{id}/campaign-summary`（owner；`campaign_aggregates` 依 `?source=` 計 views／registrations，去識別）。App：Arena「Partner events」入口 → `EventsScreen`／`EventDetailScreen`（規則版本顯示與同意、公開成績同意開關、容量、窗口、報名／取消、需登入／額滿／規則變更／已取消狀態）；App Links `https://neonshift.cc/e/<slug>?source=` 直達詳情。
+
 ### 11.3 資料結構與交易約束
 
 以下是新增 migration 的契約，不代表 4.5 的既有 SQL 已包含活動功能。所有活動子表帶 event_id，以複合 FK 防止跨活動誤綁。
@@ -955,6 +957,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.15 | 2026-09-14 | PG-E-03：報名 API 與 App 活動畫面 |
 | v0.14 | 2026-09-14 | PG-E-02：合作管理 API 實作說明 |
 | v0.13 | 2026-09-14 | PG-E-01：合作活動 schema 與授權服務實作說明 |
 | v0.12 | 2026-09-14 | PG-G-01／G-02：藝廊投影與 API 實作說明 |

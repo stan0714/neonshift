@@ -66,6 +66,13 @@ export type TournamentStepsResponse = { week_id: number; verified_steps: number;
 export type GalleryPlayerView = { rank: number | null; wallet: string; shoe_level: number; core_level: number; xp: string; streak_days: number; max_streak_days: number; last_task_date: number | null; collectible_count: number; updated_at: string };
 export type GalleryListResponse = { generated_at: string; total: number; next_cursor: string | null; players: GalleryPlayerView[]; you: { rank: number } | null };
 export type GalleryPlayerResponse = { player: GalleryPlayerView; is_you: boolean; collectibles: { kind: number; asset: string; signature: string; claimed_at: string }[] };
+export type PartnerEventView = {
+  event_id: string; slug: string; title: string; description: string; state: 'draft' | 'published' | 'cancelled' | 'completed'; timezone: string;
+  registration_opens_at: string | null; registration_closes_at: string | null; starts_at: string | null; ends_at: string | null;
+  capacity: number; registration_count: number; spots_left: number | null; tournament_address: string | null;
+  rules: { version: number; revision_id: string; rules: Record<string, unknown>; published_at: string | null } | null; cancel_reason: string | null;
+};
+export type EventRegistration = { status: 'registered' | 'cancelled' | 'checked_in'; accepted_rule_revision: string; display_name: string | null; public_consent: boolean; registered_at: string; cancelled_at: string | null };
 export type HistoryItem = { task_date: number; task_type: 'steps' | 'sleep'; issued_at: string; expires_at: string; redeemed_signature: string | null; amount: string | null; xp: number | null; shoe_level: number | null };
 export type HistoryResponse = { days: number; retention_days: number; total_earned: string; items: HistoryItem[] };
 
@@ -170,6 +177,28 @@ export class ApiClient {
 
   gallerySearch(q: string): Promise<{ players: GalleryPlayerView[] }> {
     return this.request<{ players: GalleryPlayerView[] }>('GET', `/gallery/search?q=${encodeURIComponent(q)}`);
+  }
+
+  // ---------------- partner events（PG-E-03） ----------------
+
+  events(cursor: string | null = null): Promise<{ events: PartnerEventView[]; next_cursor: string | null }> {
+    return this.request('GET', `/events?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, undefined, { auth: false });
+  }
+
+  event(idOrSlug: string, source?: string): Promise<PartnerEventView> {
+    return this.request('GET', `/events/${encodeURIComponent(idOrSlug)}${source ? `?source=${encodeURIComponent(source)}` : ''}`, undefined, { auth: false });
+  }
+
+  eventRegistration(eventId: string): Promise<{ registration: EventRegistration | null }> {
+    return this.request('GET', `/events/${encodeURIComponent(eventId)}/registration`);
+  }
+
+  registerEvent(eventId: string, body: { accepted_rule_revision: string; display_name?: string | null; public_consent?: boolean }, source?: string): Promise<{ registration: EventRegistration; already: boolean }> {
+    return this.request('POST', `/events/${encodeURIComponent(eventId)}/registrations${source ? `?source=${encodeURIComponent(source)}` : ''}`, body);
+  }
+
+  cancelEventRegistration(eventId: string): Promise<unknown> {
+    return this.requestRaw('DELETE', `/events/${encodeURIComponent(eventId)}/registration`);
   }
 
   history(days = 30): Promise<HistoryResponse> {

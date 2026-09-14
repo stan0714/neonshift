@@ -134,4 +134,47 @@ describe("PG-E-02 partner API", () => {
     expect(r.statusCode).toBe(403);
     expect(r.json().error.code).toBe("RECENT_LOGIN_REQUIRED");
   });
+
+  it("報名：需接受目前規則版本、容量原子、重複回 already、取消釋放名額、窗口與宣傳來源統計", async () => {
+    const { owner, orgId } = await orgWithOwner();
+    const ev = j(await app.inject({ method: "POST", url: "/v1/partner/events", headers: owner.h, payload: draft(orgId, { capacity: 2, registration_closes_at: "2026-10-02T00:00:00Z" }) }));
+    const rev = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/rule-revisions`, headers: owner.h, payload: { rules: { distance_m: 5000 } } }));
+    const a = await login();
+    // 未發布 → 404
+    expect((await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: a.h, payload: { accepted_rule_revision: rev.revision_id } })).statusCode).toBe(404);
+    await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/publish`, headers: owner.h, payload: { revision_id: rev.revision_id } });
+    // 舊規則版本 → 409
+    const rev2 = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/rule-revisions`, headers: owner.h, payload: { rules: { distance_m: 5100 } } }));
+    await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/publish`, headers: owner.h, payload: { revision_id: rev2.revision_id } });
+    expect((await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: a.h, payload: { accepted_rule_revision: rev.revision_id } })).json().error.code).toBe("REVISION_CONFLICT");
+    // 報名（含宣傳來源）
+    let r = await app.inject({ method: "POST", url: `/v1/events/river-5k/registrations?source=ig_story`, headers: a.h, payload: { accepted_rule_revision: rev2.revision_id, display_name: "Alice", public_consent: true } });
+    expect(r.statusCode).toBe(201);
+    expect(j(r).registration).toMatchObject({ status: "registered", display_name: "Alice", public_consent: true });
+    r = await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: a.h, payload: { accepted_rule_revision: rev2.revision_id } });
+    expect([r.statusCode, j(r).already]).toEqual([200, true]);
+    const b = await login();
+    const c = await login();
+    expect((await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: b.h, payload: { accepted_rule_revision: rev2.revision_id } })).statusCode).toBe(201);
+    expect((await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: c.h, payload: { accepted_rule_revision: rev2.revision_id } })).json().error.code).toBe("EVENT_FULL");
+    expect(j(await app.inject({ method: "GET", url: `/v1/events/river-5k?source=ig_story` })).spots_left).toBe(0);
+    // 取消釋放名額；再報名復用
+    expect((await app.inject({ method: "DELETE", url: `/v1/events/${ev.event_id}/registration`, headers: b.h })).statusCode).toBe(204);
+    expect((await app.inject({ method: "DELETE", url: `/v1/events/${ev.event_id}/registration`, headers: b.h })).statusCode).toBe(404);
+    expect((await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: c.h, payload: { accepted_rule_revision: rev2.revision_id } })).statusCode).toBe(201);
+    // 隱私更新與歷史
+    expect(j(await app.inject({ method: "PATCH", url: `/v1/events/${ev.event_id}/registration/privacy`, headers: a.h, payload: { public_consent: false } })).registration.public_consent).toBe(false);
+    const hist = j(await app.inject({ method: "GET", url: `/v1/me/event-history`, headers: b.h })).items;
+    expect(hist).toHaveLength(1);
+    expect(hist[0].registration.status).toBe("cancelled");
+    // 宣傳彙總（owner）
+    const sum = j(await app.inject({ method: "GET", url: `/v1/partner/events/${ev.event_id}/campaign-summary`, headers: owner.h }));
+    expect(sum.by_source.ig_story).toMatchObject({ views: 1, registrations: 1 });
+    expect(sum.by_source.direct.registrations).toBe(2);
+    expect((await app.inject({ method: "GET", url: `/v1/partner/events/${ev.event_id}/campaign-summary`, headers: a.h })).statusCode).toBe(404);
+    // 報名截止後 409
+    clock = new Date("2026-10-02T00:00:01Z");
+    const d = await login();
+    expect((await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: d.h, payload: { accepted_rule_revision: rev2.revision_id } })).json().error.code).toBe("EVENT_NOT_OPEN");
+  });
 });

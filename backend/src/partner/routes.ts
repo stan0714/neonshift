@@ -106,11 +106,86 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
     return { events, next_cursor: rows.length === limit ? String(offset + rows.length) : null };
   });
 
-  app.get("/events/:id", async (req) => {
-    const id = (req.params as { id: string }).id;
+  const resolveEvent = async (id: string) => {
     const e = uuid.safeParse(id).success ? await store.getEvent(id) : await store.getEventBySlug(id);
     if (!e || e.state === "draft") throw new ApiError(404, "NOT_FOUND", "event not found");
+    return e;
+  };
+  const source = (req: FastifyRequest) => {
+    const s = String((req.query as { source?: string }).source ?? "direct").slice(0, 32);
+    return /^[a-z0-9_-]+$/i.test(s) ? s.toLowerCase() : "direct";
+  };
+  const day = () => now().toISOString().slice(0, 10);
+
+  app.get("/events/:id", async (req) => {
+    const e = await resolveEvent((req.params as { id: string }).id);
+    await store.bumpCampaign(e.eventId, source(req), day(), "views");
     return publicEventView(e, e.currentRuleRevision ? await store.getRuleRevision(e.currentRuleRevision) : null);
+  });
+
+  // ---- participant：報名／取消／隱私／歷史（PG-E-03） ----
+  const participantView = (p: { status: string; acceptedRuleRevision: string; displayName: string | null; publicConsentAt: Date | null; registeredAt: Date; cancelledAt: Date | null }) => ({ status: p.status, accepted_rule_revision: p.acceptedRuleRevision, display_name: p.displayName, public_consent: p.publicConsentAt !== null, registered_at: p.registeredAt.toISOString(), cancelled_at: p.cancelledAt?.toISOString() ?? null });
+
+  app.get("/events/:id/registration", { preHandler: requireAuth(auth) }, async (req) => {
+    const e = await resolveEvent((req.params as { id: string }).id);
+    const p = await store.getParticipant(e.eventId, req.auth!.wallet);
+    return { registration: p ? participantView(p) : null };
+  });
+
+  app.post("/events/:id/registrations", { preHandler: requireAuth(auth) }, async (req, reply) => {
+    const e = await resolveEvent((req.params as { id: string }).id);
+    const b = parse(z.object({ accepted_rule_revision: uuid, display_name: z.string().min(1).max(40).nullable().default(null), public_consent: z.boolean().default(false) }).strict(), req.body);
+    if (e.state !== "published") throw new ApiError(409, "EVENT_CANCELLED", `event is ${e.state}`);
+    const t = now();
+    if ((e.registrationOpensAt && t < e.registrationOpensAt) || (e.registrationClosesAt && t >= e.registrationClosesAt) || (e.endsAt && t >= e.endsAt)) throw new ApiError(409, "EVENT_NOT_OPEN", "registration is not open");
+    if (b.accepted_rule_revision !== e.currentRuleRevision) throw new ApiError(409, "REVISION_CONFLICT", "rules changed; reload and accept the current rules");
+    const r = await store.registerParticipant({ eventId: e.eventId, wallet: req.auth!.wallet, acceptedRuleRevision: b.accepted_rule_revision, displayName: b.display_name, publicConsent: b.public_consent }, t);
+    if (r === "not_open") throw new ApiError(409, "EVENT_NOT_OPEN", "registration is not open");
+    if (r === "full") throw new ApiError(409, "EVENT_FULL", "event is full");
+    if (r === "exists") return reply.status(200).send({ registration: participantView((await store.getParticipant(e.eventId, req.auth!.wallet))!), already: true });
+    await store.bumpCampaign(e.eventId, source(req), day(), "registrations");
+    await authz.audit(req, { eventId: e.eventId, orgId: e.orgId, action: "registration.create", revisionId: b.accepted_rule_revision });
+    return reply.status(201).send({ registration: participantView(r), already: false });
+  });
+
+  app.delete("/events/:id/registration", { preHandler: requireAuth(auth) }, async (req, reply) => {
+    const e = await resolveEvent((req.params as { id: string }).id);
+    if (e.startsAt && now() >= e.startsAt) throw new ApiError(409, "EVENT_NOT_OPEN", "event already started; contact the organizer");
+    const p = await store.cancelRegistration(e.eventId, req.auth!.wallet, now());
+    if (!p) throw new ApiError(404, "NOT_FOUND", "no active registration");
+    await authz.audit(req, { eventId: e.eventId, orgId: e.orgId, action: "registration.cancel" });
+    return reply.status(204).send();
+  });
+
+  app.patch("/events/:id/registration/privacy", { preHandler: requireAuth(auth) }, async (req) => {
+    const e = await resolveEvent((req.params as { id: string }).id);
+    const b = parse(z.object({ display_name: z.string().min(1).max(40).nullable().optional(), public_consent: z.boolean().optional() }).strict(), req.body);
+    const p = await store.updateParticipantPrivacy(e.eventId, req.auth!.wallet, { ...(b.display_name !== undefined ? { displayName: b.display_name } : {}), ...(b.public_consent !== undefined ? { publicConsent: b.public_consent } : {}) }, now());
+    if (!p) throw new ApiError(404, "NOT_FOUND", "no registration");
+    return { registration: participantView(p) };
+  });
+
+  app.get("/me/event-history", { preHandler: requireAuth(auth) }, async (req) => {
+    const parts = await store.listParticipations(req.auth!.wallet);
+    return {
+      items: await Promise.all(parts.map(async (p) => {
+        const e = await store.getEvent(p.eventId);
+        return { event: e ? { event_id: e.eventId, slug: e.slug, title: e.title, state: e.state, starts_at: e.startsAt?.toISOString() ?? null, ends_at: e.endsAt?.toISOString() ?? null } : null, registration: participantView(p) };
+      })),
+    };
+  });
+
+  app.get("/partner/events/:id/campaign-summary", { preHandler: requireAuth(auth) }, async (req) => {
+    const id = parse(uuid, (req.params as { id: string }).id);
+    const access = await authz.requireEventRole(id, req.auth!.wallet, []);
+    if (!access.isOwner) throw new ApiError(403, "ROLE_FORBIDDEN", "organization owner required");
+    const rows = await store.listCampaign(id);
+    const bySource: Record<string, { views: number; registrations: number; checkins: number; redemptions: number }> = {};
+    for (const r of rows) {
+      const t = (bySource[r.source] ??= { views: 0, registrations: 0, checkins: 0, redemptions: 0 });
+      t.views += r.views; t.registrations += r.registrations; t.checkins += r.checkins; t.redemptions += r.redemptions;
+    }
+    return { event_id: id, registration_count: access.event.registrationCount, capacity: access.event.capacity, by_source: bySource, daily: rows };
   });
 
   // ---- ops：組織與第一位 owner ----

@@ -260,4 +260,19 @@ export interface PartnerStore {
 
   appendAudit(entry: AuditEntry, now: Date): Promise<void>;
   listAudit(eventId: string, limit: number): Promise<(AuditEntry & { createdAt: Date })[]>;
+
+  // ---- PG-E-03：報名 ----
+  /**
+   * 原子報名：活動 published 且（capacity = 0 或 registration_count < capacity）才建立／復用 participant 並 +1。
+   * 回 "full"（額滿）、"exists"（已報名）、或 participant。
+   */
+  registerParticipant(p: { eventId: string; wallet: string; acceptedRuleRevision: string; displayName: string | null; publicConsent: boolean }, now: Date): Promise<EventParticipant | "full" | "exists" | "not_open">;
+  cancelRegistration(eventId: string, wallet: string, now: Date): Promise<EventParticipant | null>;
+  getParticipant(eventId: string, wallet: string): Promise<EventParticipant | null>;
+  listParticipations(wallet: string): Promise<EventParticipant[]>;
+  updateParticipantPrivacy(eventId: string, wallet: string, patch: { displayName?: string | null; publicConsent?: boolean }, now: Date): Promise<EventParticipant | null>;
+  bumpCampaign(eventId: string, source: string, day: string, field: "views" | "registrations" | "checkins" | "redemptions"): Promise<void>;
+  listCampaign(eventId: string): Promise<{ source: string; day: string; views: number; registrations: number; checkins: number; redemptions: number }[]>;
 }
+
+export type EventParticipant = { eventId: string; wallet: string; status: "registered" | "cancelled" | "checked_in"; acceptedRuleRevision: string; displayName: string | null; publicConsentAt: Date | null; registeredAt: Date; cancelledAt: Date | null; retentionDueAt: Date | null };

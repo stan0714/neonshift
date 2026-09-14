@@ -236,6 +236,18 @@ export function ArenaScreen() {
         </>
       ) : null}
 
+      <Pressable onPress={() => navigation.navigate('Events')} accessibilityRole="button" accessibilityLabel="Partner events" style={styles.eventsLink} testID="arena-events-link">
+        <Surface style={styles.rowBetween}>
+          <View style={styles.flex}>
+            <Text variant="title">Partner events</Text>
+            <Text variant="caption" tone="muted">
+              Runs and walks with organizers · register, check in, collect perks
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={20} color={color.textMuted} />
+        </Surface>
+      </Pressable>
+
       <Text variant="caption" tone="muted" style={styles.disclaimer}>
         Test Token · No monetary value
       </Text>
@@ -299,4 +311,6 @@ const styles = StyleSheet.create({
   rank: { width: 48 },
   wallet: { flex: 1 },
   disclaimer: { marginTop: space.l, textAlign: 'center' },
+  eventsLink: { marginTop: space.xl },
+  flex: { flex: 1 },
 });

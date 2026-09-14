@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, PartnerMembership, PartnerOrganization, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, EventParticipant, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, PartnerMembership, PartnerOrganization, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -311,6 +311,76 @@ export class PostgresStore implements Store {
   async listAudit(eventId: string, limit: number) {
     const r = await this.pool.query(`SELECT * FROM event_audit_logs WHERE event_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2`, [eventId, limit]);
     return (r.rows as Row[]).map((x) => ({ eventId: x.event_id as string | null, orgId: x.org_id as string | null, actorWallet: x.actor_wallet as string, action: x.action as string, target: (x.target as string | null) ?? null, revisionId: (x.revision_id as string | null) ?? null, requestId: (x.request_id as string | null) ?? null, details: x.details, createdAt: x.created_at as Date }));
+  }
+
+  // ---- PG-E-03 ----
+  private participantRow(x: Row): EventParticipant {
+    return { eventId: x.event_id as string, wallet: x.wallet as string, status: x.status as EventParticipant["status"], acceptedRuleRevision: x.accepted_rule_revision as string, displayName: (x.display_name as string | null) ?? null, publicConsentAt: (x.public_consent_at as Date | null) ?? null, registeredAt: x.registered_at as Date, cancelledAt: (x.cancelled_at as Date | null) ?? null, retentionDueAt: (x.retention_due_at as Date | null) ?? null };
+  }
+  async registerParticipant(p: { eventId: string; wallet: string; acceptedRuleRevision: string; displayName: string | null; publicConsent: boolean }, now: Date) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const ev = await client.query(`SELECT state, capacity, registration_count FROM events WHERE event_id = $1 FOR UPDATE`, [p.eventId]);
+      const e = ev.rows[0] as Row | undefined;
+      if (!e || e.state !== "published") { await client.query("ROLLBACK"); return "not_open" as const; }
+      const cur = await client.query(`SELECT * FROM event_participants WHERE event_id = $1 AND wallet = $2 FOR UPDATE`, [p.eventId, p.wallet]);
+      if (cur.rows[0] && (cur.rows[0] as Row).status !== "cancelled") { await client.query("ROLLBACK"); return "exists" as const; }
+      if (Number(e.capacity) !== 0 && Number(e.registration_count) >= Number(e.capacity)) { await client.query("ROLLBACK"); return "full" as const; }
+      await client.query(`UPDATE events SET registration_count = registration_count + 1 WHERE event_id = $1`, [p.eventId]);
+      const r = await client.query(
+        `INSERT INTO event_participants (event_id, wallet, status, accepted_rule_revision, display_name, public_consent_at, registered_at, cancelled_at)
+         VALUES ($1,$2,'registered',$3,$4,$5,$6,NULL)
+         ON CONFLICT (event_id, wallet) DO UPDATE SET status = 'registered', accepted_rule_revision = EXCLUDED.accepted_rule_revision, display_name = EXCLUDED.display_name, public_consent_at = EXCLUDED.public_consent_at, registered_at = EXCLUDED.registered_at, cancelled_at = NULL
+         RETURNING *`,
+        [p.eventId, p.wallet, p.acceptedRuleRevision, p.displayName, p.publicConsent ? now : null, now],
+      );
+      await client.query("COMMIT");
+      return this.participantRow(r.rows[0] as Row);
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+  async cancelRegistration(eventId: string, wallet: string, now: Date) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SELECT 1 FROM events WHERE event_id = $1 FOR UPDATE`, [eventId]);
+      const r = await client.query(`UPDATE event_participants SET status = 'cancelled', cancelled_at = $3 WHERE event_id = $1 AND wallet = $2 AND status <> 'cancelled' RETURNING *`, [eventId, wallet, now]);
+      if (r.rows[0]) await client.query(`UPDATE events SET registration_count = GREATEST(0, registration_count - 1) WHERE event_id = $1`, [eventId]);
+      await client.query("COMMIT");
+      return r.rows[0] ? this.participantRow(r.rows[0] as Row) : null;
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+  async getParticipant(eventId: string, wallet: string) {
+    const r = await this.pool.query(`SELECT * FROM event_participants WHERE event_id = $1 AND wallet = $2`, [eventId, wallet]);
+    return r.rows[0] ? this.participantRow(r.rows[0] as Row) : null;
+  }
+  async listParticipations(wallet: string) {
+    const r = await this.pool.query(`SELECT * FROM event_participants WHERE wallet = $1 ORDER BY registered_at DESC`, [wallet]);
+    return (r.rows as Row[]).map((x) => this.participantRow(x));
+  }
+  async updateParticipantPrivacy(eventId: string, wallet: string, patch: { displayName?: string | null; publicConsent?: boolean }, now: Date) {
+    const r = await this.pool.query(
+      `UPDATE event_participants SET display_name = CASE WHEN $3::boolean THEN $4 ELSE display_name END, public_consent_at = CASE WHEN $5::boolean THEN (CASE WHEN $6::boolean THEN $7 ELSE NULL END) ELSE public_consent_at END WHERE event_id = $1 AND wallet = $2 RETURNING *`,
+      [eventId, wallet, patch.displayName !== undefined, patch.displayName ?? null, patch.publicConsent !== undefined, patch.publicConsent ?? false, now],
+    );
+    return r.rows[0] ? this.participantRow(r.rows[0] as Row) : null;
+  }
+  async bumpCampaign(eventId: string, source: string, day: string, field: "views" | "registrations" | "checkins" | "redemptions") {
+    await this.pool.query(`INSERT INTO campaign_aggregates (event_id, source, day, ${field}) VALUES ($1,$2,$3,1) ON CONFLICT (event_id, source, day) DO UPDATE SET ${field} = campaign_aggregates.${field} + 1`, [eventId, source, day]);
+  }
+  async listCampaign(eventId: string) {
+    const r = await this.pool.query(`SELECT source, day::text AS day, views, registrations, checkins, redemptions FROM campaign_aggregates WHERE event_id = $1 ORDER BY day, source`, [eventId]);
+    return (r.rows as Row[]).map((x) => ({ source: x.source as string, day: x.day as string, views: Number(x.views), registrations: Number(x.registrations), checkins: Number(x.checkins), redemptions: Number(x.redemptions) }));
   }
 
   // ---- PG-G-01 ----

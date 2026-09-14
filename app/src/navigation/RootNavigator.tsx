@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { color, motion } from '@/theme';
 import { ActivityHistoryScreen } from '@/screens/ActivityHistoryScreen';
+import { EventDetailScreen, EventsScreen } from '@/screens/events/EventScreens';
 import { GalleryPlayerScreen, GalleryScreen } from '@/screens/gallery/GalleryScreens';
 import { BootstrapScreen } from '@/screens/launch/BootstrapScreen';
 import { DemoPreviewScreen } from '@/screens/launch/DemoPreviewScreen';
@@ -26,6 +27,7 @@ const linking: LinkingOptions<RootParamList> = {
     screens: {
       Landing: 'landing',
       DemoPreview: 'preview',
+      EventDetail: { path: 'e/:idOrSlug', parse: { idOrSlug: String } },
       ...(__DEV__ ? { DevHealth: 'dev/health' } : {}),
     },
   },
@@ -62,6 +64,8 @@ export function RootNavigator() {
         />
         <Stack.Screen name="Gallery" component={GalleryScreen} options={{ headerShown: true, title: 'Gallery', animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="GalleryPlayer" component={GalleryPlayerScreen} options={{ headerShown: true, title: 'Player', animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="Events" component={EventsScreen} options={{ headerShown: true, title: 'Events', animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="EventDetail" component={EventDetailScreen} options={{ headerShown: true, title: 'Event', animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         {__DEV__ ? <Stack.Screen name="DevHealth" component={HealthDiagnosticsScreen} options={{ headerShown: true, title: 'Health Connect (dev)', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} /> : null}
       </Stack.Navigator>
     </NavigationContainer>
