@@ -10,7 +10,7 @@ import { LOADING_COPY } from './types';
  * 預設 bootstrap 步驟（Style 8.2 載入順序）。
  * - profile：本機 onboarding 旗標（PG-A-11）
  * - health：Health Connect availability 與既有權限，不彈 dialog（PG-A-04）
- * - wallet：以保存的 MWA token reauthorize；失效即 disconnected，不卡住啟動（PG-A-06）
+ * - wallet：只讀本機保存的 MWA session，不開啟錢包；reauthorize 延後到首次簽章（PG-A-06）
  * - network：Config 版本檢查與 dashboard 快取，待 PG-A-07／A-12 接入
  */
 export const defaultBootstrapTasks: readonly BootstrapTask[] = [
@@ -47,7 +47,7 @@ export const defaultBootstrapTasks: readonly BootstrapTask[] = [
       }
       const session = await useWalletStore.getState().restore();
       ctx.walletConnected = session !== null;
-      return session ? { status: 'done' } : { status: 'failed', detail: 'Wallet session could not be restored' };
+      return session ? { status: 'done', detail: session.address } : { status: 'failed', detail: 'Wallet session could not be read' };
     },
   },
   {

@@ -189,14 +189,14 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-A-03 | Native Launch、Bootstrap Loading、Landing／Demo Preview | Style 8, 9 | — | 1.0 | WIP | BrandMark SVG、adaptive icon／splash 資產、Bootstrap 300ms/3s/10s 狀態機、Landing、Demo Preview；未實機驗證 |
 | PG-A-04 | HealthConnectModule：來源歸因、aggregate 與速率摘要 | SD 5.1 | BR-05, BR-07, BR-08 | 2.5 | WIP | modules/neonshift-health Kotlin（status／extension／SPN 反射、權限、aggregate＋DataOriginFilter、來源四分類、step-rate、睡眠 end-time 歸屬）；Seeker 實測權限與讀取通過；四種來源測資與跨午夜測試待補 |
 | PG-A-05 | SensorModule：20 秒引導式 live motion check 與特徵摘要 | SD 5.1 | BR-09 | 2.0 | WIP | modules/neonshift-sensors Kotlin（50 Hz、2×10 s、自相關主頻、RMS／ZCR／freq_variance、TYPE_STEP_COUNTER 增量，原始序列不出原生層）；JUnit 7＋JS 4 測試；Seeker 靜置實測 49.5 Hz；步行實測與引導 UI 待 A-13 |
-| PG-A-06 | WalletModule：MWA 授權與 token 保存 | SD 5.1 | — | 1.5 | WIP | WalletService：MWA 2.0 authorize／reauthorize／deauthorize、SecureStore token、錯誤四分類、signMessage；walletStore；9 測試；Seeker＋Phantom 實測連線成功 |
+| PG-A-06 | WalletModule：MWA 授權與 token 保存 | SD 5.1 | — | 1.5 | WIP | WalletService：MWA 2.0 authorize／deauthorize、SecureStore token、signMessage／signAndSendTransaction；啟動只讀本機 session（不開錢包），reauthorize 延後到首次簽章；Seeker＋Phantom 實測 |
 | PG-A-07 | ApiClient、JWT 續期、challenge 簽署 | SD 4.2, 5.1 | — | 1.0 | WIP | ApiClient：SIWS signIn（MWA signMessage）、SecureStore token、401 單飛 refresh 重試、authorizeClaim（request_hash＋challenge 簽章 bytes 與後端一致）、claim／history／deleteData、統一 ApiError；6 測試 |
 | PG-A-08 | TaskEngine：達標判定與 UTC 日界線 | SD 5.3 | BR-01, BR-05 | 1.0 | WIP | domain/taskEngine：任務日 floor(unix/86400)、UTC 換日倒數、8,000／420 達標、SA 6.3 狀態機 reduce＋Style 7.3 CTA；8 測試；實機改時區測試待 A-12 |
 | PG-A-09 | TxBuilder：ed25519 前置指令與 Anchor 指令 | SD 3.5, 5.1 | BR-14 | 2.0 | WIP | chain/attestation（164B 解析→Borsh AttestationArgs，20 組向量對得起來）、txBuilder（ed25519 自我引用 offsets、ATA idempotent、clock_in 帳戶順序、大小 <1232）；4 測試；鏈上實測待 devnet 部署 |
 | PG-A-10 | ChainClient：簽章／blockhash 保存、確認與 ClaimReceipt 冪等輪詢 | SD 5.3 | — | 1.5 | WIP | ClaimSubmitter：送前查 receipt、保存 signature／blockhash／lastValidBlockHeight、逾時先查 receipt 與簽章狀態、超過高度才 expired 需新 attestation、resumePending；7 測試；飛航模式實機測試待 A-13 |
 | PG-A-11 | Onboarding 四頁權限流程 | Style 10 | FR-02.5 | 1.5 | WIP | 四頁 Onboarding（Style 10.1～10.4）；Step 4 改為免費領取初階跑鞋（init_player）；Seeker 實測至 Step 4 |
-| PG-A-12 | Dashboard 儀表板 | Style 11 | FR-08.1 | 1.5 | TODO | |
-| PG-A-13 | 打卡、live motion 引導與成功特效 | Style 15 | FR-03.1, FR-08.3 | 1.0 | TODO | |
+| PG-A-12 | Dashboard 儀表板 | Style 11 | FR-08.1 | 1.5 | WIP | HomeScreen（Style 11）：Header／Today DataCard×2／UTC 倒數／Shoe hero／MissionCard×2／disclaimer；dashboardStore 同步 Health Connect＋鏈上 Config／Profile／餘額／receipt；Seeker 實測（截圖）；離線快取顯示待補 |
+| PG-A-13 | 打卡、live motion 引導與成功特效 | Style 15 | FR-03.1, FR-08.3 | 1.0 | WIP | ClaimFlow（live motion→verifying→challenge→claim→wallet→confirm）＋ClockInSheet 各狀態文案、拒絕碼對照、成功一次 haptic；5 測試；端到端實機待 devnet 部署與後端上線 |
 | PG-A-14 | Gear 頁與升級流程 | Style 12 | FR-05.2 | 1.0 | TODO | Gear 頁改為等級／倍率／下一階 XP／五階圖鑑，無升級流程（Style 12 更新） |
 | PG-A-15 | Arena 頁三種狀態 | Style 13 | FR-06.1, FR-06.2 | 1.5 | TODO | |
 | PG-A-16 | 錯誤、離線與空狀態 | Style 14 | NFR 可用性 | 1.0 | TODO | |

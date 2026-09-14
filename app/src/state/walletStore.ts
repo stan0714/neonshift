@@ -32,8 +32,9 @@ export const useWalletStore = create<WalletState>((set) => ({
     }
   },
 
+  /** 啟動用：只讀本機 session，不開錢包；簽章時才 reauthorize */
   async restore() {
-    const session = await walletService.restore();
+    const session = await walletService.peekStoredSession();
     set({ status: session ? 'connected' : 'disconnected', session });
     return session;
   },

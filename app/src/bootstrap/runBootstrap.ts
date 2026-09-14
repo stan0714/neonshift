@@ -4,6 +4,8 @@ export type BootstrapRunResult =
   | { kind: 'ok'; route: BootstrapRoute; ctx: BootstrapContext }
   | { kind: 'blocked'; reason: 'forceUpdate' | 'maintenance'; detail?: string; retryAfter?: string; ctx: BootstrapContext };
 
+export const STEP_TIMEOUT_MS = 8_000;
+
 export type BootstrapObserver = (steps: StepState[], ctx: BootstrapContext, current?: BootstrapTask) => void;
 
 /**
@@ -30,7 +32,11 @@ export async function runBootstrap(
     emit(task);
     let outcome: StepOutcome;
     try {
-      outcome = await task.run(ctx);
+      // 單一步驟最多 8 秒，任何原生／網路呼叫卡住都不得阻塞啟動（8.4）
+      outcome = await Promise.race([
+        task.run(ctx),
+        new Promise<StepOutcome>((resolve) => setTimeout(() => resolve({ status: 'failed', detail: 'timed out' }), task.timeoutMs ?? STEP_TIMEOUT_MS)),
+      ]);
     } catch (e) {
       outcome = { status: 'failed', detail: e instanceof Error ? e.message : String(e) };
     }

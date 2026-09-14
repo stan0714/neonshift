@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react-native';
 
 import { BOOTSTRAP_TIMING, runBootstrap, useBootstrap, type BootstrapTask } from '@/bootstrap';
 
-const task = (id: BootstrapTask['id'], run: BootstrapTask['run']): BootstrapTask => ({ id, label: id, run });
+const task = (id: BootstrapTask['id'], run: BootstrapTask['run']): BootstrapTask => ({ id, label: id, run, timeoutMs: 60_000 });
 const never = () => new Promise<never>(() => {});
 
 describe('runBootstrap（Style 8.2 載入順序）', () => {
@@ -31,6 +31,17 @@ describe('runBootstrap（Style 8.2 載入順序）', () => {
       () => {},
     );
     expect(res).toMatchObject({ kind: 'blocked', reason: 'forceUpdate' });
+  });
+});
+
+describe('runBootstrap 步驟逾時', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+  test('單一步驟超過 timeoutMs 視為 failed，不阻塞啟動', async () => {
+    const p = runBootstrap([{ id: 'wallet', label: 'w', run: never, timeoutMs: 1_000 }], () => {});
+    await jest.advanceTimersByTimeAsync(1_000);
+    const res = await p;
+    expect(res).toMatchObject({ kind: 'ok', route: 'Landing' });
   });
 });
 

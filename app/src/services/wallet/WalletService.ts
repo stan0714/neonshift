@@ -127,6 +127,15 @@ export const walletService = {
     return (await readStored()) !== null;
   },
 
+  /**
+   * 啟動時使用：只讀本機保存的 session，不開啟錢包（MWA reauthorize 會把錢包 App 拉到前景，
+   * 不適合在 bootstrap 做）；真正的 reauthorize 延後到第一次需要簽章時（signMessage／signAndSend）。
+   */
+  async peekStoredSession(): Promise<WalletSession | null> {
+    const stored = await readStored();
+    return stored ? toSession(stored.address, stored.label, stored.walletUriBase) : null;
+  },
+
   /** FR-01.4：撤銷授權並清除 token；錢包端失敗也要清本機 */
   async disconnect(): Promise<void> {
     const stored = await readStored();

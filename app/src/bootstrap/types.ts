@@ -19,6 +19,8 @@ export type BootstrapTask = {
   /** 8.2 Loading copy，例如 `Checking health access` */
   label: string;
   run: (ctx: BootstrapContext) => Promise<StepOutcome>;
+  /** 逾時視為 failed（預設 8 秒），不阻塞啟動 */
+  timeoutMs?: number;
 };
 
 /** 各步驟共享並累積的結果 */
