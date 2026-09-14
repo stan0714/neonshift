@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.22（PG-G-04 完成） |
+| 文件版本 | v0.23（PG-D 交付物） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -215,10 +215,10 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 |---|---|---|---|---|---|---|
 | PG-D-01 | keystore、簽章設定、Release APK 流程 | Runbook 8 | — | 0.5 | WIP | 2026-09-14：build.gradle 自動讀 `keystore.properties`（gitignore）切換 release 簽章；`scripts/app/build.sh <env> release` 無 keystore 即拒絕、apksigner 驗證非 debug 簽章、輸出 release-notes.txt；Runbook 8.2 更新。待：專案負責人離線產生正式 keystore（8.1）並跑一次 demo release |
 | PG-D-02 | dApp Store 素材、描述、隱私政策 | BRD 14 | NFR 隱私 | 1.5 | WIP | 2026-09-14：`web/privacy/index.html`（與實作一致：裝置端原始資料、30 天保留、刪除流程、鏈上公開資料、權限）；`docs/store/listing.md`（短／長描述、截圖清單、圖示、送審檢查表）。待：部署 neonshift.cc、正式截圖、Publisher Portal 流程 |
-| PG-D-03 | Demo 影片（3 分鐘內） | BRD 14 | — | 1.5 | TODO | |
-| PG-D-04 | Pitch 簡報 | BRD 14 | — | 1.0 | TODO | |
-| PG-D-05 | README 與架構圖 | BRD 14 | — | 0.5 | TODO | |
-| PG-D-06 | 代幣經濟模擬試算表 | BRD 8.5 | BR-02, BR-16 | 1.0 | TODO | |
+| PG-D-03 | Demo 影片（3 分鐘內） | BRD 14 | — | 1.5 | WIP | 2026-09-14：`docs/store/demo-video.md` 分鏡與旁白（8 段、≤ 3 分鐘）。待 devnet 部署後錄製 |
+| PG-D-04 | Pitch 簡報 | BRD 14 | — | 1.0 | WIP | 2026-09-14：`docs/store/pitch.md` 十頁大綱（問題／方案／產品／SM 整合／技術／防作弊／代幣經濟／測試／路線圖／Ask）。待製作投影片 |
+| PG-D-05 | README 與架構圖 | BRD 14 | — | 0.5 | WIP | 2026-09-14：README 重寫（mermaid 架構圖、信任邊界、repo 結構、快速開始、防作弊摘要） |
+| PG-D-06 | 代幣經濟模擬試算表 | BRD 8.5 | BR-02, BR-16 | 1.0 | WIP | 2026-09-14：`tools/tokenomics/simulate.mjs` → `docs/economics/sim.csv`＋`README.md`；**結論：升級免費後消耗／產出比 ≈ 0，未達 BRD 8.5 ≥ 0.6，列為待決（四個方案）** |
 
 ### 7.1 範圍變更規則
 
@@ -250,6 +250,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 |---|---|---|---|---|---|
 | DEC-01 | 全部 | 團隊人數、角色與至少 5 FTE 的容量安排（BRD Q-01） | 專案負責人 | 2026-09-10 | OPEN |
 | DEC-02 | PG-I-08、PG-D-02 | SKR integration track 是否接受 tSKR（BRD Q-08） | 專案負責人 | 2026-09-10 | OPEN |
+| DEC-03 | PG-D-06、SD 6.2 | 升級免費後 tSKR 消耗／產出比 ≈ 0（BRD 8.5 目標 ≥ 0.6）：獎金池抽成、退款比例、外觀消耗或改以 runway 為指標（docs/economics/README.md） | 專案負責人 | 2026-09-21 | OPEN |
 
 DEC-02 若判定必須整合主網官方 SKR，PG-I-08 的 tSKR 路線、SA 5.4 與鏈上金庫設計都必須重估；不得在現有四週估算內直接替換。
 
@@ -557,6 +558,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.23 | 2026-09-14 | PG-D-01～D-06（WIP）：簽章、上架素材與隱私政策、Demo 腳本、Pitch 大綱、README、經濟模擬（消耗比待決） |
 | v0.22 | 2026-09-14 | PG-G-04 完成（WIP）：NFT metadata／圖片素材 |
 | v0.21 | 2026-09-14 | PG-G-03 完成（WIP）：App 藝廊 |
 | v0.20 | 2026-09-14 | PG-G-01／G-02 完成（WIP）：藝廊投影與 API |
