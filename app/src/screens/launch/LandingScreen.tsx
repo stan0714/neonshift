@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 
@@ -29,6 +29,7 @@ const COPY = {
  */
 export function LandingScreen() {
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
   const reduceMotion = useReduceMotion();
   // 9.4：headline、body、CTA 以 60ms stagger 出現，總進場 ≤ 600ms；Reduce Motion 只保留 opacity
   const anims = useRef([0, 1, 2, 3].map(() => new Animated.Value(reduceMotion ? 1 : 0))).current;
@@ -38,10 +39,12 @@ export function LandingScreen() {
       anims.forEach((a) => a.setValue(1));
       return;
     }
-    Animated.stagger(
+    const entrance = Animated.stagger(
       60,
       anims.map((a) => Animated.timing(a, { toValue: 1, duration: motion.slow, easing: Easing.bezier(...motion.easing), useNativeDriver: true })),
-    ).start();
+    );
+    entrance.start();
+    return () => entrance.stop();
   }, [anims, reduceMotion]);
 
   const enter = (i: number) => ({
@@ -57,7 +60,7 @@ export function LandingScreen() {
       </View>
 
       <Animated.View style={[styles.hero, enter(0)]}>
-        <ShoeHero level={1} />
+        <ShoeHero level={1} active={isFocused} />
       </Animated.View>
 
       <Animated.View style={enter(1)}>

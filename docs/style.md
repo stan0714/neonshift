@@ -477,7 +477,7 @@ Landing 是首次使用者的產品價值頁，不是 loading page。它不應�
 ### 9.4 Landing 動效
 
 - Hero 跑鞋進場：320ms fade + 12dp rise。
-- 能量平台：2.4 秒低強度循環旋轉；Reduce Motion 時改靜態。
+- 跑鞋 Hero：分層鞋面、鞋帶／孔眼、網布細節、鞋底刻紋與 N 光條；以 4.4 秒完整週期輕微懸浮（約 2.6% 圖寬）及 −2° 至 0° 擺動。橢圓能量平台保持水平透視，陰影隨懸浮淡入淡出，不整片旋轉。Reduce Motion、App 背景或頁面失焦時停用循環；使用 native driver 的 transform／opacity，避免逐幀 React 更新。
 - Headline、body、CTA 依序以 60ms stagger 出現，總進場不超過 600ms。
 - 不自動播放有聲內容，不使用連續 glitch 或快速閃光。
 
@@ -645,13 +645,15 @@ Landing 後採單一步驟頁面，不使用一次塞滿五頁的 carousel。
 
 | Level | 主色 | 視覺變化 |
 |---|---|---|
-| 1 | Graphite + cyan | 單線光條 |
-| 2 | Cyan | 雙線光條、平台亮起 |
-| 3 | Violet | 鞋底能量紋、資料核心 |
-| 4 | Violet + magenta | 外框粒子、結構升級 |
-| 5 | Mint + iridescent | 完整全息外觀、有限 hero glow |
+| 1 Origin／原點 | Graphite + silver | 0 XP；石墨網布、灰銀單軌、基本輪廓 |
+| 2 Pulse／脈動 | Cyan + mint | 450 XP；雙光軌、加固後跟 |
+| 3 Phase／相位 | Violet + cyan | 1,500 XP；側面外骨骼、分段鞋底 |
+| 4 Surge／湧能 | Magenta + violet | 3,600 XP；後跟鰭片、可視能量艙 |
+| 5 Zenith／極境 | Mint + iridescent | 7,500 XP；珍珠裝甲、懸浮鞋底模組 |
 
 輸出要求：透明背景 WebP 為主、PNG fallback；同階資產 bounding box 必須一致，避免升級時跳動。裝飾動畫優先使用 Lottie 或預製序列，並提供靜態 fallback。
+
+目前已提供五階 SVG 與唯讀 Demo 圖鑑；每階除了色彩亦有可辨識結構，不需播放動畫才能辨認。XP 條件及 Core 差異見 BRD 17；Demo 數值不可冒充玩家資產。優化順序及替換契約見 SD 12、PG 14：向量 → 精修靜態素材 → 進化動效 → 實機評估後選配 3D。Lv5 維持有限光暈，不增加高頻閃爍。
 
 ### 16.3 Marketing image vs. product UI
 

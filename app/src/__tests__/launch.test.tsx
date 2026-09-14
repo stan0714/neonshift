@@ -18,6 +18,14 @@ const Wrapper = ({ children }: PropsWithChildren) => (
 );
 
 describe('Landing（Style 9）', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    mockNavigate.mockClear();
+  });
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+  });
   test('顯示首選文案、DEVNET badge、三個 proof points 與 disclaimer', async () => {
     await render(<LandingScreen />, { wrapper: Wrapper });
     expect(screen.getByText('YOUR DAILY SHIFT')).toBeTruthy();
@@ -38,9 +46,9 @@ describe('Landing（Style 9）', () => {
 
   test('Connect wallet → Onboarding；Preview → DemoPreview', async () => {
     await render(<LandingScreen />, { wrapper: Wrapper });
-    fireEvent.press(screen.getByText('Connect wallet'));
+    await fireEvent.press(screen.getByText('Connect wallet'));
     expect(mockNavigate).toHaveBeenCalledWith('Onboarding', { screen: 'WalletConnect' });
-    fireEvent.press(screen.getByText('Preview the app'));
+    await fireEvent.press(screen.getByText('Preview the app'));
     expect(mockNavigate).toHaveBeenCalledWith('DemoPreview');
   });
 });
