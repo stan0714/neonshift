@@ -64,3 +64,30 @@ pub const COLLECTIBLE_TOURNAMENT_RANK_BASE: u8 = 110;
 
 /// NFT metadata 靜態託管（SD 11A）；改網址需升級程式，之後可移入 Config
 pub const COLLECTIBLE_BASE_URI: &str = "https://neonshift.cc/nft/";
+
+// ---- 錦標賽（BRD 8.4、SA BR-17～BR-19）；建立賽事時寫入 Tournament 後不可變 ----
+pub const DEFAULT_STAKE_AMOUNT: u64 = 50 * TSKR_UNIT;
+pub const DEFAULT_MIN_ENTRANTS: u32 = 10;
+/// 國庫挹注上限（BRD 8.4「不得依賴未設上限的國庫補貼」）：單一賽事最多 5,000 tSKR
+pub const MAX_TREASURY_INJECTION: u64 = 5_000 * TSKR_UNIT;
+/// 得獎人數 = max(1, ceil(n × 30%))；A 組 = max(1, ceil(n × 10%))（BR-18）
+pub const WINNER_BPS: u32 = 3_000;
+pub const GROUP_A_BPS: u32 = 1_000;
+/// 可分配獎金池 A／B 組占比與未得獎者退款比例（BRD 8.4）
+pub const PRIZE_A_BPS: u16 = 6_000;
+pub const PRIZE_B_BPS: u16 = 4_000;
+pub const LOSER_REFUND_BPS: u16 = 5_000;
+/// week_id = ISO 年 × 100 + ISO 週（SD 3.1）
+pub const MIN_WEEK_ID: u32 = 2026_01;
+pub const MAX_WEEK_ID: u32 = 2100_53;
+
+/// 賽事狀態（Tournament.status）
+pub mod tournament_status {
+    pub const DRAFT: u8 = 0;
+    pub const REGISTRATION: u8 = 1;
+    pub const LOCKED: u8 = 2;
+    pub const RUNNING: u8 = 3;
+    pub const SETTLING: u8 = 4;
+    pub const SETTLED: u8 = 5;
+    pub const CANCELLED: u8 = 6;
+}

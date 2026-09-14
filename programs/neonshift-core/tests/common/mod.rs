@@ -125,11 +125,17 @@ pub struct TokenSetup {
 }
 
 pub fn setup_tokens(env: &mut Env, decimals: u8) -> TokenSetup {
+    let deployer = env.deployer.pubkey();
+    setup_tokens_with_treasury_owner(env, decimals, &deployer)
+}
+
+/// treasury vault 的 owner 依 scripts/chain/token.sh 為 admin；lock_tournament 由 admin 以 owner 身分簽章挹注
+pub fn setup_tokens_with_treasury_owner(env: &mut Env, decimals: u8, treasury_owner: &Pubkey) -> TokenSetup {
     let (config, _) = config_pda();
     let deployer = env.deployer.insecure_clone();
     let mint = create_mint(&mut env.svm, &deployer, &deployer.pubkey(), decimals);
     let reward_vault = create_token_account(&mut env.svm, &deployer, &mint, &config);
-    let treasury_vault = create_token_account(&mut env.svm, &deployer, &mint, &deployer.pubkey());
+    let treasury_vault = create_token_account(&mut env.svm, &deployer, &mint, treasury_owner);
     TokenSetup { mint, reward_vault, treasury_vault }
 }
 
@@ -165,9 +171,9 @@ pub fn initialize_with(
     tweak: impl FnOnce(&mut neonshift_core::InitializeConfigParams),
 ) -> Initialized {
     use anchor_lang::solana_program::system_program;
-    let tokens = setup_tokens(env, TSKR_DECIMALS);
     let admin = Keypair::new();
     env.svm.airdrop(&admin.pubkey(), 10_000_000_000).unwrap();
+    let tokens = setup_tokens_with_treasury_owner(env, TSKR_DECIMALS, &admin.pubkey());
     let (config, _) = config_pda();
     let deployer = env.deployer.insecure_clone();
     let mut params = default_params(admin.pubkey(), attestor);

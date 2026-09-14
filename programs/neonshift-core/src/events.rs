@@ -61,3 +61,54 @@ pub struct CollectibleClaimed {
     pub kind: u8,
     pub asset: Pubkey,
 }
+
+#[event]
+pub struct TournamentCreated {
+    pub tournament: Pubkey,
+    pub week_id: u32,
+    pub vault: Pubkey,
+    pub stake_amount: u64,
+    pub treasury_injection_cap: u64,
+    pub min_entrants: u32,
+    pub registration_ends_at: i64,
+    pub starts_at: i64,
+    pub ends_at: i64,
+    pub rules_version: u16,
+}
+
+#[event]
+pub struct TournamentOpened {
+    pub tournament: Pubkey,
+    pub week_id: u32,
+}
+
+#[event]
+pub struct TournamentJoined {
+    pub tournament: Pubkey,
+    pub wallet: Pubkey,
+    pub stake: u64,
+    pub entrant_count: u32,
+}
+
+#[event]
+pub struct TournamentLocked {
+    pub tournament: Pubkey,
+    pub valid_entrant_count: u32,
+    pub group_a_size: u32,
+    pub group_b_size: u32,
+    pub total_staked: u64,
+    pub treasury_injection: u64,
+}
+
+#[event]
+pub struct TournamentCancelled {
+    pub tournament: Pubkey,
+    pub entrant_count: u32,
+    pub min_entrants: u32,
+}
+
+#[event]
+pub struct TournamentStarted {
+    pub tournament: Pubkey,
+    pub at: i64,
+}

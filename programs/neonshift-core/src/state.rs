@@ -123,3 +123,84 @@ pub struct CollectibleReceipt {
     pub claimed_at: i64,
     pub bump: u8,
 }
+
+/// 週末錦標賽（SD 3.1）。PDA seeds `["tournament", week_id_le]`。
+/// 金額、分組比例、國庫挹注上限與時間窗於 `create_tournament` 寫入後不可變（BRD 8.4）。
+#[account]
+#[derive(InitSpace)]
+pub struct Tournament {
+    /// ISO week-based year × 100 + ISO week，例如 202641
+    pub week_id: u32,
+    /// 0 Draft、1 Registration、2 Locked、3 Running、4 Settling、5 Settled、6 Cancelled
+    pub status: u8,
+    /// 本賽事專用 tSKR token account，owner = Tournament PDA
+    pub vault: Pubkey,
+    pub stake_amount: u64,
+    pub total_staked: u64,
+    /// 建立時固定的國庫挹注上限
+    pub treasury_injection_cap: u64,
+    /// lock 時實際轉入 vault 的國庫挹注（≤ cap 且 ≤ 國庫餘額）
+    pub treasury_injection: u64,
+    pub entrant_count: u32,
+    /// 報名截止時固定；join 已逐筆驗證格式與資金，故等於 entrant_count
+    pub valid_entrant_count: u32,
+    pub forfeited_count: u32,
+    pub group_a_size: u32,
+    pub group_b_size: u32,
+    pub distributable_pool: u64,
+    pub distributed: u64,
+    pub total_refund: u64,
+    pub total_prize: u64,
+    pub treasury_remainder: u64,
+    pub results_submitted: u32,
+    /// begin_settlement 承諾的最終 rolling hash
+    pub results_hash: [u8; 32],
+    /// 鏈上逐筆更新的 rolling hash（初始 32 bytes zero）
+    pub results_rolling_hash: [u8; 32],
+    pub min_entrants: u32,
+    pub registration_ends_at: i64,
+    pub starts_at: i64,
+    pub ends_at: i64,
+    pub rules_version: u16,
+    /// 可分配獎金池 A／B 組占比、未得獎者退款比例（bps；建立時寫入）
+    pub prize_a_bps: u16,
+    pub prize_b_bps: u16,
+    pub loser_refund_bps: u16,
+    pub created_at: i64,
+    pub bump: u8,
+}
+
+impl Tournament {
+    pub fn require_status(&self, expected: u8) -> anchor_lang::Result<()> {
+        anchor_lang::require!(self.status == expected, crate::error::ErrorCode::InvalidTournamentState);
+        Ok(())
+    }
+
+    /// BR-18：得獎人數 max(1, ceil(n×30%))，A 組 max(1, ceil(n×10%))，B 組為其餘（可為 0）
+    pub fn group_sizes(valid_entrants: u32) -> (u32, u32) {
+        use crate::constants::{GROUP_A_BPS, WINNER_BPS};
+        let ceil_bps = |n: u32, bps: u32| -> u32 { ((n as u64 * bps as u64).div_ceil(10_000)) as u32 };
+        let winners = ceil_bps(valid_entrants, WINNER_BPS).max(1);
+        let a = ceil_bps(valid_entrants, GROUP_A_BPS).max(1).min(winners);
+        (a, winners - a)
+    }
+}
+
+/// 報名紀錄（SD 3.1）。PDA seeds `["entry", tournament, wallet]`。
+#[account]
+#[derive(InitSpace)]
+pub struct TournamentEntry {
+    pub tournament: Pubkey,
+    pub wallet: Pubkey,
+    pub stake: u64,
+    pub final_steps: u64,
+    /// 0 表示未排名
+    pub rank: u32,
+    /// 0 無、1 A 組、2 B 組
+    pub group: u8,
+    pub forfeited: bool,
+    pub settled: bool,
+    pub evidence_hash: [u8; 32],
+    pub joined_at: i64,
+    pub bump: u8,
+}

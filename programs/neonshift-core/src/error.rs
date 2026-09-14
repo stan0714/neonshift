@@ -66,4 +66,8 @@ pub enum ErrorCode {
     CollectibleNotEligible, // 6029
     #[msg("未知的成就種類")]
     InvalidCollectibleKind, // 6030
+    #[msg("賽事參數超出允許範圍")]
+    InvalidTournamentParam, // 6031
+    #[msg("尚未到達或已超過此操作的時間窗")]
+    TournamentTimingViolation, // 6032
 }

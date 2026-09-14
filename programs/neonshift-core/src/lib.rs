@@ -52,6 +52,33 @@ pub mod neonshift_core {
         instructions::claim_collectible::handle_claim_collectible(ctx, kind)
     }
 
+    // ---- 錦標賽（PG-C-11／C-12） ----
+
+    /// 建立週末錦標賽（admin）：金額、分組比例、挹注上限與時間窗寫入後不可變
+    pub fn create_tournament(ctx: Context<CreateTournament>, params: CreateTournamentParams) -> Result<()> {
+        instructions::tournament::handle_create_tournament(ctx, params)
+    }
+
+    /// Draft → Registration（admin）
+    pub fn open_tournament(ctx: Context<AdminTournament>) -> Result<()> {
+        instructions::tournament::handle_open_tournament(ctx)
+    }
+
+    /// 玩家質押報名（受 pause 影響）
+    pub fn join_tournament(ctx: Context<JoinTournament>) -> Result<()> {
+        instructions::tournament::handle_join_tournament(ctx)
+    }
+
+    /// 報名截止（admin）：固定分組、國庫挹注、對帳 vault；人數不足轉 Cancelled
+    pub fn lock_tournament(ctx: Context<LockTournament>) -> Result<()> {
+        instructions::tournament::handle_lock_tournament(ctx)
+    }
+
+    /// Locked → Running（任意 payer，到 starts_at 後）
+    pub fn start_tournament(ctx: Context<StartTournament>) -> Result<()> {
+        instructions::tournament::handle_start_tournament(ctx)
+    }
+
     /// 輪替 attestor 公鑰（admin），寬限期 0～600 秒
     pub fn rotate_attestor(ctx: Context<AdminOnly>, new_attestor: Pubkey, grace_seconds: i64) -> Result<()> {
         instructions::admin::handle_rotate_attestor(ctx, new_attestor, grace_seconds)

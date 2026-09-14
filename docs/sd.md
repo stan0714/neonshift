@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.5（claim_collectible 實作定案） |
+| 文件版本 | v0.6（錦標賽建立／報名／截止） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -172,7 +172,8 @@ graph TB
 | `vault` | Pubkey | 本賽事專用 tSKR token account，由 Tournament PDA 控制 |
 | `stake_amount` | u64 | 報名質押，建立時固定 |
 | `total_staked` | u64 | — |
-| `treasury_injection` | u64 | 國庫挹注，建立時固定並設上限 |
+| `treasury_injection_cap` | u64 | 國庫挹注上限，建立時固定（≤ 程式常數 `MAX_TREASURY_INJECTION` = 5,000 tSKR；實作期新增） |
+| `treasury_injection` | u64 | lock 時實際轉入 vault 的挹注 = min(cap, 國庫餘額)；之後不可變 |
 | `entrant_count` | u32 | — |
 | `valid_entrant_count` | u32 | 報名截止時通過報名格式／資金檢查的人數，據此固定得獎組大小 |
 | `forfeited_count` | u32 | 結果提交前已多簽沒收的人數 |
@@ -189,6 +190,8 @@ graph TB
 | `min_entrants` | u32 | 預設 10 |
 | `registration_ends_at` / `starts_at` / `ends_at` | i64 | — |
 | `rules_version` | u16 | 引用的判定規則版本 |
+| `prize_a_bps` / `prize_b_bps` / `loser_refund_bps` | u16 | BRD 8.4 的 60%／40%／50%，建立時寫入後不可變（實作期新增） |
+| `created_at` | i64 | — |
 | `bump` | u8 | — |
 
 **TournamentEntry**（PDA seeds `["entry", tournament, wallet]`）
@@ -204,6 +207,7 @@ graph TB
 | `forfeited` | bool | 是否沒收 |
 | `settled` | bool | 是否已領取 |
 | `evidence_hash` | [u8; 32] | 沒收時的證據摘要 |
+| `joined_at` | i64 | 實作期新增 |
 | `bump` | u8 | — |
 
 ### 3.2 指令清單
@@ -217,9 +221,10 @@ graph TB
 | `init_player` | player | 帳戶未存在（PDA `init`）；需 Config 已初始化；不受 pause 影響（無資金流，onboarding 不中斷）；core／shoe level 起始 1、其餘欄位 0。**即為初階跑鞋的贈與**：不鑄造 NFT，事件含 `shoe_level` | `PlayerInitialized` |
 | `claim_collectible` | player | 成就收藏 NFT（FR-04.6）。參數 `kind`（u8：1～5 = 跑鞋 Lv1～5；101 首次打卡；102 連續 7 天；110+n 錦標賽名次 n）。資格以鏈上狀態驗證：跑鞋 kind ≤ `PlayerProfile.shoe_level`；首次打卡 `xp > 0`；連續 7 天 `streak_days ≥ 7`（曾達成即永久可領，以 PlayerProfile 新增 `max_streak_days` 記錄）；名次由 TournamentEntry。`CollectibleReceipt` PDA `["collectible", wallet, kind]` `init` 保證每種一枚；CPI Metaplex Core `create` 鑄造到玩家錢包，玩家付 rent；不收 tSKR；受 pause 影響（避免暫停期間大量鑄造） | `CollectibleClaimed` |
 | `clock_in` | player | 見 3.3。需 PlayerProfile 存在（跑鞋隨 profile 贈與，無獨立鑄鞋檢查）；`ClaimReceipt` 不用 Anchor `init`，於步驟 10 手動建立以回報 6009 並保證排在 attestation 驗證之後；步驟 9 的 mint／vault／收款帳戶／token program 約束由 Anchor 在進入 handler 前檢查 | `ClockedIn` |
-| `open_tournament` | admin | 狀態為 Draft | `TournamentOpened` |
-| `join_tournament` | player | 狀態為 Registration、未重複報名、mint 正確 | `TournamentJoined` |
-| `lock_tournament` | admin | 報名截止、固定得獎組人數與規則、核對專用 vault；人數不足則轉 Cancelled，否則把受上限約束的國庫挹注轉入 vault | `TournamentLocked` / `TournamentCancelled` |
+| `create_tournament` | admin | 【實作期新增，PG-C-11】建立 Tournament PDA（Draft）與專用 vault（PDA `["vault", tournament]`，owner = Tournament PDA，BR-22）。參數 `week_id`（202601～210053 且週 1～53）、`stake_amount > 0`、`treasury_injection_cap ≤ 5,000 tSKR`、`min_entrants ≥ 1`、`rules_version > 0`、`now < registration_ends_at ≤ starts_at < ends_at`（否則 6031）；A／B 組占比與未得獎退款比例由常數寫入 | `TournamentCreated` |
+| `open_tournament` | admin | 狀態為 Draft 且尚未截止報名 | `TournamentOpened` |
+| `join_tournament` | player | 受 pause 影響；狀態為 Registration 且 `now < registration_ends_at`（否則 6032）；`TournamentEntry` PDA `init` 擋重複報名；玩家 token account owner／mint 正確（6021）；轉 `stake_amount` 到 vault | `TournamentJoined` |
+| `lock_tournament` | admin | 狀態為 Registration 且 `now ≥ registration_ends_at`；`valid_entrant_count = entrant_count`（join 已逐筆驗證）；人數 < `min_entrants` → Cancelled 且不挹注；否則依 BR-18 固定 `group_a_size`／`group_b_size`（B 可為 0），由 admin 以國庫 owner 身分轉入 `min(cap, 國庫餘額)`，並 **對帳 vault 實際餘額 = total_staked + treasury_injection**（否則 6017）→ Locked | `TournamentLocked` / `TournamentCancelled` |
 | `start_tournament` | 任意 payer | 已到 starts_at 且狀態為 Locked；只推進為 Running，不可改規則 | `TournamentStarted` |
 | `begin_settlement` | admin 多簽 | 已過 ends_at、沒收處置完成、承諾最終有效人數與 results hash；轉為 Settling 後禁止新增沒收 | `SettlementBegan` |
 | `submit_results_batch` | admin 多簽 | 狀態為 Settling、排名連續且不重複、符合預先承諾的 manifest hash | `ResultsBatchSubmitted` |
@@ -351,6 +356,8 @@ let amount = amount.min(remaining);         // BR-04
 | 6028 | `InvalidTaskType` | task_type 不是 1／2（實作期新增；SD 3.4 程式片段原引用此名稱） |
 | 6029 | `CollectibleNotEligible` | `claim_collectible`：尚未達成該 kind 的資格（含錦標賽名次在 C-14 接入前一律不合格） |
 | 6030 | `InvalidCollectibleKind` | `claim_collectible`：kind 不在 1～5／101／102／111～119 |
+| 6031 | `InvalidTournamentParam` | `create_tournament` 參數超出範圍（實作期新增） |
+| 6032 | `TournamentTimingViolation` | open／join／lock／start 不在時間窗內（實作期新增） |
 
 ---
 
@@ -917,6 +924,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.6 | 2026-09-14 | PG-C-11／C-12：新增 `create_tournament`、Tournament 欄位 `treasury_injection_cap`／占比／`created_at`、Entry `joined_at`、錯誤 6031／6032；lock 對帳 vault 實際餘額 |
 | v0.5 | 2026-09-14 | PG-C-09 實作定案：手組 Metaplex Core CreateV1 CPI（無 crate）、MVP 無 collection、update_authority = Config PDA、常數 base URI、錯誤 6029／6030、PlayerProfile.max_streak_days 由 clock_in 維護 |
 
 ## 11A. 成就 NFT 與藝廊（2026-09-14 新增，對應 FR-04.6、FR-13）
