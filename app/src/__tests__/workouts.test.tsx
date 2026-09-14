@@ -83,10 +83,19 @@ describe('WorkoutsScreen', () => {
     expect(screen.getByTestId('workout-dup-s2')).toBeTruthy();
     expect(screen.getByText('Needs review')).toBeTruthy();
     expect(screen.getByText('Step rate above 250/min')).toBeTruthy();
-    // 匯入：原生模組尚未提供 → 提示
+    // 匯入：原生模組回空 → 「沒有新的紀錄」（需先取得運動權限）
+    const native = jest.requireMock('../../modules/neonshift-health/src/NeonshiftHealthModule').default as Record<string, jest.Mock>;
+    native.getGrantedPermissions.mockResolvedValue([]);
+    native.requestPermissions.mockResolvedValue(['android.permission.health.READ_EXERCISE']);
     await fireEvent.press(screen.getByTestId('workouts-import'));
     await waitFor(() => expect(screen.getByTestId('workouts-info')).toBeTruthy());
-    expect(screen.getByText('Health Connect exercise import arrives in the next update.')).toBeTruthy();
+    expect(screen.getByText('Nothing new to import.')).toBeTruthy();
+    expect(native.requestPermissions).toHaveBeenCalledWith(expect.arrayContaining(['android.permission.health.READ_EXERCISE', 'android.permission.health.READ_DISTANCE']));
+    // 拒絕運動權限 → 警示，不阻擋其他功能
+    native.getGrantedPermissions.mockResolvedValue([]);
+    native.requestPermissions.mockResolvedValue([]);
+    await fireEvent.press(screen.getByTestId('workouts-import'));
+    await waitFor(() => expect(screen.getByTestId('workouts-warning')).toBeTruthy());
     // 刪除 → 確認 → API → 重新載入
     api.myWorkouts.mockResolvedValue({ items: [], rules_version: 1 });
     await fireEvent.press(screen.getByTestId('workout-delete-s1'));

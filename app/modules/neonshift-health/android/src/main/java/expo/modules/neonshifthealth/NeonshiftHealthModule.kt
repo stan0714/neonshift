@@ -6,7 +6,11 @@ import android.os.Build
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.DistanceRecord
+import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.SleepSessionRecord
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -49,6 +53,11 @@ class NeonshiftHealthModule : Module() {
       "PERMISSION_READ_STEPS" to HealthPermission.getReadPermission(StepsRecord::class),
       "PERMISSION_READ_SLEEP" to HealthPermission.getReadPermission(SleepSessionRecord::class),
       "PERMISSION_READ_BACKGROUND" to HealthPermission.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND,
+      // PG-R-02：運動 session 匯入（唯讀）
+      "PERMISSION_READ_EXERCISE" to HealthPermission.getReadPermission(ExerciseSessionRecord::class),
+      "PERMISSION_READ_DISTANCE" to HealthPermission.getReadPermission(DistanceRecord::class),
+      "PERMISSION_READ_ACTIVE_CALORIES" to HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
+      "PERMISSION_READ_TOTAL_CALORIES" to HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
       "LEGACY_DEVICE_ORIGIN" to LEGACY_DEVICE_ORIGIN
     )
 
@@ -105,6 +114,11 @@ class NeonshiftHealthModule : Module() {
     /** 結束時間落在 [startUnix, endUnix) 的睡眠 session（BR-05） */
     AsyncFunction("readSleepSessions") Coroutine { startUnix: Double, endUnix: Double ->
       jsonToMap(reader.readSleepSessions(Instant.ofEpochSecond(startUnix.toLong()), Instant.ofEpochSecond(endUnix.toLong())))
+    }
+
+    /** PG-R-02：結束時間落在 [startUnix, endUnix) 的跑步／健走 session 摘要（同來源 aggregate；無路線） */
+    AsyncFunction("readExerciseSessions") Coroutine { startUnix: Double, endUnix: Double ->
+      jsonToMap(reader.readExerciseSessions(Instant.ofEpochSecond(startUnix.toLong()), Instant.ofEpochSecond(endUnix.toLong())))
     }
 
     // ---- PG-A-19：背景同步（WorkManager）與快取 ----

@@ -41,6 +41,7 @@ export function WorkoutsScreen() {
     try {
       const r = await importFromHealthConnect();
       if (r.kind === 'unavailable') setNotice({ kind: 'info', title: t('wo.notAvailable') });
+      else if (r.kind === 'denied') setNotice({ kind: 'warning', title: t('wo.denied') });
       else if (r.imported === 0) setNotice({ kind: 'info', title: t('wo.nothingNew') });
       else setNotice({ kind: 'success', title: t('wo.imported', { n: r.imported, count: r.imported }) });
       if (r.kind === 'ok') await load();

@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.33（PG-R-01 完成） |
+| 文件版本 | v0.34（PG-R-02 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -565,6 +565,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.34 | 2026-09-14 | PG-R-02 完成（WIP）：Health Connect 運動 session 匯入 |
 | v0.33 | 2026-09-14 | PG-R-01 完成（WIP）：運動 session 摘要與匯入 |
 | v0.32 | 2026-09-14 | PG-E-09 完成（WIP）：宣傳轉換、活動保留清理、操作文件 |
 | v0.31 | 2026-09-14 | PG-E-07／E-08 完成（WIP）：成績 CSV、發布／更正、公開榜與成績冊 |
@@ -662,7 +663,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
 | PG-R-01 | Workout session、來源／去重、摘要 schema 與 API | activity-running-gallery 3、7；walk-run-tracking 3 | FR-14.1、BR-37 | 3.0 | WIP | 2026-09-14 完成：migration 0009；匯入 schema／derive（估算距離需校準步長、步頻／速度上限、Active／Total 分開、PB 資格）；`/workouts/import`（≤ 50、限流、revision 去重 same／stale／superseded、tombstone）、`/me/workouts` 清單／明細／刪除、跨來源可能重複標記、player 刪除同步；App domain 映射（HC RUNNING／TREADMILL／WALKING）、importer（分批、unavailable）、`WorkoutsScreen`（Style 23.1）；vitest 6＋PG 整合 1、Jest 7。待：R-02 原生 ExerciseSession 讀取、實機 |
-| PG-R-02 | Health Connect 運動、距離、活動熱量匯入及裝置矩陣 | activity-running-gallery 3、4 | FR-14.1～3 | 3.0 | TODO | 待指派 |
+| PG-R-02 | Health Connect 運動、距離、活動熱量匯入及裝置矩陣 | activity-running-gallery 3、4 | FR-14.1～3 | 3.0 | WIP | 2026-09-14 完成：原生 `readExerciseSessions`（RUNNING／TREADMILL／WALKING；同來源同時段 aggregate 距離／步數／Active／Total 熱量；缺權限欄位 null＋partialPermissions；不含路線）、權限常數與 Manifest／app.json（READ_EXERCISE／DISTANCE／ACTIVE／TOTAL_CALORIES）、App 匯入流程（必要 READ_EXERCISE、拒絕不阻擋其他功能）、Runbook 6.1.1 裝置矩陣表；Jest 7。待：實機實測填矩陣（Seeker 無 session 來源，需相容 App 寫入） |
 | PG-R-03 | Walking／Running GPS session、權限、前景服務與持久恢復 | walk-run-tracking 2、3 | FR-18.1、18.2 | 5.0 | TODO | 待指派 |
 | PG-R-04 | GPS 距離品質、5 秒速度／最高速度／配速引擎 | walk-run-tracking 4 | FR-18.4 | 3.0 | TODO | 待指派 |
 | PG-R-05 | 公里分段、手動圈／自訂距離圈與 Partial 末段 | walk-run-tracking 5 | FR-18.3 | 3.0 | TODO | 待指派 |

@@ -59,3 +59,27 @@ export type CachedHealthSummary = {
   syncedAt: number;
   source: 'background' | 'foreground';
 };
+
+/** PG-R-02：Health Connect ExerciseSession 摘要（只含跑步／健走；距離公尺、熱量 kcal；缺權限的欄位為 null） */
+export type ExerciseSessionSummary = {
+  recordId: string;
+  dataOrigin: string;
+  /** ExerciseSessionRecord exercise type：RUNNING=56、RUNNING_TREADMILL=57、WALKING=79 */
+  exerciseType: number;
+  startUnixMs: number;
+  endUnixMs: number;
+  /** clientRecordVersion，或無時以 lastModifiedTime 秒代替 */
+  version: number;
+  title: string | null;
+  recordingMethod: 'manual' | 'automatic' | 'active' | 'unknown';
+  distanceMeters: number | null;
+  steps: number | null;
+  activeKcal: number | null;
+  totalKcal: number | null;
+  partialPermissions: boolean;
+};
+
+export type ExerciseSessionsResult = {
+  sessions: ExerciseSessionSummary[];
+  permissions: { distance: boolean; steps: boolean; activeCalories: boolean; totalCalories: boolean };
+};

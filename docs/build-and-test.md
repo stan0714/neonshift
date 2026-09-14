@@ -392,6 +392,24 @@ adb shell am start -a android.health.connect.action.MANAGE_HEALTH_PERMISSIONS \
   --es android.intent.extra.PACKAGE_NAME cc.neonshift.app
 ```
 
+### 6.1.1 運動匯入（PG-R-02）與裝置矩陣
+
+Home →「Workouts ›」→「Import from Health Connect」會另外請求 `READ_EXERCISE`（必要）、`READ_DISTANCE`／`READ_ACTIVE_CALORIES_BURNED`／`READ_TOTAL_CALORIES_BURNED`（可選；缺時欄位為 null 並標 partial_permissions）。只讀 ExerciseSession 為 RUNNING／RUNNING_TREADMILL／WALKING 的紀錄，距離／步數／熱量以**同一 dataOrigin、同時段** aggregate 取得，不跨來源拼湊；手機與手錶同場各成一筆，後端標「可能重複」。
+
+產生測試資料（沒有手錶時）：在 Health Connect 相容 App（例如 Google Fit／Samsung Health）記錄一段跑步，或用 `adb shell` 無法直接寫入 ExerciseSession——需以有寫入權限的 App 寫入。撤銷後重測：
+
+```bash
+adb shell pm revoke cc.neonshift.app android.permission.health.READ_EXERCISE
+```
+
+**裝置矩陣（實測後填寫，未測不宣稱支援）**
+
+| 裝置／App | HC 版本 | Session | Distance | Active kcal | 延遲 | 備註 |
+|---|---|---|---|---|---|---|
+| Seeker 手機內建計步（無 session） | — | 無 | — | — | — | 只有步數，沒有 ExerciseSession，不會出現在運動紀錄 |
+| （待測：Google Fit 寫入） | | | | | | |
+| （待測：手錶伴隨 App） | | | | | | |
+
 ### 6.2 重測 onboarding 流程
 
 驗收 FR-02.5 的權限拒絕引導時，把權限撤掉重來：

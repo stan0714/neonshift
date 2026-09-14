@@ -4,7 +4,12 @@ import android.content.Context
 import android.os.Build
 import android.os.ext.SdkExtensions
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.DistanceRecord
+import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.SleepSessionRecord
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
+import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.metadata.DataOrigin
 import androidx.health.connect.client.records.metadata.Metadata
@@ -104,6 +109,60 @@ class HealthReader(private val context: Context) {
     return JSONObject().put("sessions", sessions)
   }
 
+  /**
+   * PG-R-02：結束時間落在 [start, end) 的跑步／健走 ExerciseSession，每筆附同來源、同時段的距離／步數／熱量 aggregate。
+   * 只回摘要（無路線）；缺權限的欄位回 null 並標 partialPermissions；Active 與 Total 熱量分開，不相加。
+   * 手機與手錶同場紀錄各自一筆（去重／可能重複由後端 R-01 規則判定，這裡不合併）。
+   */
+  suspend fun readExerciseSessions(start: Instant, end: Instant): JSONObject {
+    val granted = client.permissionController.getGrantedPermissions()
+    val canDistance = granted.contains(HealthPermission.getReadPermission(DistanceRecord::class))
+    val canSteps = granted.contains(HealthPermission.getReadPermission(StepsRecord::class))
+    val canActive = granted.contains(HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class))
+    val canTotal = granted.contains(HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class))
+    val range = TimeRangeFilter.between(start.minusSeconds(24 * 3600), end)
+    val sessions = JSONArray()
+    var pageToken: String? = null
+    do {
+      val page = client.readRecords(ReadRecordsRequest(ExerciseSessionRecord::class, range, pageToken = pageToken))
+      for (s in page.records) {
+        if (s.endTime.isBefore(start) || !s.endTime.isBefore(end)) continue
+        if (s.exerciseType !in SUPPORTED_EXERCISE_TYPES) continue // 僅跑步／健走（專案範圍）
+        val origin = setOf(s.metadata.dataOrigin)
+        val window = TimeRangeFilter.between(s.startTime, s.endTime)
+        val metrics = HashSet<androidx.health.connect.client.aggregate.AggregateMetric<*>>()
+        if (canDistance) metrics.add(DistanceRecord.DISTANCE_TOTAL)
+        if (canSteps) metrics.add(StepsRecord.COUNT_TOTAL)
+        if (canActive) metrics.add(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL)
+        if (canTotal) metrics.add(TotalCaloriesBurnedRecord.ENERGY_TOTAL)
+        val agg = if (metrics.isEmpty()) null else client.aggregate(AggregateRequest(metrics, window, dataOriginFilter = origin))
+        val distance = if (canDistance) agg?.get(DistanceRecord.DISTANCE_TOTAL)?.inMeters else null
+        val steps = if (canSteps) agg?.get(StepsRecord.COUNT_TOTAL) else null
+        val active = if (canActive) agg?.get(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL)?.inKilocalories else null
+        val total = if (canTotal) agg?.get(TotalCaloriesBurnedRecord.ENERGY_TOTAL)?.inKilocalories else null
+        val version = if (s.metadata.clientRecordVersion > 0) s.metadata.clientRecordVersion else s.metadata.lastModifiedTime.epochSecond
+        sessions.put(JSONObject()
+          .put("recordId", s.metadata.id)
+          .put("dataOrigin", s.metadata.dataOrigin.packageName)
+          .put("exerciseType", s.exerciseType)
+          .put("startUnixMs", s.startTime.toEpochMilli())
+          .put("endUnixMs", s.endTime.toEpochMilli())
+          .put("version", version)
+          .put("title", s.title ?: JSONObject.NULL)
+          .put("recordingMethod", recordingMethodName(s.metadata.recordingMethod))
+          .put("distanceMeters", distance ?: JSONObject.NULL)
+          .put("steps", steps ?: JSONObject.NULL)
+          .put("activeKcal", active ?: JSONObject.NULL)
+          .put("totalKcal", total ?: JSONObject.NULL)
+          .put("partialPermissions", !(canDistance && canSteps && canActive)))
+      }
+      pageToken = page.pageToken
+    } while (pageToken != null)
+    return JSONObject()
+      .put("sessions", sessions)
+      .put("permissions", JSONObject().put("distance", canDistance).put("steps", canSteps).put("activeCalories", canActive).put("totalCalories", canTotal))
+  }
+
   private fun classify(pkg: String, recordingMethod: Int, spn: String?): String = when {
     recordingMethod == Metadata.RECORDING_METHOD_MANUAL_ENTRY -> KIND_MANUAL
     pkg == LEGACY_DEVICE_ORIGIN -> KIND_LEGACY
@@ -149,5 +208,7 @@ class HealthReader(private val context: Context) {
     const val SPN_QUERY_MIN_EXTENSION = 11
     const val DEVICE_STEPS_MIN_EXTENSION = 20
     const val MAX_MINUTES_PER_RECORD = 24 * 60
+    /** ExerciseSessionRecord.EXERCISE_TYPE_RUNNING／RUNNING_TREADMILL／WALKING */
+    val SUPPORTED_EXERCISE_TYPES = setOf(ExerciseSessionRecord.EXERCISE_TYPE_RUNNING, ExerciseSessionRecord.EXERCISE_TYPE_RUNNING_TREADMILL, ExerciseSessionRecord.EXERCISE_TYPE_WALKING)
   }
 }
