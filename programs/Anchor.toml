@@ -1,0 +1,26 @@
+# NeonShift Anchor workspace（SD 3）。共用 crate attestation-core 不是鏈上程式，透過 [workspace].members 排除。
+[toolchain]
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+neonshift_core = "5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf"
+
+[programs.devnet]
+neonshift_core = "5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[workspace]
+members = ["neonshift-core"]
+
+# 測試以 LiteSVM 在程序內執行（SD 7），不需要本機 validator
+[scripts]
+test = "cargo test -p neonshift-core"
+
+[test]
+skip_local_validator = true
