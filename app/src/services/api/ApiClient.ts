@@ -76,6 +76,9 @@ export type EventRegistration = { status: 'registered' | 'cancelled' | 'checked_
 export type TagState = { status: 'revoked' } | { status: 'not_yours' } | { status: 'active'; purpose: 'checkpoint' | 'participant'; checkpoint: { checkpoint_id: string; name: string; purpose: 'check_in' | 'redemption' | 'info' } | null; registered: boolean; event_state: string };
 export type CheckinChallenge = { code: string; expires_at: string; checkpoint: { checkpoint_id: string; name: string }; qr_payload: string };
 export type StaffCheckinResult = { wallet: string; checkpoint_id: string; display_name: string | null; already: boolean; confirmed_at: string };
+export type EventResultRow = { display_name: string; discipline: string; division: string | null; finish_status: 'finished' | 'dnf' | 'dns' | 'dq'; distance_m: number; elapsed_ms: number; rank: number | null; rank_source: 'organizer' | null; published_at: string };
+export type EventResults = { event_id: string; slug: string; total_finished: number; results: EventResultRow[]; non_finishers: EventResultRow[]; source: 'organizer' };
+export type MyResult = { revision_id: string; import_id: string; discipline: string; division: string | null; finish_status: 'finished' | 'dnf' | 'dns' | 'dq'; distance_m: number; elapsed_ms: number; rank: number | null; previous_revision_id: string | null; reason: string | null; published_at: string };
 export type EventBenefit = { benefit_id: string; kind: 'physical' | 'digital_badge'; name: string; remaining: number; per_person_limit: number; requires_checkin: boolean; claim_deadline: string | null };
 export type RedemptionStatus = 'reserved' | 'fulfilled' | 'expired' | 'cancelled';
 export type Redemption = { redemption_id: string; benefit_id: string; quantity: number; status: RedemptionStatus; claim_code: string | null; reserved_at: string; reserved_until: string; fulfilled_at: string | null; credential_id: string | null };
@@ -226,6 +229,20 @@ export class ApiClient {
 
   staffCheckins(eventId: string): Promise<{ check_ins: { wallet: string; checkpoint_id: string; confirmed_at: string; method: string }[] }> {
     return this.request('GET', `/partner/events/${encodeURIComponent(eventId)}/check-ins`);
+  }
+
+  // PG-E-08：成績榜、個人成績冊、公開同意
+  eventResults(idOrSlug: string, q: { discipline?: string; division?: string } = {}): Promise<EventResults> {
+    const qs = Object.entries(q).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v!)}`).join('&');
+    return this.request('GET', `/events/${encodeURIComponent(idOrSlug)}/results${qs ? `?${qs}` : ''}`);
+  }
+
+  myEventHistory(): Promise<{ items: { event: { event_id: string; slug: string; title: string; state: string; starts_at: string | null; ends_at: string | null } | null; registration: EventRegistration; check_ins: { checkpoint_id: string; confirmed_at: string; method: string }[]; redemptions: Redemption[]; results: MyResult[] }[] }> {
+    return this.request('GET', '/me/event-history');
+  }
+
+  updateEventPrivacy(eventId: string, patch: { display_name?: string | null; public_consent?: boolean }): Promise<{ registration: EventRegistration }> {
+    return this.request('PATCH', `/events/${encodeURIComponent(eventId)}/registration/privacy`, patch);
   }
 
   // PG-E-06：品項與核銷

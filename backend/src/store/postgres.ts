@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -344,6 +344,10 @@ export class PostgresStore implements Store {
       client.release();
     }
   }
+  async listEventParticipants(eventId: string) {
+    const r = await this.pool.query(`SELECT * FROM event_participants WHERE event_id = $1`, [eventId]);
+    return (r.rows as Row[]).map((x) => this.participantRow(x));
+  }
   async cancelRegistration(eventId: string, wallet: string, now: Date) {
     const client = await this.pool.connect();
     try {
@@ -564,6 +568,87 @@ export class PostgresStore implements Store {
   async getRedemption(redemptionId: string) {
     const r = await this.pool.query(`${PostgresStore.REDEMPTION_SELECT} WHERE r.redemption_id = $1`, [redemptionId]);
     return r.rows[0] ? this.redemptionRow(r.rows[0] as Row) : null;
+  }
+
+  // ---- PG-E-07／E-08 ----
+  private importRow(x: Row): ResultImport {
+    const staged = (x.staged_rows as { rows?: ResultImport["stagedRows"]; errors?: ResultImport["errors"] }) ?? {};
+    return { importId: x.import_id as string, eventId: x.event_id as string, sourceKind: x.source_kind as ResultImport["sourceKind"], fileHash: x.file_hash as Buffer, importVersion: Number(x.import_version), rowCount: Number(x.row_count), errorCount: Number(x.error_count), stagedRows: staged.rows ?? [], errors: staged.errors ?? [], createdBy: x.created_by as string, createdAt: x.created_at as Date, publishedAt: (x.published_at as Date | null) ?? null, publishedBy: (x.published_by as string | null) ?? null };
+  }
+  private revisionRow(x: Row): ResultRevision {
+    return { revisionId: x.revision_id as string, eventId: x.event_id as string, importId: x.import_id as string, wallet: x.wallet as string, discipline: x.discipline as string, division: (x.division as string | null) ?? null, distanceM: Number(x.distance_m), elapsedMs: Number(x.elapsed_ms), rank: x.rank === null ? null : Number(x.rank), finishStatus: x.finish_status as ResultRevision["finishStatus"], previousRevisionId: (x.previous_revision_id as string | null) ?? null, reason: (x.reason as string | null) ?? null, publishedAt: x.published_at as Date };
+  }
+  async createResultImport(r: Omit<ResultImport, "importVersion" | "createdAt" | "publishedAt" | "publishedBy">, now: Date) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SELECT 1 FROM events WHERE event_id = $1 FOR UPDATE`, [r.eventId]);
+      const v = await client.query(`SELECT COALESCE(MAX(import_version), 0) + 1 AS v FROM result_imports WHERE event_id = $1`, [r.eventId]);
+      const version = Number((v.rows[0] as Row).v);
+      const out = await client.query(
+        `INSERT INTO result_imports (import_id, event_id, source_kind, file_hash, import_version, row_count, error_count, staged_rows, created_by, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+        [r.importId, r.eventId, r.sourceKind, r.fileHash, version, r.rowCount, r.errorCount, JSON.stringify({ rows: r.stagedRows, errors: r.errors }), r.createdBy, now],
+      );
+      await client.query("COMMIT");
+      return this.importRow(out.rows[0] as Row);
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+  async getResultImport(eventId: string, importId: string) {
+    const r = await this.pool.query(`SELECT * FROM result_imports WHERE event_id = $1 AND import_id = $2`, [eventId, importId]);
+    return r.rows[0] ? this.importRow(r.rows[0] as Row) : null;
+  }
+  async listResultImports(eventId: string) {
+    const r = await this.pool.query(`SELECT * FROM result_imports WHERE event_id = $1 ORDER BY import_version DESC`, [eventId]);
+    return (r.rows as Row[]).map((x) => this.importRow(x));
+  }
+  async publishResultImport(eventId: string, importId: string, publisher: string, reason: string | null, now: Date) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      // 發布互斥：鎖 event，避免兩個 import 同時發布交錯 previous 鏈
+      await client.query(`SELECT 1 FROM events WHERE event_id = $1 FOR UPDATE`, [eventId]);
+      const q = await client.query(`SELECT * FROM result_imports WHERE event_id = $1 AND import_id = $2 FOR UPDATE`, [eventId, importId]);
+      if (!q.rows[0]) { await client.query("ROLLBACK"); return "not_found" as const; }
+      const imp = this.importRow(q.rows[0] as Row);
+      if (imp.publishedAt) { await client.query("ROLLBACK"); return "already" as const; }
+      if (imp.errorCount > 0) { await client.query("ROLLBACK"); return "has_errors" as const; }
+      let corrections = 0;
+      for (const row of imp.stagedRows) {
+        const prev = await client.query(`SELECT r.revision_id FROM result_revisions r JOIN result_imports i ON i.import_id = r.import_id WHERE r.event_id = $1 AND r.wallet = $2 AND r.discipline = $3 ORDER BY r.published_at DESC, i.import_version DESC LIMIT 1`, [eventId, row.wallet, row.discipline]);
+        const prevId = (prev.rows[0] as Row | undefined)?.revision_id as string | undefined;
+        if (prevId) corrections += 1;
+        await client.query(
+          `INSERT INTO result_revisions (revision_id, event_id, import_id, wallet, discipline, division, distance_m, elapsed_ms, rank, finish_status, previous_revision_id, reason, published_at) VALUES (gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+          [eventId, importId, row.wallet, row.discipline, row.division, row.distanceM, row.elapsedMs, row.rank, row.finishStatus, prevId ?? null, prevId ? reason : null, now],
+        );
+      }
+      await client.query(`UPDATE result_imports SET published_at = $3, published_by = $4 WHERE event_id = $1 AND import_id = $2`, [eventId, importId, now, publisher]);
+      await client.query("COMMIT");
+      return { revisions: imp.stagedRows.length, corrections };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+  async listCurrentResults(eventId: string) {
+    const r = await this.pool.query(
+      `SELECT DISTINCT ON (r.wallet, r.discipline) r.*, p.display_name, p.public_consent_at FROM result_revisions r
+       JOIN event_participants p ON p.event_id = r.event_id AND p.wallet = r.wallet JOIN result_imports i ON i.import_id = r.import_id
+       WHERE r.event_id = $1 ORDER BY r.wallet, r.discipline, r.published_at DESC, i.import_version DESC`,
+      [eventId],
+    );
+    return (r.rows as Row[]).map((x) => ({ ...this.revisionRow(x), displayName: (x.display_name as string | null) ?? null, publicConsent: x.public_consent_at !== null }));
+  }
+  async listResultHistory(eventId: string, wallet: string) {
+    const r = await this.pool.query(`SELECT r.* FROM result_revisions r JOIN result_imports i ON i.import_id = r.import_id WHERE r.event_id = $1 AND r.wallet = $2 ORDER BY r.published_at DESC, i.import_version DESC`, [eventId, wallet]);
+    return (r.rows as Row[]).map((x) => this.revisionRow(x));
   }
 
   // ---- PG-G-01 ----

@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.18（活動權益核銷） |
+| 文件版本 | v0.19（活動成績） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -924,6 +924,8 @@ total_staked + treasury_injection
 
 CSV schema v1：`participant_ref, discipline, division, finish_status, distance_m, elapsed_ms, rank`；來源、event、版本與更正原因由匯入 metadata 提供。FINISHED 要求可用成績；DNS／DNF／DSQ 不以零秒排進正常榜。欄位單位固定、缺值用 null、未知選手或重複列阻止發布；rank 若由主辦方提供即標記為來源排名，不跨不同組別／賽制混排。限制檔案大小、列數與欄位長度，CSV 匯出防試算表公式注入。發布以原子切換 current revision，並發更正以 revision 檢查；結果更正不自動追回已交付權益。
 
+**實作（2026-09-14，PG-E-07／E-08）**：`partner/csv.ts` 解析 RFC 4180 子集並逐列驗證（表頭必須完全等於 schema v1；participant_ref 為錢包且需在名單、取消者拒絕；finish_status ∈ finished|dnf|dns|dq；distance_m／elapsed_ms 只收整數（`hh:mm:ss` 明確報錯）；finished 需距離與時間 > 0；非 finished 不可有名次；同 (wallet, discipline) 重複列；檔案 ≤ 512 KB、≤ 5000 列）。result_editor／publisher `POST /partner/events/{id}/result-imports {csv}` 建 staging（`result_imports.staged_rows = {rows, errors}`、`file_hash = sha256(csv)`、同活動 `import_version` 交易內遞增）並回預覽與逐列錯誤，永不直接發布；`GET …/result-imports`、`GET …/result-imports/{importId}`。publisher `POST …/result-imports/{importId}/publish {reason?}`：需近期登入、活動 published、`error_count = 0`、未發布；任一列已有發布版即視為更正並要求 reason（BR-31）；交易內鎖 event 後逐列建立 `result_revisions`（`previous_revision_id` 指向同 (event, wallet, discipline) 最新版、更正列帶 reason），再標記 import 已發布；稽核 `results.stage`／`results.publish`／`results.correct`。公開 `GET /events/{id}/results?discipline&division&limit&offset`：只回 `public_consent` 者的顯示名稱（無名稱顯示 Anonymous runner）、最新版；finished 依主辦方名次（`rank_source: organizer`）再依時間排序，DNF／DNS／DQ 列於 `non_finishers` 不排名；回應標 `source: organizer`，不含 wallet。`/me/event-history.results` 回本人全部版本（新到舊，含 reason 與 previous_revision_id）。`PATCH /events/{id}/registration/privacy` 沿用 E-03。App：`Results`（EventDetail 內；公開榜、本人最新成績與更正原因／版本數、未公開提示、公開同意開關與顯示名稱編輯，撤回即移出公開榜）。CSV 匯出（E-09）將使用 `csvSafeCell` 防公式注入。
+
 API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時間窗、event ID mapping、唯一 external_message_id 及來源版本，重放與過期版本不得覆寫已發布結果；需人工發布的活動不由 webhook 自動公開。
 
 活動履歷、匯入原檔、核銷與公開同意需各有 retention_due_at；試辦前依 Q-13 定案並同步 DELETE /player/data。不得因合作方匯出繞過刪除與公開同意；公開榜只回同意的顯示名稱。原始健康摘要仍限 30 天；活動留存政策未配置則禁止發布正式活動。
@@ -963,6 +965,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.19 | 2026-09-14 | PG-E-07／E-08：CSV staging、發布與更正歷史、公開榜／成績冊實作說明 |
 | v0.18 | 2026-09-14 | PG-E-06：品項庫存、原子預留／交付、數位徽章實作說明 |
 | v0.17 | 2026-09-14 | PG-E-05：報到 challenge 與 staff 報到實作說明 |
 | v0.16 | 2026-09-14 | PG-E-04：NFC／App Links 與載具登記實作說明 |

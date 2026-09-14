@@ -11,8 +11,9 @@ import type { AuthService } from "../auth/service.js";
 import { sha256 } from "../auth/tokens.js";
 import { canonicalize, type Json } from "../claim/canonical.js";
 import { ApiError } from "../errors.js";
-import type { EventBenefit, EventRedemption, EventRow, EventRuleRevision, Store } from "../store/types.js";
+import type { EventBenefit, EventRedemption, EventRow, EventRuleRevision, ResultImport, ResultRevision, Store } from "../store/types.js";
 import { PartnerAuthz } from "./authz.js";
+import { RESULT_CSV_MAX_BYTES, stageResultsCsv } from "./csv.js";
 
 const uuid = z.string().uuid();
 export const CHECKIN_CHALLENGE_SECONDS = 120;
@@ -134,6 +135,8 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
   const partnerBenefitView = (b: EventBenefit) => ({ ...publicBenefitView(b), stock_total: b.stockTotal, reserved_count: b.reservedCount, fulfilled_count: b.fulfilledCount, eligibility_rule_revision: b.eligibilityRuleRevision });
   /** 參加者視角：不含 idempotency_key；credential 只在數位徽章 */
   const redemptionView = (r: EventRedemption) => ({ redemption_id: r.redemptionId, benefit_id: r.benefitId, quantity: r.quantity, status: r.status, claim_code: r.status === "reserved" ? r.claimCode : null, reserved_at: r.reservedAt.toISOString(), reserved_until: r.reservedUntil.toISOString(), fulfilled_at: r.fulfilledAt?.toISOString() ?? null, credential_id: r.credentialId });
+  const resultView = (r: ResultRevision) => ({ revision_id: r.revisionId, import_id: r.importId, discipline: r.discipline, division: r.division, finish_status: r.finishStatus, distance_m: r.distanceM, elapsed_ms: r.elapsedMs, rank: r.rank, previous_revision_id: r.previousRevisionId, reason: r.reason, published_at: r.publishedAt.toISOString() });
+  const importView = (i: ResultImport, withRows: boolean) => ({ import_id: i.importId, source_kind: i.sourceKind, file_hash: i.fileHash.toString("hex"), import_version: i.importVersion, row_count: i.rowCount, error_count: i.errorCount, created_by: i.createdBy, created_at: i.createdAt.toISOString(), published_at: i.publishedAt?.toISOString() ?? null, published_by: i.publishedBy, errors: i.errors, ...(withRows ? { rows: i.stagedRows.map((r) => ({ line: r.line, wallet: r.wallet, discipline: r.discipline, division: r.division, finish_status: r.finishStatus, distance_m: r.distanceM, elapsed_ms: r.elapsedMs, rank: r.rank })) } : {}) });
   const participantView = (p: { status: string; acceptedRuleRevision: string; displayName: string | null; publicConsentAt: Date | null; registeredAt: Date; cancelledAt: Date | null }) => ({ status: p.status, accepted_rule_revision: p.acceptedRuleRevision, display_name: p.displayName, public_consent: p.publicConsentAt !== null, registered_at: p.registeredAt.toISOString(), cancelled_at: p.cancelledAt?.toISOString() ?? null });
 
   app.get("/events/:id/registration", { preHandler: requireAuth(auth) }, async (req) => {
@@ -182,7 +185,8 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
         const e = await store.getEvent(p.eventId);
         const checkins = await store.listCheckins(p.eventId, p.wallet);
         const redemptions = await store.listRedemptions(p.eventId, p.wallet);
-        return { event: e ? { event_id: e.eventId, slug: e.slug, title: e.title, state: e.state, starts_at: e.startsAt?.toISOString() ?? null, ends_at: e.endsAt?.toISOString() ?? null } : null, registration: participantView(p), check_ins: checkins.map((c) => ({ checkpoint_id: c.checkpointId, confirmed_at: c.confirmedAt.toISOString(), method: c.method })), redemptions: redemptions.map(redemptionView) };
+        const results = await store.listResultHistory(p.eventId, p.wallet);
+        return { event: e ? { event_id: e.eventId, slug: e.slug, title: e.title, state: e.state, starts_at: e.startsAt?.toISOString() ?? null, ends_at: e.endsAt?.toISOString() ?? null } : null, registration: participantView(p), check_ins: checkins.map((c) => ({ checkpoint_id: c.checkpointId, confirmed_at: c.confirmedAt.toISOString(), method: c.method })), redemptions: redemptions.map(redemptionView), results: results.map(resultView) };
       })),
     };
   });
@@ -411,6 +415,73 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
     const counts = { reserved: 0, fulfilled: 0, expired: 0, cancelled: 0 };
     for (const x of rows) counts[x.status] += x.quantity;
     return { counts, redemptions: rows.map((x) => ({ ...redemptionView(x), wallet: x.wallet, fulfilled_by: x.fulfilledBy })) };
+  });
+
+  // ---- PG-E-07／E-08：成績 CSV staging → 發布（更正串前版）→ 公開榜（只回同意者）／個人成績冊（BR-31、BR-32） ----
+  app.post("/partner/events/:id/result-imports", { preHandler: requireAuth(auth) }, async (req, reply) => {
+    const id = parse(uuid, (req.params as { id: string }).id);
+    const access = await authz.requireEventRole(id, req.auth!.wallet, ["result_editor", "publisher"]);
+    const b = parse(z.object({ source_kind: z.enum(["csv", "manual"]).default("csv"), csv: z.string().min(1).max(RESULT_CSV_MAX_BYTES * 2) }).strict(), req.body);
+    const parts = new Map<string, "registered" | "checked_in" | "cancelled">();
+    for (const p of await store.listEventParticipants(id)) parts.set(p.wallet, p.status);
+    const staged = stageResultsCsv(b.csv, parts);
+    const imp = await store.createResultImport({ importId: randomUUID(), eventId: id, sourceKind: b.source_kind, fileHash: createHash("sha256").update(b.csv).digest(), rowCount: staged.rows.length, errorCount: staged.errors.length, stagedRows: staged.rows, errors: staged.errors, createdBy: req.auth!.wallet }, now());
+    await authz.audit(req, { eventId: id, orgId: access.event.orgId, action: "results.stage", target: imp.importId, details: { import_version: imp.importVersion, row_count: imp.rowCount, error_count: imp.errorCount, file_hash: imp.fileHash.toString("hex") } });
+    return reply.status(201).send(importView(imp, true));
+  });
+
+  app.get("/partner/events/:id/result-imports", { preHandler: requireAuth(auth) }, async (req) => {
+    const id = parse(uuid, (req.params as { id: string }).id);
+    await authz.requireEventRole(id, req.auth!.wallet, ["result_editor", "publisher"]);
+    return { imports: (await store.listResultImports(id)).map((i) => importView(i, false)) };
+  });
+
+  app.get("/partner/events/:id/result-imports/:importId", { preHandler: requireAuth(auth) }, async (req) => {
+    const { id, importId } = req.params as { id: string; importId: string };
+    await authz.requireEventRole(parse(uuid, id), req.auth!.wallet, ["result_editor", "publisher"]);
+    const imp = await store.getResultImport(id, parse(uuid, importId));
+    if (!imp) throw new ApiError(404, "NOT_FOUND", "import not found");
+    return importView(imp, true);
+  });
+
+  /** 發布：publisher＋近期登入；有錯誤列不可發布；更正（已有發布版）必須附原因；活動需 published */
+  app.post("/partner/events/:id/result-imports/:importId/publish", { preHandler: requireAuth(auth) }, async (req) => {
+    const { id: rawId, importId: rawImport } = req.params as { id: string; importId: string };
+    const id = parse(uuid, rawId);
+    const importId = parse(uuid, rawImport);
+    const access = await authz.requireEventRole(id, req.auth!.wallet, ["publisher"]);
+    authz.requireRecentLogin(req);
+    const b = parse(z.object({ reason: z.string().min(3).max(500).optional() }).strict(), req.body ?? {});
+    if (access.event.state !== "published") throw new ApiError(409, "EVENT_CANCELLED", `event is ${access.event.state}`);
+    const imp = await store.getResultImport(id, importId);
+    if (!imp) throw new ApiError(404, "NOT_FOUND", "import not found");
+    if (imp.publishedAt) throw new ApiError(409, "RESULTS_ALREADY_PUBLISHED", "this import was already published");
+    if (imp.errorCount > 0) throw new ApiError(409, "RESULTS_HAVE_ERRORS", `${imp.errorCount} row(s) have errors; fix the CSV and stage again`);
+    // 更正判定：任一列已有發布版 → 需原因（BR-31）
+    const current = await store.listCurrentResults(id);
+    const existing = new Set(current.map((r) => `${r.wallet}|${r.discipline}`));
+    const isCorrection = imp.stagedRows.some((r) => existing.has(`${r.wallet}|${r.discipline}`));
+    if (isCorrection && !b.reason) throw new ApiError(422, "VALIDATION", "reason is required when correcting published results");
+    const r = await store.publishResultImport(id, importId, req.auth!.wallet, b.reason ?? null, now());
+    if (r === "not_found") throw new ApiError(404, "NOT_FOUND", "import not found");
+    if (r === "already") throw new ApiError(409, "RESULTS_ALREADY_PUBLISHED", "this import was already published");
+    if (r === "has_errors") throw new ApiError(409, "RESULTS_HAVE_ERRORS", "import has errors");
+    await authz.audit(req, { eventId: id, orgId: access.event.orgId, action: isCorrection ? "results.correct" : "results.publish", target: importId, details: { import_version: imp.importVersion, revisions: r.revisions, corrections: r.corrections, ...(b.reason ? { reason: b.reason } : {}) } });
+    return { import_id: importId, import_version: imp.importVersion, revisions: r.revisions, corrections: r.corrections, published_at: now().toISOString() };
+  });
+
+  /**
+   * 公開成績榜：只回公開同意者的顯示名稱與最新發布版；finished 依來源名次（無則依時間）排序，DNF／DNS／DQ 另列不排名。
+   * 不回 wallet、不回未同意者（BR-32）。
+   */
+  app.get("/events/:id/results", async (req) => {
+    const e = await resolveEvent((req.params as { id: string }).id);
+    const q = parse(z.object({ discipline: z.string().max(32).optional(), division: z.string().max(40).optional(), limit: z.coerce.number().int().min(1).max(500).default(100), offset: z.coerce.number().int().min(0).default(0) }), req.query ?? {});
+    const rows = (await store.listCurrentResults(e.eventId)).filter((r) => r.publicConsent && (!q.discipline || r.discipline === q.discipline) && (!q.division || r.division === q.division));
+    const finished = rows.filter((r) => r.finishStatus === "finished").sort((a, b) => (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER) || a.elapsedMs - b.elapsedMs);
+    const others = rows.filter((r) => r.finishStatus !== "finished");
+    const pub = (r: (typeof rows)[number]) => ({ display_name: r.displayName ?? "Anonymous runner", discipline: r.discipline, division: r.division, finish_status: r.finishStatus, distance_m: r.distanceM, elapsed_ms: r.elapsedMs, rank: r.rank, rank_source: r.rank !== null ? "organizer" : null, published_at: r.publishedAt.toISOString() });
+    return { event_id: e.eventId, slug: e.slug, total_finished: finished.length, results: finished.slice(q.offset, q.offset + q.limit).map(pub), non_finishers: others.map(pub), source: "organizer" };
   });
 
   app.get("/partner/events/:id/campaign-summary", { preHandler: requireAuth(auth) }, async (req) => {

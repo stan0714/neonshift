@@ -348,4 +348,61 @@ describe("PG-E-02 partner API", () => {
     expect(j(await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/redemptions`, headers: b.h, payload: { benefit_id: towel.benefit_id, idempotency_key: "44444444-4444-4444-8444-444444444444" } })).error.code).toBe("EVENT_CANCELLED");
     expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/redemptions/fulfill`, headers: staff.h, payload: { claim_code: rc.claim_code } })).statusCode).toBe(409);
   });
+  it("成績：result_editor 上傳 CSV staging（逐列錯誤、預覽、不發布）→ publisher 發布（需近期登入、無錯誤）→ 更正需原因並串前版 → 公開榜只回同意者且 DNF 另列 → 個人成績冊含歷史", async () => {
+    const { owner, orgId } = await orgWithOwner();
+    const ev = j(await app.inject({ method: "POST", url: "/v1/partner/events", headers: owner.h, payload: draft(orgId) }));
+    const rev = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/rule-revisions`, headers: owner.h, payload: { rules: {} } }));
+    await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/publish`, headers: owner.h, payload: { revision_id: rev.revision_id } });
+    const editor = await login();
+    const publisher = await login();
+    await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/roles`, headers: owner.h, payload: { wallet: editor.wallet, role: "result_editor" } });
+    await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/roles`, headers: owner.h, payload: { wallet: publisher.wallet, role: "publisher" } });
+    const a = await login(); // 同意公開，顯示名稱 Alice
+    const b = await login(); // 未同意
+    await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: a.h, payload: { accepted_rule_revision: rev.revision_id, display_name: "Alice", public_consent: true } });
+    await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: b.h, payload: { accepted_rule_revision: rev.revision_id, display_name: "Bob" } });
+    const HEAD = "participant_ref,discipline,division,finish_status,distance_m,elapsed_ms,rank";
+    // 有錯誤列（未知選手）→ 201 staging 但 error_count 1；發布被拒
+    let imp = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/result-imports`, headers: editor.h, payload: { csv: [HEAD, `${a.wallet},run,,finished,5000,1500000,1`, `Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,run,,finished,5000,1,2`].join("\n") } }));
+    expect(imp).toMatchObject({ import_version: 1, row_count: 1, error_count: 1 });
+    expect(imp.errors[0]).toMatchObject({ line: 3, field: "participant_ref" });
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/result-imports/${imp.import_id}/publish`, headers: publisher.h, payload: {} })).json().error.code).toBe("RESULTS_HAVE_ERRORS");
+    // editor 不能發布；乾淨的第 2 版由 publisher 發布
+    imp = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/result-imports`, headers: editor.h, payload: { csv: [HEAD, `${a.wallet},run,F30,finished,5000,1500000,2`, `${b.wallet},run,M30,finished,5000,1400000,1`].join("\n") } }));
+    expect(imp.import_version).toBe(2);
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/result-imports/${imp.import_id}/publish`, headers: editor.h, payload: {} })).statusCode).toBe(403);
+    // 發布前公開榜為空
+    expect(j(await app.inject({ method: "GET", url: `/v1/events/river-5k/results` })).results).toEqual([]);
+    let pub = await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/result-imports/${imp.import_id}/publish`, headers: publisher.h, payload: {} });
+    expect(j(pub)).toMatchObject({ revisions: 2, corrections: 0 });
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/result-imports/${imp.import_id}/publish`, headers: publisher.h, payload: {} })).json().error.code).toBe("RESULTS_ALREADY_PUBLISHED");
+    // 公開榜：只有 Alice（同意）；Bob 名次 1 但未同意不出現；不含 wallet
+    let board = j(await app.inject({ method: "GET", url: `/v1/events/river-5k/results` }));
+    expect(board.results).toHaveLength(1);
+    expect(board.results[0]).toMatchObject({ display_name: "Alice", rank: 2, elapsed_ms: 1500000, rank_source: "organizer", division: "F30" });
+    expect(JSON.stringify(board)).not.toContain(a.wallet);
+    // 更正：Alice 改 DNF 需原因；無原因 422
+    const fix = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/result-imports`, headers: editor.h, payload: { csv: [HEAD, `${a.wallet},run,F30,dnf,3000,0,`].join("\n") } }));
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/result-imports/${fix.import_id}/publish`, headers: publisher.h, payload: {} })).statusCode).toBe(422);
+    pub = await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/result-imports/${fix.import_id}/publish`, headers: publisher.h, payload: { reason: "timing chip error" } });
+    expect(j(pub)).toMatchObject({ revisions: 1, corrections: 1 });
+    board = j(await app.inject({ method: "GET", url: `/v1/events/river-5k/results` }));
+    expect(board.results).toEqual([]);
+    expect(board.non_finishers[0]).toMatchObject({ display_name: "Alice", finish_status: "dnf", rank: null });
+    // 個人成績冊：Alice 兩個版本，新版串前版與原因；Bob 看得到自己的成績
+    const hist = j(await app.inject({ method: "GET", url: `/v1/me/event-history`, headers: a.h })).items[0].results as Record<string, unknown>[];
+    expect(hist).toHaveLength(2);
+    expect(hist[0]).toMatchObject({ finish_status: "dnf", reason: "timing chip error", previous_revision_id: hist[1]!.revision_id });
+    expect(j(await app.inject({ method: "GET", url: `/v1/me/event-history`, headers: b.h })).items[0].results[0]).toMatchObject({ rank: 1 });
+    // import 清單與稽核
+    const imports = j(await app.inject({ method: "GET", url: `/v1/partner/events/${ev.event_id}/result-imports`, headers: publisher.h })).imports as { import_version: number; published_at: string | null }[];
+    expect(imports.map((i) => [i.import_version, i.published_at !== null])).toEqual([[3, true], [2, true], [1, false]]);
+    const audit = j(await app.inject({ method: "GET", url: `/v1/partner/events/${ev.event_id}/audit`, headers: owner.h })).entries as { action: string }[];
+    expect(audit.map((x) => x.action)).toEqual(expect.arrayContaining(["results.stage", "results.publish", "results.correct"]));
+    // 超過近期登入：發布被拒
+    clock = new Date(clock.getTime() + 31 * 60_000);
+    await Promise.all([publisher.renew(), editor.renew()]);
+    const late = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/result-imports`, headers: editor.h, payload: { csv: `${HEAD}\n${b.wallet},walk,,finished,5000,3000000,1` } }));
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/result-imports/${late.import_id}/publish`, headers: publisher.h, payload: {} })).json().error.code).toBe("RECENT_LOGIN_REQUIRED");
+  });
 });

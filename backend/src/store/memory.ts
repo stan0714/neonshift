@@ -1,5 +1,5 @@
 import { compareLeaderboard } from "./leaderboard.js";
-import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -30,6 +30,8 @@ export class MemoryStore implements Store {
   checkins: { eventId: string; wallet: string; checkpointId: string; confirmedBy: string; confirmedAt: Date; method: string }[] = [];
   campaign = new Map<string, { source: string; day: string; views: number; registrations: number; checkins: number; redemptions: number }>();
   benefits = new Map<string, EventBenefit>();
+  resultImports = new Map<string, ResultImport>();
+  resultRevisions: ResultRevision[] = [];
   redemptions = new Map<string, EventRedemption>();
 
   async insertChallenge(c: Challenge) {
@@ -249,6 +251,9 @@ export class MemoryStore implements Store {
     this.participants.set(k, row);
     return row;
   }
+  async listEventParticipants(eventId: string) {
+    return [...this.participants.values()].filter((p) => p.eventId === eventId).map((p) => ({ ...p }));
+  }
   async cancelRegistration(eventId: string, wallet: string, now: Date) {
     const cur = this.participants.get(`${eventId}:${wallet}`);
     if (!cur || cur.status === "cancelled") return null;
@@ -398,6 +403,48 @@ export class MemoryStore implements Store {
   async getRedemption(redemptionId: string) {
     const x = this.redemptions.get(redemptionId);
     return x ? { ...x } : null;
+  }
+
+  // ---- PG-E-07／E-08 ----
+  async createResultImport(r: Omit<ResultImport, "importVersion" | "createdAt" | "publishedAt" | "publishedBy">, now: Date) {
+    const version = [...this.resultImports.values()].filter((x) => x.eventId === r.eventId).reduce((m, x) => Math.max(m, x.importVersion), 0) + 1;
+    const row: ResultImport = { ...r, importVersion: version, createdAt: now, publishedAt: null, publishedBy: null };
+    this.resultImports.set(row.importId, row);
+    return { ...row };
+  }
+  async getResultImport(eventId: string, importId: string) {
+    const x = this.resultImports.get(importId);
+    return x && x.eventId === eventId ? { ...x } : null;
+  }
+  async listResultImports(eventId: string) {
+    return [...this.resultImports.values()].filter((x) => x.eventId === eventId).sort((a, b) => b.importVersion - a.importVersion).map((x) => ({ ...x }));
+  }
+  async publishResultImport(eventId: string, importId: string, publisher: string, reason: string | null, now: Date) {
+    const imp = this.resultImports.get(importId);
+    if (!imp || imp.eventId !== eventId) return "not_found" as const;
+    if (imp.publishedAt) return "already" as const;
+    if (imp.errorCount > 0) return "has_errors" as const;
+    let corrections = 0;
+    for (const row of imp.stagedRows) {
+      const prev = this.resultRevisions.filter((x) => x.eventId === eventId && x.wallet === row.wallet && x.discipline === row.discipline).sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())[0];
+      if (prev) corrections += 1;
+      this.resultRevisions.push({ revisionId: `${importId}:${row.wallet}:${row.discipline}`, eventId, importId, wallet: row.wallet, discipline: row.discipline, division: row.division, distanceM: row.distanceM, elapsedMs: row.elapsedMs, rank: row.rank, finishStatus: row.finishStatus, previousRevisionId: prev?.revisionId ?? null, reason: prev ? reason : null, publishedAt: now });
+    }
+    imp.publishedAt = now;
+    imp.publishedBy = publisher;
+    return { revisions: imp.stagedRows.length, corrections };
+  }
+  async listCurrentResults(eventId: string) {
+    const latest = new Map<string, ResultRevision>();
+    for (const x of [...this.resultRevisions].sort((a, b) => a.publishedAt.getTime() - b.publishedAt.getTime())) if (x.eventId === eventId) latest.set(`${x.wallet}|${x.discipline}`, x);
+    return [...latest.values()].map((x) => {
+      const p = this.participants.get(`${eventId}:${x.wallet}`);
+      return { ...x, displayName: p?.displayName ?? null, publicConsent: !!p?.publicConsentAt };
+    });
+  }
+  async listResultHistory(eventId: string, wallet: string) {
+    // 同一時刻發布時以插入順序為準（後發布者在前）
+    return this.resultRevisions.filter((x) => x.eventId === eventId && x.wallet === wallet).reverse().sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime()).map((x) => ({ ...x }));
   }
 
   // ---- PG-G-01 ----

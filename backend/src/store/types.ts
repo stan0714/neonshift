@@ -270,6 +270,8 @@ export interface PartnerStore {
   cancelRegistration(eventId: string, wallet: string, now: Date): Promise<EventParticipant | null>;
   getParticipant(eventId: string, wallet: string): Promise<EventParticipant | null>;
   listParticipations(wallet: string): Promise<EventParticipant[]>;
+  /** 活動名單（含取消者，供成績匯入比對） */
+  listEventParticipants(eventId: string): Promise<EventParticipant[]>;
   updateParticipantPrivacy(eventId: string, wallet: string, patch: { displayName?: string | null; publicConsent?: boolean }, now: Date): Promise<EventParticipant | null>;
   bumpCampaign(eventId: string, source: string, day: string, field: "views" | "registrations" | "checkins" | "redemptions"): Promise<void>;
   listCampaign(eventId: string): Promise<{ source: string; day: string; views: number; registrations: number; checkins: number; redemptions: number }[]>;
@@ -309,7 +311,26 @@ export interface PartnerStore {
   releaseEventReservations(eventId: string, now: Date): Promise<number>;
   listRedemptions(eventId: string, wallet?: string): Promise<EventRedemption[]>;
   getRedemption(redemptionId: string): Promise<EventRedemption | null>;
+
+  // ---- PG-E-07／E-08：成績 staging、發布、更正歷史、公開榜 ----
+  /** 建立 staging（同活動 import_version 遞增，交易內取號）；不發布 */
+  createResultImport(r: Omit<ResultImport, "importVersion" | "createdAt" | "publishedAt" | "publishedBy">, now: Date): Promise<ResultImport>;
+  getResultImport(eventId: string, importId: string): Promise<ResultImport | null>;
+  listResultImports(eventId: string): Promise<ResultImport[]>;
+  /**
+   * 原子發布：import 未發布且 error_count = 0；每列建立 revision，若同 (event, wallet, discipline) 已有發布版則串 previous_revision_id（更正）。
+   * 回 "not_found"｜"already"｜"has_errors" 或 { revisions, corrections }。
+   */
+  publishResultImport(eventId: string, importId: string, publisher: string, reason: string | null, now: Date): Promise<{ revisions: number; corrections: number } | "not_found" | "already" | "has_errors">;
+  /** 最新已發布版：每 (wallet, discipline) 一筆，附參加者顯示名稱與公開同意 */
+  listCurrentResults(eventId: string): Promise<(ResultRevision & { displayName: string | null; publicConsent: boolean })[]>;
+  /** 本人全部版本（含被更正的舊版），新到舊 */
+  listResultHistory(eventId: string, wallet: string): Promise<ResultRevision[]>;
 }
+
+export type ResultImport = { importId: string; eventId: string; sourceKind: "csv" | "manual"; fileHash: Buffer; importVersion: number; rowCount: number; errorCount: number; stagedRows: StagedResult[]; errors: { line: number; field: string; message: string }[]; createdBy: string; createdAt: Date; publishedAt: Date | null; publishedBy: string | null };
+export type StagedResult = { line: number; wallet: string; discipline: string; division: string | null; finishStatus: "finished" | "dnf" | "dns" | "dq"; distanceM: number; elapsedMs: number; rank: number | null };
+export type ResultRevision = { revisionId: string; eventId: string; importId: string; wallet: string; discipline: string; division: string | null; distanceM: number; elapsedMs: number; rank: number | null; finishStatus: "finished" | "dnf" | "dns" | "dq"; previousRevisionId: string | null; reason: string | null; publishedAt: Date };
 
 export type EventBenefit = { benefitId: string; eventId: string; kind: "physical" | "digital_badge"; name: string; stockTotal: number; reservedCount: number; fulfilledCount: number; perPersonLimit: number; eligibilityRuleRevision: string | null; requiresCheckin: boolean; claimDeadline: Date | null };
 export type RedemptionStatus = "reserved" | "fulfilled" | "expired" | "cancelled";

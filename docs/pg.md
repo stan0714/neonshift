@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.30（PG-E-06 完成） |
+| 文件版本 | v0.31（PG-E-07／E-08 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -531,8 +531,8 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-E-04 | NFC／App Links、QR 備援與可選卡片綁定 | SD 11.4 | FR-11.1、FR-11.3、BR-29 | 2.5 | WIP | 2026-09-14 完成：後端 checkpoints／nfc_tags 登記、停用、補發與參加者查詢（opaque ref、不含憑證）；Manifest App Links（autoVerify）＋NDEF intent-filter＋NFC optional；`web/.well-known/assetlinks.json`（debug 指紋；release 待填）；App `?tag=` → TagBanner（active／revoked／not_yours／unknown／需登入）；vitest 9、Jest 162。待實機：部署 assetlinks 後以 NFC 標籤與 QR 驗證（今日 Seeker 由另一工作階段使用中，未實機驗證） |
 | PG-E-05 | 現場 staff 報到、challenge 與補登稽核 | SD 11.2～11.4 | FR-10、BR-28、BR-29 | 2.0 | WIP | 2026-09-14 完成：後端報到 challenge（8 碼＋QR payload、120 秒、只存 hash、單次消耗）、staff 報到（代碼／手動補登需近期登入與理由、限授權站點、冪等、稽核）、報到清單、event-history 附報到；App `CheckInCode`（QR＋代碼＋倒數）、`StaffCheckIn`（授權站點、代碼／手動、結果）、EventDetail 入口；vitest 10、Jest 166（修正 RNTL 14 `fireEvent` 需 `await` 的既有測試）。待：相機掃描 QR（目前輸入代碼）、實機驗證 |
 | PG-E-06 | 品項庫存、原子核銷、實體交付及數位徽章 | SD 11.3、11.4 | FR-11、BR-30、BR-33 | 3.5 | WIP | 2026-09-14 完成：migration 0007（claim_code）；品項建立／公開投影／對帳；原子預留（鎖 event→benefit→participant、名單／報到／截止／每人上限／庫存、冪等 key、15 分鐘保留）、數位徽章同交易發放憑證、staff 交付（只交付 reserved、重試 already、逾期 410、取消 409、稽核）、lazy 逾期釋放、活動取消釋放預留（BR-33）、對帳分狀態計數（FR-11.4）、event-history 附核銷；App `Perks`（EventDetail）與 StaffCheckIn「權益交付」模式；vitest 11、Jest 170。待：相機掃描、實機驗證、checkpoint 限定 staff 的交付站點約束 |
-| PG-E-07 | CSV 成績 staging、發布與更正歷史 | SD 11.2、11.5 | FR-12.1、FR-12.2、BR-31 | 3.0 | TODO | |
-| PG-E-08 | 個人成績冊與公開榜、顯示同意設定 | SD 11.2、11.5 | FR-12.3、BR-32 | 1.5 | TODO | |
+| PG-E-07 | CSV 成績 staging、發布與更正歷史 | SD 11.2、11.5 | FR-12.1、FR-12.2、BR-31 | 3.0 | WIP | 2026-09-14 完成：CSV v1 解析／逐列驗證（表頭、名單、狀態、單位、重複、大小上限）、staging（版本遞增、hash、預覽、錯誤）、publisher 發布（近期登入、無錯誤、更正需原因、previous_revision 鏈、稽核）；vitest csv 3＋端到端 1。待：合作方網頁介面（目前 API）、FR-12.4 webhook（S） |
+| PG-E-08 | 個人成績冊與公開榜、顯示同意設定 | SD 11.2、11.5 | FR-12.3、BR-32 | 1.5 | WIP | 2026-09-14 完成：公開榜 API（只回同意者顯示名稱、主辦方名次排序、DNF／DNS／DQ 另列、標示來源）、event-history 成績版本；App `Results`（公開榜、本人成績與更正、公開同意／顯示名稱設定）；Jest 3。待：實機驗證 |
 | PG-E-09 | 宣傳轉換彙總、活動保留／刪除與操作文件 | SD 11.5 | FR-09.3、BR-32 | 1.5 | TODO | |
 | PG-E-10 | 合作試辦、實機 NFC／核銷及成績端到端驗收 | SD 11.5 | FR-09～FR-12 | 2.0 | TODO | |
 
@@ -565,6 +565,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.31 | 2026-09-14 | PG-E-07／E-08 完成（WIP）：成績 CSV、發布／更正、公開榜與成績冊 |
 | v0.30 | 2026-09-14 | PG-E-06 完成（WIP）：品項庫存、預留／交付、數位徽章 |
 | v0.29 | 2026-09-14 | PG-E-05 完成（WIP）：報到 challenge 與 staff 報到 |
 | v0.28 | 2026-09-14 | PG-E-04 完成（WIP）：NFC／App Links |

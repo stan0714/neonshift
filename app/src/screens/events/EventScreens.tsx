@@ -9,6 +9,7 @@ import { ApiError, apiClient, type EventRegistration, type PartnerEventView, typ
 
 import { CheckInCode } from './CheckInCode';
 import { Perks } from './Perks';
+import { Results } from './Results';
 import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
 import { useT, type TKey } from '@/i18n';
@@ -265,6 +266,7 @@ export function EventDetailScreen() {
             <InlineState kind="info" title={window === 'not_yet' ? t('ev.opensSoon.title') : event.state === 'cancelled' ? t('ev.cancelledEvent.title') : t('ev.closed.title')} body={window === 'not_yet' ? t('ev.opensSoon.body', { when: fmt(t, event.registration_opens_at) }) : event.state === 'cancelled' ? (event.cancel_reason ?? t('ev.cancelledEvent.body')) : t('ev.closed.body')} testID="event-closed" />
           )}
           {event.state !== 'cancelled' ? <Perks eventId={event.event_id} slug={event.slug} registration={registered ? (reg?.status === 'checked_in' ? 'checked_in' : 'registered') : 'none'} signedIn={!!session} /> : null}
+          <Results eventId={event.event_id} slug={event.slug} registration={registered ? reg : null} onPrivacyChanged={setReg} />
         </>
       ) : null}
     </Screen>
