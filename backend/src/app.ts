@@ -1,10 +1,17 @@
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
+import { randomBytes } from "node:crypto";
+
+import { authRoutes } from "./auth/routes.js";
+import { AuthService } from "./auth/service.js";
 import { type AppConfig } from "./config.js";
 import { type Db } from "./db.js";
 import { ApiError, notFound } from "./errors.js";
+import { MemoryStore } from "./store/memory.js";
+import { PostgresStore } from "./store/postgres.js";
+import type { Store } from "./store/types.js";
 
-export type AppDeps = { config: AppConfig; db: Db };
+export type AppDeps = { config: AppConfig; db: Db; store?: Store; now?: () => Date };
 
 export const API_PREFIX = "/v1";
 
@@ -14,7 +21,22 @@ export const API_PREFIX = "/v1";
  * - body 上限、統一錯誤格式、`/healthz`（liveness）與 `/readyz`（DB）
  * - 業務路由掛在 `/v1`，由後續 PG-B 項目以 plugin 註冊
  */
-export function buildApp({ config, db }: AppDeps): FastifyInstance {
+export function buildApp({ config, db, store, now }: AppDeps): FastifyInstance {
+  const dataStore: Store = store ?? (db.pool ? new PostgresStore(db.pool) : new MemoryStore());
+  const auth = new AuthService(
+    dataStore,
+    {
+      domain: config.SIWS_DOMAIN,
+      uri: config.SIWS_URI,
+      chainId: `solana:${config.CLUSTER_ID === 1 ? "devnet" : "localnet"}`,
+      tokens: {
+        secret: new TextEncoder().encode(config.JWT_SECRET ?? randomBytes(32).toString("base64url")),
+        issuer: config.SIWS_DOMAIN,
+        audience: `${config.SIWS_DOMAIN}/api`,
+      },
+    },
+    now,
+  );
   const app = Fastify({
     bodyLimit: config.BODY_LIMIT_BYTES,
     trustProxy: true,
@@ -26,6 +48,7 @@ export function buildApp({ config, db }: AppDeps): FastifyInstance {
 
   app.decorate("config", config);
   app.decorate("db", db);
+  app.decorate("auth", auth);
 
   app.setErrorHandler((raw: unknown, req, reply) => {
     if (raw instanceof ApiError) {
@@ -56,8 +79,9 @@ export function buildApp({ config, db }: AppDeps): FastifyInstance {
   });
 
   app.register(async (v1) => {
-    // 後續：auth（PG-B-03～05）、attestation（B-11）、player（B-12～13）、tournament（B-14）、rules（B-07）
     v1.get("/", async () => ({ name: "neonshift-attestor", version: "v1" }));
+    await v1.register(authRoutes, { auth });
+    // 後續：challenge（B-05）、attestation（B-11）、player（B-12～13）、tournament（B-14）、rules（B-07）
   }, { prefix: API_PREFIX });
 
   app.addHook("onClose", async () => {
@@ -71,5 +95,6 @@ declare module "fastify" {
   interface FastifyInstance {
     config: AppConfig;
     db: Db;
+    auth: AuthService;
   }
 }

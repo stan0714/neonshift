@@ -160,8 +160,8 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 |---|---|---|---|---|---|---|
 | PG-B-01 | Fastify 骨架、設定載入、健康檢查端點 | SD 2.2 | — | 0.5 | WIP | src/app.ts／config.ts／db.ts／errors.ts：healthz、readyz、/v1、統一錯誤格式、redact log；9 項測試 |
 | PG-B-02 | 資料庫 schema 與 migration | SD 4.5 | — | 1.0 | WIP | 0001_init.sql 9 表＋13 項約束測試；8.2 P0/P1 補項未做 |
-| PG-B-03 | `/auth/nonce` 與 `/auth/verify`（SIWS） | SD 4.2 | — | 1.5 | TODO | |
-| PG-B-04 | JWT 與 refresh session 輪替、重用偵測 | SD 4.2 | — | 1.5 | TODO | |
+| PG-B-03 | `/auth/nonce` 與 `/auth/verify`（SIWS） | SD 4.2 | — | 1.5 | WIP | SIWS 訊息 build／parse、/auth/nonce（32B nonce 只存雜湊、5 分鐘）、/auth/verify（domain／URI／chain／statement／時效／驗簽／原子消耗）；Store 介面＋Memory／Postgres 實作；11 單元＋整合測試 |
+| PG-B-04 | JWT 與 refresh session 輪替、重用偵測 | SD 4.2 | — | 1.5 | WIP | HS256 access 15 分鐘（iss／aud／sub／jti／iat／nbf／exp）、refresh 24 小時輪替＋重用偵測撤銷 family、/auth/refresh、/auth/logout（重複成功）、requireAuth 檢查 session 撤銷與玩家刪除 |
 | PG-B-05 | `/auth/challenge`：claim／tournament 敏感操作的單次授權 | SD 4.2 | — | 1.0 | TODO | |
 | PG-B-06 | 健康摘要 ingest、來源／速率／live check canonicalization、request_hash | SD 4.2, 4.3 | BR-09 | 1.0 | TODO | |
 | PG-B-07 | 風險規則集載入，保存單調 `rules_version` 與獨立 `rules_hash` | SD 4.4 | BR-13 | 1.0 | TODO | |

@@ -375,7 +375,7 @@ Base path `/v1`。除登入相關外皆需 Bearer JWT。錯誤回應統一為 `{
 
 `POST /auth/nonce` 產生 32-byte CSPRNG nonce，保存雜湊、wallet、建立時間與 5 分鐘到期時間；nonce 僅能成功使用一次。`POST /auth/verify` 採 Sign In With Solana 格式，至少綁定 domain、URI、wallet、statement、nonce、issued-at、expiration-time、request-id 與 devnet chain id，並驗證簽章地址等於請求 wallet。
 
-驗證成功後簽發短期 access JWT（最長 15 分鐘）及可撤銷 refresh session（最長 24 小時）。JWT 固定 `iss`、`aud`、`sub=wallet`、`jti`、`iat`、`nbf`、`exp`，API 嚴格限制允許的簽章演算法。refresh token 每次使用都輪替並偵測舊 token 重用，發現重用時撤銷該 session family。登出、刪除資料或 wallet 切換時撤銷 refresh session；高風險操作不得只依賴舊 JWT。
+驗證成功後簽發短期 access JWT（最長 15 分鐘）及可撤銷 refresh session（最長 24 小時）。【實作 2026-09-14】SIWS `statement` 固定為「Sign in to NeonShift. This request will not trigger a blockchain transaction or cost any gas fees.」；`/auth/nonce` 回傳完整訊息供 App 直接簽；access JWT 以 HS256（`JWT_SECRET`）簽發，`sid` claim 指向 refresh session，Bearer 驗證同時檢查 session 未撤銷與玩家未刪除；驗簽先於 nonce 消耗，壞簽章不會燒掉 nonce。JWT 固定 `iss`、`aud`、`sub=wallet`、`jti`、`iat`、`nbf`、`exp`，API 嚴格限制允許的簽章演算法。refresh token 每次使用都輪替並偵測舊 token 重用，發現重用時撤銷該 session family。登出、刪除資料或 wallet 切換時撤銷 refresh session；高風險操作不得只依賴舊 JWT。
 
 申請 attestation 前，App 先對 claim body（不含 `claim_authorization`）做與 3.5 相同的 canonicalization 及 SHA-256，再呼叫 `/auth/challenge`（`purpose=claim`）。後端回傳 32-byte 隨機 nonce 與 5 分鐘 expiry，並綁定 JWT wallet、purpose、task_date、task_type、request_hash。App 透過 MWA 簽署 `NEONSHIFT_CLAIM_V1 || nonce || request_hash || expiry_le`。`/attestation/claim` 必須驗證此簽章與單次 challenge，符合 BRD 9.2「以錢包簽署請求」；JWT 只負責 session，不可取代本次 claim 授權。
 

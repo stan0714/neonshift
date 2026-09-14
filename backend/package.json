@@ -28,8 +28,11 @@
     "esbuild@0.21.5": true
   },
   "dependencies": {
+    "bs58": "^6.0.0",
     "fastify": "^5.12.4",
+    "jose": "^6.2.12",
     "pg": "^8.23.0",
+    "tweetnacl": "^1.0.3",
     "zod": "^4.6.5"
   }
 }

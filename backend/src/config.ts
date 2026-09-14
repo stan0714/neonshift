@@ -18,6 +18,11 @@ export const configSchema = z.object({
   /** canonical attestation 的環境識別：devnet = 1、localnet = 2（attestation-core） */
   CLUSTER_ID: z.coerce.number().int().min(1).max(255).default(1),
   PROGRAM_ID: z.string().regex(base58, "PROGRAM_ID 必須是 base58 公鑰").optional(),
+  /** SIWS domain／URI 與 JWT iss／aud（SD 4.2、SD 8 網域表） */
+  SIWS_DOMAIN: z.string().default("neonshift.cc"),
+  SIWS_URI: z.string().url().default("https://neonshift.cc"),
+  /** access JWT HS256 密鑰；正式環境必填且 ≥ 32 bytes，local／test 未給時以隨機值啟動（重啟即失效） */
+  JWT_SECRET: z.string().min(32).optional(),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
@@ -32,6 +37,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   // dev／demo 必須成組提供鏈上參數，避免 runtime 混搭（SD 8）
   if (cfg.APP_ENV !== "local" && (!cfg.PROGRAM_ID || !cfg.DATABASE_URL)) {
     throw new Error(`APP_ENV=${cfg.APP_ENV} 需要同時設定 PROGRAM_ID 與 DATABASE_URL`);
+  }
+  if (cfg.APP_ENV !== "local" && !cfg.JWT_SECRET) {
+    throw new Error(`APP_ENV=${cfg.APP_ENV} 需要設定 JWT_SECRET`);
   }
   return cfg;
 }

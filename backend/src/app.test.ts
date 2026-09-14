@@ -71,6 +71,9 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ APP_ENV: "dev" })).toThrow(/PROGRAM_ID/);
     expect(() =>
       loadConfig({ APP_ENV: "dev", PROGRAM_ID: "5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf", DATABASE_URL: "postgres://u:p@h/db" }),
+    ).toThrow(/JWT_SECRET/);
+    expect(() =>
+      loadConfig({ APP_ENV: "dev", PROGRAM_ID: "5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf", DATABASE_URL: "postgres://u:p@h/db", JWT_SECRET: "s".repeat(32) }),
     ).not.toThrow();
   });
   it("PROGRAM_ID 必須是 base58", () => {

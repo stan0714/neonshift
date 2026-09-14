@@ -75,8 +75,6 @@ jobs:
         working-directory: backend
       - run: npm run typecheck
         working-directory: backend
-      - run: npm test
-        working-directory: backend
       - name: migration 與約束測試
         env:
           PGPASSWORD: test
@@ -85,6 +83,10 @@ jobs:
           out=$(psql -h localhost -U postgres -d neonshift -v ON_ERROR_STOP=1 -q -f backend/migrations/test_constraints.sql 2>&1)
           echo "$out" | grep -E 'PASS|FAIL' || true
           ! echo "$out" | grep -q FAIL
+      - run: npm test
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test@localhost:5432/neonshift
 
   app:
     name: app（React Native）typecheck＋jest

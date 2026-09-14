@@ -54,7 +54,7 @@ section "資料庫 schema"
 if docker info >/dev/null 2>&1; then
   C=neonshift-schema-test
   docker rm -f "$C" >/dev/null 2>&1
-  docker run -d --name "$C" -e POSTGRES_PASSWORD=test -e POSTGRES_DB=neonshift \
+  docker run -d --name "$C" -p 127.0.0.1::5432 -e POSTGRES_PASSWORD=test -e POSTGRES_DB=neonshift \
     postgres:16-alpine >/dev/null 2>&1
   for _ in $(seq 1 40); do
     docker exec "$C" pg_isready -U postgres >/dev/null 2>&1 && break
@@ -71,10 +71,12 @@ if docker info >/dev/null 2>&1; then
     else
       ok "約束測試（$n 項）"
     fi
+    # 後端整合測試（PostgresStore）沿用同一容器；先重套 migration 得到乾淨 schema
+    PORT=$(docker port "$C" 5432/tcp | head -1 | awk -F: '{print $NF}')
+    export TEST_DATABASE_URL="postgres://postgres:test@localhost:$PORT/neonshift"
   else
     bad "migration 套用"
   fi
-  docker rm -f "$C" >/dev/null 2>&1
 else
   skip "Docker daemon 未執行"
 fi
@@ -82,13 +84,14 @@ fi
 section "後端（TypeScript）"
 if command -v npm >/dev/null && [ -d backend/node_modules ]; then
   if (cd backend && npm test --silent) >/tmp/ns-npm.log 2>&1; then
-    ok "npm test"
+    ok "npm test$( [ -n "${TEST_DATABASE_URL:-}" ] && echo '（含 PostgresStore 整合）' )"
   else
     bad "npm test"; tail -20 /tmp/ns-npm.log
   fi
 else
   skip "Node.js 未安裝或尚未 npm install"
 fi
+[ -n "${C:-}" ] && docker rm -f "$C" >/dev/null 2>&1
 
 section "App（React Native）"
 if command -v npm >/dev/null && [ -d app/node_modules ]; then
