@@ -11,7 +11,7 @@ import { activityRecognition } from '@/services/permissions/ActivityRecognition'
 import { useDashboardStore } from '@/state/dashboardStore';
 import { useOnboardingStore } from '@/state/onboardingStore';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
-import { color, space, Text } from '@/theme';
+import { color, radius, space, Text } from '@/theme';
 import { useLocaleStore, useT, type TKey } from '@/i18n';
 
 type Deletion = { state: 'idle' | 'working' | 'done' | 'scheduled' | 'error'; dueAt?: string; message?: string; referenceId?: string };
@@ -113,10 +113,17 @@ export function ProfileScreen() {
       </Section>
 
       <Section title={t('profile.language')}>
-        <View style={styles.rowBtns} accessibilityRole="radiogroup" accessibilityLabel={t('profile.language')}>
-          {(['system', 'en', 'zh-TW'] as const).map((s) => (
-            <Button key={s} label={t(`profile.language.${s}` as TKey)} variant={localeSetting === s ? 'primary' : 'secondary'} style={styles.third} onPress={() => void setLocaleSetting(s)} accessibilityState={{ selected: localeSetting === s }} testID={`lang-${s}`} />
-          ))}
+        <View style={styles.segment} accessibilityRole="radiogroup" accessibilityLabel={t('profile.language')}>
+          {(['system', 'en', 'zh-TW'] as const).map((s) => {
+            const on = localeSetting === s;
+            return (
+              <Pressable key={s} onPress={() => void setLocaleSetting(s)} accessibilityRole="radio" accessibilityState={{ selected: on }} style={[styles.segmentItem, on && styles.segmentOn]} testID={`lang-${s}`}>
+                <Text variant="title" tone={on ? undefined : 'secondary'} style={on ? styles.segmentOnText : undefined} numberOfLines={1}>
+                  {t(`profile.language.${s}` as TKey)}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </Section>
 
@@ -180,7 +187,10 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: space.xs },
   rowText: { marginLeft: space.s, flex: 1 },
   rowBtns: { flexDirection: 'row', marginTop: space.s, gap: space.xs },
-  third: { flex: 1 },
+  segment: { flexDirection: 'row', backgroundColor: color.elevated, borderRadius: radius.m, padding: 4, marginTop: space.xs },
+  segmentItem: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radius.s },
+  segmentOn: { backgroundColor: color.mint },
+  segmentOnText: { color: color.onMint },
   half: { flex: 1 },
   btn: { marginTop: space.m },
   link: { marginTop: space.s, minHeight: 48, justifyContent: 'center' },

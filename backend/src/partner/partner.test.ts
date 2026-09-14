@@ -177,4 +177,38 @@ describe("PG-E-02 partner API", () => {
     const d = await login();
     expect((await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: d.h, payload: { accepted_rule_revision: rev2.revision_id } })).json().error.code).toBe("EVENT_NOT_OPEN");
   });
+
+  it("站點與 NFC 載具：owner 建站點；staff 登記／停用載具（含 checkpoint 限定）；參加者查 tag 狀態不含內部資料；補發停用舊載具", async () => {
+    const { owner, orgId } = await orgWithOwner();
+    const ev = j(await app.inject({ method: "POST", url: "/v1/partner/events", headers: owner.h, payload: draft(orgId) }));
+    const rev = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/rule-revisions`, headers: owner.h, payload: { rules: {} } }));
+    await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/publish`, headers: owner.h, payload: { revision_id: rev.revision_id } });
+    const cp = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/checkpoints`, headers: owner.h, payload: { name: "Start gate", purpose: "check_in" } }));
+    const cp2 = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/checkpoints`, headers: owner.h, payload: { name: "Booth", purpose: "redemption" } }));
+    const staff = await login();
+    await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/roles`, headers: owner.h, payload: { wallet: staff.wallet, role: "staff", checkpoint_id: cp.checkpoint_id } });
+    // staff 只能為授權站點登記
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/tags`, headers: staff.h, payload: { purpose: "checkpoint", checkpoint_id: cp2.checkpoint_id } })).json().error.code).toBe("ROLE_FORBIDDEN");
+    const issued = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/tags`, headers: staff.h, payload: { purpose: "checkpoint", checkpoint_id: cp.checkpoint_id, quantity: 2 } }));
+    expect(issued.tags).toHaveLength(2);
+    expect(issued.tags[0].uri).toMatch(new RegExp(`^https://neonshift.cc/e/river-5k\\?tag=[A-Za-z0-9_-]{32}$`));
+    // 參加者查 tag
+    const p = await login();
+    await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: p.h, payload: { accepted_rule_revision: rev.revision_id } });
+    let st = j(await app.inject({ method: "GET", url: `/v1/events/river-5k/tags/${issued.tags[0].opaque_ref}`, headers: p.h }));
+    expect(st).toEqual({ status: "active", purpose: "checkpoint", checkpoint: { checkpoint_id: cp.checkpoint_id, name: "Start gate", purpose: "check_in" }, registered: true, event_state: "published" });
+    expect((await app.inject({ method: "GET", url: `/v1/events/river-5k/tags/nope`, headers: p.h })).statusCode).toBe(404);
+    // 停用
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/tags/${issued.tags[0].tag_id}/revoke`, headers: staff.h })).statusCode).toBe(204);
+    expect(j(await app.inject({ method: "GET", url: `/v1/events/river-5k/tags/${issued.tags[0].opaque_ref}`, headers: p.h })).status).toBe("revoked");
+    // 參加者載具：他人感應 → not_yours；補發停用舊的
+    const t1 = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/tags`, headers: owner.h, payload: { purpose: "participant", participant_wallet: p.wallet } })).tags[0];
+    const other = await login();
+    expect(j(await app.inject({ method: "GET", url: `/v1/events/river-5k/tags/${t1.opaque_ref}`, headers: other.h })).status).toBe("not_yours");
+    const t2 = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/tags`, headers: owner.h, payload: { purpose: "participant", participant_wallet: p.wallet } })).tags[0];
+    expect(j(await app.inject({ method: "GET", url: `/v1/events/river-5k/tags/${t1.opaque_ref}`, headers: p.h })).status).toBe("revoked");
+    expect(j(await app.inject({ method: "GET", url: `/v1/events/river-5k/tags/${t2.opaque_ref}`, headers: p.h })).status).toBe("active");
+    // 未報名錢包不可登記參加者載具
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/tags`, headers: owner.h, payload: { purpose: "participant", participant_wallet: other.wallet } })).json().error.code).toBe("NOT_ELIGIBLE");
+  });
 });

@@ -547,4 +547,18 @@ export const zhTW: Record<keyof typeof en, string> = {
   'nav.player': '玩家',
   'nav.events': '合作活動',
   'nav.event': '活動',
+
+  'tag.checking': '正在確認標籤…',
+  'tag.active.title': '偵測到標籤 · {name}',
+  'tag.active.checkIn': '報到站。請先報名，再與工作人員在此報到。',
+  'tag.active.redemption': '兌換站。報到後在此領取權益。',
+  'tag.active.info': '資訊站。',
+  'tag.active.participant': '這是你的參加者標籤。',
+  'tag.revoked.title': '標籤已失效',
+  'tag.revoked.body': '此標籤已由主辦單位補發或停用，請洽工作人員。',
+  'tag.notYours.title': '不是你的標籤',
+  'tag.notYours.body': '這是其他參加者的標籤。請使用自己的標籤或洽工作人員。',
+  'tag.unknown.title': '未知標籤',
+  'tag.unknown.body': '此標籤未登記於本活動。只有主辦單位發出的標籤有效。',
+  'tag.signin': '登入後才能使用此標籤。',
 };

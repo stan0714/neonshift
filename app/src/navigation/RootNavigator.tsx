@@ -28,7 +28,7 @@ const linking: LinkingOptions<RootParamList> = {
     screens: {
       Landing: 'landing',
       DemoPreview: 'preview',
-      EventDetail: { path: 'e/:idOrSlug', parse: { idOrSlug: String } },
+      EventDetail: { path: 'e/:idOrSlug', parse: { idOrSlug: String, source: String, tag: String } },
       ...(__DEV__ ? { DevHealth: 'dev/health' } : {}),
     },
   },

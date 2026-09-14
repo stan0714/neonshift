@@ -73,6 +73,7 @@ export type PartnerEventView = {
   rules: { version: number; revision_id: string; rules: Record<string, unknown>; published_at: string | null } | null; cancel_reason: string | null;
 };
 export type EventRegistration = { status: 'registered' | 'cancelled' | 'checked_in'; accepted_rule_revision: string; display_name: string | null; public_consent: boolean; registered_at: string; cancelled_at: string | null };
+export type TagState = { status: 'revoked' } | { status: 'not_yours' } | { status: 'active'; purpose: 'checkpoint' | 'participant'; checkpoint: { checkpoint_id: string; name: string; purpose: 'check_in' | 'redemption' | 'info' } | null; registered: boolean; event_state: string };
 export type HistoryItem = { task_date: number; task_type: 'steps' | 'sleep'; issued_at: string; expires_at: string; redeemed_signature: string | null; amount: string | null; xp: number | null; shoe_level: number | null };
 export type HistoryResponse = { days: number; retention_days: number; total_earned: string; items: HistoryItem[] };
 
@@ -195,6 +196,10 @@ export class ApiClient {
 
   registerEvent(eventId: string, body: { accepted_rule_revision: string; display_name?: string | null; public_consent?: boolean }, source?: string): Promise<{ registration: EventRegistration; already: boolean }> {
     return this.request('POST', `/events/${encodeURIComponent(eventId)}/registrations${source ? `?source=${encodeURIComponent(source)}` : ''}`, body);
+  }
+
+  eventTag(eventId: string, ref: string): Promise<TagState> {
+    return this.request<TagState>('GET', `/events/${encodeURIComponent(eventId)}/tags/${encodeURIComponent(ref)}`);
   }
 
   cancelEventRegistration(eventId: string): Promise<unknown> {

@@ -10,9 +10,10 @@ import { useWalletStore } from '@/state/walletStore';
 import { ThemeProvider } from '@/theme';
 
 const mockNavigate = jest.fn();
-jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => ({ navigate: mockNavigate }), useRoute: () => ({ params: { idOrSlug: 'river-5k', source: 'ig' } }) }));
-jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { events: jest.fn(), event: jest.fn(), eventRegistration: jest.fn(), registerEvent: jest.fn(), cancelEventRegistration: jest.fn() } }));
-const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'events' | 'event' | 'eventRegistration' | 'registerEvent' | 'cancelEventRegistration', jest.Mock>;
+const mockRoute = { params: { idOrSlug: 'river-5k', source: 'ig' } as { idOrSlug: string; source?: string; tag?: string } };
+jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => ({ navigate: mockNavigate }), useRoute: () => mockRoute }));
+jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { events: jest.fn(), event: jest.fn(), eventRegistration: jest.fn(), registerEvent: jest.fn(), cancelEventRegistration: jest.fn(), eventTag: jest.fn() } }));
+const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'events' | 'event' | 'eventRegistration' | 'registerEvent' | 'cancelEventRegistration' | 'eventTag', jest.Mock>;
 const { ApiError } = jest.requireActual('@/services/api/ApiClient');
 
 const future = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
@@ -80,6 +81,30 @@ describe('EventDetailScreen', () => {
     fireEvent.press(screen.getByText('Cancel registration'));
     await waitFor(() => expect(api.cancelEventRegistration).toHaveBeenCalledWith('E1'));
     await waitFor(() => expect(screen.getByText('Registration cancelled')).toBeTruthy());
+  });
+});
+
+describe('EventDetailScreen · NFC 標籤（PG-E-04）', () => {
+  afterEach(() => {
+    delete mockRoute.params.tag;
+  });
+  test('連結帶 ?tag= 時向後端查狀態：active 顯示站點；revoked／not_yours／unknown 顯示對應警示', async () => {
+    mockRoute.params.tag = 'abc';
+    api.event.mockResolvedValue(ev());
+    api.eventTag.mockResolvedValueOnce({ status: 'active', purpose: 'checkpoint', checkpoint: { checkpoint_id: 'c1', name: 'Start gate', purpose: 'check_in' }, registered: false, event_state: 'published' });
+    await render(<EventDetailScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('tag-active')).toBeTruthy());
+    expect(screen.getByText('Tag detected · Start gate')).toBeTruthy();
+    expect(api.eventTag).toHaveBeenCalledWith('E1', 'abc');
+    await act(async () => {});
+    api.eventTag.mockResolvedValueOnce({ status: 'revoked' });
+    await render(<EventDetailScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('tag-revoked')).toBeTruthy());
+    await act(async () => {});
+    api.eventTag.mockRejectedValueOnce(new ApiError(404, 'NOT_FOUND', 'tag not found'));
+    await render(<EventDetailScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('tag-unknown')).toBeTruthy());
+    await act(async () => {});
   });
 });
 

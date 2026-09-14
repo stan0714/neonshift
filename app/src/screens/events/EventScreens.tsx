@@ -5,7 +5,7 @@ import { Alert, Pressable, RefreshControl, StyleSheet, Switch, View } from 'reac
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import type { RootParamList } from '@/navigation/types';
-import { ApiError, apiClient, type EventRegistration, type PartnerEventView } from '@/services/api/ApiClient';
+import { ApiError, apiClient, type EventRegistration, type PartnerEventView, type TagState } from '@/services/api/ApiClient';
 import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
 import { useT, type TKey } from '@/i18n';
@@ -99,6 +99,7 @@ export function EventDetailScreen() {
   const [busy, setBusy] = useState(false);
   const [consent, setConsent] = useState(false);
   const [outcome, setOutcome] = useState<{ kind: 'success' | 'error'; title: string; body: string; ref?: string } | null>(null);
+  const [tag, setTag] = useState<TagState | 'checking' | 'unknown' | 'signin' | null>(params.tag ? 'checking' : null);
 
   const load = useCallback(async () => {
     try {
@@ -111,10 +112,18 @@ export function EventDetailScreen() {
       } catch (x) {
         if (x instanceof ApiError && x.code === 'NO_SESSION') setNeedsSignIn(true);
       }
+      // PG-E-04：標籤只提供 opaque reference，資格與狀態一律向後端查（SD 11.4）
+      if (params.tag) {
+        try {
+          setTag(await apiClient.eventTag(e.event_id, params.tag));
+        } catch (x) {
+          setTag(x instanceof ApiError && x.code === 'NO_SESSION' ? 'signin' : 'unknown');
+        }
+      }
     } catch (e) {
       setErr(toErr(e));
     }
-  }, [params.idOrSlug, params.source]);
+  }, [params.idOrSlug, params.source, params.tag]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -172,6 +181,7 @@ export function EventDetailScreen() {
   return (
     <Screen scroll testID="event-detail-screen">
       {err ? <InlineState kind={err.code === 'NOT_FOUND' ? 'info' : 'error'} title={err.code === 'NOT_FOUND' ? t('ev.notFound.title') : t('common.somethingInterrupted')} body={err.code === 'NOT_FOUND' ? t('ev.notFound.body') : t('ev.errBody', { message: err.message })} referenceId={err.ref} action={err.code === 'NOT_FOUND' ? undefined : { label: t('common.tryAgain'), onPress: () => void load() }} testID="event-error" /> : null}
+      {event && tag ? <TagBanner tag={tag} /> : null}
       {event ? (
         <>
           <Surface hero>
@@ -243,6 +253,18 @@ export function EventDetailScreen() {
       ) : null}
     </Screen>
   );
+}
+
+/** NFC／QR 標籤狀態（E-04）；報到／核銷動作在 E-05／E-06 接上 */
+function TagBanner({ tag }: { tag: TagState | 'checking' | 'unknown' | 'signin' }) {
+  const { t } = useT();
+  if (tag === 'checking') return <InlineState kind="info" title={t('tag.checking')} testID="tag-checking" />;
+  if (tag === 'signin') return <InlineState kind="info" title={t('common.signInRequired')} body={t('tag.signin')} testID="tag-signin" />;
+  if (tag === 'unknown') return <InlineState kind="warning" title={t('tag.unknown.title')} body={t('tag.unknown.body')} testID="tag-unknown" />;
+  if (tag.status === 'revoked') return <InlineState kind="warning" title={t('tag.revoked.title')} body={t('tag.revoked.body')} testID="tag-revoked" />;
+  if (tag.status === 'not_yours') return <InlineState kind="warning" title={t('tag.notYours.title')} body={t('tag.notYours.body')} testID="tag-not-yours" />;
+  const body = tag.purpose === 'participant' ? t('tag.active.participant') : tag.checkpoint?.purpose === 'check_in' ? t('tag.active.checkIn') : tag.checkpoint?.purpose === 'redemption' ? t('tag.active.redemption') : t('tag.active.info');
+  return <InlineState kind="success" title={t('tag.active.title', { name: tag.checkpoint?.name ?? t('ev.event') })} body={body} testID="tag-active" />;
 }
 
 function Row({ icon, label, value }: { icon: React.ComponentProps<typeof Feather>['name']; label: string; value: string }) {

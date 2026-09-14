@@ -1,5 +1,5 @@
 import { compareLeaderboard } from "./leaderboard.js";
-import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, EventParticipant, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, PartnerMembership, PartnerOrganization, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventParticipant, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -24,6 +24,8 @@ export class MemoryStore implements Store {
   eventRoles = new Map<string, EventRoleGrant>();
   audit: (AuditEntry & { createdAt: Date })[] = [];
   participants = new Map<string, EventParticipant>();
+  checkpoints = new Map<string, Checkpoint>();
+  tags = new Map<string, NfcTag>();
   campaign = new Map<string, { source: string; day: string; views: number; registrations: number; checkins: number; redemptions: number }>();
 
   async insertChallenge(c: Challenge) {
@@ -273,6 +275,34 @@ export class MemoryStore implements Store {
   }
   async listCampaign(eventId: string) {
     return [...this.campaign.entries()].filter(([k]) => k.startsWith(`${eventId}:`)).map(([, v]) => v);
+  }
+
+  // ---- PG-E-04 ----
+  async createCheckpoint(c: Checkpoint) {
+    this.checkpoints.set(c.checkpointId, c);
+  }
+  async listCheckpoints(eventId: string) {
+    return [...this.checkpoints.values()].filter((c) => c.eventId === eventId);
+  }
+  async getCheckpoint(eventId: string, checkpointId: string) {
+    const c = this.checkpoints.get(checkpointId);
+    return c && c.eventId === eventId ? c : null;
+  }
+  async createTag(t: Omit<NfcTag, "issuedAt" | "revokedAt">, now: Date) {
+    if ([...this.tags.values()].some((x) => x.opaqueRef === t.opaqueRef)) throw new Error("duplicate opaque_ref");
+    this.tags.set(t.tagId, { ...t, issuedAt: now, revokedAt: null });
+  }
+  async getTagByRef(opaqueRef: string) {
+    return [...this.tags.values()].find((x) => x.opaqueRef === opaqueRef) ?? null;
+  }
+  async listTags(eventId: string) {
+    return [...this.tags.values()].filter((x) => x.eventId === eventId);
+  }
+  async revokeTag(eventId: string, tagId: string, now: Date) {
+    const t = this.tags.get(tagId);
+    if (!t || t.eventId !== eventId || t.revokedAt) return false;
+    t.revokedAt = now;
+    return true;
   }
 
   // ---- PG-G-01 ----

@@ -566,4 +566,19 @@ export const en = {
   'nav.player': 'Player',
   'nav.events': 'Events',
   'nav.event': 'Event',
+
+  // ---- events: NFC tag ----
+  'tag.checking': 'Checking the tag…',
+  'tag.active.title': 'Tag detected · {name}',
+  'tag.active.checkIn': 'Check-in point. Register first, then check in here with a staff member.',
+  'tag.active.redemption': 'Redemption point. Perks are collected here after check-in.',
+  'tag.active.info': 'Information point.',
+  'tag.active.participant': 'This is your participant tag.',
+  'tag.revoked.title': 'Tag no longer valid',
+  'tag.revoked.body': 'This tag was replaced or revoked by the organizer. Ask staff for help.',
+  'tag.notYours.title': 'Not your tag',
+  'tag.notYours.body': 'This participant tag belongs to someone else. Use your own tag or ask staff.',
+  'tag.unknown.title': 'Unknown tag',
+  'tag.unknown.body': 'This tag is not registered for this event. Only tags issued by the organizer work here.',
+  'tag.signin': 'Sign in to use this tag.',
 } as const;

@@ -2,7 +2,7 @@
  * 合作活動管理 API（PG-E-02，SD 11.2）：組織／成員、活動草稿（revision 樂觀鎖）、規則版本、發布／取消、活動角色；
  * 公開活動讀取（不含名單、wallet、聯絡資料）。組織建立與第一位 owner 由 ops（OPS_TOKEN）完成；其餘由 owner。
  */
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -173,6 +173,72 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
         return { event: e ? { event_id: e.eventId, slug: e.slug, title: e.title, state: e.state, starts_at: e.startsAt?.toISOString() ?? null, ends_at: e.endsAt?.toISOString() ?? null } : null, registration: participantView(p) };
       })),
     };
+  });
+
+  // ---- PG-E-04：站點與 NFC 載具 ----
+  app.post("/partner/events/:id/checkpoints", { preHandler: requireAuth(auth) }, async (req, reply) => {
+    const id = parse(uuid, (req.params as { id: string }).id);
+    const access = await authz.requireEventRole(id, req.auth!.wallet, []);
+    if (!access.isOwner) throw new ApiError(403, "ROLE_FORBIDDEN", "organization owner required");
+    const b = parse(z.object({ name: z.string().min(1).max(80), purpose: z.enum(["check_in", "redemption", "info"]) }).strict(), req.body);
+    const checkpointId = randomUUID();
+    await store.createCheckpoint({ checkpointId, eventId: id, name: b.name, purpose: b.purpose });
+    await authz.audit(req, { eventId: id, orgId: access.event.orgId, action: "checkpoint.create", target: checkpointId, details: b });
+    return reply.status(201).send({ checkpoint_id: checkpointId, ...b });
+  });
+
+  app.get("/partner/events/:id/checkpoints", { preHandler: requireAuth(auth) }, async (req) => {
+    const id = parse(uuid, (req.params as { id: string }).id);
+    await authz.requireEventRole(id, req.auth!.wallet, ["staff", "result_editor", "publisher"]);
+    return { checkpoints: (await store.listCheckpoints(id)).map((c) => ({ checkpoint_id: c.checkpointId, name: c.name, purpose: c.purpose })) };
+  });
+
+  /** 登記 NFC 載具：只存 opaque reference（32 bytes 隨機，base64url），標籤內容 = https://neonshift.cc/e/<slug>?tag=<ref>；不含任何憑證 */
+  app.post("/partner/events/:id/tags", { preHandler: requireAuth(auth) }, async (req, reply) => {
+    const id = parse(uuid, (req.params as { id: string }).id);
+    const b = parse(z.object({ purpose: z.enum(["checkpoint", "participant"]), checkpoint_id: uuid.nullable().default(null), participant_wallet: base58.nullable().default(null), quantity: z.number().int().min(1).max(200).default(1) }).strict(), req.body);
+    const access = await authz.requireEventRole(id, req.auth!.wallet, ["staff"], b.checkpoint_id ? { checkpointId: b.checkpoint_id } : {});
+    authz.requireRecentLogin(req);
+    if (b.purpose === "checkpoint" && !b.checkpoint_id) throw new ApiError(422, "VALIDATION", "checkpoint_id required for checkpoint tags");
+    if (b.purpose === "participant" && !b.participant_wallet) throw new ApiError(422, "VALIDATION", "participant_wallet required for participant tags");
+    if (b.checkpoint_id && !(await store.getCheckpoint(id, b.checkpoint_id))) throw new ApiError(422, "VALIDATION", "checkpoint does not belong to this event");
+    if (b.participant_wallet) {
+      const p = await store.getParticipant(id, b.participant_wallet);
+      if (!p || p.status === "cancelled") throw new ApiError(422, "NOT_ELIGIBLE", "wallet is not a registered participant");
+      // 補發：停用該參加者舊載具（SD 11.4）
+      for (const old of (await store.listTags(id)).filter((x) => x.participantWallet === b.participant_wallet && !x.revokedAt)) await store.revokeTag(id, old.tagId, now());
+    }
+    const tags = [];
+    for (let i = 0; i < b.quantity; i++) {
+      const tagId = randomUUID();
+      const opaqueRef = randomBytes(24).toString("base64url");
+      await store.createTag({ tagId, eventId: id, checkpointId: b.checkpoint_id, opaqueRef, purpose: b.purpose, participantWallet: b.participant_wallet, issuedBy: req.auth!.wallet }, now());
+      tags.push({ tag_id: tagId, opaque_ref: opaqueRef, uri: `${app.config.SIWS_URI}/e/${access.event.slug}?tag=${opaqueRef}` });
+    }
+    await authz.audit(req, { eventId: id, orgId: access.event.orgId, action: "tag.issue", target: b.checkpoint_id ?? b.participant_wallet, details: { purpose: b.purpose, quantity: b.quantity } });
+    return reply.status(201).send({ tags });
+  });
+
+  app.post("/partner/events/:id/tags/:tagId/revoke", { preHandler: requireAuth(auth) }, async (req, reply) => {
+    const { id, tagId } = req.params as { id: string; tagId: string };
+    const access = await authz.requireEventRole(parse(uuid, id), req.auth!.wallet, ["staff"]);
+    authz.requireRecentLogin(req);
+    if (!(await store.revokeTag(id, parse(uuid, tagId), now()))) throw new ApiError(404, "NOT_FOUND", "tag not found or already revoked");
+    await authz.audit(req, { eventId: id, orgId: access.event.orgId, action: "tag.revoke", target: tagId });
+    return reply.status(204).send();
+  });
+
+  /** 參加者感應後查 tag 狀態：不回傳資格、金額或內部欄位；標籤本身不可信 */
+  app.get("/events/:id/tags/:ref", { preHandler: requireAuth(auth) }, async (req) => {
+    const e = await resolveEvent((req.params as { id: string }).id);
+    const ref = String((req.params as { ref: string }).ref);
+    const tag = await store.getTagByRef(ref);
+    if (!tag || tag.eventId !== e.eventId) throw new ApiError(404, "NOT_FOUND", "tag not found");
+    if (tag.revokedAt) return { status: "revoked" as const };
+    if (tag.purpose === "participant" && tag.participantWallet !== req.auth!.wallet) return { status: "not_yours" as const };
+    const cp = tag.checkpointId ? await store.getCheckpoint(e.eventId, tag.checkpointId) : null;
+    const registration = await store.getParticipant(e.eventId, req.auth!.wallet);
+    return { status: "active" as const, purpose: tag.purpose, checkpoint: cp ? { checkpoint_id: cp.checkpointId, name: cp.name, purpose: cp.purpose } : null, registered: !!registration && registration.status !== "cancelled", event_state: e.state };
   });
 
   app.get("/partner/events/:id/campaign-summary", { preHandler: requireAuth(auth) }, async (req) => {

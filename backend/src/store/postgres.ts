@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, EventParticipant, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, PartnerMembership, PartnerOrganization, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventParticipant, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -381,6 +381,37 @@ export class PostgresStore implements Store {
   async listCampaign(eventId: string) {
     const r = await this.pool.query(`SELECT source, day::text AS day, views, registrations, checkins, redemptions FROM campaign_aggregates WHERE event_id = $1 ORDER BY day, source`, [eventId]);
     return (r.rows as Row[]).map((x) => ({ source: x.source as string, day: x.day as string, views: Number(x.views), registrations: Number(x.registrations), checkins: Number(x.checkins), redemptions: Number(x.redemptions) }));
+  }
+
+  // ---- PG-E-04 ----
+  private tagRow(x: Row): NfcTag {
+    return { tagId: x.tag_id as string, eventId: x.event_id as string, checkpointId: (x.checkpoint_id as string | null) ?? null, opaqueRef: x.opaque_ref as string, purpose: x.purpose as NfcTag["purpose"], participantWallet: (x.participant_wallet as string | null) ?? null, issuedBy: x.issued_by as string, issuedAt: x.issued_at as Date, revokedAt: (x.revoked_at as Date | null) ?? null };
+  }
+  async createCheckpoint(c: Checkpoint) {
+    await this.pool.query(`INSERT INTO checkpoints (checkpoint_id, event_id, name, purpose) VALUES ($1,$2,$3,$4)`, [c.checkpointId, c.eventId, c.name, c.purpose]);
+  }
+  async listCheckpoints(eventId: string) {
+    const r = await this.pool.query(`SELECT * FROM checkpoints WHERE event_id = $1 ORDER BY name`, [eventId]);
+    return (r.rows as Row[]).map((x) => ({ checkpointId: x.checkpoint_id as string, eventId: x.event_id as string, name: x.name as string, purpose: x.purpose as Checkpoint["purpose"] }));
+  }
+  async getCheckpoint(eventId: string, checkpointId: string) {
+    const r = await this.pool.query(`SELECT * FROM checkpoints WHERE event_id = $1 AND checkpoint_id = $2`, [eventId, checkpointId]);
+    const x = r.rows[0] as Row | undefined;
+    return x ? { checkpointId: x.checkpoint_id as string, eventId: x.event_id as string, name: x.name as string, purpose: x.purpose as Checkpoint["purpose"] } : null;
+  }
+  async createTag(t: Omit<NfcTag, "issuedAt" | "revokedAt">, now: Date) {
+    await this.pool.query(`INSERT INTO nfc_tags (tag_id, event_id, checkpoint_id, opaque_ref, purpose, participant_wallet, issued_by, issued_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [t.tagId, t.eventId, t.checkpointId, t.opaqueRef, t.purpose, t.participantWallet, t.issuedBy, now]);
+  }
+  async getTagByRef(opaqueRef: string) {
+    const r = await this.pool.query(`SELECT * FROM nfc_tags WHERE opaque_ref = $1`, [opaqueRef]);
+    return r.rows[0] ? this.tagRow(r.rows[0] as Row) : null;
+  }
+  async listTags(eventId: string) {
+    const r = await this.pool.query(`SELECT * FROM nfc_tags WHERE event_id = $1 ORDER BY issued_at`, [eventId]);
+    return (r.rows as Row[]).map((x) => this.tagRow(x));
+  }
+  async revokeTag(eventId: string, tagId: string, now: Date) {
+    return ((await this.pool.query(`UPDATE nfc_tags SET revoked_at = $3 WHERE event_id = $1 AND tag_id = $2 AND revoked_at IS NULL`, [eventId, tagId, now])).rowCount ?? 0) > 0;
   }
 
   // ---- PG-G-01 ----

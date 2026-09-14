@@ -273,6 +273,18 @@ export interface PartnerStore {
   updateParticipantPrivacy(eventId: string, wallet: string, patch: { displayName?: string | null; publicConsent?: boolean }, now: Date): Promise<EventParticipant | null>;
   bumpCampaign(eventId: string, source: string, day: string, field: "views" | "registrations" | "checkins" | "redemptions"): Promise<void>;
   listCampaign(eventId: string): Promise<{ source: string; day: string; views: number; registrations: number; checkins: number; redemptions: number }[]>;
+
+  // ---- PG-E-04：站點與 NFC 載具 ----
+  createCheckpoint(c: Checkpoint): Promise<void>;
+  listCheckpoints(eventId: string): Promise<Checkpoint[]>;
+  getCheckpoint(eventId: string, checkpointId: string): Promise<Checkpoint | null>;
+  createTag(t: Omit<NfcTag, "issuedAt" | "revokedAt">, now: Date): Promise<void>;
+  getTagByRef(opaqueRef: string): Promise<NfcTag | null>;
+  listTags(eventId: string): Promise<NfcTag[]>;
+  revokeTag(eventId: string, tagId: string, now: Date): Promise<boolean>;
 }
+
+export type Checkpoint = { checkpointId: string; eventId: string; name: string; purpose: "check_in" | "redemption" | "info" };
+export type NfcTag = { tagId: string; eventId: string; checkpointId: string | null; opaqueRef: string; purpose: "checkpoint" | "participant"; participantWallet: string | null; issuedBy: string; issuedAt: Date; revokedAt: Date | null };
 
 export type EventParticipant = { eventId: string; wallet: string; status: "registered" | "cancelled" | "checked_in"; acceptedRuleRevision: string; displayName: string | null; publicConsentAt: Date | null; registeredAt: Date; cancelledAt: Date | null; retentionDueAt: Date | null };
