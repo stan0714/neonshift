@@ -18,7 +18,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: url });
-    await pool.query("DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; DELETE FROM event_rule_revisions; UPDATE events SET current_rule_revision = NULL; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
+    await pool.query("DELETE FROM event_badge_issues; DELETE FROM event_redemptions; DELETE FROM event_benefits; DELETE FROM result_revisions; DELETE FROM result_imports; DELETE FROM event_checkins; DELETE FROM checkin_challenges; DELETE FROM nfc_tags; DELETE FROM checkpoints; DELETE FROM campaign_aggregates; DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; UPDATE events SET current_rule_revision = NULL; DELETE FROM event_rule_revisions; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
     stores = [
       { name: "postgres", store: new PostgresStore(pool) },
       { name: "memory", store: new MemoryStore() },
@@ -152,7 +152,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       const wallet = "W" + name;
       const nonce = Buffer.from(("ab".repeat(16)).slice(0, 32), "hex");
       await store.upsertPlayer(wallet, now);
-      await store.insertAttestation({ nonce, idempotencyKey: "11111111-1111-4111-8111-11111111111" + (name === "postgres" ? "1" : "2"), requestHash: Buffer.alloc(32), wallet, taskDate: 20_710, taskType: 1, rulesVersion: 3, evidenceHash: Buffer.alloc(32), issuedAt: now, expiresAt: now });
+      await store.insertAttestation({ nonce, idempotencyKey: "11111111-1111-4111-8111-11111111111" + (name === "postgres" ? "1" : "2"), requestHash: Buffer.alloc(32), wallet, taskDate: 20_710, taskType: 1, rulesVersion: 3, evidenceHash: Buffer.alloc(32), issuedAt: now, expiresAt: new Date(now.getTime() + 600_000) }); // attestations_window_ck：expires_at > issued_at
       await store.insertChainEvent({ signature: "s1", eventIndex: 0, slot: 20, blockhash: "b", commitment: "confirmed", eventName: "ClockedIn", payload: { wallet, nonce: nonce.toString("hex") } }, now);
       await store.insertChainEvent({ signature: "s1", eventIndex: 0, slot: 999, blockhash: "x", commitment: "confirmed", eventName: "Other", payload: {} }, now); // 冪等
       await store.insertChainEvent({ signature: "s0", eventIndex: 0, slot: 10, blockhash: "b", commitment: "confirmed", eventName: "PlayerInitialized", payload: { wallet } }, now);
@@ -179,6 +179,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       const now = new Date("2026-10-15T00:00:00Z");
       const old = new Date("2026-09-10T00:00:00Z");
       const wallet = "R" + name;
+      await store.purgeExpired(new Date("2026-09-15T00:00:00Z"), now); // 先清掉前面測試留下的舊資料，讓計數只反映本測試
       await store.upsertPlayer(wallet, old);
       const sid = await store.insertHealthSnapshot({ wallet, taskDate: 1, taskType: 1, attributedSteps: 1, sleepMinutes: null, sourceSummary: [], stepRateSummary: null, sleepOverlapMinutes: null, sensorSummary: null, motionSummary: null, clientInfo: {}, inputHash: Buffer.alloc(32), createdAt: old });
       await store.insertRiskDecision({ snapshotId: sid, rulesVersion: 3, riskScore: 0, matchedRules: [], decision: "pass", rejectCode: null });
@@ -252,4 +253,82 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       expect((await store.listAudit(eventId, 5))[0]?.action, name).toBe("event.cancel");
     }
   });
+  it("events E-03～E-09：報名容量、報到 challenge／冪等、預留／交付／逾期／取消釋放、成績版本鏈與公開投影、錢包刪除與活動保留清理", async () => {
+    for (const { name, store } of stores) {
+      const now = new Date("2026-10-03T00:00:00Z");
+      const orgId = randomUUID();
+      const owner = "O" + name;
+      await store.createOrganization({ orgId, name: "Org2 " + name, slug: "org2-" + name, createdBy: owner }, now);
+      const eventId = randomUUID();
+      await store.createEvent({ eventId, orgId, slug: "ev2-" + name, title: "T", description: "", timezone: "UTC", registrationOpensAt: null, registrationClosesAt: null, startsAt: now, endsAt: new Date("2026-10-03T04:00:00Z"), capacity: 2, tournamentAddress: null, createdBy: owner }, now);
+      const rev = await store.addRuleRevision({ revisionId: randomUUID(), eventId, version: 1, rules: {}, rulesHash: Buffer.alloc(32, 2), createdBy: owner }, now);
+      await store.transitionEvent(eventId, ["draft"], "published", { currentRuleRevision: rev.revisionId }, now);
+      const [a, b, c] = ["A" + name, "B" + name, "C" + name];
+      // 報名：容量 2、重複 exists、第三人 full；取消釋放
+      expect(typeof (await store.registerParticipant({ eventId, wallet: a, acceptedRuleRevision: rev.revisionId, displayName: "Alice", publicConsent: true }, now)), name).toBe("object");
+      expect(await store.registerParticipant({ eventId, wallet: a, acceptedRuleRevision: rev.revisionId, displayName: null, publicConsent: false }, now), name).toBe("exists");
+      await store.registerParticipant({ eventId, wallet: b, acceptedRuleRevision: rev.revisionId, displayName: null, publicConsent: false }, now);
+      expect(await store.registerParticipant({ eventId, wallet: c, acceptedRuleRevision: rev.revisionId, displayName: null, publicConsent: false }, now), name).toBe("full");
+      await store.cancelRegistration(eventId, b, now);
+      expect(typeof (await store.registerParticipant({ eventId, wallet: c, acceptedRuleRevision: rev.revisionId, displayName: null, publicConsent: false }, now)), name).toBe("object");
+      expect((await store.listEventParticipants(eventId)).length, name).toBe(3);
+      // 站點、challenge 單次消耗、報到冪等 → checked_in
+      const cp = randomUUID();
+      await store.createCheckpoint({ checkpointId: cp, eventId, name: "Gate", purpose: "check_in" });
+      const h = Buffer.alloc(32, 7 + (name === "postgres" ? 1 : 0));
+      await store.insertCheckinChallenge({ challengeHash: h, eventId, wallet: a, checkpointId: cp, expiresAt: new Date(now.getTime() + 120_000) });
+      expect((await store.consumeCheckinChallenge(h, now))?.wallet, name).toBe(a);
+      expect(await store.consumeCheckinChallenge(h, now), name).toBeNull();
+      expect(await store.insertCheckin({ eventId, wallet: a, checkpointId: cp, confirmedBy: owner, method: "qr" }, now), name).toBe(true);
+      expect(await store.insertCheckin({ eventId, wallet: a, checkpointId: cp, confirmedBy: owner, method: "qr" }, now), name).toBe(false);
+      expect((await store.getParticipant(eventId, a))?.status, name).toBe("checked_in");
+      // 品項：庫存 1、a 預留（冪等）、c 售罄；交付一次；逾期釋放
+      const bid = randomUUID();
+      await store.createBenefit({ benefitId: bid, eventId, kind: "physical", name: "Towel", stockTotal: 1, reservedCount: 0, fulfilledCount: 0, perPersonLimit: 1, eligibilityRuleRevision: rev.revisionId, requiresCheckin: true, claimDeadline: null });
+      const key = randomUUID();
+      const r1 = await store.reserveRedemption({ redemptionId: randomUUID(), eventId, wallet: a, benefitId: bid, quantity: 1, idempotencyKey: key, claimCode: "AAAA2222", reservedUntil: new Date(now.getTime() + 900_000), credentialId: null }, now);
+      expect(r1.kind === "ok" && r1.created, name).toBe(true);
+      const r2 = await store.reserveRedemption({ redemptionId: randomUUID(), eventId, wallet: a, benefitId: bid, quantity: 1, idempotencyKey: key, claimCode: "BBBB2222", reservedUntil: new Date(now.getTime() + 900_000), credentialId: null }, now);
+      expect(r2.kind === "ok" && !r2.created && r2.redemption.claimCode === "AAAA2222", name).toBe(true);
+      expect((await store.reserveRedemption({ redemptionId: randomUUID(), eventId, wallet: c, benefitId: bid, quantity: 1, idempotencyKey: randomUUID(), claimCode: "CCCC2222", reservedUntil: new Date(now.getTime() + 900_000), credentialId: null }, now)).kind, name).toBe("checkin_required");
+      await store.insertCheckin({ eventId, wallet: c, checkpointId: cp, confirmedBy: owner, method: "manual" }, now);
+      expect((await store.reserveRedemption({ redemptionId: randomUUID(), eventId, wallet: c, benefitId: bid, quantity: 1, idempotencyKey: randomUUID(), claimCode: "CCCC2222", reservedUntil: new Date(now.getTime() + 900_000), credentialId: null }, now)).kind, name).toBe("out_of_stock");
+      const f1 = await store.fulfillRedemption(eventId, { claimCode: "AAAA2222" }, owner, now);
+      expect(f1.kind === "ok" && !f1.already, name).toBe(true);
+      const f2 = await store.fulfillRedemption(eventId, { claimCode: "AAAA2222" }, owner, now);
+      expect(f2.kind === "ok" && f2.already, name).toBe(true);
+      expect(await store.getBenefit(eventId, bid), name).toMatchObject({ reservedCount: 0, fulfilledCount: 1 });
+      const bid2 = randomUUID();
+      await store.createBenefit({ benefitId: bid2, eventId, kind: "physical", name: "Cap", stockTotal: 1, reservedCount: 0, fulfilledCount: 0, perPersonLimit: 1, eligibilityRuleRevision: null, requiresCheckin: false, claimDeadline: null });
+      await store.reserveRedemption({ redemptionId: randomUUID(), eventId, wallet: c, benefitId: bid2, quantity: 1, idempotencyKey: randomUUID(), claimCode: "DDDD2222", reservedUntil: new Date(now.getTime() + 60_000), credentialId: null }, now);
+      const later = new Date(now.getTime() + 61_000);
+      expect((await store.fulfillRedemption(eventId, { claimCode: "DDDD2222" }, owner, later)).kind, name).toBe("expired");
+      expect((await store.getBenefit(eventId, bid2))?.reservedCount, name).toBe(0);
+      // 成績：兩版，第二版串前版；公開投影只帶同意
+      const imp1 = await store.createResultImport({ importId: randomUUID(), eventId, sourceKind: "csv", fileHash: Buffer.alloc(32, 3), rowCount: 1, errorCount: 0, stagedRows: [{ line: 2, wallet: a, discipline: "run", division: null, finishStatus: "finished", distanceM: 5000, elapsedMs: 1500000, rank: 1 }], errors: [], createdBy: owner }, now);
+      expect(imp1.importVersion, name).toBe(1);
+      expect(await store.publishResultImport(eventId, imp1.importId, owner, null, now), name).toEqual({ revisions: 1, corrections: 0 });
+      expect(await store.publishResultImport(eventId, imp1.importId, owner, null, now), name).toBe("already");
+      const imp2 = await store.createResultImport({ importId: randomUUID(), eventId, sourceKind: "csv", fileHash: Buffer.alloc(32, 4), rowCount: 1, errorCount: 0, stagedRows: [{ line: 2, wallet: a, discipline: "run", division: null, finishStatus: "dnf", distanceM: 3000, elapsedMs: 0, rank: null }], errors: [], createdBy: owner }, now);
+      expect(await store.publishResultImport(eventId, imp2.importId, owner, "chip", later), name).toEqual({ revisions: 1, corrections: 1 });
+      const cur = await store.listCurrentResults(eventId);
+      expect(cur.map((x) => [x.finishStatus, x.publicConsent, x.displayName]), name).toEqual([["dnf", true, "Alice"]]);
+      const hist = await store.listResultHistory(eventId, a);
+      expect([hist.length, hist[0]?.previousRevisionId === hist[1]?.revisionId, hist[0]?.reason], name).toEqual([2, true, "chip"]);
+      // 錢包刪除：c 的資料消失，a 不受影響
+      const dw = await store.deleteWalletEventData(c, later);
+      expect(dw.participants, name).toBe(1);
+      expect(await store.getParticipant(eventId, c), name).toBeNull();
+      expect((await store.listCheckins(eventId)).map((x) => x.wallet), name).toEqual([a]);
+      // 活動保留清理：cutoff 早於 ends_at 不清；之後清並標記；二次不重複
+      expect((await store.purgeEventData(new Date("2026-10-01T00:00:00Z"), later)).events, name).not.toContain(eventId);
+      const purged = await store.purgeEventData(new Date("2027-04-05T00:00:00Z"), later);
+      expect(purged.events, name).toContain(eventId);
+      expect(await store.getParticipant(eventId, a), name).toBeNull();
+      expect(await store.listCurrentResults(eventId), name).toEqual([]);
+      expect((await store.getResultImport(eventId, imp1.importId))?.stagedRows, name).toEqual([]);
+      expect((await store.getEvent(eventId))?.purgedAt, name).not.toBeNull();
+      expect((await store.purgeEventData(new Date("2027-04-05T00:00:00Z"), later)).events, name).not.toContain(eventId);
+    }
+  }, 60_000); // 多筆交易；遠端 DB（SSH tunnel）每次往返較慢
 });

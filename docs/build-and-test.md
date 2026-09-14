@@ -492,6 +492,7 @@ anchor deploy --provider.cluster devnet
 - `claim_collectible` 測試需要 Metaplex Core 程式：`programs/neonshift-core/tests/fixtures/mpl_core.so` 是 devnet dump（`solana program dump CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d <path> --url https://api.devnet.solana.com`，約 856 KB，已入庫）。Core 升版時重新 dump 並核對 `src/mpl_core.rs` 的指令佈局。
 - App 文案：一律走 `app/src/i18n`（`useT()` 於元件、`t()` 於 store／service），新增文案同時補 `en.ts` 與 `zh-TW.ts`；`i18n.test.tsx` 會擋 key 不一致。語言由 expo-localization 跟隨系統，Profile 可切換。
 - App Jest（RNTL 14＋React 19）：`fireEvent.*` 是 async（內部包 `act`），**一律 `await`**；不 await 會產生「overlapping act() calls」，之後的 state 更新會卡住、測試看似通過或詭異失敗。按下會 navigate 的 Pressable 之測試放在檔案最後或以 `await act(async () => {})` 收尾。
+- 本機 Docker 不可用時，`scripts/test-db-remote.sh`（可加 vitest 參數）會在 l1 重建 `neonshift_test`、套 migrations 與約束測試，經 SSH tunnel 跑 backend 全部測試（含 PostgresStore 整合）。
 - 統一入口 `scripts/test-all.sh` 會依序跑 Rust／向量／DB／後端／App／鏈上六個區段。
 
 ### 7.6 週末錦標賽操作（PG-C-11～C-16／B-14／B-15）
