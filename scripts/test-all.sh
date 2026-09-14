@@ -6,18 +6,11 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-# 非互動 shell 不讀 ~/.zshrc，這裡自行補上工具路徑，
-# 讓 CI 與腳本呼叫都能找到 node、solana 與 anchor。
-for p in \
-  "/opt/homebrew/opt/node@24/bin" \
-  "/opt/homebrew/bin" \
-  "$HOME/.local/share/solana/install/active_release/bin" \
-  "$HOME/.avm/bin" \
-  "$HOME/.cargo/bin"
-do
-  [ -d "$p" ] && case ":$PATH:" in *":$p:"*) ;; *) PATH="$p:$PATH" ;; esac
-done
-export PATH
+# 非互動 shell 不讀 ~/.zshrc；統一由 scripts/env.sh 補上 Node 24、JDK 17、
+# Android SDK、Solana 與 Anchor 路徑，CI 與本機用同一份設定。
+# shellcheck disable=SC1091
+source scripts/env.sh
+[ -d "$HOME/.cargo/bin" ] && export PATH="$HOME/.cargo/bin:$PATH"
 
 fail=0
 pass=0
@@ -95,6 +88,22 @@ if command -v npm >/dev/null && [ -d backend/node_modules ]; then
   fi
 else
   skip "Node.js 未安裝或尚未 npm install"
+fi
+
+section "App（React Native）"
+if command -v npm >/dev/null && [ -d app/node_modules ]; then
+  if (cd app && npx tsc --noEmit) >/tmp/ns-app-tsc.log 2>&1; then
+    ok "tsc --noEmit"
+  else
+    bad "tsc --noEmit"; tail -20 /tmp/ns-app-tsc.log
+  fi
+  if (cd app && npx jest --silent) >/tmp/ns-app-jest.log 2>&1; then
+    ok "jest"
+  else
+    bad "jest"; tail -20 /tmp/ns-app-jest.log
+  fi
+else
+  skip "Node.js 未安裝或 app/ 尚未 npm install"
 fi
 
 section "鏈上程式（Anchor）"
