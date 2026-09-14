@@ -2,9 +2,9 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.1 |
+| 文件版本 | v0.2（Logo／Splash／Loading 視覺稿） |
 | 建立日期 | 2026-09-09 |
-| 對應需求 | [BRD v0.4](./brd-detailed.md) |
+| 對應需求 | [BRD v0.6](./brd-detailed.md) |
 | 目標平台 | Android only；Solana Mobile Seeker 為主要裝置 |
 | 首版介面語言 | English；本文件以繁中說明 |
 | 設計關鍵字 | Cyber fitness、neon telemetry、digital gear、trusted motion |
@@ -106,6 +106,22 @@ NeonShift 是「夜間城市中的個人運動終端」，不是駭客終端機�
 - App icon：深色圓角方底，中央青綠至紫色 mark，不放細字。
 - Wordmark：`NEONSHIFT` 全大寫；字距略寬，不使用極端 glitch 效果。
 - Loading 與小尺寸場合只使用 mark，不使用完整標語。
+
+### 3.3 NeonShift 專屬識別視覺稿（2026-09-14）
+
+採用「Forward Shift」概念：傾斜幾何 N 的負空間形成向前上方箭頭，連結日常運動、成長與活動參與。抽象識別可延伸至跑團宣傳、NFC 卡片與成績憑證，不侷限於鞋款圖像。品牌仍使用既有 mint → cyan → violet 漸層，深藍黑底與白色字標。
+
+| 視覺稿 | 檔案 | 使用方式 |
+|---|---|---|
+| 品牌識別 | [neonshift-identity-v1.png](../assets/brand/neonshift-identity-v1.png) | 主識別、App icon 與單色概念；以右上扁平 icon 的輪廓作向量定稿參考 |
+| Native Splash | [neonshift-splash-v1.png](../assets/brand/neonshift-splash-v1.png) | 純深色底、置中 mark／字標、留白；實作尺寸與系統遮罩以 8.1 為準 |
+| Bootstrap Loading | [neonshift-loading-v1.png](../assets/brand/neonshift-loading-v1.png) | 延伸 mark、細軌道與分步狀態；圖中為有快取時的示意狀態 |
+
+這三張 PNG 為設計視覺稿，尚非 Android adaptive icon、向量母版或已串接的功能頁。不同稿件的光暈與箭頭呈現有生成差異，正式輸出須共用同一份向量輪廓；正式 UI 不沿用識別展示稿的強烈文字 glow。字標留白至少為 mark 寬度 1/4，小圖示只放 mark，不放字標；NFC 單色印刷版需重新做線條及實際尺寸辨識測試。
+
+Splash 不顯示進度、不刻意等待；Loading 使用 8.3 的 1.6 秒微幅呼吸，不要求軌道持續旋轉，Reduce Motion 時靜止。文字及三個步驟需由真實初始化任務驅動；`Use offline data` 只有存在快取且符合 8.2 時才顯示，超過 10 秒必須提供重試。文字為可讀取的原生 UI，不把整張 PNG 當作互動畫面。
+
+產圖方式與完整 prompts 保存於 [品牌資產說明](../assets/brand/README.md)。本版為第一版設計提案，UI-Q01 的最終品牌確認仍待 review。
 
 ---
 

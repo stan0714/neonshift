@@ -119,7 +119,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
 | PG-I-01 | Monorepo 結構（app / backend / programs） | SD 2.1 | — | 0.5 | WIP | backend、programs 已建；app/ 待 PG-I-03 |
-| PG-I-02 | 校正 Build Runbook 至 SA／SD v0.2，建置 Node.js 24 LTS、JDK 與 Android SDK 環境 | Runbook 1, SD 2.2 | — | 0.5 | TODO | |
+| PG-I-02 | 校正 Build Runbook 至 SA／SD v0.2，建置 Node.js 24 LTS、JDK 與 Android SDK 環境 | Runbook 1, SD 2.2 | — | 0.5 | WIP | Runbook v0.2、scripts/env.sh、env-check.sh、.nvmrc；本機檢查通過 |
 | PG-I-03 | Expo 專案初始化、prebuild、提交 android/ | Runbook 2, 3 | C-01 | 1.0 | TODO | |
 | PG-I-04 | CI：lint、單元測試、debug APK 產出 | SD 7 | — | 1.0 | TODO | |
 | PG-I-05 | 後端骨架與 PostgreSQL docker compose | SD 2.2 | — | 0.5 | WIP | package.json、docker-compose、vitest 已建；未合併 dev |

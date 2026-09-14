@@ -2,14 +2,14 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.1 |
+| 文件版本 | v0.2（校正至 SA／SD v0.4：Node 24、brew prefix、env 腳本） |
 | 建立日期 | 2026-09-09 |
 | 適用平台 | macOS（Apple Silicon）開發機 → Android 裝置 |
 | 目標裝置 | Solana Mobile Seeker；備援為任一 Android 14 以上實機 |
-| 對應文件 | [BRD v0.4](./brd-detailed.md)、[SA v0.1](./sa.md)、[SD v0.1](./sd.md) |
+| 對應文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md)、[PG](./pg.md) |
 | 網路 | Solana devnet |
 
-> **目前狀態**：本 repo 尚無程式碼，只有文件。第 2 章起為專案初始化步驟，第一次執行時請從第 1 章依序做完；之後的日常迭代直接跳到第 5 章。
+> **目前狀態**：`backend/`、`programs/attestation-core` 已建立；`app/` 由第 2 章步驟建立。第一次執行時請從第 1 章依序做完；之後的日常迭代直接跳到第 5 章。
 
 ---
 
@@ -39,10 +39,17 @@
 
 ```bash
 java -version                      # 需要 JDK 17
-node -v                            # 需要 20 以上
+node -v                            # 需要 24 LTS（SD 2.2；Node 20 已於 2026-03-24 EOL，不得使用）
 echo "${ANDROID_HOME:-未設定}"
 ls -d "$HOME/Library/Android/sdk" 2>/dev/null || echo "缺少 Android SDK"
 uname -m                           # arm64
+brew --prefix                      # Apple Silicon 為 /opt/homebrew；Rosetta 安裝的 brew 為 /usr/local
+```
+
+或直接執行 repo 內的檢查腳本，會逐項列出版本與缺項：
+
+```bash
+source scripts/env.sh && scripts/env-check.sh
 ```
 
 ### 1.2 安裝缺少的元件
@@ -50,11 +57,13 @@ uname -m                           # arm64
 ```bash
 # JDK 17（若尚未安裝）
 brew install openjdk@17
-sudo ln -sfn /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk \
+sudo ln -sfn "$(brew --prefix)/opt/openjdk@17/libexec/openjdk.jdk" \
   /Library/Java/JavaVirtualMachines/openjdk-17.jdk
 
-# Node.js
-brew install node
+# Node.js 24 LTS（擇一：nvm 或 Homebrew）
+nvm install 24 && nvm use 24      # repo 根目錄有 .nvmrc，之後 `nvm use` 即可
+# 或
+brew install node                 # Homebrew 的 node formula 目前即為 24.x
 
 # Android Studio（內含 SDK 與 platform-tools）
 brew install --cask android-studio
@@ -72,11 +81,15 @@ avm install latest && avm use latest
 
 ### 1.3 設定環境變數
 
+建議做法：每次開工先 `source scripts/env.sh`。它只影響目前 shell，會依 `brew --prefix` 自動找 JDK 17 與 Node 24，並設定 `ANDROID_HOME`、Solana、Anchor 路徑；不會改動 `~/.zshrc`。
+
+若偏好寫進 shell 設定檔：
+
 ```bash
 cat >> ~/.zshrc <<'EOF'
 
 # --- Android / NeonShift ---
-export JAVA_HOME="/opt/homebrew/opt/openjdk@17"
+export JAVA_HOME="$(brew --prefix)/opt/openjdk@17"
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export PATH="$PATH:$ANDROID_HOME/platform-tools"
 export PATH="$PATH:$ANDROID_HOME/emulator"
@@ -86,18 +99,20 @@ EOF
 source ~/.zshrc
 ```
 
+注意 `~/.zshrc` 若有 `nvm use 18` 之類的預設，會蓋掉 Node 24；改為 `nvm use 24` 或移除。
+
 ### 1.4 驗證
 
 ```bash
+scripts/env-check.sh   # 一次列出下列全部
 java -version          # openjdk 17.x
-node -v                # v20+
+node -v                # v24.x
 adb version            # Android Debug Bridge 版本資訊
-sdkmanager --list | head -20
 solana --version
 anchor --version
 ```
 
-四項都有輸出才往下走。
+`env-check.sh` 的必要項目（node、java、Android SDK 的 API 34／35、platform-tools、build-tools 35）全部 ✔ 才能做 App；solana／anchor 只在做鏈上程式時需要。`sdkmanager` 在舊版 cmdline-tools 搭配 JDK 11 以上會報 `NoClassDefFoundError: javax/xml/bind`，請由 Android Studio 更新 Command-line Tools 至 latest。
 
 ---
 
