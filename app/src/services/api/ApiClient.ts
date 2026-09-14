@@ -76,6 +76,9 @@ export type EventRegistration = { status: 'registered' | 'cancelled' | 'checked_
 export type TagState = { status: 'revoked' } | { status: 'not_yours' } | { status: 'active'; purpose: 'checkpoint' | 'participant'; checkpoint: { checkpoint_id: string; name: string; purpose: 'check_in' | 'redemption' | 'info' } | null; registered: boolean; event_state: string };
 export type CheckinChallenge = { code: string; expires_at: string; checkpoint: { checkpoint_id: string; name: string }; qr_payload: string };
 export type StaffCheckinResult = { wallet: string; checkpoint_id: string; display_name: string | null; already: boolean; confirmed_at: string };
+export type EventBenefit = { benefit_id: string; kind: 'physical' | 'digital_badge'; name: string; remaining: number; per_person_limit: number; requires_checkin: boolean; claim_deadline: string | null };
+export type RedemptionStatus = 'reserved' | 'fulfilled' | 'expired' | 'cancelled';
+export type Redemption = { redemption_id: string; benefit_id: string; quantity: number; status: RedemptionStatus; claim_code: string | null; reserved_at: string; reserved_until: string; fulfilled_at: string | null; credential_id: string | null };
 export type PartnerMe = { organizations: { org_id: string; role: string; name: string | null }[]; event_roles: { event_id: string; role: string; checkpoint_id: string | null }[] };
 export type HistoryItem = { task_date: number; task_type: 'steps' | 'sleep'; issued_at: string; expires_at: string; redeemed_signature: string | null; amount: string | null; xp: number | null; shoe_level: number | null };
 export type HistoryResponse = { days: number; retention_days: number; total_earned: string; items: HistoryItem[] };
@@ -223,6 +226,27 @@ export class ApiClient {
 
   staffCheckins(eventId: string): Promise<{ check_ins: { wallet: string; checkpoint_id: string; confirmed_at: string; method: string }[] }> {
     return this.request('GET', `/partner/events/${encodeURIComponent(eventId)}/check-ins`);
+  }
+
+  // PG-E-06：品項與核銷
+  eventBenefits(idOrSlug: string): Promise<{ benefits: EventBenefit[] }> {
+    return this.request('GET', `/events/${encodeURIComponent(idOrSlug)}/benefits`);
+  }
+
+  myRedemptions(eventId: string): Promise<{ redemptions: Redemption[] }> {
+    return this.request('GET', `/events/${encodeURIComponent(eventId)}/redemptions`);
+  }
+
+  reserveRedemption(eventId: string, body: { benefit_id: string; quantity?: number; idempotency_key: string }): Promise<Redemption> {
+    return this.request('POST', `/events/${encodeURIComponent(eventId)}/redemptions`, body);
+  }
+
+  partnerBenefits(eventId: string): Promise<{ benefits: (EventBenefit & { stock_total: number; reserved_count: number; fulfilled_count: number })[] }> {
+    return this.request('GET', `/partner/events/${encodeURIComponent(eventId)}/benefits`);
+  }
+
+  staffFulfill(eventId: string, body: { claim_code?: string; redemption_id?: string; checkpoint_id?: string }): Promise<Redemption & { already: boolean }> {
+    return this.request('POST', `/partner/events/${encodeURIComponent(eventId)}/redemptions/fulfill`, body);
   }
 
   cancelEventRegistration(eventId: string): Promise<unknown> {

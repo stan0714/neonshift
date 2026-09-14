@@ -12,7 +12,7 @@ jest.mock('react-native-qrcode-svg', () => {
   return (props: { value: string }) => <View testID="qr" accessibilityLabel={props.value} />;
 });
 jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => ({ navigate: jest.fn() }), useRoute: () => ({ params: { eventId: 'E1', slug: 'river-5k' } }) }));
-jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { checkinChallenge: jest.fn(), partnerCheckpoints: jest.fn(), partnerMe: jest.fn(), staffCheckin: jest.fn(), staffCheckins: jest.fn() } }));
+jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { checkinChallenge: jest.fn(), partnerCheckpoints: jest.fn(), partnerMe: jest.fn(), staffCheckin: jest.fn(), staffCheckins: jest.fn(), partnerBenefits: jest.fn(async () => ({ benefits: [] })) } }));
 const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'checkinChallenge' | 'partnerCheckpoints' | 'partnerMe' | 'staffCheckin' | 'staffCheckins', jest.Mock>;
 const { ApiError } = jest.requireActual('@/services/api/ApiClient');
 

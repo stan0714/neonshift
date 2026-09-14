@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventParticipant, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -442,6 +442,128 @@ export class PostgresStore implements Store {
   async listCheckins(eventId: string, wallet?: string) {
     const r = await this.pool.query(`SELECT * FROM event_checkins WHERE event_id = $1 ${wallet ? "AND wallet = $2" : ""} ORDER BY confirmed_at DESC`, wallet ? [eventId, wallet] : [eventId]);
     return (r.rows as Row[]).map((x) => ({ eventId: x.event_id as string, wallet: x.wallet as string, checkpointId: x.checkpoint_id as string, confirmedBy: x.confirmed_by as string, confirmedAt: x.confirmed_at as Date, method: x.method as string }));
+  }
+
+  // ---- PG-E-06 ----
+  private benefitRow(x: Row): EventBenefit {
+    return { benefitId: x.benefit_id as string, eventId: x.event_id as string, kind: x.kind as EventBenefit["kind"], name: x.name as string, stockTotal: Number(x.stock_total), reservedCount: Number(x.reserved_count), fulfilledCount: Number(x.fulfilled_count), perPersonLimit: Number(x.per_person_limit), eligibilityRuleRevision: (x.eligibility_rule_revision as string | null) ?? null, requiresCheckin: Boolean(x.requires_checkin), claimDeadline: (x.claim_deadline as Date | null) ?? null };
+  }
+  private redemptionRow(x: Row): EventRedemption {
+    return { redemptionId: x.redemption_id as string, eventId: x.event_id as string, wallet: x.wallet as string, benefitId: x.benefit_id as string, quantity: Number(x.quantity), status: x.status as EventRedemption["status"], reservedAt: x.reserved_at as Date, reservedUntil: x.reserved_until as Date, fulfilledBy: (x.fulfilled_by as string | null) ?? null, fulfilledAt: (x.fulfilled_at as Date | null) ?? null, idempotencyKey: x.idempotency_key as string, claimCode: (x.claim_code as string | null) ?? null, credentialId: (x.credential_id as string | null) ?? null };
+  }
+  private static readonly REDEMPTION_SELECT = `SELECT r.*, b.credential_id FROM event_redemptions r LEFT JOIN event_badge_issues b ON b.redemption_id = r.redemption_id`;
+  async createBenefit(b: EventBenefit) {
+    await this.pool.query(
+      `INSERT INTO event_benefits (benefit_id, event_id, kind, name, stock_total, reserved_count, fulfilled_count, per_person_limit, eligibility_rule_revision, requires_checkin, claim_deadline) VALUES ($1,$2,$3,$4,$5,0,0,$6,$7,$8,$9)`,
+      [b.benefitId, b.eventId, b.kind, b.name, b.stockTotal, b.perPersonLimit, b.eligibilityRuleRevision, b.requiresCheckin, b.claimDeadline],
+    );
+  }
+  async listBenefits(eventId: string) {
+    const r = await this.pool.query(`SELECT * FROM event_benefits WHERE event_id = $1 ORDER BY name`, [eventId]);
+    return (r.rows as Row[]).map((x) => this.benefitRow(x));
+  }
+  async getBenefit(eventId: string, benefitId: string) {
+    const r = await this.pool.query(`SELECT * FROM event_benefits WHERE event_id = $1 AND benefit_id = $2`, [eventId, benefitId]);
+    return r.rows[0] ? this.benefitRow(r.rows[0] as Row) : null;
+  }
+  async reserveRedemption(r: { redemptionId: string; eventId: string; wallet: string; benefitId: string; quantity: number; idempotencyKey: string; claimCode: string; reservedUntil: Date; credentialId: string | null }, now: Date): Promise<ReserveOutcome> {
+    await this.expireRedemptions(now);
+    const client = await this.pool.connect();
+    const bail = async (kind: Exclude<ReserveOutcome, { kind: "ok" }>["kind"]): Promise<ReserveOutcome> => { await client.query("ROLLBACK"); return { kind }; };
+    try {
+      await client.query("BEGIN");
+      // 鎖順序固定：event → benefit → participant（取消活動與新預留鎖同一 event）
+      const ev = await client.query(`SELECT state FROM events WHERE event_id = $1 FOR UPDATE`, [r.eventId]);
+      const dup = await client.query(`${PostgresStore.REDEMPTION_SELECT} WHERE r.event_id = $1 AND r.wallet = $2 AND r.idempotency_key = $3`, [r.eventId, r.wallet, r.idempotencyKey]);
+      if (dup.rows[0]) { await client.query("ROLLBACK"); return { kind: "ok", redemption: this.redemptionRow(dup.rows[0] as Row), created: false }; }
+      if (!ev.rows[0] || (ev.rows[0] as Row).state !== "published") return bail("not_open");
+      const bq = await client.query(`SELECT * FROM event_benefits WHERE event_id = $1 AND benefit_id = $2 FOR UPDATE`, [r.eventId, r.benefitId]);
+      if (!bq.rows[0]) return bail("no_benefit");
+      const b = this.benefitRow(bq.rows[0] as Row);
+      const pq = await client.query(`SELECT status FROM event_participants WHERE event_id = $1 AND wallet = $2 FOR UPDATE`, [r.eventId, r.wallet]);
+      const status = (pq.rows[0] as Row | undefined)?.status as string | undefined;
+      if (!status || status === "cancelled") return bail("not_eligible");
+      if (b.requiresCheckin && status !== "checked_in") return bail("checkin_required");
+      if (b.claimDeadline && b.claimDeadline <= now) return bail("deadline_passed");
+      const mine = await client.query(`SELECT COALESCE(SUM(quantity),0) AS n FROM event_redemptions WHERE event_id = $1 AND wallet = $2 AND benefit_id = $3 AND status IN ('reserved','fulfilled')`, [r.eventId, r.wallet, r.benefitId]);
+      if (Number((mine.rows[0] as Row).n) + r.quantity > b.perPersonLimit) return bail("limit_reached");
+      if (b.reservedCount + b.fulfilledCount + r.quantity > b.stockTotal) return bail("out_of_stock");
+      const digital = b.kind === "digital_badge";
+      await client.query(digital ? `UPDATE event_benefits SET fulfilled_count = fulfilled_count + $3 WHERE event_id = $1 AND benefit_id = $2` : `UPDATE event_benefits SET reserved_count = reserved_count + $3 WHERE event_id = $1 AND benefit_id = $2`, [r.eventId, r.benefitId, r.quantity]);
+      await client.query(
+        `INSERT INTO event_redemptions (redemption_id, event_id, wallet, benefit_id, quantity, status, reserved_at, reserved_until, fulfilled_by, fulfilled_at, idempotency_key, claim_code) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        [r.redemptionId, r.eventId, r.wallet, r.benefitId, r.quantity, digital ? "fulfilled" : "reserved", now, r.reservedUntil, digital ? "system" : null, digital ? now : null, r.idempotencyKey, r.claimCode],
+      );
+      if (digital) await client.query(`INSERT INTO event_badge_issues (redemption_id, credential_id, issued_at) VALUES ($1,$2,$3)`, [r.redemptionId, r.credentialId, now]);
+      const out = await client.query(`${PostgresStore.REDEMPTION_SELECT} WHERE r.redemption_id = $1`, [r.redemptionId]);
+      await client.query("COMMIT");
+      return { kind: "ok", redemption: this.redemptionRow(out.rows[0] as Row), created: true };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+  async fulfillRedemption(eventId: string, key: { redemptionId?: string; claimCode?: string }, staffWallet: string, now: Date): Promise<FulfillOutcome> {
+    await this.expireRedemptions(now);
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const q = key.redemptionId
+        ? await client.query(`SELECT * FROM event_redemptions WHERE event_id = $1 AND redemption_id = $2 FOR UPDATE`, [eventId, key.redemptionId])
+        : await client.query(`SELECT * FROM event_redemptions WHERE event_id = $1 AND claim_code = $2 FOR UPDATE`, [eventId, key.claimCode ?? ""]);
+      const row = q.rows[0] as Row | undefined;
+      if (!row) { await client.query("ROLLBACK"); return { kind: "not_found" }; }
+      const status = row.status as EventRedemption["status"];
+      if (status === "fulfilled") {
+        const cur = await client.query(`${PostgresStore.REDEMPTION_SELECT} WHERE r.redemption_id = $1`, [row.redemption_id]);
+        await client.query("ROLLBACK");
+        return { kind: "ok", redemption: this.redemptionRow(cur.rows[0] as Row), already: true };
+      }
+      if (status !== "reserved") { await client.query("ROLLBACK"); return { kind: status }; }
+      await client.query(`UPDATE event_benefits SET reserved_count = reserved_count - $3, fulfilled_count = fulfilled_count + $3 WHERE event_id = $1 AND benefit_id = $2`, [eventId, row.benefit_id, row.quantity]);
+      const upd = await client.query(`UPDATE event_redemptions SET status = 'fulfilled', fulfilled_by = $2, fulfilled_at = $3 WHERE redemption_id = $1 RETURNING *`, [row.redemption_id, staffWallet, now]);
+      await client.query("COMMIT");
+      return { kind: "ok", redemption: this.redemptionRow({ ...(upd.rows[0] as Row), credential_id: null }), already: false };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+  private async releaseWhere(where: string, params: unknown[], to: "expired" | "cancelled") {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const rows = await client.query(`SELECT redemption_id, event_id, benefit_id, quantity FROM event_redemptions WHERE status = 'reserved' AND ${where} FOR UPDATE`, params);
+      for (const x of rows.rows as Row[]) {
+        await client.query(`UPDATE event_benefits SET reserved_count = GREATEST(0, reserved_count - $3) WHERE event_id = $1 AND benefit_id = $2`, [x.event_id, x.benefit_id, x.quantity]);
+        await client.query(`UPDATE event_redemptions SET status = $2 WHERE redemption_id = $1`, [x.redemption_id, to]);
+      }
+      await client.query("COMMIT");
+      return rows.rowCount ?? 0;
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+  async expireRedemptions(now: Date) {
+    return this.releaseWhere(`reserved_until <= $1`, [now], "expired");
+  }
+  async releaseEventReservations(eventId: string, _now: Date) {
+    return this.releaseWhere(`event_id = $1`, [eventId], "cancelled");
+  }
+  async listRedemptions(eventId: string, wallet?: string) {
+    const r = await this.pool.query(`${PostgresStore.REDEMPTION_SELECT} WHERE r.event_id = $1 ${wallet ? "AND r.wallet = $2" : ""} ORDER BY r.reserved_at DESC`, wallet ? [eventId, wallet] : [eventId]);
+    return (r.rows as Row[]).map((x) => this.redemptionRow(x));
+  }
+  async getRedemption(redemptionId: string) {
+    const r = await this.pool.query(`${PostgresStore.REDEMPTION_SELECT} WHERE r.redemption_id = $1`, [redemptionId]);
+    return r.rows[0] ? this.redemptionRow(r.rows[0] as Row) : null;
   }
 
   // ---- PG-G-01 ----

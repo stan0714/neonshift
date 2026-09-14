@@ -290,7 +290,32 @@ export interface PartnerStore {
   /** 冪等：同 (event, wallet, checkpoint) 已存在回 false；成功時 participant 狀態改 checked_in */
   insertCheckin(c: { eventId: string; wallet: string; checkpointId: string; confirmedBy: string; method: "nfc" | "qr" | "manual" }, now: Date): Promise<boolean>;
   listCheckins(eventId: string, wallet?: string): Promise<{ eventId: string; wallet: string; checkpointId: string; confirmedBy: string; confirmedAt: Date; method: string }[]>;
+
+  // ---- PG-E-06：品項庫存與核銷 ----
+  createBenefit(b: EventBenefit): Promise<void>;
+  listBenefits(eventId: string): Promise<EventBenefit[]>;
+  getBenefit(eventId: string, benefitId: string): Promise<EventBenefit | null>;
+  /**
+   * 原子預留（SD 11.4 庫存交易）：鎖 event／benefit／participant，檢查活動 published、資格（報名；requires_checkin 則需 checked_in）、
+   * 截止、每人上限（reserved+fulfilled+requested ≤ limit）、庫存（reserved+fulfilled+requested ≤ total）。
+   * 同 (event, wallet, idempotency_key) 已存在直接回原紀錄（created=false）。digital_badge 在同交易直接 fulfilled 並簽發憑證。
+   */
+  reserveRedemption(r: { redemptionId: string; eventId: string; wallet: string; benefitId: string; quantity: number; idempotencyKey: string; claimCode: string; reservedUntil: Date; credentialId: string | null }, now: Date): Promise<ReserveOutcome>;
+  /** 交付：只有 reserved（未逾期）可轉 fulfilled；已 fulfilled 回原紀錄（already=true）；逾期先轉 expired 再回 "expired" */
+  fulfillRedemption(eventId: string, key: { redemptionId?: string; claimCode?: string }, staffWallet: string, now: Date): Promise<FulfillOutcome>;
+  /** 逾期預留 → expired 並釋放 reserved_count；回處理筆數 */
+  expireRedemptions(now: Date): Promise<number>;
+  /** 活動取消（BR-33）：所有 reserved → cancelled 並釋放；已交付不動 */
+  releaseEventReservations(eventId: string, now: Date): Promise<number>;
+  listRedemptions(eventId: string, wallet?: string): Promise<EventRedemption[]>;
+  getRedemption(redemptionId: string): Promise<EventRedemption | null>;
 }
+
+export type EventBenefit = { benefitId: string; eventId: string; kind: "physical" | "digital_badge"; name: string; stockTotal: number; reservedCount: number; fulfilledCount: number; perPersonLimit: number; eligibilityRuleRevision: string | null; requiresCheckin: boolean; claimDeadline: Date | null };
+export type RedemptionStatus = "reserved" | "fulfilled" | "expired" | "cancelled";
+export type EventRedemption = { redemptionId: string; eventId: string; wallet: string; benefitId: string; quantity: number; status: RedemptionStatus; reservedAt: Date; reservedUntil: Date; fulfilledBy: string | null; fulfilledAt: Date | null; idempotencyKey: string; claimCode: string | null; credentialId: string | null };
+export type ReserveOutcome = { kind: "ok"; redemption: EventRedemption; created: boolean } | { kind: "not_open" | "not_eligible" | "checkin_required" | "deadline_passed" | "limit_reached" | "out_of_stock" | "no_benefit" };
+export type FulfillOutcome = { kind: "ok"; redemption: EventRedemption; already: boolean } | { kind: "not_found" | "expired" | "cancelled" };
 
 export type Checkpoint = { checkpointId: string; eventId: string; name: string; purpose: "check_in" | "redemption" | "info" };
 export type NfcTag = { tagId: string; eventId: string; checkpointId: string | null; opaqueRef: string; purpose: "checkpoint" | "participant"; participantWallet: string | null; issuedBy: string; issuedAt: Date; revokedAt: Date | null };

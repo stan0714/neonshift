@@ -1,5 +1,5 @@
 import { compareLeaderboard } from "./leaderboard.js";
-import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventParticipant, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -29,6 +29,8 @@ export class MemoryStore implements Store {
   checkinChallenges = new Map<string, { challengeHash: Buffer; eventId: string; wallet: string; checkpointId: string; expiresAt: Date; usedAt: Date | null }>();
   checkins: { eventId: string; wallet: string; checkpointId: string; confirmedBy: string; confirmedAt: Date; method: string }[] = [];
   campaign = new Map<string, { source: string; day: string; views: number; registrations: number; checkins: number; redemptions: number }>();
+  benefits = new Map<string, EventBenefit>();
+  redemptions = new Map<string, EventRedemption>();
 
   async insertChallenge(c: Challenge) {
     const k = c.nonceHash.toString("hex");
@@ -326,6 +328,76 @@ export class MemoryStore implements Store {
   }
   async listCheckins(eventId: string, wallet?: string) {
     return this.checkins.filter((x) => x.eventId === eventId && (!wallet || x.wallet === wallet));
+  }
+
+  // ---- PG-E-06 ----
+  async createBenefit(b: EventBenefit) {
+    this.benefits.set(b.benefitId, { ...b });
+  }
+  async listBenefits(eventId: string) {
+    return [...this.benefits.values()].filter((b) => b.eventId === eventId).map((b) => ({ ...b }));
+  }
+  async getBenefit(eventId: string, benefitId: string) {
+    const b = this.benefits.get(benefitId);
+    return b && b.eventId === eventId ? { ...b } : null;
+  }
+  async reserveRedemption(r: { redemptionId: string; eventId: string; wallet: string; benefitId: string; quantity: number; idempotencyKey: string; claimCode: string; reservedUntil: Date; credentialId: string | null }, now: Date): Promise<ReserveOutcome> {
+    await this.expireRedemptions(now);
+    const existing = [...this.redemptions.values()].find((x) => x.eventId === r.eventId && x.wallet === r.wallet && x.idempotencyKey === r.idempotencyKey);
+    if (existing) return { kind: "ok", redemption: { ...existing }, created: false };
+    const e = this.events.get(r.eventId);
+    if (!e || e.state !== "published") return { kind: "not_open" };
+    const b = this.benefits.get(r.benefitId);
+    if (!b || b.eventId !== r.eventId) return { kind: "no_benefit" };
+    const p = this.participants.get(`${r.eventId}:${r.wallet}`);
+    if (!p || p.status === "cancelled") return { kind: "not_eligible" };
+    if (b.requiresCheckin && p.status !== "checked_in") return { kind: "checkin_required" };
+    if (b.claimDeadline && b.claimDeadline <= now) return { kind: "deadline_passed" };
+    const mine = [...this.redemptions.values()].filter((x) => x.eventId === r.eventId && x.wallet === r.wallet && x.benefitId === r.benefitId && (x.status === "reserved" || x.status === "fulfilled")).reduce((n, x) => n + x.quantity, 0);
+    if (mine + r.quantity > b.perPersonLimit) return { kind: "limit_reached" };
+    if (b.reservedCount + b.fulfilledCount + r.quantity > b.stockTotal) return { kind: "out_of_stock" };
+    const digital = b.kind === "digital_badge";
+    if (digital) b.fulfilledCount += r.quantity;
+    else b.reservedCount += r.quantity;
+    const row: EventRedemption = { redemptionId: r.redemptionId, eventId: r.eventId, wallet: r.wallet, benefitId: r.benefitId, quantity: r.quantity, status: digital ? "fulfilled" : "reserved", reservedAt: now, reservedUntil: r.reservedUntil, fulfilledBy: digital ? "system" : null, fulfilledAt: digital ? now : null, idempotencyKey: r.idempotencyKey, claimCode: r.claimCode, credentialId: digital ? r.credentialId : null };
+    this.redemptions.set(row.redemptionId, row);
+    return { kind: "ok", redemption: { ...row }, created: true };
+  }
+  async fulfillRedemption(eventId: string, key: { redemptionId?: string; claimCode?: string }, staffWallet: string, now: Date): Promise<FulfillOutcome> {
+    await this.expireRedemptions(now);
+    const row = [...this.redemptions.values()].find((x) => x.eventId === eventId && ((key.redemptionId && x.redemptionId === key.redemptionId) || (key.claimCode && x.claimCode === key.claimCode)));
+    if (!row) return { kind: "not_found" };
+    if (row.status === "fulfilled") return { kind: "ok", redemption: { ...row }, already: true };
+    if (row.status !== "reserved") return { kind: row.status };
+    const b = this.benefits.get(row.benefitId)!;
+    b.reservedCount -= row.quantity;
+    b.fulfilledCount += row.quantity;
+    row.status = "fulfilled";
+    row.fulfilledBy = staffWallet;
+    row.fulfilledAt = now;
+    return { kind: "ok", redemption: { ...row }, already: false };
+  }
+  private release(row: EventRedemption, to: "expired" | "cancelled") {
+    const b = this.benefits.get(row.benefitId);
+    if (b) b.reservedCount = Math.max(0, b.reservedCount - row.quantity);
+    row.status = to;
+  }
+  async expireRedemptions(now: Date) {
+    let n = 0;
+    for (const row of this.redemptions.values()) if (row.status === "reserved" && row.reservedUntil <= now) { this.release(row, "expired"); n += 1; }
+    return n;
+  }
+  async releaseEventReservations(eventId: string, _now: Date) {
+    let n = 0;
+    for (const row of this.redemptions.values()) if (row.eventId === eventId && row.status === "reserved") { this.release(row, "cancelled"); n += 1; }
+    return n;
+  }
+  async listRedemptions(eventId: string, wallet?: string) {
+    return [...this.redemptions.values()].filter((x) => x.eventId === eventId && (!wallet || x.wallet === wallet)).sort((a, b) => b.reservedAt.getTime() - a.reservedAt.getTime()).map((x) => ({ ...x }));
+  }
+  async getRedemption(redemptionId: string) {
+    const x = this.redemptions.get(redemptionId);
+    return x ? { ...x } : null;
   }
 
   // ---- PG-G-01 ----

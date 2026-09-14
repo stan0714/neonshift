@@ -5,14 +5,17 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import { useT, type TKey } from '@/i18n';
 import type { RootParamList } from '@/navigation/types';
-import { ApiError, apiClient, type StaffCheckinResult } from '@/services/api/ApiClient';
+import { ApiError, apiClient, type EventBenefit, type StaffCheckinResult } from '@/services/api/ApiClient';
 import { color, radius, space, Text } from '@/theme';
 
 type Checkpoint = { checkpoint_id: string; name: string; purpose: string };
 
+type Stock = EventBenefit & { stock_total: number; reserved_count: number; fulfilled_count: number };
+
 /**
  * 工作人員報到（PG-E-05，SD 11.4）：依名單核驗代碼並在授權站點確認到場；手動補登需理由（稽核）。
- * 掃描 QR 以輸入代碼取代（相機掃描為後續項目）；離線只保留待處理 UI，不先顯示已報到。
+ * 權益交付（PG-E-06）：輸入參加者的核銷代碼，交付後確認；只有 reserved 可交付，重試回原結果，逾期／取消分開提示。
+ * 掃描 QR 以輸入代碼取代（相機掃描為後續項目）；離線只保留待處理 UI，不先顯示已報到／已交付。
  */
 export function StaffCheckInScreen() {
   const { t } = useT();
@@ -27,6 +30,10 @@ export function StaffCheckInScreen() {
   const [count, setCount] = useState<number | null>(null);
   const [outcome, setOutcome] = useState<{ kind: 'success' | 'error' | 'warning'; title: string; body?: string } | null>(null);
   const [noRole, setNoRole] = useState(false);
+  const [mode, setMode] = useState<'checkin' | 'redeem'>('checkin');
+  const [redeemCode, setRedeemCode] = useState('');
+  const [stock, setStock] = useState<Stock[] | null>(null);
+  const [hasRole, setHasRole] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -36,7 +43,10 @@ export function StaffCheckInScreen() {
       setCheckpoints(allowed);
       setCp(allowed[0] ?? null);
       setCount(list?.check_ins.length ?? null);
-      setNoRole(allowed.length === 0);
+      const anyRole = mine.length > 0 || me.organizations.some((o) => o.role === 'owner');
+      setHasRole(anyRole);
+      setNoRole(!anyRole);
+      if (anyRole) setStock((await apiClient.partnerBenefits(params.eventId).catch(() => ({ benefits: [] }))).benefits);
     } catch (e) {
       setNoRole(e instanceof ApiError && (e.status === 403 || e.status === 404));
       setCheckpoints([]);
@@ -69,13 +79,59 @@ export function StaffCheckInScreen() {
     }
   };
 
+  const fulfill = async () => {
+    setBusy(true);
+    setOutcome(null);
+    try {
+      const r = await apiClient.staffFulfill(params.eventId, { claim_code: redeemCode.replace(/\s/g, '') });
+      const name = stock?.find((b) => b.benefit_id === r.benefit_id)?.name ?? r.benefit_id.slice(0, 8);
+      setOutcome({ kind: r.already ? 'warning' : 'success', title: r.already ? t('staff.redeemAlready', { name }) : t('staff.redeemOk', { name }), body: r.fulfilled_at ?? undefined });
+      setRedeemCode('');
+      if (!r.already) setStock((await apiClient.partnerBenefits(params.eventId).catch(() => ({ benefits: stock ?? [] }))).benefits);
+    } catch (e) {
+      const c = e instanceof ApiError ? e.code : 'UNKNOWN';
+      const known = ['REDEMPTION_EXPIRED', 'REDEMPTION_CANCELLED', 'NOT_FOUND', 'ROLE_FORBIDDEN'].includes(c);
+      setOutcome({ kind: 'error', title: known ? t(`staff.err.${c}` as TKey) : t('staff.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Screen scroll testID="staff-checkin-screen">
-      <Text variant="bodySmall" tone="secondary">
-        {t('staff.intro')}
+      {hasRole ? (
+        <View style={styles.segment} accessibilityRole="tablist">
+          {(['checkin', 'redeem'] as const).map((m) => (
+            <Pressable key={m} onPress={() => { setMode(m); setOutcome(null); }} accessibilityRole="tab" accessibilityState={{ selected: mode === m }} style={[styles.segmentItem, mode === m && styles.segmentOn]} testID={`staff-mode-${m}`}>
+              <Text variant="bodySmall" tone={mode === m ? undefined : 'secondary'} style={mode === m && styles.segmentOnText}>
+                {t(`staff.mode.${m}`)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      <Text variant="bodySmall" tone="secondary" style={styles.mt}>
+        {mode === 'redeem' ? t('staff.redeemIntro') : t('staff.intro')}
       </Text>
       {noRole ? <InlineState kind="warning" title={t('staff.noRole')} testID="staff-no-role" /> : null}
-      {checkpoints && checkpoints.length > 0 ? (
+      {mode === 'redeem' && hasRole ? (
+        <>
+          <Surface style={styles.card}>
+            <Text variant="label" tone="muted" uppercase>
+              {t('staff.redeemCode')}
+            </Text>
+            <TextInput value={redeemCode} onChangeText={(v) => setRedeemCode(v.toUpperCase())} autoCapitalize="characters" autoCorrect={false} maxLength={64} placeholder="ABCD 2345" placeholderTextColor={color.textMuted} style={styles.input} accessibilityLabel={t('staff.redeemCode')} testID="staff-redeem-code" />
+            <Button label={t('staff.redeemConfirm')} style={styles.mt} onPress={() => void fulfill()} loading={busy} loadingLabel={t('staff.confirming')} disabled={busy || redeemCode.replace(/\s/g, '').length < 8} testID="staff-redeem-confirm" />
+          </Surface>
+          {stock?.map((b) => (
+            <Text key={b.benefit_id} variant="caption" tone="muted" style={styles.mt} testID={`staff-stock-${b.benefit_id}`}>
+              {t('staff.stock', { name: b.name, fulfilled: b.fulfilled_count, total: b.stock_total, reserved: b.reserved_count })}
+            </Text>
+          ))}
+          {outcome ? <InlineState kind={outcome.kind} title={outcome.title} body={outcome.body} testID={`staff-${outcome.kind}`} /> : null}
+        </>
+      ) : null}
+      {mode === 'checkin' && checkpoints && checkpoints.length > 0 ? (
         <>
           <Text variant="label" tone="muted" uppercase style={styles.mt}>
             {t('ci.pickCheckpoint')}
@@ -128,4 +184,8 @@ const styles = StyleSheet.create({
   card: { marginTop: space.m },
   input: { marginTop: space.xs, minHeight: 48, borderWidth: 1, borderColor: color.borderSubtle, borderRadius: radius.m, paddingHorizontal: space.s, color: color.textPrimary, fontSize: 18, backgroundColor: color.elevated },
   link: { marginTop: space.s, minHeight: 44, justifyContent: 'center' },
+  segment: { flexDirection: 'row', borderWidth: 1, borderColor: color.borderSubtle, borderRadius: radius.m, overflow: 'hidden' },
+  segmentItem: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  segmentOn: { backgroundColor: color.mint },
+  segmentOnText: { color: color.onMint },
 });

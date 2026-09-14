@@ -11,11 +11,15 @@ import type { AuthService } from "../auth/service.js";
 import { sha256 } from "../auth/tokens.js";
 import { canonicalize, type Json } from "../claim/canonical.js";
 import { ApiError } from "../errors.js";
-import type { EventRow, EventRuleRevision, Store } from "../store/types.js";
+import type { EventBenefit, EventRedemption, EventRow, EventRuleRevision, Store } from "../store/types.js";
 import { PartnerAuthz } from "./authz.js";
 
 const uuid = z.string().uuid();
 export const CHECKIN_CHALLENGE_SECONDS = 120;
+/** 實體品項預留有效期（SD 11.4：逾期釋放，staff 只能交付 reserved） */
+export const REDEMPTION_HOLD_MINUTES = 15;
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const humanCode = (n = 8) => [...randomBytes(n)].map((x) => CODE_ALPHABET[x % CODE_ALPHABET.length]).join("");
 const base58 = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
 const slug = z.string().regex(/^[a-z0-9][a-z0-9-]{1,62}$/);
 const iso = z.string().datetime({ offset: true }).transform((s) => new Date(s));
@@ -126,6 +130,10 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
   });
 
   // ---- participant：報名／取消／隱私／歷史（PG-E-03） ----
+  const publicBenefitView = (b: EventBenefit) => ({ benefit_id: b.benefitId, kind: b.kind, name: b.name, remaining: Math.max(0, b.stockTotal - b.reservedCount - b.fulfilledCount), per_person_limit: b.perPersonLimit, requires_checkin: b.requiresCheckin, claim_deadline: b.claimDeadline?.toISOString() ?? null });
+  const partnerBenefitView = (b: EventBenefit) => ({ ...publicBenefitView(b), stock_total: b.stockTotal, reserved_count: b.reservedCount, fulfilled_count: b.fulfilledCount, eligibility_rule_revision: b.eligibilityRuleRevision });
+  /** 參加者視角：不含 idempotency_key；credential 只在數位徽章 */
+  const redemptionView = (r: EventRedemption) => ({ redemption_id: r.redemptionId, benefit_id: r.benefitId, quantity: r.quantity, status: r.status, claim_code: r.status === "reserved" ? r.claimCode : null, reserved_at: r.reservedAt.toISOString(), reserved_until: r.reservedUntil.toISOString(), fulfilled_at: r.fulfilledAt?.toISOString() ?? null, credential_id: r.credentialId });
   const participantView = (p: { status: string; acceptedRuleRevision: string; displayName: string | null; publicConsentAt: Date | null; registeredAt: Date; cancelledAt: Date | null }) => ({ status: p.status, accepted_rule_revision: p.acceptedRuleRevision, display_name: p.displayName, public_consent: p.publicConsentAt !== null, registered_at: p.registeredAt.toISOString(), cancelled_at: p.cancelledAt?.toISOString() ?? null });
 
   app.get("/events/:id/registration", { preHandler: requireAuth(auth) }, async (req) => {
@@ -173,7 +181,8 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
       items: await Promise.all(parts.map(async (p) => {
         const e = await store.getEvent(p.eventId);
         const checkins = await store.listCheckins(p.eventId, p.wallet);
-        return { event: e ? { event_id: e.eventId, slug: e.slug, title: e.title, state: e.state, starts_at: e.startsAt?.toISOString() ?? null, ends_at: e.endsAt?.toISOString() ?? null } : null, registration: participantView(p), check_ins: checkins.map((c) => ({ checkpoint_id: c.checkpointId, confirmed_at: c.confirmedAt.toISOString(), method: c.method })) };
+        const redemptions = await store.listRedemptions(p.eventId, p.wallet);
+        return { event: e ? { event_id: e.eventId, slug: e.slug, title: e.title, state: e.state, starts_at: e.startsAt?.toISOString() ?? null, ends_at: e.endsAt?.toISOString() ?? null } : null, registration: participantView(p), check_ins: checkins.map((c) => ({ checkpoint_id: c.checkpointId, confirmed_at: c.confirmedAt.toISOString(), method: c.method })), redemptions: redemptions.map(redemptionView) };
       })),
     };
   });
@@ -255,9 +264,7 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
     const cp = await store.getCheckpoint(e.eventId, b.checkpoint_id);
     if (!cp || cp.purpose !== "check_in") throw new ApiError(422, "VALIDATION", "checkpoint is not a check-in point");
     // 人類可讀 8 碼（去掉易混淆字元）＋機器碼；staff 輸入任一皆可
-    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    const bytes = randomBytes(8);
-    const code = [...bytes].map((x) => alphabet[x % alphabet.length]).join("");
+    const code = humanCode();
     const t = now();
     const expiresAt = new Date(t.getTime() + CHECKIN_CHALLENGE_SECONDS * 1000);
     await store.insertCheckinChallenge({ challengeHash: sha256(Buffer.from(`${e.eventId}|${code}`)), eventId: e.eventId, wallet: req.auth!.wallet, checkpointId: cp.checkpointId, expiresAt });
@@ -297,6 +304,113 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
     const id = parse(uuid, (req.params as { id: string }).id);
     await authz.requireEventRole(id, req.auth!.wallet, ["staff", "result_editor", "publisher"]);
     return { check_ins: (await store.listCheckins(id)).map((c) => ({ wallet: c.wallet, checkpoint_id: c.checkpointId, confirmed_by: c.confirmedBy, confirmed_at: c.confirmedAt.toISOString(), method: c.method })) };
+  });
+
+  // ---- PG-E-06：品項庫存與核銷（SD 11.4 庫存交易、BR-30／BR-33、FR-11.2／11.4） ----
+  const benefitBody = z
+    .object({
+      kind: z.enum(["physical", "digital_badge"]),
+      name: z.string().min(1).max(80),
+      stock_total: z.number().int().min(0).max(100_000),
+      per_person_limit: z.number().int().min(1).max(100).default(1),
+      requires_checkin: z.boolean().default(true),
+      claim_deadline: iso.nullable().default(null),
+    })
+    .strict();
+  app.post("/partner/events/:id/benefits", { preHandler: requireAuth(auth) }, async (req, reply) => {
+    const id = parse(uuid, (req.params as { id: string }).id);
+    const access = await authz.requireEventRole(id, req.auth!.wallet, []);
+    if (!access.isOwner) throw new ApiError(403, "ROLE_FORBIDDEN", "organization owner required");
+    const b = parse(benefitBody, req.body);
+    const benefit: EventBenefit = { benefitId: randomUUID(), eventId: id, kind: b.kind, name: b.name, stockTotal: b.stock_total, reservedCount: 0, fulfilledCount: 0, perPersonLimit: b.per_person_limit, eligibilityRuleRevision: access.event.currentRuleRevision, requiresCheckin: b.requires_checkin, claimDeadline: b.claim_deadline };
+    await store.createBenefit(benefit);
+    await authz.audit(req, { eventId: id, orgId: access.event.orgId, action: "benefit.create", target: benefit.benefitId, details: { ...b, claim_deadline: b.claim_deadline?.toISOString() ?? null } });
+    return reply.status(201).send(partnerBenefitView(benefit));
+  });
+
+  /** 對帳：staff／owner 看每品項預留／已交付／剩餘 */
+  app.get("/partner/events/:id/benefits", { preHandler: requireAuth(auth) }, async (req) => {
+    const id = parse(uuid, (req.params as { id: string }).id);
+    await authz.requireEventRole(id, req.auth!.wallet, ["staff", "result_editor", "publisher"]);
+    await store.expireRedemptions(now());
+    return { benefits: (await store.listBenefits(id)).map(partnerBenefitView) };
+  });
+
+  /** 公開投影：只有品項與剩餘量，不含名單 */
+  app.get("/events/:id/benefits", async (req) => {
+    const e = await resolveEvent((req.params as { id: string }).id);
+    await store.expireRedemptions(now());
+    return { benefits: (await store.listBenefits(e.eventId)).map(publicBenefitView) };
+  });
+
+  /** 參加者預留（實體）／直接發放（數位徽章）：idempotency_key 相同回同一筆；逾期由 expire 釋放 */
+  app.post("/events/:id/redemptions", { preHandler: requireAuth(auth) }, async (req, reply) => {
+    const e = await resolveEvent((req.params as { id: string }).id);
+    const b = parse(z.object({ benefit_id: uuid, quantity: z.number().int().min(1).max(100).default(1), idempotency_key: uuid }).strict(), req.body);
+    const t = now();
+    const r = await store.reserveRedemption(
+      { redemptionId: randomUUID(), eventId: e.eventId, wallet: req.auth!.wallet, benefitId: b.benefit_id, quantity: b.quantity, idempotencyKey: b.idempotency_key, claimCode: humanCode(), reservedUntil: new Date(t.getTime() + REDEMPTION_HOLD_MINUTES * 60_000), credentialId: `badge_${randomBytes(12).toString("base64url")}` },
+      t,
+    );
+    if (r.kind !== "ok") {
+      const map: Record<Exclude<typeof r.kind, "ok">, [number, string, string]> = {
+        not_open: [409, "EVENT_CANCELLED", `event is ${e.state}`],
+        no_benefit: [404, "NOT_FOUND", "benefit not found"],
+        not_eligible: [403, "NOT_ELIGIBLE", "register for this event first"],
+        checkin_required: [403, "CHECKIN_REQUIRED", "check in at the event first"],
+        deadline_passed: [410, "CLAIM_DEADLINE_PASSED", "claim window closed"],
+        limit_reached: [409, "BENEFIT_LIMIT_REACHED", "per-person limit reached"],
+        out_of_stock: [409, "BENEFIT_OUT_OF_STOCK", "no stock left"],
+      };
+      const [status, code, msg] = map[r.kind];
+      throw new ApiError(status, code, msg);
+    }
+    if (r.created) await store.bumpCampaign(e.eventId, "onsite", day(), "redemptions");
+    return reply.status(r.created ? 201 : 200).send(redemptionView(r.redemption));
+  });
+
+  app.get("/events/:id/redemptions", { preHandler: requireAuth(auth) }, async (req) => {
+    const e = await resolveEvent((req.params as { id: string }).id);
+    await store.expireRedemptions(now());
+    return { redemptions: (await store.listRedemptions(e.eventId, req.auth!.wallet)).map(redemptionView) };
+  });
+
+  /** staff 交付：以核銷代碼或 redemption_id；只有 reserved 可交付、重試回原結果（already）、逾期／取消 410／409 */
+  const fulfill = async (req: FastifyRequest, eventId: string, key: { redemptionId?: string; claimCode?: string }, checkpointId?: string) => {
+    const access = await authz.requireEventRole(eventId, req.auth!.wallet, ["staff"], checkpointId ? { checkpointId } : {});
+    const r = await store.fulfillRedemption(eventId, key, req.auth!.wallet, now());
+    if (r.kind === "not_found") throw new ApiError(404, "NOT_FOUND", "redemption not found");
+    if (r.kind === "expired") throw new ApiError(410, "REDEMPTION_EXPIRED", "reservation expired; participant must reserve again");
+    if (r.kind === "cancelled") throw new ApiError(409, "REDEMPTION_CANCELLED", "reservation was cancelled");
+    if (r.kind !== "ok") throw new ApiError(500, "INTERNAL", "unexpected redemption state");
+    await authz.audit(req, { eventId, orgId: access.event.orgId, action: r.already ? "redemption.fulfill.repeat" : "redemption.fulfill", target: r.redemption.redemptionId, details: { benefit_id: r.redemption.benefitId, wallet: r.redemption.wallet, quantity: r.redemption.quantity, ...(checkpointId ? { checkpoint_id: checkpointId } : {}) } });
+    return r;
+  };
+  app.post("/partner/events/:id/redemptions/fulfill", { preHandler: requireAuth(auth) }, async (req, reply) => {
+    const id = parse(uuid, (req.params as { id: string }).id);
+    const b = parse(z.object({ claim_code: z.string().min(6).max(64).optional(), redemption_id: uuid.optional(), checkpoint_id: uuid.optional() }).strict(), req.body);
+    if (!b.claim_code && !b.redemption_id) throw new ApiError(422, "VALIDATION", "claim_code or redemption_id is required");
+    const key = b.redemption_id ? { redemptionId: b.redemption_id } : { claimCode: b.claim_code!.trim().toUpperCase().replace(/^NEONSHIFT-REDEEM:[^:]+:/i, "").replace(/\s+/g, "") };
+    const r = await fulfill(req, id, key, b.checkpoint_id);
+    return reply.status(r.already ? 200 : 201).send({ ...redemptionView(r.redemption), already: r.already });
+  });
+  app.post("/partner/redemptions/:id/fulfill", { preHandler: requireAuth(auth) }, async (req, reply) => {
+    const id = parse(uuid, (req.params as { id: string }).id);
+    const cur = await store.getRedemption(id);
+    if (!cur) throw new ApiError(404, "NOT_FOUND", "redemption not found");
+    const r = await fulfill(req, cur.eventId, { redemptionId: id });
+    return reply.status(r.already ? 200 : 201).send({ ...redemptionView(r.redemption), already: r.already });
+  });
+
+  /** 對帳清單：分開呈現 reserved／fulfilled／expired／cancelled（FR-11.4） */
+  app.get("/partner/events/:id/redemptions", { preHandler: requireAuth(auth) }, async (req) => {
+    const id = parse(uuid, (req.params as { id: string }).id);
+    await authz.requireEventRole(id, req.auth!.wallet, ["staff", "result_editor", "publisher"]);
+    await store.expireRedemptions(now());
+    const rows = await store.listRedemptions(id);
+    const counts = { reserved: 0, fulfilled: 0, expired: 0, cancelled: 0 };
+    for (const x of rows) counts[x.status] += x.quantity;
+    return { counts, redemptions: rows.map((x) => ({ ...redemptionView(x), wallet: x.wallet, fulfilled_by: x.fulfilledBy })) };
   });
 
   app.get("/partner/events/:id/campaign-summary", { preHandler: requireAuth(auth) }, async (req) => {
@@ -428,7 +542,9 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
     const b = parse(z.object({ reason: z.string().min(3).max(500) }).strict(), req.body);
     const updated = await store.transitionEvent(id, ["draft", "published"], "cancelled", { cancelReason: b.reason }, now());
     if (!updated) throw new ApiError(409, "EVENT_CANCELLED", `event is ${access.event.state}`);
-    await authz.audit(req, { eventId: id, orgId: access.event.orgId, action: "event.cancel", details: { reason: b.reason } });
+    // BR-33：未交付預留釋放；已交付保留事實
+    const released = await store.releaseEventReservations(id, now());
+    await authz.audit(req, { eventId: id, orgId: access.event.orgId, action: "event.cancel", details: { reason: b.reason, released_reservations: released } });
     return partnerEventView(updated);
   });
 

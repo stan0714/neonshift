@@ -29,7 +29,18 @@ async function login() {
   const n = (await app.inject({ method: "POST", url: "/v1/auth/nonce", payload: { wallet } })).json();
   const sig = Buffer.from(nacl.sign.detached(new TextEncoder().encode(n.message), kp.secretKey)).toString("base64");
   const v = (await app.inject({ method: "POST", url: "/v1/auth/verify", payload: { message: n.message, signature_b64: sig } })).json();
-  return { wallet, h: { authorization: `Bearer ${v.access_token as string}` } };
+  const out = {
+    wallet,
+    h: { authorization: `Bearer ${v.access_token as string}` },
+    refresh: v.refresh_token as string,
+    /** access token 15 分鐘；測試推進時鐘後用 refresh 換新 token（session family 不變，登入時間也不變） */
+    renew: async () => {
+      const r = (await app.inject({ method: "POST", url: "/v1/auth/refresh", payload: { refresh_token: out.refresh } })).json();
+      out.h = { authorization: `Bearer ${r.access_token as string}` };
+      out.refresh = r.refresh_token as string;
+    },
+  };
+  return out;
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const j = (r: { json: () => unknown }) => r.json() as Record<string, any>;
@@ -257,5 +268,84 @@ describe("PG-E-02 partner API", () => {
     expect(list.map((c: { method: string }) => c.method).sort()).toEqual(["manual", "qr"]);
     const audit = j(await app.inject({ method: "GET", url: `/v1/partner/events/${ev.event_id}/audit`, headers: owner.h })).entries as { action: string; details: { reason?: string } }[];
     expect(audit.find((a) => a.action === "checkin.confirm" && a.details.reason === "phone died")).toBeTruthy();
+  });
+  it("核銷：owner 建品項；未報到不可預留；預留冪等、每人上限、庫存原子；staff 交付一次、重試回 already、逾期 410；數位徽章直接發放；取消活動釋放預留", async () => {
+    const { owner, orgId } = await orgWithOwner();
+    const ev = j(await app.inject({ method: "POST", url: "/v1/partner/events", headers: owner.h, payload: draft(orgId) }));
+    const rev = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/rule-revisions`, headers: owner.h, payload: { rules: {} } }));
+    await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/publish`, headers: owner.h, payload: { revision_id: rev.revision_id } });
+    const gate = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/checkpoints`, headers: owner.h, payload: { name: "Gate", purpose: "check_in" } }));
+    const staff = await login();
+    await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/roles`, headers: owner.h, payload: { wallet: staff.wallet, role: "staff" } });
+    // staff 不能建品項；owner 建兩種品項
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/benefits`, headers: staff.h, payload: { kind: "physical", name: "Towel", stock_total: 2 } })).statusCode).toBe(403);
+    const towel = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/benefits`, headers: owner.h, payload: { kind: "physical", name: "Towel", stock_total: 2, per_person_limit: 1 } }));
+    const badge = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/benefits`, headers: owner.h, payload: { kind: "digital_badge", name: "Finisher badge", stock_total: 100, requires_checkin: false } }));
+    const pub = j(await app.inject({ method: "GET", url: `/v1/events/river-5k/benefits` })).benefits as Record<string, unknown>[];
+    expect(pub.map((b) => b.name).sort()).toEqual(["Finisher badge", "Towel"]);
+    expect(Object.keys(pub[0]!)).not.toContain("reserved_count");
+
+    const a = await login();
+    const key = "11111111-1111-4111-8111-111111111111";
+    // 未報名 403 → 報名後未報到（requires_checkin）403 CHECKIN_REQUIRED
+    expect(j(await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/redemptions`, headers: a.h, payload: { benefit_id: towel.benefit_id, idempotency_key: key } })).error.code).toBe("NOT_ELIGIBLE");
+    await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: a.h, payload: { accepted_rule_revision: rev.revision_id } });
+    expect(j(await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/redemptions`, headers: a.h, payload: { benefit_id: towel.benefit_id, idempotency_key: key } })).error.code).toBe("CHECKIN_REQUIRED");
+    // 數位徽章不需報到：直接 fulfilled 並附憑證
+    const bd = await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/redemptions`, headers: a.h, payload: { benefit_id: badge.benefit_id, idempotency_key: "22222222-2222-4222-8222-222222222222" } });
+    expect(bd.statusCode).toBe(201);
+    expect(j(bd)).toMatchObject({ status: "fulfilled", claim_code: null });
+    expect(j(bd).credential_id).toMatch(/^badge_/);
+    // 報到後預留實體品項；同 key 冪等 200；每人上限 1 → 第二筆 409
+    const ch = j(await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/check-in-challenges`, headers: a.h, payload: { checkpoint_id: gate.checkpoint_id } }));
+    await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/check-ins`, headers: staff.h, payload: { code: ch.code, checkpoint_id: gate.checkpoint_id } });
+    let r = await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/redemptions`, headers: a.h, payload: { benefit_id: towel.benefit_id, idempotency_key: key } });
+    expect(r.statusCode).toBe(201);
+    const res = j(r);
+    expect(res.status).toBe("reserved");
+    expect(res.claim_code).toMatch(/^[A-HJ-NP-Z2-9]{8}$/);
+    r = await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/redemptions`, headers: a.h, payload: { benefit_id: towel.benefit_id, idempotency_key: key } });
+    expect([r.statusCode, j(r).redemption_id]).toEqual([200, res.redemption_id]);
+    expect(j(await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/redemptions`, headers: a.h, payload: { benefit_id: towel.benefit_id, idempotency_key: "33333333-3333-4333-8333-333333333333" } })).error.code).toBe("BENEFIT_LIMIT_REACHED");
+    // 庫存 2：b 預留第 2 個；c 預留 → 售罄（預留量也算）
+    const reg = async () => {
+      const u = await login();
+      await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: u.h, payload: { accepted_rule_revision: rev.revision_id } });
+      const c = j(await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/check-in-challenges`, headers: u.h, payload: { checkpoint_id: gate.checkpoint_id } }));
+      await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/check-ins`, headers: staff.h, payload: { code: c.code, checkpoint_id: gate.checkpoint_id } });
+      return u;
+    };
+    const b = await reg();
+    const c = await reg();
+    const rb = j(await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/redemptions`, headers: b.h, payload: { benefit_id: towel.benefit_id, idempotency_key: key } }));
+    expect(rb.status).toBe("reserved");
+    expect(j(await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/redemptions`, headers: c.h, payload: { benefit_id: towel.benefit_id, idempotency_key: key } })).error.code).toBe("BENEFIT_OUT_OF_STOCK");
+    // staff 交付 a（代碼、可帶 QR 前綴）→ 201；重試 200 already；對帳 fulfilled 1 reserved 1
+    r = await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/redemptions/fulfill`, headers: staff.h, payload: { claim_code: `neonshift-redeem:river-5k:${res.claim_code.toLowerCase()}` } });
+    expect([r.statusCode, j(r).already, j(r).status]).toEqual([201, false, "fulfilled"]);
+    r = await app.inject({ method: "POST", url: `/v1/partner/redemptions/${res.redemption_id}/fulfill`, headers: staff.h, payload: {} });
+    expect([r.statusCode, j(r).already]).toEqual([200, true]);
+    let recon = j(await app.inject({ method: "GET", url: `/v1/partner/events/${ev.event_id}/redemptions`, headers: staff.h }));
+    expect(recon.counts).toEqual({ reserved: 1, fulfilled: 2, expired: 0, cancelled: 0 }); // 含數位徽章
+    expect(recon.redemptions.find((x: { redemption_id: string }) => x.redemption_id === res.redemption_id).fulfilled_by).toBe(staff.wallet);
+    // b 的預留逾期（15 分鐘）→ 交付 410；庫存釋放後 c 可預留
+    clock = new Date(clock.getTime() + 16 * 60_000);
+    await Promise.all([staff.renew(), c.renew(), b.renew(), a.renew(), owner.renew()]);
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/redemptions/fulfill`, headers: staff.h, payload: { claim_code: rb.claim_code } })).statusCode).toBe(410);
+    const inv = j(await app.inject({ method: "GET", url: `/v1/partner/events/${ev.event_id}/benefits`, headers: staff.h })).benefits.find((x: { benefit_id: string }) => x.benefit_id === towel.benefit_id);
+    expect(inv).toMatchObject({ reserved_count: 0, fulfilled_count: 1, remaining: 1 });
+    const rc = j(await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/redemptions`, headers: c.h, payload: { benefit_id: towel.benefit_id, idempotency_key: key } }));
+    expect(rc.status).toBe("reserved");
+    // 不存在的代碼 404；未知 redemption 404
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/redemptions/fulfill`, headers: staff.h, payload: { claim_code: "ZZZZZZZZ" } })).statusCode).toBe(404);
+    // 參加者歷史含 redemptions；a 的 towel 已交付、badge 已發
+    const hist = j(await app.inject({ method: "GET", url: `/v1/me/event-history`, headers: a.h })).items[0].redemptions as { status: string }[];
+    expect(hist.map((x) => x.status).sort()).toEqual(["fulfilled", "fulfilled"]);
+    // 取消活動：c 的預留 → cancelled（釋放）；已交付不動；取消後不可再預留
+    await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/cancel`, headers: owner.h, payload: { reason: "Typhoon" } });
+    recon = j(await app.inject({ method: "GET", url: `/v1/partner/events/${ev.event_id}/redemptions`, headers: staff.h }));
+    expect(recon.counts).toEqual({ reserved: 0, fulfilled: 2, expired: 1, cancelled: 1 });
+    expect(j(await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/redemptions`, headers: b.h, payload: { benefit_id: towel.benefit_id, idempotency_key: "44444444-4444-4444-8444-444444444444" } })).error.code).toBe("EVENT_CANCELLED");
+    expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/redemptions/fulfill`, headers: staff.h, payload: { claim_code: rc.claim_code } })).statusCode).toBe(409);
   });
 });

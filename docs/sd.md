@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.17（活動報到） |
+| 文件版本 | v0.18（活動權益核銷） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -918,6 +918,8 @@ total_staked + treasury_injection
 
 **實作（2026-09-14，PG-E-05）**：參加者 `POST /events/{id}/checkpoints/{cpId}/check-in-challenge`（需 session、已報名、站點用途 check_in、活動 published／live）取得 8 碼代碼（字母表去 0/O/1/I）與 `qr_payload = neonshift-checkin:<slug>:<code>`，效期 120 秒；DB 只存 `sha256(eventId|code)`，同人同站點重取即覆蓋舊 challenge。Staff `POST /partner/events/{id}/check-ins`：`{code, checkpoint_id, method:'qr'}` 由 hash 單次消耗 challenge（過期 410 `CHECKIN_CHALLENGE_EXPIRED`）；`{wallet, checkpoint_id, method:'manual', reason}` 為補登，需 `requireRecentLogin` 且理由寫入稽核；兩者皆限授權 checkpoint、報名狀態需 registered（否則 403 `NOT_ELIGIBLE`），成功把 `event_registrations.status` 設為 checked_in 並寫 `event_check_ins`；重複報到回 200 `already:true`（首次 201）。`GET /partner/events/{id}/check-ins` 供現場對帳；`/me/event-history` 附本人 `check_ins`。App：`EventDetail` 在已報名時顯示「顯示報到代碼」（感應到 check_in 站點標籤時直接帶站點，否則列站點供選）→ `CheckInCode` 顯示 QR＋代碼＋倒數與重取；有 staff／owner 角色時顯示「工作人員報到」入口 → `StaffCheckIn`（只列本人授權的 check_in 站點、代碼輸入或手動補登、結果以 InlineState 呈現、已報到計數）。相機掃描 QR 為後續項目，目前以輸入代碼取代。
 
+**實作（2026-09-14，PG-E-06）**：migration 0007 加 `event_redemptions.claim_code`（同活動唯一，僅查找鍵）。owner `POST /partner/events/{id}/benefits`（kind physical｜digital_badge、stock_total、per_person_limit、requires_checkin 預設 true、claim_deadline；eligibility_rule_revision 記發布中的規則版本）；`GET /events/{id}/benefits` 公開只回品項與 remaining；`GET /partner/events/{id}/benefits` 回 reserved／fulfilled 對帳。參加者 `POST /events/{id}/redemptions {benefit_id, quantity, idempotency_key}`：`reserveRedemption` 單一交易依序鎖 event → benefit → participant，檢查 published、名單、requires_checkin（需 checked_in）、截止、每人上限（reserved+fulfilled+requested ≤ limit）、庫存（reserved+fulfilled+requested ≤ total）；同 (event, wallet, key) 回原紀錄 200；實體品項建立 reserved（保留 15 分鐘、8 碼 claim_code、QR `neonshift-redeem:<slug>:<code>`），digital_badge 同交易直接 fulfilled 並寫 `event_badge_issues.credential_id`（鏈下憑證，不稱 NFT）。staff `POST /partner/events/{id}/redemptions/fulfill {claim_code｜redemption_id, checkpoint_id?}` 與 `POST /partner/redemptions/{id}/fulfill`：只有 reserved 可轉 fulfilled（reserved_count → fulfilled_count），重試回 200 `already:true`，逾期 410 `REDEMPTION_EXPIRED`、取消 409 `REDEMPTION_CANCELLED`，皆寫稽核。逾期釋放採 lazy：預留／交付／對帳前先 `expireRedemptions(now)`（reserved 且 reserved_until 已過 → expired、釋放 reserved_count）。活動取消（BR-33）在同一請求內 `releaseEventReservations`：reserved → cancelled，已交付保留。`GET /partner/events/{id}/redemptions` 分開計 reserved／fulfilled／expired／cancelled（FR-11.4）；`/me/event-history` 附本人 redemptions。App：`Perks`（EventDetail 內；品項與剩餘量、未報名提示、未報到停用並說明、預留後 QR＋代碼＋保留倒數、徽章已發放＋憑證、逾期提示、錯誤碼對應文案）；`StaffCheckIn` 加「權益交付」模式（代碼輸入、交付確認、庫存對帳列）。已知限制：checkpoint 限定的 staff 交付時未強制帶 checkpoint_id（BR-29 只約束報到站點）；相機掃描仍以輸入代碼取代。
+
 ### 11.5 成績、隱私與測試
 
 CSV schema v1：`participant_ref, discipline, division, finish_status, distance_m, elapsed_ms, rank`；來源、event、版本與更正原因由匯入 metadata 提供。FINISHED 要求可用成績；DNS／DNF／DSQ 不以零秒排進正常榜。欄位單位固定、缺值用 null、未知選手或重複列阻止發布；rank 若由主辦方提供即標記為來源排名，不跨不同組別／賽制混排。限制檔案大小、列數與欄位長度，CSV 匯出防試算表公式注入。發布以原子切換 current revision，並發更正以 revision 檢查；結果更正不自動追回已交付權益。
@@ -961,6 +963,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.18 | 2026-09-14 | PG-E-06：品項庫存、原子預留／交付、數位徽章實作說明 |
 | v0.17 | 2026-09-14 | PG-E-05：報到 challenge 與 staff 報到實作說明 |
 | v0.16 | 2026-09-14 | PG-E-04：NFC／App Links 與載具登記實作說明 |
 | v0.15 | 2026-09-14 | PG-E-03：報名 API 與 App 活動畫面 |
