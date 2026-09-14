@@ -10,6 +10,7 @@ import { PublicKey } from "@solana/web3.js";
 import { ChallengeService } from "./auth/challenge.js";
 import { RpcChainReader, StaticChainReader, type ChainReader } from "./chain/reader.js";
 import { galleryRoutes } from "./gallery/routes.js";
+import { partnerRoutes } from "./partner/routes.js";
 import { tournamentRoutes } from "./tournament/routes.js";
 import { TournamentService } from "./tournament/service.js";
 import { claimRoutes } from "./claim/routes.js";
@@ -162,6 +163,7 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch, ch
     await v1.register(playerRoutes, { auth, store: dataStore, now: now ?? (() => new Date()), tournaments });
     await v1.register(tournamentRoutes, { auth, tournaments });
     await v1.register(galleryRoutes, { auth, store: dataStore, now: now ?? (() => new Date()) });
+    await v1.register(partnerRoutes, { auth, store: dataStore, now: now ?? (() => new Date()) });
     v1.get("/rules/version", async () => ({ rules_version: ruleSet.version, rules_hash: `sha256:${ruleSet.hash.toString("hex")}`, description: ruleSet.config.description ?? null }));
   }, { prefix: API_PREFIX });
 
