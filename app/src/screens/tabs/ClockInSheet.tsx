@@ -116,7 +116,7 @@ function PhaseView({ phase, taskType }: { phase: ClaimPhase; taskType: TaskType 
       return <InlineState kind="warning" title={c.title} body={`${c.body}${phase.effectiveValue !== undefined ? ` Verified today: ${phase.effectiveValue.toLocaleString()}.` : ''}`} testID="phase-rejected" />;
     }
     case 'failed':
-      return <InlineState kind="error" title={phase.code === 'CANCELLED' || phase.code === 'REJECTED' ? 'Request canceled' : 'Something interrupted your shift'} body={`${phase.message} Your wallet was not charged unless a transaction shows in it; retrying will never claim twice.`} testID="phase-failed" />;
+      return <InlineState kind="error" title={phase.code === 'CANCELLED' || phase.code === 'REJECTED' ? 'Request canceled' : 'Something interrupted your shift'} body={`${phase.message} Your wallet was not charged unless a transaction shows in it; retrying will never claim twice.`} referenceId={phase.referenceId} testID="phase-failed" />;
     default:
       return null;
   }

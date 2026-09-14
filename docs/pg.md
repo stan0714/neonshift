@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.16（PG-A-15 完成） |
+| 文件版本 | v0.17（PG-A-16 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -199,7 +199,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-A-13 | 打卡、live motion 引導與成功特效 | Style 15 | FR-03.1, FR-08.3 | 1.0 | WIP | ClaimFlow（live motion→verifying→challenge→claim→wallet→confirm）＋ClockInSheet 各狀態文案、拒絕碼對照、成功一次 haptic；5 測試；端到端實機待 devnet 部署與後端上線 |
 | PG-A-14 | Gear 頁與成就收藏領取 | Style 12 | FR-05.2 | 1.0 | WIP | 2026-09-14 完成：`GearScreen`（跑鞋 hero＋Level＋XP ring、current／next multiplier、距下一階 XP、My collection 2 欄網格 Claimed／Claimable／Locked、Claim 走 MWA 簽 `claim_collectible`、成功／拒簽／失敗 inline 狀態）；`domain/collectibles.ts`（目錄＋與鏈上 eligible() 一致的資格）、`CollectibleService`（單一 RPC 查 receipt、冪等領取）、`collectibleStore`；Jest 15 案例；Seeker 版面驗證（docs/evidence/2026-09-14-seeker-gear-*.png，程式未部署故全為 Locked）。`EXPO_PUBLIC_DEV_ROUTE=Main` 供未部署時看 tabs |
 | PG-A-15 | Arena 頁三種狀態 | Style 13 | FR-06.1, FR-06.2 | 1.5 | WIP | 2026-09-14 完成：`ArenaScreen`（13.1 UTC／當地時段、質押、人數、規則、最差損失確認框；13.2 名次／步數／回報、排行榜遮罩與本人強調、Settling 標「not final」；13.3 final rank／group／領取、沒收顯示規則版本與申訴管道；Cancelled 退款；無賽事／後端錯誤／需登入三種狀態）；`chain` join／claim_prize／refund_all 指令與 Entry 解碼；`TournamentStepsCollector`（窗口逐日讀 Health Connect → 小時桶）、`TournamentService`（MWA 簽章、冪等）、`arenaStore`；ApiClient tournament 方法；Jest 12；Seeker 版面（需登入狀態）截圖。端到端待 devnet 部署 |
-| PG-A-16 | 錯誤、離線與空狀態 | Style 14 | NFR 可用性 | 1.0 | TODO | |
+| PG-A-16 | 錯誤、離線與空狀態 | Style 14 | NFR 可用性 | 1.0 | WIP | 2026-09-14 完成：`OfflineBanner`（expo-network `useOnline`，tabs 頂部「offline · showing cached data」）；Home inline 狀態：Health access is off → Review access、Health data unavailable → Try again、Devnet is taking a break → Retry（說明資料／資金安全）；`InlineState` 新增 `action`／`referenceId`；後端錯誤一律帶 `request_id`，App `ApiError.requestId` → 打卡／刪除失敗顯示 Ref；Arena／Gear 空／錯誤／需登入狀態於 A-14／A-15。Jest 3（共 143）。需重建 dev client（expo-network 原生模組） |
 | PG-A-17 | 跑鞋視覺五階與進化動畫 | Style 16.2 | FR-04.4 | 1.0 | TODO | |
 | PG-A-18 | App 測試：單元、原生、E2E | SD 7 | — | 1.5 | TODO | |
 | PG-A-19 | Health Connect 背景同步（WorkManager）與前景補同步 | SD 5.1 | FR-02.3 | 1.0 | WIP | Kotlin HealthReader 共用＋HealthSyncWorker（WorkManager 15 分鐘、電量限制、背景權限缺失靜默結束）＋HealthCache；JS enable／disable／cache／readCached；啟動有背景權限即排程；Dashboard 先讀快取再前景同步、離線標示；4 測試；實機背景觸發待驗證 |
@@ -557,6 +557,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.17 | 2026-09-14 | PG-A-16 完成（WIP）：離線橫幅、Home inline 狀態、reference ID |
 | v0.16 | 2026-09-14 | PG-A-15 完成（WIP）：Arena 三種狀態 |
 | v0.15 | 2026-09-14 | PG-B-17 完成（WIP）：保留清理 |
 | v0.14 | 2026-09-14 | PG-B-16 完成（WIP）：ChainIndexer |
@@ -599,3 +600,17 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | RUN-08 | 全部 | 實機裝置測試、資料刪除、跨來源去重、鑄造／撤銷競態 | 設計完成／待估 |
 
 正式交付門檻及未決事項以專章 8 為準。裝置 API、3D 藝廊與實體計時硬體不假設已獲供應商授權。第 14 章 P0「Core 分離」沿用早期提案，現應依最新免費同步升級驗收，不能恢復付費 Core。
+
+## 16. 跑鞋遊戲性與維持制度待排工作
+
+新增設計見 [跑鞋遊戲性設計](./shoe-gameplay.md)。本次只完成規則與追溯，未修改鏈上或啟用降級；以下工作包尚未計入現有 PG 工時／DONE 統計。
+
+| 工作包 | 需求／依賴 | 完成條件 |
+|---|---|---|
+| GAME-01 | FR-16、BRD 19 | 90 天情境模擬，确认點數／活躍日、睡眠不可用、長休與回歸公平性 |
+| GAME-02 | FR-16.1～3；PG-C-01／C-08 | Active／Highest／週期帳戶、遷移、bounded settlement、規則版本及原子測試 |
+| GAME-03 | FR-16.4；PG-C-05／C-09、RUN-05 | 新倍率生效、歷史收藏資格、PB 達成時能力快照、活動已承諾權益 |
+| GAME-04 | FR-16.1～3；PG-A-14／A-17、PG-G | Gear 維持儀表、歷史收藏、恢復條件、現役／歷史排行與倒數 |
+| GAME-05 | FR-16.5；PG-C-18、索引 | 凍結治理、舊玩家遷移、多期離線、晚到 PB、升降重放與全端一致性 |
+
+先 GAME-01 定參數，再實作鏈上／索引／UI；不能保留舊永久高倍率卻只顯示降階。此前「XP 達標立即同步升級」驗收須換成本制度，但尚未部署時不得偽稱已驗收。免費升級與成就收藏仍保留，無付費保級或 NFT 銷毀。

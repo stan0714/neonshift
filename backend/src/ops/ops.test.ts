@@ -41,7 +41,7 @@ describe("PG-B-18 速率限制、稽核、指標、告警", () => {
     for (let i = 0; i < 3; i++) expect((await app.inject({ method: "POST", url: "/v1/auth/nonce", payload: { wallet } })).statusCode).toBe(200);
     const blocked = await app.inject({ method: "POST", url: "/v1/auth/nonce", payload: { wallet } });
     expect(blocked.statusCode).toBe(429);
-    expect(blocked.json()).toEqual({ error: { code: "RATE_LIMITED", message: "too many requests" } });
+    expect(blocked.json()).toEqual({ error: { code: "RATE_LIMITED", message: "too many requests", request_id: expect.any(String) } });
   });
 
   it("/metrics 需 token；輸出請求計數與延遲直方圖", async () => {

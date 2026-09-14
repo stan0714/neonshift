@@ -13,7 +13,7 @@ import { useOnboardingStore } from '@/state/onboardingStore';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
 import { color, space, Text } from '@/theme';
 
-type Deletion = { state: 'idle' | 'working' | 'done' | 'scheduled' | 'error'; dueAt?: string; message?: string };
+type Deletion = { state: 'idle' | 'working' | 'done' | 'scheduled' | 'error'; dueAt?: string; message?: string; referenceId?: string };
 
 /**
  * Profile（PG-A-21，Style 19.1 #12、FR-01.4、BR-25）：錢包、權限、隱私、刪除資料、斷開。
@@ -78,7 +78,7 @@ export function ProfileScreen() {
               }
               setBackend(false);
             } catch (e) {
-              setDeletion({ state: 'error', message: e instanceof ApiError ? `${e.code}: ${e.message}` : String(e) });
+              setDeletion({ state: 'error', message: e instanceof ApiError ? `${e.code}: ${e.message}` : String(e), ...(e instanceof ApiError && e.requestId ? { referenceId: e.requestId } : {}) });
             }
           },
         },
@@ -120,7 +120,7 @@ export function ProfileScreen() {
         <Button label="Delete my backend data" variant="danger" style={styles.btn} onPress={deleteData} loading={deletion.state === 'working'} loadingLabel="Deleting…" disabled={!backend} disabledReason={backend === false ? 'Sign in to manage server data' : undefined} />
         {deletion.state === 'done' ? <InlineState kind="success" title="Backend data deleted" body="Your server-side data was removed and you were signed out. Onchain records remain public." testID="deletion-done" /> : null}
         {deletion.state === 'scheduled' ? <InlineState kind="info" title="Deletion scheduled" body={`Sessions revoked now; remaining tournament summaries are deleted by ${deletion.dueAt ? new Date(deletion.dueAt).toLocaleString() : 'the retention limit'}.`} testID="deletion-scheduled" /> : null}
-        {deletion.state === 'error' ? <InlineState kind="error" title="Something interrupted your shift" body={`${deletion.message ?? ''} Nothing was deleted. Try again.`} testID="deletion-error" /> : null}
+        {deletion.state === 'error' ? <InlineState kind="error" title="Something interrupted your shift" body={`${deletion.message ?? ''} Nothing was deleted.`} referenceId={deletion.referenceId} action={{ label: 'Try again', onPress: deleteData }} testID="deletion-error" /> : null}
       </Section>
 
       <Section title="About">

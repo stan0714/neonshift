@@ -3,12 +3,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Chip, DataCard, MissionCard, Wordmark } from '@/components';
+import { Chip, DataCard, InlineState, MissionCard, Wordmark } from '@/components';
 import { ShoeHero } from '@/components/ShoeHero';
 import { APP_CONFIG } from '@/config/app';
 import { secondsUntilUtcMidnight, type TaskType } from '@/domain/taskEngine';
 import type { ClaimInput, ClaimPhase } from '@/services/claim/ClaimFlow';
 import { estimateReward, formatTskr, sleepProgress, stepsProgress, useDashboardStore } from '@/state/dashboardStore';
+import { healthConnect, type HealthPermissionSummary } from '@/services/health/HealthConnectService';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
 import { color, space, Text, useTheme } from '@/theme';
 
@@ -28,9 +29,11 @@ export function HomeScreen() {
   const d = useDashboardStore();
   const [sheetInput, setSheetInput] = useState<ClaimInput | null>(null);
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  const [permissions, setPermissions] = useState<HealthPermissionSummary | null>(null);
 
   const refresh = useCallback(async () => {
     d.rollDay(Math.floor(Date.now() / 1000));
+    setPermissions(await healthConnect.getPermissions().catch(() => null));
     if (!d.health) await d.loadCachedHealth();
     await Promise.all([d.syncHealth(), session ? d.syncChain(session.publicKey) : Promise.resolve()]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,6 +122,17 @@ export function HomeScreen() {
       <Text variant="caption" tone="muted" style={styles.utc}>
         UTC day resets in {Math.floor(untilMidnight / 3600)}h {Math.floor((untilMidnight % 3600) / 60)}m
       </Text>
+
+      {/* Style 14 inline states：說明發生什麼、資料是否安全、下一步 */}
+      {permissions && permissions.state !== 'granted' ? (
+        <InlineState kind="warning" title="Health access is off" body="Missions need Steps and Sleep from Health Connect. Nothing is read until you allow it; cached numbers stay on this phone." action={{ label: 'Review access', onPress: () => navigation.navigate('Onboarding', { screen: 'HealthAccess' }) }} testID="state-health-off" />
+      ) : null}
+      {d.health?.error && permissions?.state === 'granted' ? (
+        <InlineState kind="warning" title="Health data unavailable" body={`Health Connect did not answer. Showing the last synced numbers; nothing was sent anywhere. ${d.health.error}`} action={{ label: 'Try again', onPress: () => void d.syncHealth(), loading: d.healthSyncing }} testID="state-health-error" />
+      ) : null}
+      {d.chainError && APP_CONFIG.chainConfigured && session ? (
+        <InlineState kind="warning" title="Devnet is taking a break" body={`Could not read your onchain profile. Your tSKR and progress are safe onchain; showing cached values. ${d.chainError}`} action={{ label: 'Retry', onPress: () => void d.syncChain(session.publicKey) }} testID="state-chain-error" />
+      ) : null}
 
       <Pressable onPress={() => navigation.navigate('Main', { screen: 'Gear' })} style={styles.hero} accessibilityRole="button" accessibilityLabel="Open gear">
         <ShoeHero level={(d.profile?.shoeLevel ?? 1) as 1 | 2 | 3 | 4 | 5} size={200} />

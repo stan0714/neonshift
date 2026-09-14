@@ -57,3 +57,10 @@ jest.mock('expo-secure-store', () => {
     deleteItemAsync: jest.fn(async (k: string) => void mem.delete(k)),
   };
 });
+
+// expo-network（PG-A-16 離線提示）：預設在線；測試可 mockReturnValue 切換
+jest.mock('expo-network', () => ({
+  useNetworkState: jest.fn(() => ({ isConnected: true, isInternetReachable: true, type: 'WIFI' })),
+  getNetworkStateAsync: jest.fn(async () => ({ isConnected: true, isInternetReachable: true, type: 'WIFI' })),
+  NetworkStateType: { WIFI: 'WIFI', NONE: 'NONE' },
+}));

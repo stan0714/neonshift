@@ -20,7 +20,7 @@ import { authRoutes } from "./auth/routes.js";
 import { AuthService } from "./auth/service.js";
 import { type AppConfig } from "./config.js";
 import { type Db } from "./db.js";
-import { ApiError, notFound } from "./errors.js";
+import { ApiError, notFound, withRequestId } from "./errors.js";
 import { Alerts } from "./ops/alerts.js";
 import { Metrics } from "./ops/metrics.js";
 import { MemoryStore } from "./store/memory.js";
@@ -94,17 +94,17 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch, ch
 
   app.setErrorHandler((raw: unknown, req, reply) => {
     if (raw instanceof ApiError) {
-      return reply.status(raw.statusCode).send(raw.toBody());
+      return reply.status(raw.statusCode).send(withRequestId(raw.toBody(), String(req.id)));
     }
     const err = raw as Partial<FastifyError> & { message?: string };
     // Fastify 內建：schema 驗證、body 過大、JSON 解析錯誤等
     const status = typeof err.statusCode === "number" && err.statusCode >= 400 ? err.statusCode : 500;
     if (status >= 500) {
       req.log.error({ err, reqId: req.id }, "unhandled error");
-      return reply.status(500).send({ error: { code: "INTERNAL", message: "internal error" } });
+      return reply.status(500).send(withRequestId({ error: { code: "INTERNAL", message: "internal error" } }, String(req.id)));
     }
     const code = err.code === "FST_ERR_VALIDATION" ? "VALIDATION" : status === 413 ? "PAYLOAD_TOO_LARGE" : status === 429 ? "RATE_LIMITED" : `HTTP_${status}`;
-    return reply.status(status).send({ error: { code, message: err.message ?? "request error" } });
+    return reply.status(status).send(withRequestId({ error: { code, message: err.message ?? "request error" } }, String(req.id)));
   });
 
   app.setNotFoundHandler((_req, reply) => {

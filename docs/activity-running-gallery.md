@@ -185,3 +185,9 @@ metadata canonicalization 與上傳在簽章前完成，不允許 client 替換�
 - [Compendium of Physical Activities](https://pacompendium.com/)：活動強度分類來源；MET 推估屬群體模型，不代表個人精確測量。
 
 PB 分組、NFT 發行與界面為本專案設計，不是外部機構認證標準。
+
+## 10. 新增鞋階能力門檻（最新遊戲性設計）
+
+依 [跑鞋權限與維持挑戰](./shoe-gameplay.md)。跑步摘要、私人 PB 與藝廊查看不限鞋階；新 PB NFT 需在達成時 Active level ≥3，活動 NFT 預設 Lv2 並於報名時承諾資格。已獲資格正常降級後仍可領取，已鑄 NFT 永久保留歷史；作弊／修正的撤銷另依 registry。
+
+晚到裝置資料須查達成時的有效等級歷史，不用匯入時的高階鞋洗資格；查無歷史則只保存私人 PB、資格待審。PB 櫃的 Current best 與鞋款 Active level 是不同狀態；一枚歷史 NFT 也可能仍代表目前 PB，NFT 所有權不轉移原達成者權限。

@@ -26,7 +26,7 @@ export type ClaimPhase =
   | { kind: 'confirmed'; signature: string | null; effectiveValue: number }
   | { kind: 'already_claimed' }
   | { kind: 'rejected'; code: string; message: string; rulesVersion?: number; effectiveValue?: number }
-  | { kind: 'failed'; code: string; message: string; retryable: boolean };
+  | { kind: 'failed'; code: string; message: string; retryable: boolean; referenceId?: string };
 
 export type ClaimInput = {
   player: PublicKey;
@@ -119,6 +119,7 @@ export async function runClaimFlow(input: ClaimInput, onPhase: (p: ClaimPhase) =
     const code = (e as { code?: string })?.code ?? 'UNKNOWN';
     const message = e instanceof Error ? e.message : String(e);
     if (code === 'CANCELLED' || code === 'REJECTED') return done({ kind: 'failed', code, message: 'Request canceled. Nothing was claimed.', retryable: true });
-    return done({ kind: 'failed', code, message, retryable: true });
+    const referenceId = (e as { requestId?: string })?.requestId;
+    return done({ kind: 'failed', code, message, retryable: true, ...(referenceId ? { referenceId } : {}) });
   }
 }

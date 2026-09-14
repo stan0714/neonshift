@@ -9,3 +9,4 @@ export { InlineState } from './InlineState';
 export { Bullet } from './Bullet';
 export { DataCard } from './DataCard';
 export { MissionCard } from './MissionCard';
+export { OfflineBanner } from './OfflineBanner';

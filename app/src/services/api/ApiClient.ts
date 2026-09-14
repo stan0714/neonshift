@@ -17,6 +17,8 @@ export class ApiError extends Error {
     message: string,
     public readonly rulesVersion?: number,
     public readonly body?: unknown,
+    /** 後端 request id（Style 14 reference ID） */
+    public readonly requestId?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -185,13 +187,13 @@ export class ApiClient {
     const text = await res.text();
     const parsed: unknown = text ? safeJson(text) : null;
     if (res.ok) return { status: res.status, body: parsed };
-    const err = (parsed as { error?: { code?: string; message?: string; rules_version?: number } } | null)?.error;
+    const err = (parsed as { error?: { code?: string; message?: string; rules_version?: number; request_id?: string } } | null)?.error;
     // access 過期／撤銷：refresh 一次後重試
     if (res.status === 401 && opts.auth !== false && !retried && (err?.code === 'UNAUTHORIZED' || err?.code === 'SESSION_REVOKED')) {
       const t = await this.refresh();
       if (t) return this.requestRaw(method, path, body, opts, true);
     }
-    throw new ApiError(res.status, err?.code ?? `HTTP_${res.status}`, err?.message ?? `HTTP ${res.status}`, err?.rules_version, parsed);
+    throw new ApiError(res.status, err?.code ?? `HTTP_${res.status}`, err?.message ?? `HTTP ${res.status}`, err?.rules_version, parsed, err?.request_id);
   }
 
   private async ensureAccessToken(): Promise<Tokens | null> {

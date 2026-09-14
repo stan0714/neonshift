@@ -370,7 +370,7 @@ let amount = amount.min(remaining);         // BR-04
 
 ### 4.1 API 一覽
 
-Base path `/v1`。除登入相關外皆需 Bearer JWT。錯誤回應統一為 `{ "error": { "code": "...", "message": "...", "rules_version": 3 } }`；`rules_version` 僅在風險判定相關錯誤出現，驗證、限流或系統錯誤不得填入虛構版本。
+Base path `/v1`。除登入相關外皆需 Bearer JWT。錯誤回應統一為 `{ "error": { "code": "...", "message": "...", "rules_version": 3, "request_id": "..." } }`；`rules_version` 僅在風險判定相關錯誤出現，驗證、限流或系統錯誤不得填入虛構版本；`request_id`（Fastify req.id，2026-09-14 新增）一律附上，App 以 Style 14 的 reference ID 顯示供客服對照 audit log。
 
 | Method | Path | 用途 | 對應 UC |
 |---|---|---|---|
@@ -1003,3 +1003,11 @@ App `config/shoeProgression.ts` 集中管理五階名稱、材質色、預覽門
 Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量只作私人參考。PB 簽章、eligibility registry、成績 revision、metadata hash 與唯一 receipt 須一起驗證，不能只新增藝廊卡片就宣稱具備可信 PB 鑄造。精確公開資訊與私人長期 PB 摘要要有獨立同意及保存政策。
 
 第 12 章素材替換契約保留；其中 Core 分離的舊驗收以最新免費同步升級規格為準。此次不變更既有免費升級鏈上程式。
+
+## 14. 等級維持／權限契約（新設計待實作）
+
+以 [跑鞋遊戲性設計](./shoe-gameplay.md) 第 7 章為新增設計基準。既有 shoe_level/core_level 永久隨 XP 的實作不能直接代表新 Active level；需新增歷史最高、週期 anchor／cursor、期摘要、規則版本及 migration，再改 clock_in／收藏／PB registry／排行 consumer。所有受限交易先確定結算已追上；結算後倍率用於該筆發放，新 XP 不立刻升階。
+
+逐期摘要與歷史有效等級必須可由鏈上事件追溯；未 finalized 的 indexer 資料不作歷史 PB 能力證明。鞋階 NFT 依最高實際達成判定；PB／活動 NFT 依 eligibility registry 的能力快照與唯一 receipt 判定，不依現持有 NFT。舊種類與新增期別成就需不同唯一性 key，避免重新升階重複鑄造。
+
+新權限與維持參數尚未部署；此前 SD 3／12 內與本章衝突的永久 XP 升級規則僅記錄現有實作。上線須一次完成鏈上規則、客戶端、索引與遷移，不先以 UI 假裝已降級。具體 canonical 欄位、帳戶空間、batch 上限及費用待正式 PG 拆項後實作驗證。
