@@ -15,13 +15,14 @@ default = []
 cpi = ["no-entrypoint"]
 no-entrypoint = []
 no-log-ix-name = []
-idl-build = ["anchor-lang/idl-build"]
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 anchor-debug = []
 custom-heap = []
 custom-panic = []
 
 [dependencies]
 anchor-lang = "1.2.0"
+anchor-spl = { version = "1.2.0", features = ["token", "associated_token"] }
 # canonical bytes 與後端逐 byte 一致的唯一來源（PG-C-04 / PG-B-10）
 attestation-core = { path = "../attestation-core" }
 

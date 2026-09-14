@@ -1,4 +1,4 @@
-//! PDA seeds 與常數（SD 3.1）。
+//! PDA seeds、常數與 Config 預設值（SD 3.1／3.4、BRD 8）。
 
 use anchor_lang::prelude::*;
 
@@ -17,3 +17,23 @@ pub const ENTRY_SEED: &[u8] = b"entry";
 
 /// canonical attestation 的環境識別（SD 3.1 Config.cluster_id）；數值以 attestation-core 為準
 pub use attestation_core::{CLUSTER_DEVNET, CLUSTER_LOCALNET, TASK_SLEEP, TASK_STEPS};
+
+/// tSKR 固定 6 decimals（BR-22）
+#[constant]
+pub const TSKR_DECIMALS: u8 = 6;
+pub const TSKR_UNIT: u64 = 1_000_000;
+
+/// 基點基準：10000 bps = 1.0x
+pub const BPS_ONE: u16 = 10_000;
+/// streak 加成上限，避免誤設（2.0x）
+pub const MAX_STREAK_BONUS_BPS: u16 = 20_000;
+/// Core 倍率上限（5.0x）
+pub const MAX_CORE_MULTIPLIER_BPS: u16 = 50_000;
+
+// Config 預設值（BRD 8.2／8.3、SD 3.1）
+pub const DEFAULT_DAILY_CAP: u64 = 40 * TSKR_UNIT;
+pub const DEFAULT_BASE_STEPS_REWARD: u64 = 10 * TSKR_UNIT;
+pub const DEFAULT_BASE_SLEEP_REWARD: u64 = 5 * TSKR_UNIT;
+pub const DEFAULT_STREAK_BONUS_BPS: u16 = 11_000;
+pub const DEFAULT_BURN_BPS: u16 = 7_000;
+pub const DEFAULT_CORE_MULTIPLIER_BPS: [u16; 5] = [10_000, 12_000, 15_000, 18_000, 22_000];

@@ -133,7 +133,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
-| PG-C-01 | Config 帳戶與 `initialize_config` | SD 3.1, 3.2 | — | 1.0 | TODO | |
+| PG-C-01 | Config 帳戶與 `initialize_config` | SD 3.1, 3.2 | — | 1.0 | WIP | Config、initialize_config（upgrade authority 授權、參數範圍、vault 檢查）、ConfigInitialized；LiteSVM 6 測試 |
 | PG-C-02 | `update_config` / `rotate_attestor` 與 pause 流程 | SD 3.2 | BR-24 | 1.0 | TODO | |
 | PG-C-03 | PlayerProfile 與 `init_player` | SD 3.1 | — | 0.5 | TODO | |
 | PG-C-04 | Attestation canonical bytes 解析與 ed25519 指令驗證 | SD 3.5 | BR-14, BR-15 | 2.0 | WIP | attestation-core 編解碼＋17 測試；ed25519 指令驗證待 Anchor 骨架 |
