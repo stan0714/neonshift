@@ -2,6 +2,7 @@ import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
 import { randomBytes } from "node:crypto";
 
+import { ChallengeService } from "./auth/challenge.js";
 import { authRoutes } from "./auth/routes.js";
 import { AuthService } from "./auth/service.js";
 import { type AppConfig } from "./config.js";
@@ -37,6 +38,7 @@ export function buildApp({ config, db, store, now }: AppDeps): FastifyInstance {
     },
     now,
   );
+  const challenge = new ChallengeService(dataStore, now);
   const app = Fastify({
     bodyLimit: config.BODY_LIMIT_BYTES,
     trustProxy: true,
@@ -49,6 +51,7 @@ export function buildApp({ config, db, store, now }: AppDeps): FastifyInstance {
   app.decorate("config", config);
   app.decorate("db", db);
   app.decorate("auth", auth);
+  app.decorate("challenge", challenge);
 
   app.setErrorHandler((raw: unknown, req, reply) => {
     if (raw instanceof ApiError) {
@@ -80,7 +83,7 @@ export function buildApp({ config, db, store, now }: AppDeps): FastifyInstance {
 
   app.register(async (v1) => {
     v1.get("/", async () => ({ name: "neonshift-attestor", version: "v1" }));
-    await v1.register(authRoutes, { auth });
+    await v1.register(authRoutes, { auth, challenge });
     // 後續：challenge（B-05）、attestation（B-11）、player（B-12～13）、tournament（B-14）、rules（B-07）
   }, { prefix: API_PREFIX });
 
@@ -96,5 +99,6 @@ declare module "fastify" {
     config: AppConfig;
     db: Db;
     auth: AuthService;
+    challenge: ChallengeService;
   }
 }
