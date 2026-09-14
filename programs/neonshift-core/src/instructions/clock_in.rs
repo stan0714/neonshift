@@ -147,6 +147,9 @@ pub fn handle_clock_in(ctx: Context<ClockIn>, args: AttestationArgs) -> Result<(
     if profile.last_task_date < att.task_date {
         profile.streak_days = streak_days;
         profile.last_task_date = att.task_date;
+        if streak_days > profile.max_streak_days {
+            profile.max_streak_days = streak_days;
+        }
     }
 
     // 15. 依 XP 門檻更新等級。2026-09-14 定案：升級免費，core_level 與 shoe_level 一起由 XP 推導

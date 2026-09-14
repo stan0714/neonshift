@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.4（新增合作活動工作流 PG-E） |
+| 文件版本 | v0.8（PG-C-09 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -141,7 +141,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-C-06 | 獎勵計算定點數、連續加成與每日上限 | SD 3.4 | BR-02, BR-04, BR-06 | 1.0 | WIP | reward.rs 定點數 u128、streak 推導、日額收斂；14 單元測試＋整合 |
 | PG-C-07 | ClaimReceipt PDA 與重放防護 | SD 3.1 | BR-03 | 1.0 | WIP | ClaimReceipt 手動建立於步驟 10；重放 6009、6010 不留 receipt |
 | PG-C-08 | XP、shoe_level、core_level 三者分離 | SD 3.1 | BR-23 | 1.0 | WIP | xp／等級（BR-34／35）；免費升級後 shoe_level 與 core_level 同值；新倍率自下次打卡生效（測試） |
-| PG-C-09 | `claim_collectible`（Metaplex Core 成就 NFT，免費領取） | SD 3.2, 11A | FR-04.6 | 1.5 | TODO | 2026-09-14 改為成就收藏：mpl-core 與 Anchor 1.2 相容性先 PoC；CollectibleReceipt PDA、資格驗證（等級／首次／連續 7 天／名次）、max_streak_days；不相容時改後端代鑄 |
+| PG-C-09 | `claim_collectible`（Metaplex Core 成就 NFT，免費領取） | SD 3.2, 11A | FR-04.6 | 1.5 | WIP | 2026-09-14 完成：mpl-core crate 與 Anchor 1.2 不相容 → `src/mpl_core.rs` 手組 CreateV1 CPI（玩家自簽，不改後端代鑄）；CollectibleReceipt PDA、資格（等級／首次／連續 7 天；名次待 C-14）、`PlayerProfile.max_streak_days`（clock_in 維護，App decoder／PLAYER_PROFILE_SPACE 71 同步）、錯誤 6029／6030、事件 CollectibleClaimed；LiteSVM 載入 devnet dump `tests/fixtures/mpl_core.so` 9 案例（含 pause、重複、錯誤 program）；MVP 無 collection、update_authority = Config PDA（SD 11A 實作定案） |
 | PG-C-10 | `upgrade_core` 燒毀與入庫原子性 | SD 6.1 | BR-16 | 1.0 | DEFER | 2026-09-14 專案負責人定案：升級免費，core_level 隨 XP 與 shoe_level 同步提升（clock_in 步驟 15）；無扣款／燒毀 |
 | PG-C-11 | Tournament 帳戶、專用 vault、`open`／`lock`／`start_tournament` | SD 3.1, 3.2 | BR-18, BR-19, BR-22 | 1.5 | TODO | |
 | PG-C-12 | `join_tournament` 質押與 vault PDA | SD 3.2 | BR-22 | 1.0 | TODO | |
@@ -557,6 +557,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.8 | 2026-09-14 | PG-C-09 完成（WIP）：手組 Metaplex Core CPI、max_streak_days、SD v0.5 實作定案 |
 | v0.7 | 2026-09-14 | 專案負責人補充：NFT 定位為免費成就收藏（跑鞋五階＋里程碑徽章，Gear 頁領取）與藝廊（全站排行＋任意玩家）；BRD FR-04.6／FR-13、SD 3.2／11A、Style 12／12.1；PG-C-09、A-14、A-22 改述並恢復 TODO，新增 PG-G-01～04（5.5 人天） |
 | v0.6 | 2026-09-14 | 範圍變更（層級 2，專案負責人）：取消 NFT 鑄造，初階跑鞋隨 init_player 直接贈與、使用者不付費；升級改為免費（core_level 隨 XP 與 shoe_level 同步）；PG-C-10 DEFER；BRD FR-04.1／04.5／FR-05、D-02、Q-03、SA BR-16／23、SD 1.2／3.1／3.2／3.4／3.6／10、Style 10.4／12 同步 |
 | v0.5 | 2026-09-14 | 依 feat-第一版本開發 分支現況同步狀態：PG-I-01、I-05、B-02、B-10、C-04 改為 WIP 並註記證據；未合併 dev 前不標 DONE |

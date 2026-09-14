@@ -8,6 +8,92 @@
   },
   "instructions": [
     {
+      "name": "claim_collectible",
+      "docs": [
+        "領取成就收藏 NFT（免費；玩家付 rent）；kind 見 constants"
+      ],
+      "discriminator": [
+        127,
+        67,
+        63,
+        63,
+        53,
+        245,
+        108,
+        125
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "profile",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "receipt",
+          "writable": true
+        },
+        {
+          "name": "asset",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "kind",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "clock_in",
       "docs": [
         "每日打卡（SD 3.3 16 步）；前一道指令必須是 Ed25519 program 驗簽"
@@ -429,6 +515,19 @@
   ],
   "accounts": [
     {
+      "name": "CollectibleReceipt",
+      "discriminator": [
+        175,
+        13,
+        201,
+        253,
+        144,
+        184,
+        29,
+        118
+      ]
+    },
+    {
       "name": "Config",
       "discriminator": [
         155,
@@ -480,6 +579,19 @@
         198,
         98,
         132
+      ]
+    },
+    {
+      "name": "CollectibleClaimed",
+      "discriminator": [
+        172,
+        197,
+        231,
+        159,
+        240,
+        64,
+        141,
+        251
       ]
     },
     {
@@ -680,6 +792,16 @@
       "code": 6028,
       "name": "InvalidTaskType",
       "msg": "task_type 不是 1（steps）或 2（sleep）"
+    },
+    {
+      "code": 6029,
+      "name": "CollectibleNotEligible",
+      "msg": "尚未達成此成就的資格"
+    },
+    {
+      "code": 6030,
+      "name": "InvalidCollectibleKind",
+      "msg": "未知的成就種類"
     }
   ],
   "types": [
@@ -820,6 +942,60 @@
                 16
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "CollectibleClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "kind",
+            "type": "u8"
+          },
+          {
+            "name": "asset",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CollectibleReceipt",
+      "docs": [
+        "成就收藏 NFT 領取紀錄（FR-04.6）。PDA seeds `[\"collectible\", wallet, kind]`，存在即代表已領取。"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "kind",
+            "type": "u8"
+          },
+          {
+            "name": "asset",
+            "docs": [
+              "Metaplex Core asset 位址"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "claimed_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }
@@ -1178,6 +1354,13 @@
             "type": "u16"
           },
           {
+            "name": "max_streak_days",
+            "docs": [
+              "歷史最高連續天數（連續 7 天徽章資格；斷日不下降）"
+            ],
+            "type": "u16"
+          },
+          {
             "name": "claimed_today",
             "docs": [
               "當日已領取量，`task_date` 變更時歸零"
@@ -1290,6 +1473,11 @@
       "name": "CLAIM_SEED",
       "type": "bytes",
       "value": "[99, 108, 97, 105, 109]"
+    },
+    {
+      "name": "COLLECTIBLE_SEED",
+      "type": "bytes",
+      "value": "[99, 111, 108, 108, 101, 99, 116, 105, 98, 108, 101]"
     },
     {
       "name": "CONFIG_SEED",

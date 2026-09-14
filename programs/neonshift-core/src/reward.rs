@@ -116,6 +116,7 @@ mod tests {
             xp: 0,
             last_task_date: last,
             streak_days: streak,
+            max_streak_days: streak,
             claimed_today: 0,
             today_date: 0,
             bump: 0,

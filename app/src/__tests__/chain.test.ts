@@ -31,6 +31,33 @@ describe('chain/program（IDL 與 PDA）', () => {
     expect(ix.keys.map((k) => [k.isSigner, k.isWritable])).toEqual([[true, true], [false, false], [false, true], [false, false]]);
     expect(ix.keys[0]!.pubkey.equals(wallet)).toBe(true);
     expect(ix.data).toEqual(discriminator('init_player'));
-    expect(PLAYER_PROFILE_SPACE).toBe(69);
+    expect(PLAYER_PROFILE_SPACE).toBe(71);
+  });
+});
+
+describe('chain/accounts（PlayerProfile 佈局，與 state.rs 一致）', () => {
+  test('decodePlayerProfile 含 max_streak_days', () => {
+    const { decodePlayerProfile } = require('@/chain/accounts') as typeof import('@/chain/accounts');
+    const wallet = PublicKey.unique();
+    const buf = Buffer.alloc(PLAYER_PROFILE_SPACE);
+    let o = 8;
+    wallet.toBuffer().copy(buf, o);
+    o += 32;
+    buf.writeUInt8(2, o++); // core_level
+    buf.writeUInt8(3, o++); // shoe_level
+    buf.writeBigUInt64LE(1500n, o);
+    o += 8;
+    buf.writeUInt32LE(20710, o); // last_task_date
+    o += 4;
+    buf.writeUInt16LE(4, o); // streak_days
+    o += 2;
+    buf.writeUInt16LE(9, o); // max_streak_days
+    o += 2;
+    buf.writeBigUInt64LE(12_000_000n, o); // claimed_today
+    o += 8;
+    buf.writeUInt32LE(20710, o); // today_date
+    const p = decodePlayerProfile(new Uint8Array(buf), PublicKey);
+    expect(p.wallet.equals(wallet)).toBe(true);
+    expect([p.coreLevel, p.shoeLevel, p.xp, p.lastTaskDate, p.streakDays, p.maxStreakDays, p.claimedToday, p.todayDate]).toEqual([2, 3, 1500n, 20710, 4, 9, 12_000_000n, 20710]);
   });
 });

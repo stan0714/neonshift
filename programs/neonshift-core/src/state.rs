@@ -78,6 +78,8 @@ pub struct PlayerProfile {
     /// 最近完成任務的 UTC 日序
     pub last_task_date: u32,
     pub streak_days: u16,
+    /// 歷史最高連續天數（連續 7 天徽章資格；斷日不下降）
+    pub max_streak_days: u16,
     /// 當日已領取量，`task_date` 變更時歸零
     pub claimed_today: u64,
     /// `claimed_today` 對應的日序
@@ -108,4 +110,16 @@ pub struct ClaimReceipt {
 
 impl ClaimReceipt {
     pub const SEED: &'static [u8] = crate::constants::CLAIM_SEED;
+}
+
+/// 成就收藏 NFT 領取紀錄（FR-04.6）。PDA seeds `["collectible", wallet, kind]`，存在即代表已領取。
+#[account]
+#[derive(InitSpace)]
+pub struct CollectibleReceipt {
+    pub wallet: Pubkey,
+    pub kind: u8,
+    /// Metaplex Core asset 位址
+    pub asset: Pubkey,
+    pub claimed_at: i64,
+    pub bump: u8,
 }

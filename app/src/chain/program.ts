@@ -31,5 +31,5 @@ export function discriminator(instruction: string): Buffer {
   return Buffer.from(ix.discriminator);
 }
 
-/** PlayerProfile 帳戶大小（8 + InitSpace）：wallet 32 + core 1 + shoe 1 + xp 8 + last 4 + streak 2 + claimed 8 + today 4 + bump 1 */
-export const PLAYER_PROFILE_SPACE = 8 + 61;
+/** PlayerProfile 帳戶大小（8 + InitSpace）：wallet 32 + core 1 + shoe 1 + xp 8 + last 4 + streak 2 + max_streak 2 + claimed 8 + today 4 + bump 1 */
+export const PLAYER_PROFILE_SPACE = 8 + 63;

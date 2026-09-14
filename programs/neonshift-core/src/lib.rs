@@ -8,6 +8,7 @@ pub mod constants;
 pub mod error;
 pub mod events;
 pub mod instructions;
+pub mod mpl_core;
 pub mod state;
 
 pub use attestation::AttestationArgs;
@@ -44,6 +45,11 @@ pub mod neonshift_core {
     /// 每日打卡（SD 3.3 16 步）；前一道指令必須是 Ed25519 program 驗簽
     pub fn clock_in(ctx: Context<ClockIn>, args: AttestationArgs) -> Result<()> {
         instructions::clock_in::handle_clock_in(ctx, args)
+    }
+
+    /// 領取成就收藏 NFT（免費；玩家付 rent）；kind 見 constants
+    pub fn claim_collectible(ctx: Context<ClaimCollectible>, kind: u8) -> Result<()> {
+        instructions::claim_collectible::handle_claim_collectible(ctx, kind)
     }
 
     /// 輪替 attestor 公鑰（admin），寬限期 0～600 秒

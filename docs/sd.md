@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.4（新增合作活動設計） |
+| 文件版本 | v0.5（claim_collectible 實作定案） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -349,6 +349,8 @@ let amount = amount.min(remaining);         // BR-04
 | 6026 | `Unauthorized` | 管理指令簽章者不是 `Config.admin`（實作期新增） |
 | 6027 | `InvalidAttestationWindow` | attestation 時間欄位不滿足 `issued_at <= not_before <= expiry`（實作期新增；步驟 7 的前半） |
 | 6028 | `InvalidTaskType` | task_type 不是 1／2（實作期新增；SD 3.4 程式片段原引用此名稱） |
+| 6029 | `CollectibleNotEligible` | `claim_collectible`：尚未達成該 kind 的資格（含錦標賽名次在 C-14 接入前一律不合格） |
+| 6030 | `InvalidCollectibleKind` | `claim_collectible`：kind 不在 1～5／101／102／111～119 |
 
 ---
 
@@ -915,10 +917,19 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.5 | 2026-09-14 | PG-C-09 實作定案：手組 Metaplex Core CreateV1 CPI（無 crate）、MVP 無 collection、update_authority = Config PDA、常數 base URI、錯誤 6029／6030、PlayerProfile.max_streak_days 由 clock_in 維護 |
 
 ## 11A. 成就 NFT 與藝廊（2026-09-14 新增，對應 FR-04.6、FR-13）
 
-**鏈上**：`claim_collectible` 見 3.2；`CollectibleReceipt { wallet, kind, asset, claimed_at, bump }`。NFT 為 Metaplex Core asset，collection 一個（NeonShift Achievements），名稱／URI 由程式依 `kind` 從 Config 的 `collectible_base_uri` 組成（`<base>/<kind>.json`），metadata JSON 與圖片由 `neonshift.cc/nft/` 靜態託管（style.md 16.2 五階視覺、徽章另出圖）。屬性只作呈現，不作獎勵計算來源。
+**鏈上**：`claim_collectible` 見 3.2；`CollectibleReceipt { wallet, kind, asset, claimed_at, bump }`。NFT 為 Metaplex Core asset；名稱／URI 由程式依 `kind` 組成（`<base>/<kind>.json`），metadata JSON 與圖片由 `neonshift.cc/nft/` 靜態託管（style.md 16.2 五階視覺、徽章另出圖）。屬性只作呈現，不作獎勵計算來源。
+
+**實作定案（PG-C-09 PoC，2026-09-14）**：
+- `mpl-core` crate 0.12 只支援 Anchor 0.31／0.32（solana-program 2.x），與 Anchor 1.2／solana 3.x 不相容 → **不引入 crate**，在 `programs/neonshift-core/src/mpl_core.rs` 手組 `CreateV1`（discriminator 0 + borsh `{data_state: 0, name, uri, plugins: None}`；帳戶順序 asset／collection／authority／payer／owner／update_authority／system_program／log_wrapper，可選帳戶以 `MPL_CORE_ID` 占位）。升級 Core 版本需重新核對佈局。玩家自己簽（保持原設計，不改後端代鑄）。
+- MVP **不建 collection**（省一次 admin 交易與 CollectionV1 的 authority 管理），`update_authority = Config PDA`（Address 型，程式可日後以 PDA 簽章更新 metadata）；上線前若要在錢包／市集歸類為同一系列，於 C-18 補 `CreateCollectionV1` 並將 `collection` 改為必填。
+- `COLLECTIBLE_BASE_URI` 為程式常數 `https://neonshift.cc/nft/`（非 Config 欄位；改網址需升級程式，MVP 可接受）。
+- 名稱：跑鞋 `NeonShift Shoe · Origin／Pulse／Surge／Apex／Zenith`（Lv1～5）、徽章 `NeonShift Badge · First Clock-In`／`7-Day Streak`／`Arena #n`。
+- 資格：kind 1～5 ⇒ `shoe_level ≥ kind`；101 ⇒ `xp > 0`；102 ⇒ `max_streak_days ≥ 7`；111～119 ⇒ 待 C-14 `TournamentEntry` 接入，目前回 6029。重複領取由 receipt PDA `init` 擋（system program AccountAlreadyInUse），不另設錯誤碼。
+- 測試：LiteSVM 載入 devnet dump 的 Core 程式 `tests/fixtures/mpl_core.so`（`solana program dump CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d`），驗證 AssetV1 佈局（key／owner／update_authority／name／uri）、rent 花費 < 0.01 SOL、tSKR 不變。
 
 **後端（藝廊 API，讀鏈上）**：ChainIndexer（B-16）同步 `PlayerInitialized`／`ClockedIn`／`CollectibleClaimed` 事件到 `gallery_players (wallet, shoe_level, xp, streak_days, max_streak_days, last_task_date, updated_at)` 與 `gallery_collectibles (wallet, kind, asset, claimed_at)`；每小時（或每次事件）重算排行。
 
@@ -932,7 +943,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 
 **App**：Gear 頁下半部「My collection」（已領取／可領取／未解鎖；可領取者按 `Claim` 走 MWA 簽 `claim_collectible`）；Arena 排行榜與新的 Gallery 入口（Home 次要入口，不新增 tab）列出玩家，點進玩家頁（`GalleryPlayerScreen`）。NFT 圖片以 URI 載入，失敗顯示品牌 placeholder（Style 14）。
 
-**未決**：mpl-core crate 與 Anchor 1.2／solana 3.x 的相依相容性需在 PG-C-09 先 PoC；不相容時改由後端以專案錢包代鑄（玩家不簽）並在 SD 記錄替代方案。
+**已決（原「未決」）**：mpl-core crate 不相容 → 手組 CPI（見上「實作定案」），玩家自簽；不採後端代鑄。
 
 ## 12. 跑鞋成長與素材替換契約
 

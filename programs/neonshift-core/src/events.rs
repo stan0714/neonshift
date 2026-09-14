@@ -54,3 +54,10 @@ pub struct ClockedIn {
     pub streak_days: u16,
     pub nonce: [u8; 16],
 }
+
+#[event]
+pub struct CollectibleClaimed {
+    pub wallet: Pubkey,
+    pub kind: u8,
+    pub asset: Pubkey,
+}

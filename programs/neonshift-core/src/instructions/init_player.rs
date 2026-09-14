@@ -39,6 +39,7 @@ pub fn handle_init_player(ctx: Context<InitPlayer>) -> Result<()> {
     profile.xp = 0;
     profile.last_task_date = 0;
     profile.streak_days = 0;
+    profile.max_streak_days = 0;
     profile.claimed_today = 0;
     profile.today_date = 0;
     profile.bump = ctx.bumps.profile;

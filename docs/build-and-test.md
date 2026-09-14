@@ -489,6 +489,7 @@ anchor deploy --provider.cluster devnet
 - Anchor 1.2 的 `anchor build` 預設 `--arch v3`，產出的 SBPF v3 ELF 無法被 LiteSVM 0.10 載入（`InvalidAccountData`），devnet 對 v3 的支援也未普及。所有建置一律 `anchor build --arch v0`。
 - 鏈上測試用 LiteSVM 在程序內執行：`cargo test -p neonshift-core`。**不要**用 `anchor test`，它會嘗試啟動 `surfpool` 本機 validator。
 - 程式 keypair 在 `programs/target/deploy/neonshift_core-keypair.json`（gitignore）。第一次 clone 後若 `declare_id!` 與本機 keypair 不同，執行 `anchor keys sync` 或依 PG-I-07 取得對應環境的 keypair；dev／demo 各自一把，不共用。
+- `claim_collectible` 測試需要 Metaplex Core 程式：`programs/neonshift-core/tests/fixtures/mpl_core.so` 是 devnet dump（`solana program dump CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d <path> --url https://api.devnet.solana.com`，約 856 KB，已入庫）。Core 升版時重新 dump 並核對 `src/mpl_core.rs` 的指令佈局。
 - 統一入口 `scripts/test-all.sh` 會依序跑 Rust／向量／DB／後端／App／鏈上六個區段。
 
 ---

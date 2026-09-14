@@ -46,3 +46,17 @@ pub const DEFAULT_SHOE_XP_THRESHOLDS: [u64; 5] = [0, 450, 1_500, 3_600, 7_500];
 /// streak 加成生效所需連續任務日（BR-06）
 pub const STREAK_BONUS_DAYS: u16 = 7;
 pub const SECONDS_PER_DAY: i64 = 86_400;
+
+#[constant]
+pub const COLLECTIBLE_SEED: &[u8] = b"collectible";
+
+/// 成就收藏種類（SD 3.2 `claim_collectible`）
+pub const COLLECTIBLE_SHOE_LV1: u8 = 1;
+pub const COLLECTIBLE_SHOE_LV5: u8 = 5;
+pub const COLLECTIBLE_FIRST_CLAIM: u8 = 101;
+pub const COLLECTIBLE_STREAK_7: u8 = 102;
+/// 110 + 名次（1～9）
+pub const COLLECTIBLE_TOURNAMENT_RANK_BASE: u8 = 110;
+
+/// NFT metadata 靜態託管（SD 11A）；改網址需升級程式，之後可移入 Config
+pub const COLLECTIBLE_BASE_URI: &str = "https://neonshift.cc/nft/";

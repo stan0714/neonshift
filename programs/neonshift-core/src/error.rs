@@ -62,4 +62,8 @@ pub enum ErrorCode {
     InvalidAttestationWindow, // 6027
     #[msg("task_type 不是 1（steps）或 2（sleep）")]
     InvalidTaskType, // 6028
+    #[msg("尚未達成此成就的資格")]
+    CollectibleNotEligible, // 6029
+    #[msg("未知的成就種類")]
+    InvalidCollectibleKind, // 6030
 }

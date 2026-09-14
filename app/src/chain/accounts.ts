@@ -8,6 +8,8 @@ export type PlayerProfile = {
   xp: bigint;
   lastTaskDate: number;
   streakDays: number;
+  /** 歷史最高連續天數（7 天徽章資格） */
+  maxStreakDays: number;
   claimedToday: bigint;
   todayDate: number;
 };
@@ -38,10 +40,12 @@ export function decodePlayerProfile(data: Uint8Array, PublicKeyCtor: { new (v: U
   o += 4;
   const streakDays = dv.getUint16(o, true);
   o += 2;
+  const maxStreakDays = dv.getUint16(o, true);
+  o += 2;
   const claimedToday = dv.getBigUint64(o, true);
   o += 8;
   const todayDate = dv.getUint32(o, true);
-  return { wallet, coreLevel, shoeLevel, xp, lastTaskDate, streakDays, claimedToday, todayDate };
+  return { wallet, coreLevel, shoeLevel, xp, lastTaskDate, streakDays, maxStreakDays, claimedToday, todayDate };
 }
 
 export function decodeConfig(data: Uint8Array, PublicKeyCtor: { new (v: Uint8Array): PublicKey }): ChainConfig {
