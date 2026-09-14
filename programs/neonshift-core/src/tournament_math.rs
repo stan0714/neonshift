@@ -141,6 +141,51 @@ mod tests {
         }
     }
 
+    /// property：任意人數（1～2,000）、質押、挹注、沒收數與退款比例，預算恆守恆且逐筆加總等於預算
+    #[test]
+    fn conservation_property_random() {
+        let mut x: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut next = move || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        for _ in 0..2_000 {
+            let n = (next() % 2_000 + 1) as u32;
+            let stake = next() % (1_000 * TSKR_UNIT) + 1;
+            let injection = next() % (MAX_TREASURY_INJECTION + 1);
+            let forfeited = (next() % (n as u64 + 1)) as u32;
+            let (a, b) = Tournament::group_sizes(n);
+            let tt = Tournament {
+                stake_amount: stake,
+                total_staked: stake * n as u64,
+                treasury_injection: injection,
+                group_a_size: a,
+                group_b_size: b,
+                prize_a_bps: PRIZE_A_BPS,
+                prize_b_bps: PRIZE_B_BPS,
+                loser_refund_bps: (next() % (BPS_ONE as u64 + 1)) as u16,
+                ..Default::default()
+            };
+            let ranked = n - forfeited;
+            let (refund, prize, rem, pool) = budget(&tt, ranked).unwrap();
+            assert_eq!(refund + prize + rem, tt.total_staked + tt.treasury_injection);
+            assert!(prize <= pool);
+            let (_, pa, pb) = pools(&tt, refund).unwrap();
+            let sum: u64 = (1..=ranked).map(|r| refund_for(&tt, r) + prize_for(&tt, ranked, pa, pb, r)).sum();
+            assert_eq!(sum, refund + prize, "n={n} f={forfeited}");
+            // 名次越前獎金不遞增（同組內線性遞減；跨組 A 末位可低於 B 首位屬設計允許）
+            let (fa, fb) = filled(&tt, ranked);
+            for r in 2..=fa {
+                assert!(prize_for(&tt, ranked, pa, pb, r) <= prize_for(&tt, ranked, pa, pb, r - 1));
+            }
+            for r in (fa + 2)..=(fa + fb) {
+                assert!(prize_for(&tt, ranked, pa, pb, r) <= prize_for(&tt, ranked, pa, pb, r - 1));
+            }
+        }
+    }
+
     #[test]
     fn linear_weights_and_empty_group() {
         let (a, b) = Tournament::group_sizes(10); // A 1、B 2

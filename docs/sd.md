@@ -765,7 +765,7 @@ total_staked + treasury_injection
 | 層級 | 範圍 | 工具 | 重點案例 |
 |---|---|---|---|
 | 鏈上單元 | 指令邏輯 | Anchor + LiteSVM | 檢查順序、錯誤碼、定點數邊界 |
-| 鏈上 property | 資金守恆 | proptest | 隨機參賽人數與名次，驗證 BR-17 恆成立 |
+| 鏈上 property | 資金守恆 | 自寫 xorshift 隨機（不引 proptest，避免 SBF 相依） | `tournament_math` 2,000 組隨機人數／質押／挹注／沒收／退款比例，驗證 BR-17 恆成立且逐筆加總 = 預算 |
 | 鏈上安全 | 攻擊情境 | 手寫測試 | 重放同一 attestation、跨 cluster、竄改 bytes、偽造 ed25519 指令、缺少前置指令 |
 | 鏈上狀態 | 任務日／等級 | Anchor + LiteSVM | 前一日補領、午夜前後亂序、同日雙任務 streak、XP 不得提升 Core、Core 升級不得改 Shoe level |
 | 賽事結算 | 批次與金庫 | property test + 整合測試 | rank 缺號／重複、rolling hash 不符、forfeit 時序、專用 vault mint／owner、全額退款 |

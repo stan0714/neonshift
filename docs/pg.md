@@ -150,7 +150,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-C-15 | `forfeit_entry` 與證據摘要 | SD 3.2 | BR-21 | 0.5 | WIP | 2026-09-14 完成：ends_at 後、begin 前；非零 evidence（6018）、rules_version 相符（6036）、重複 6034；沒收者質押留在池中、不得排名／領獎／退款 |
 | PG-C-16 | `refund_all` 賽事取消退款 | SD 3.2 | BR-19 | 0.5 | WIP | 2026-09-14 完成：lock 人數不足自動 Cancelled；新增 `cancel_tournament`（admin 隨時／任何人於 ends_at + 7 天後）歸還挹注與沒收質押；refund_all 全額退還、防重領 |
 | PG-C-17 | 錯誤碼 6000-6022 與事件定義 | SD 3.6 | — | 0.5 | WIP | 2026-09-14：6000～6036 全部定義並同步 SD 3.6；事件涵蓋 Config／Player／ClockedIn／Collectible／Tournament 全生命週期 |
-| PG-C-18 | 鏈上測試：單元、property、攻擊案例 | SD 7 | 全部 | 2.0 | TODO | |
+| PG-C-18 | 鏈上測試：單元、property、攻擊案例 | SD 7 | 全部 | 2.0 | WIP | 2026-09-14：單元 19（含 property 2,000 組守恆）＋ LiteSVM 整合 71（config 6、admin 6、player 5、clock_in 19 含 SD 7 攻擊清單、collectible 11、tournament 12、settlement 10）；`cargo test -p neonshift-core` 90 案例全綠。待補：實機 devnet 對帳、C-14 分配公式定案後的最終回歸 |
 
 ---
 
