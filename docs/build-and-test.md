@@ -531,6 +531,7 @@ manifest 的 `consistent=false`（後端名單人數 ≠ 鏈上 `valid − forfe
 deploy/l1/deploy.sh bootstrap        # 第一次（安裝 Node 24／PostgreSQL、系統帳號、/etc/neonshift/*.env 隨機 secret、systemd）
 deploy/l1/deploy.sh                  # 每次更新：rsync backend → npm ci → migration（schema_migrations 一次性）→ 重啟 signer／api → healthz
 curl -s https://api.neonshift.cc/healthz          # {"status":"ok","env":"dev","cluster_id":1}
+cd backend && npm run smoke -- https://api.neonshift.cc   # healthz／readyz／events／SIWS 登入／event-history／partner/me／logout（唯讀，不留資料）
 ssh root@l1.neonshift.cc 'journalctl -u neonshift-api -n 100 --no-pager'
 ```
 
