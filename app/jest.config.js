@@ -20,5 +20,7 @@ module.exports = {
     '^rpc-websockets$': '<rootDir>/node_modules/rpc-websockets/dist/index.browser.cjs',
     '^rpc-websockets/dist/lib/client/websocket.browser$': '<rootDir>/node_modules/rpc-websockets/dist/lib/client/websocket.browser.cjs',
   },
+  // 全套件並行時個別測試可能超過 5 s（RN 渲染＋機器負載）；單跑皆 < 2 s
+  testTimeout: 20000,
   setupFiles: [...(preset.setupFiles ?? []), '<rootDir>/jest.setup.ts'],
 };

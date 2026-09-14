@@ -584,6 +584,19 @@ curl -s -X POST $API/partner/events/$EV/result-imports/$IMP/publish -H "Authoriz
 curl -s "$API/partner/events/$EV/campaign-summary?format=csv" -H "Authorization: Bearer $OWNER"
 ```
 
+### 7.9 PB 成就 NFT registry 同步（PG-R-08）
+
+玩家在 App 按「Mint NFT」後成就進入 `pending_registry`；admin 需把資格寫上鏈後玩家才能取得證明鑄造。撤銷（成績更正／刪除）同樣走這條。
+
+```bash
+# 需 dev program 已升級到含 claim_achievement 的版本（程式 600 KB，升級需 admin 先有 ≈ 3.1 SOL 供 buffer）
+OPS_TOKEN=$(ssh root@l1.neonshift.cc 'grep ^OPS_TOKEN= /etc/neonshift/api.env | cut -d= -f2') \
+  npm --prefix tools/chain-admin run sync-achievements -- dev --dry-run   # 先看 pending
+OPS_TOKEN=… npm --prefix tools/chain-admin run sync-achievements -- dev   # 逐筆 set_achievement_eligibility 並回報
+```
+
+升級程式：`scripts/chain/build.sh dev && solana program extend 6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA 100000 --url devnet -k ~/.config/neonshift/dev/admin.json && scripts/chain/deploy.sh dev`（先 extend program-data 到新大小）。
+
 保留：活動結束／取消後 `EVENT_RETENTION_DAYS`（預設 180，Q-13 定案前）由保留清理刪除名單、報到、核銷、成績版本與匯入原檔列，只留活動、規則、稽核與宣傳彙總；`DELETE /player/data` 立即同步移除該錢包的活動個人層資料。稽核：`GET /partner/events/$EV/audit`。
 
 ## 8. 測試包（Release APK）產出

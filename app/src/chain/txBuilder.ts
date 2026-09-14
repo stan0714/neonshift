@@ -14,7 +14,8 @@ export const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZb
 
 /** 與 solana-ed25519-program `new_ed25519_instruction_with_signature` 相同的佈局：header(2)+offsets(14)+pubkey(32)+sig(64)+message */
 export function ed25519Instruction(message: Uint8Array, signature: Uint8Array, pubkey: Uint8Array): TransactionInstruction {
-  if (message.length !== ATTESTATION_LEN) throw new Error('message must be 164 bytes');
+  // 兩種 canonical 訊息：164-byte 打卡 attestation、194-byte 成就證明（PG-R-08）
+  if (message.length !== ATTESTATION_LEN && message.length !== 194) throw new Error('message must be 164 or 194 bytes');
   if (signature.length !== 64 || pubkey.length !== 32) throw new Error('bad signature/pubkey length');
   const DATA_START = 16;
   const pubkeyOffset = DATA_START;

@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
-import { Chip, Surface } from '@/components';
+import { Button, Chip, InlineState, Surface } from '@/components';
 import { formatDuration, formatKm } from '@/domain/workouts';
 import { useT, type TKey } from '@/i18n';
-import { apiClient, type PersonalBests as Pbs } from '@/services/api/ApiClient';
+import { apiClient, type AchievementView, type PersonalBests as Pbs } from '@/services/api/ApiClient';
+import { achievementService } from '@/services/chain/AchievementService';
+import { ClaimError } from '@/services/chain/StarterShoeService';
+import { useWalletStore } from '@/state/walletStore';
 import { color, space, Text } from '@/theme';
 
 /**
@@ -13,14 +16,69 @@ import { color, space, Text } from '@/theme';
  */
 export function PersonalBests({ reloadKey = 0 }: { reloadKey?: number }) {
   const { t } = useT();
+  const session = useWalletStore((st) => st.session);
   const [data, setData] = useState<Pbs | null>(null);
+  const [achievements, setAchievements] = useState<AchievementView[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ kind: 'success' | 'info' | 'warning' | 'error'; title: string; body?: string } | null>(null);
   const load = useCallback(async () => {
     try {
       setData(await apiClient.personalBests());
+      setAchievements((await apiClient.myAchievements().catch(() => ({ items: [] }))).items);
     } catch {
       setData((d) => d ?? { rules_major: 1, imported_since: null, groups: [] });
     }
   }, []);
+
+  /** 鑄造流程：逐次公開同意 → intent（registry 狀態）→ 費用確認 → 錢包簽送 */
+  const mint = (pbId: string) => {
+    if (!session) return;
+    Alert.alert(t('pb.consentTitle'), t('pb.consentBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('pb.consentPrivate'), onPress: () => void run(pbId, false) },
+      { text: t('pb.consentShare'), onPress: () => void run(pbId, true) },
+    ]);
+  };
+  const run = async (pbId: string, consent: boolean) => {
+    if (!session) return;
+    setBusy(pbId);
+    setNotice(null);
+    try {
+      const intent = await achievementService.intent(pbId, consent);
+      if (intent.status === 'minted') { setNotice({ kind: 'success', title: t('pb.minted'), body: t('pb.mintedBody') }); return; }
+      if (intent.status !== 'approved' || !intent.proof) {
+        setNotice(intent.status === 'pending_registry' ? { kind: 'info', title: t('pb.mintPending'), body: t('pb.pendingBody') } : { kind: 'warning', title: t('pb.revoked'), body: t('pb.revokedBody') });
+        return;
+      }
+      const sol = (intent.fee_estimate_lamports / 1e9).toFixed(4);
+      await new Promise<void>((resolve) => {
+        Alert.alert(t('pb.feeTitle'), t('pb.feeBody', { sol }), [
+          { text: t('common.cancel'), style: 'cancel', onPress: () => resolve() },
+          {
+            text: t('pb.mintNow'),
+            onPress: () => {
+              void (async () => {
+                try {
+                  const r = await achievementService.mint(session.publicKey, intent);
+                  if (r.kind === 'minted') setNotice({ kind: 'success', title: t('pb.minted'), body: t('pb.mintedBody') });
+                } catch (e) {
+                  const code = e instanceof ClaimError ? e.code : 'FAILED';
+                  setNotice({ kind: 'error', title: code === 'REJECTED' || code === 'NETWORK_ERROR' || code === 'NOT_AVAILABLE' ? t(`pb.err.${code}` as TKey) : t('pb.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+                } finally {
+                  resolve();
+                }
+              })();
+            },
+          },
+        ]);
+      });
+    } catch (e) {
+      setNotice({ kind: 'error', title: t('pb.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+    } finally {
+      setBusy(null);
+      await load();
+    }
+  };
   useEffect(() => {
     void load();
   }, [load, reloadKey]);
@@ -62,10 +120,18 @@ export function PersonalBests({ reloadKey = 0 }: { reloadKey?: number }) {
                 {g.current ? (g.current.unit === 'ms' ? formatDuration(g.current.value) : formatKm(g.current.value)) : '—'}
               </Text>
               {g.current ? <Chip label={g.current.is_baseline ? t('pb.baseline') : t('pb.improved', { n: improvements, count: improvements })} kind={g.current.is_baseline ? 'neutral' : 'synced'} /> : null}
+              {g.current && session ? (() => {
+                const a = achievements.find((x) => x.pb_id === g.current!.pb_id);
+                if (a?.minted || a?.status === 'minted') return <Chip label={t('pb.minted')} kind="level" />;
+                if (a?.status === 'revoked' || a?.status === 'revoke_pending') return <Chip label={t('pb.revoked')} kind="offline" />;
+                if (a?.status === 'pending_registry') return <Chip label={t('pb.mintPending')} kind="devnet" />;
+                return <Button label={t('pb.mint')} variant="secondary" onPress={() => mint(g.current!.pb_id)} loading={busy === g.current!.pb_id} disabled={busy !== null} testID={`pb-mint-${g.category}-${g.verification_class}`} />;
+              })() : null}
             </View>
           </View>
         );
       })}
+      {notice ? <InlineState kind={notice.kind} title={notice.title} body={notice.body} testID={`pb-${notice.kind}`} /> : null}
     </Surface>
   );
 }

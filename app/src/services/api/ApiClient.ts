@@ -98,6 +98,9 @@ export type PbCategory = 'fastest_1k' | 'fastest_5k' | 'fastest_10k' | 'fastest_
 export type PbView = { pb_id: string; category: PbCategory; environment: string; verification_class: 'organizer' | 'device'; timing_basis: string; rules_major: number; value: string; unit: 'ms' | 'mm'; source: { kind: 'workout' | 'result'; id: string; revision: number }; achieved_at: string; status: 'current' | 'historical' | 'invalidated'; is_baseline: boolean; previous_pb_id: string | null; invalidated_at: string | null; reason: string | null };
 export type PbGroup = { key: string; category: PbCategory; environment: string; verification_class: 'organizer' | 'device'; timing_basis: string; current: PbView | null; history: PbView[] };
 export type PersonalBests = { rules_major: number; imported_since: string | null; groups: PbGroup[] };
+export type AchievementStatus = 'pending_registry' | 'approved' | 'minted' | 'revoke_pending' | 'revoked';
+export type AchievementView = { achievement_id: string; minted: boolean; pb_id: string; category: PbCategory; verification_class: 'organizer' | 'device'; source_revision: number; rules_major: number; public_consent: boolean; status: AchievementStatus; metadata_hash: string; metadata_uri: string; asset: string | null; minted_signature: string | null; minted_at: string | null; registry_updated_at: string | null; updated_at: string };
+export type MintIntent = { achievement: AchievementView; pb_id: string; fee_estimate_lamports: number; metadata_preview: Record<string, unknown>; status: AchievementStatus; proof: { message_b64: string; signature_b64: string; attestor: string; expires_at: string; args: Record<string, unknown> } | null };
 export type WorkoutImportResult = { imported: number; results: ({ external_record_id: string; outcome: 'created' | 'superseded' | 'same' | 'stale' | 'deleted'; session: WorkoutSummary } | { external_record_id: string; outcome: 'invalid'; reasons: string[] })[] };
 export type EventBenefit = { benefit_id: string; kind: 'physical' | 'digital_badge'; name: string; remaining: number; per_person_limit: number; requires_checkin: boolean; claim_deadline: string | null };
 export type RedemptionStatus = 'reserved' | 'fulfilled' | 'expired' | 'cancelled';
@@ -259,6 +262,14 @@ export class ApiClient {
   myWorkouts(q: { limit?: number; offset?: number } = {}): Promise<{ items: WorkoutSummary[]; rules_version: number }> {
     const qs = Object.entries(q).filter(([, v]) => v !== undefined).map(([k, v]) => `${k}=${v}`).join('&');
     return this.request('GET', `/me/workouts${qs ? `?${qs}` : ''}`);
+  }
+
+  mintIntent(pbId: string, publicConsent: boolean): Promise<MintIntent> {
+    return this.request('POST', `/me/achievements/${encodeURIComponent(pbId)}/mint-intent`, { public_consent: publicConsent });
+  }
+
+  myAchievements(): Promise<{ items: AchievementView[] }> {
+    return this.request('GET', '/me/achievements');
   }
 
   personalBests(): Promise<PersonalBests> {

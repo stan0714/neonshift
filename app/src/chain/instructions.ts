@@ -2,7 +2,9 @@ import { PublicKey, SystemProgram, TransactionInstruction } from '@solana/web3.j
 
 import { Buffer } from 'buffer';
 
-import { assetPda, collectiblePda, configPda, discriminator, entryPda, MPL_CORE_PROGRAM_ID, playerPda, programId, tournamentPda, tournamentVaultPda } from './program';
+import { SYSVAR_INSTRUCTIONS_PUBKEY } from '@solana/web3.js';
+
+import { achievementAssetPda, achievementPda, assetPda, collectiblePda, configPda, discriminator, eligibilityPda, entryPda, MPL_CORE_PROGRAM_ID, playerPda, programId, tournamentPda, tournamentVaultPda } from './program';
 import { associatedTokenAddress, TOKEN_PROGRAM_ID } from './txBuilder';
 
 /** `init_player`：玩家簽章付 rent；即初階跑鞋的贈與（SD 3.2） */
@@ -75,3 +77,32 @@ function prizeInstruction(name: 'claim_prize' | 'refund_all', wallet: PublicKey,
 }
 export const claimPrizeInstruction = (wallet: PublicKey, weekId: number, mint: PublicKey) => prizeInstruction('claim_prize', wallet, weekId, mint);
 export const refundAllInstruction = (wallet: PublicKey, weekId: number, mint: PublicKey) => prizeInstruction('refund_all', wallet, weekId, mint);
+
+/** 成就證明 canonical bytes 長度與 domain（與 backend lib/achievement.ts、attestation-core 一致） */
+export const ACHIEVEMENT_LEN = 194;
+export const ACHIEVEMENT_DOMAIN = 'NEONSHIFT_ACHIEVEMENT_V1';
+
+/**
+ * `claim_achievement`（PG-R-08）：緊接在 ed25519 驗簽指令之後；args 的 borsh 佈局恰等於 194-byte 訊息去掉 24-byte domain
+ * （version、program_id、cluster_id、wallet、achievement_id、category、class、source_revision u32、rules_version u16、metadata_hash、issued_at、expiry、nonce）。
+ */
+export function claimAchievementInstruction(wallet: PublicKey, message: Uint8Array): TransactionInstruction {
+  if (message.length !== ACHIEVEMENT_LEN || Buffer.from(message.subarray(0, 24)).toString('ascii') !== ACHIEVEMENT_DOMAIN) throw new RangeError('not a NEONSHIFT_ACHIEVEMENT_V1 message');
+  const achievementId = message.subarray(90, 122);
+  const msgWallet = new PublicKey(message.subarray(58, 90));
+  if (!msgWallet.equals(wallet)) throw new RangeError('proof wallet mismatch');
+  return new TransactionInstruction({
+    programId: programId(),
+    keys: [
+      { pubkey: wallet, isSigner: true, isWritable: true },
+      { pubkey: configPda(), isSigner: false, isWritable: false },
+      { pubkey: eligibilityPda(wallet, achievementId), isSigner: false, isWritable: false },
+      { pubkey: achievementPda(wallet, achievementId), isSigner: false, isWritable: true },
+      { pubkey: achievementAssetPda(wallet, achievementId), isSigner: false, isWritable: true },
+      { pubkey: MPL_CORE_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: SYSVAR_INSTRUCTIONS_PUBKEY, isSigner: false, isWritable: false },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.concat([discriminator('claim_achievement'), Buffer.from(message.subarray(24))]),
+  });
+}

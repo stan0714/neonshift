@@ -50,3 +50,7 @@ export function discriminator(instruction: string): Buffer {
 
 /** PlayerProfile 帳戶大小（8 + InitSpace）：wallet 32 + core 1 + shoe 1 + xp 8 + last 4 + streak 2 + max_streak 2 + claimed 8 + today 4 + bump 1 */
 export const PLAYER_PROFILE_SPACE = 8 + 63;
+// PG-R-08：成就 NFT（每個 achievement_id 一枚）
+export const eligibilityPda = (wallet: PublicKey, achievementId: Uint8Array) => PublicKey.findProgramAddressSync([Buffer.from('eligibility'), wallet.toBytes(), Buffer.from(achievementId)], programId())[0];
+export const achievementPda = (wallet: PublicKey, achievementId: Uint8Array) => PublicKey.findProgramAddressSync([Buffer.from('achievement'), wallet.toBytes(), Buffer.from(achievementId)], programId())[0];
+export const achievementAssetPda = (wallet: PublicKey, achievementId: Uint8Array) => PublicKey.findProgramAddressSync([Buffer.from('aasset'), wallet.toBytes(), Buffer.from(achievementId)], programId())[0];
