@@ -25,17 +25,26 @@ export async function playerRoutes(app: FastifyInstance, opts: { auth: AuthServi
     const today = Math.floor(now().getTime() / 1000 / SECONDS_PER_DAY);
     const since = today - days + 1;
     const items = await store.listHistory(req.auth!.wallet, since);
-    return {
-      days,
-      retention_days: RETENTION_DAYS,
-      items: items.map((i) => ({
+    // PG-A-20：金額／XP 來自已 finalized 的 ClockedIn 事件（B-16 indexer），以 (task_date, task_type) 對應
+    const events = await store.listChainEvents({ eventName: "ClockedIn", wallet: req.auth!.wallet, finalizedOnly: true }, 500);
+    const byKey = new Map(events.map((e) => [`${e.payload.task_date}:${e.payload.task_type}`, e]));
+    let totalEarned = 0n;
+    const out = items.map((i) => {
+      const ev = byKey.get(`${i.taskDate}:${i.taskType}`);
+      const amount = ev ? String(ev.payload.amount ?? "0") : null;
+      if (amount) totalEarned += BigInt(amount);
+      return {
         task_date: i.taskDate,
         task_type: i.taskType === 1 ? "steps" : "sleep",
         issued_at: i.issuedAt.toISOString(),
         expires_at: i.expiresAt.toISOString(),
-        redeemed_signature: i.redeemedSig,
-      })),
-    };
+        redeemed_signature: i.redeemedSig ?? (ev ? ev.signature : null),
+        amount,
+        xp: ev ? Number(ev.payload.xp ?? 0) : null,
+        shoe_level: ev ? Number(ev.payload.shoe_level ?? 0) : null,
+      };
+    });
+    return { days, retention_days: RETENTION_DAYS, total_earned: totalEarned.toString(), items: out };
   });
 
   app.delete("/player/data", { preHandler: requireAuth(auth) }, async (req, reply) => {

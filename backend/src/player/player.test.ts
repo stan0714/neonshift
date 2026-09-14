@@ -50,6 +50,15 @@ describe("PG-B-12 GET /player/history", () => {
     expect(body.retention_days).toBe(30);
     expect(body.items.map((i: { task_date: number; task_type: string }) => [i.task_date, i.task_type])).toEqual([[20_710, "steps"], [20_709, "sleep"]]);
     expect(body.items[0].redeemed_signature).toBeNull();
+    expect(body.items[0].amount).toBeNull();
+    expect(body.total_earned).toBe("0");
+    // finalized ClockedIn 事件 → 金額／XP／簽章回填到對應紀錄
+    await store.insertChainEvent({ signature: "sigA", eventIndex: 0, slot: 1, blockhash: "b", commitment: "finalized", eventName: "ClockedIn", payload: { wallet: u.wallet, task_date: 20_710, task_type: 1, amount: "10000000", xp: "100", shoe_level: 1 } }, new Date());
+    await store.insertChainEvent({ signature: "sigB", eventIndex: 0, slot: 2, blockhash: "b", commitment: "confirmed", eventName: "ClockedIn", payload: { wallet: u.wallet, task_date: 20_709, task_type: 2, amount: "5000000", xp: "150", shoe_level: 1 } }, new Date());
+    const again = (await app.inject({ method: "GET", url: "/v1/player/history?days=30", headers: { authorization: `Bearer ${u.token}` } })).json();
+    expect(again.items[0]).toMatchObject({ task_date: 20_710, amount: "10000000", xp: 100, redeemed_signature: "sigA" });
+    expect(again.items[1].amount).toBeNull(); // 只認 finalized
+    expect(again.total_earned).toBe("10000000");
     expect((await app.inject({ method: "GET", url: "/v1/player/history?days=31", headers: { authorization: `Bearer ${u.token}` } })).statusCode).toBe(400);
     expect((await app.inject({ method: "GET", url: "/v1/player/history" })).statusCode).toBe(401);
   });

@@ -116,9 +116,16 @@ export function HomeScreen() {
         <Chip label="DEVNET" kind="devnet" />
       </View>
 
-      <Text variant="label" tone="muted" uppercase style={styles.section}>
-        Today
-      </Text>
+      <View style={[styles.header, styles.section]}>
+        <Text variant="label" tone="muted" uppercase>
+          Today
+        </Text>
+        <Pressable onPress={() => navigation.navigate('ActivityHistory')} accessibilityRole="link" hitSlop={8} testID="home-activity-link">
+          <Text variant="label" tone="cyan" uppercase>
+            Activity ›
+          </Text>
+        </Pressable>
+      </View>
       <View style={styles.cards}>
         <DataCard icon="activity" label="Steps" value={steps.value.toLocaleString()} unit="steps" goalLabel={`Goal ${steps.goal.toLocaleString()}`} ratio={steps.ratio} tint={color.mint} statusText={stepsStatus} outdated={outdated || Boolean(d.health?.error)} testID="card-steps" />
         <View style={styles.gap} />

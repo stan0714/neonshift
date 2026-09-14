@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.18（PG-A-17 完成） |
+| 文件版本 | v0.19（PG-A-20 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -201,9 +201,9 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-A-15 | Arena 頁三種狀態 | Style 13 | FR-06.1, FR-06.2 | 1.5 | WIP | 2026-09-14 完成：`ArenaScreen`（13.1 UTC／當地時段、質押、人數、規則、最差損失確認框；13.2 名次／步數／回報、排行榜遮罩與本人強調、Settling 標「not final」；13.3 final rank／group／領取、沒收顯示規則版本與申訴管道；Cancelled 退款；無賽事／後端錯誤／需登入三種狀態）；`chain` join／claim_prize／refund_all 指令與 Entry 解碼；`TournamentStepsCollector`（窗口逐日讀 Health Connect → 小時桶）、`TournamentService`（MWA 簽章、冪等）、`arenaStore`；ApiClient tournament 方法；Jest 12；Seeker 版面（需登入狀態）截圖。端到端待 devnet 部署 |
 | PG-A-16 | 錯誤、離線與空狀態 | Style 14 | NFR 可用性 | 1.0 | WIP | 2026-09-14 完成：`OfflineBanner`（expo-network `useOnline`，tabs 頂部「offline · showing cached data」）；Home inline 狀態：Health access is off → Review access、Health data unavailable → Try again、Devnet is taking a break → Retry（說明資料／資金安全）；`InlineState` 新增 `action`／`referenceId`；後端錯誤一律帶 `request_id`，App `ApiError.requestId` → 打卡／刪除失敗顯示 Ref；Arena／Gear 空／錯誤／需登入狀態於 A-14／A-15。Jest 3（共 143）。需重建 dev client（expo-network 原生模組） |
 | PG-A-17 | 跑鞋視覺五階與進化動畫 | Style 16.2 | FR-04.4 | 1.0 | WIP | 2026-09-14：五階向量 `ShoeHero`（Origin／Pulse／Phase／Surge／Zenith，各階有可辨識結構，非只換色；懸浮動畫尊重 Reduce Motion）沿用；新增 `EvolutionReveal`（舊鞋淡出／新鞋放大、motion.celebration 800ms、success haptic 一次、View transaction）與 `levelRevealStore`（記住已看過的等級，重啟不重播；第一次觀察不播）；打卡確認後立即重讀 profile 觸發。Jest 2。精修靜態素材／Lottie 依 SD 12 後續 |
-| PG-A-18 | App 測試：單元、原生、E2E | SD 7 | — | 1.5 | TODO | |
+| PG-A-18 | App 測試：單元、原生、E2E | SD 7 | — | 1.5 | WIP | 2026-09-14：Jest 148（TaskEngine／UTC、attestation 向量、TxBuilder、ClaimFlow 狀態機、ClaimSubmitter 冪等、WalletService、ApiClient 續期、Health 服務、Bootstrap、onboarding、Home／Gear／Arena／Profile／Activity 畫面、離線／錯誤狀態、reveal）。待補：Android instrumented（四種 dataOrigin、權限撤銷）、Maestro E2E（需 devnet 部署） |
 | PG-A-19 | Health Connect 背景同步（WorkManager）與前景補同步 | SD 5.1 | FR-02.3 | 1.0 | WIP | Kotlin HealthReader 共用＋HealthSyncWorker（WorkManager 15 分鐘、電量限制、背景權限缺失靜默結束）＋HealthCache；JS enable／disable／cache／readCached；啟動有背景權限即排程；Dashboard 先讀快取再前景同步、離線標示；4 測試；實機背景觸發待驗證 |
-| PG-A-20 | Activity history 畫面與歷史 API 串接 | Style 2, 19.1 | FR-03.5 | 0.5 | TODO | |
+| PG-A-20 | Activity history 畫面與歷史 API 串接 | Style 2, 19.1 | FR-03.5 | 0.5 | WIP | 2026-09-14 完成：`/player/history` 併入 finalized ClockedIn 事件的 amount／xp／簽章與 `total_earned`；`ActivityHistoryScreen`（30 天累計收益、筆數、Onchain 比、逐筆 Onchain／Not redeemed 與 explorer 連結；空／錯誤／需登入狀態）；Home「Activity ›」次要入口；Jest 3、vitest 更新；Seeker 截圖 |
 | PG-A-21 | Profile：權限、隱私、刪除資料與斷開錢包 | Style 2, 19.1; SD 5.3 | FR-01.4, BR-25 | 1.0 | WIP | Profile：錢包／後端 session、權限狀態與設定入口、隱私說明＋政策連結、刪除資料（204／202 deletion_due_at、清快取停背景）、斷開錢包（登出後端＋撤銷授權→Landing）、About；4 測試 |
 | PG-A-22 | 在目前 MWA／Seeker 錢包驗證並顯示成就 NFT | Style 7.4 | FR-04.5 | 0.5 | TODO | 隨成就 NFT 恢復（FR-04.5 S） |
 
@@ -557,6 +557,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.19 | 2026-09-14 | PG-A-20 完成（WIP）、A-18 盤點 |
 | v0.18 | 2026-09-14 | PG-A-17 完成（WIP）：進化 reveal |
 | v0.17 | 2026-09-14 | PG-A-16 完成（WIP）：離線橫幅、Home inline 狀態、reference ID |
 | v0.16 | 2026-09-14 | PG-A-15 完成（WIP）：Arena 三種狀態 |
