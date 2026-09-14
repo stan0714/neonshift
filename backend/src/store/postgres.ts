@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, Challenge, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, RiskDecisionInput, RuleSetRow, Session, Store } from "./types.js";
+import type { AttestationRow, Challenge, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -176,8 +176,53 @@ export class PostgresStore implements Store {
     }));
   }
   async hasActiveStakedTournament(_wallet: string) {
-    // B-14 賽事 API 接入前，尚無質押資料
+    // 質押事實在鏈上，由 TournamentService 判斷（player routes）
     return false;
+  }
+
+  // ---- PG-B-14 ----
+  private stepsRow(x: Row): TournamentStepsRow {
+    return { weekId: x.week_id as number, wallet: x.wallet as string, verifiedSteps: Number(x.verified_steps), firstReachedAt: (x.first_reached_at as Date | null) ?? null, updatedAt: x.updated_at as Date };
+  }
+  async getTournamentSteps(weekId: number, wallet: string) {
+    const r = await this.pool.query(`SELECT * FROM tournament_steps WHERE week_id = $1 AND wallet = $2`, [weekId, wallet]);
+    return r.rows[0] ? this.stepsRow(r.rows[0] as Row) : null;
+  }
+  async upsertTournamentSteps(weekId: number, wallet: string, verifiedSteps: number, reachedAt: Date, now: Date) {
+    // 單調不減：只有更大才更新（DO UPDATE 的 WHERE 條件）；未變更時 RETURNING 為空，再讀既有 row
+    const r = await this.pool.query(
+      `INSERT INTO tournament_steps (week_id, wallet, verified_steps, first_reached_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (week_id, wallet) DO UPDATE
+         SET verified_steps = EXCLUDED.verified_steps, first_reached_at = EXCLUDED.first_reached_at, updated_at = EXCLUDED.updated_at
+         WHERE tournament_steps.verified_steps < EXCLUDED.verified_steps
+       RETURNING *`,
+      [weekId, wallet, verifiedSteps, reachedAt, now],
+    );
+    if (r.rows[0]) return { row: this.stepsRow(r.rows[0] as Row), changed: true };
+    return { row: (await this.getTournamentSteps(weekId, wallet))!, changed: false };
+  }
+  async listTournamentSteps(weekId: number, limit: number) {
+    const r = await this.pool.query(
+      `SELECT * FROM tournament_steps WHERE week_id = $1
+       ORDER BY verified_steps DESC, first_reached_at ASC NULLS LAST, wallet COLLATE "C" ASC LIMIT $2`,
+      [weekId, limit],
+    );
+    return (r.rows as Row[]).map((x) => this.stepsRow(x));
+  }
+  async countTournamentSteps(weekId: number) {
+    const r = await this.pool.query(`SELECT count(*)::int AS n FROM tournament_steps WHERE week_id = $1`, [weekId]);
+    return (r.rows[0] as { n: number }).n;
+  }
+  async rankOf(weekId: number, wallet: string) {
+    const r = await this.pool.query(
+      `SELECT rank FROM (
+         SELECT wallet, row_number() OVER (ORDER BY verified_steps DESC, first_reached_at ASC NULLS LAST, wallet COLLATE "C" ASC) AS rank
+         FROM tournament_steps WHERE week_id = $1
+       ) t WHERE wallet = $2`,
+      [weekId, wallet],
+    );
+    return r.rows[0] ? Number((r.rows[0] as { rank: string | number }).rank) : null;
   }
   async deletePlayerData(wallet: string, now: Date, deferUntil: Date | null): Promise<DeletionResult> {
     const client = await this.pool.connect();

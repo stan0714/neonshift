@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.7（錦標賽結算協議） |
+| 文件版本 | v0.8（賽事 API） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -477,6 +477,15 @@ Response 422（拒絕）
 
 `POST /tournament/steps` 涉及已質押資產，沿用 4.2 的 request-specific wallet signature、challenge、request hash 與 idempotency 規則，但使用獨立 domain `NEONSHIFT_TOURNAMENT_STEPS_V1`；僅有 Bearer JWT 不足以提交或覆寫賽事分數。更新後的 `verified_steps` 必須單調不減，且只能計入 `starts_at <= record interval <= ends_at` 的資料。
 
+### 4.3A 賽事 API【實作 2026-09-14，PG-B-14】
+
+賽事狀態、時段、質押金額與報名事實一律讀鏈上（`ChainReader`：`Tournament` PDA 與 `TournamentEntry` PDA，RPC 結果快取 15 秒），後端不持有第二份真相；`RPC_URL` 設定只讀節點。
+
+- `GET /tournament/current`：本 ISO 週（`week_id = ISO 年×100+週`，UTC）的賽事；本週不存在或已 settled／cancelled 且過 `ends_at` 則回下一週。回 `tournament`（狀態、時段、`stake_amount`、分組大小、占比、`registration_open`、結算數字）、`player {joined, verified_steps, rank}` 與 `server_time`；無賽事時 `tournament: null`。
+- `POST /tournament/steps`（Idempotency-Key 必填）：body `{week_id, steps, reached_at, data_origins, step_rate_summary{bucket_minutes: 60, buckets:[[hour_from_starts_at, steps]]}, client, claim_authorization}`；challenge `purpose = tournament_steps`、`task_date = week_id`、`task_type = 1`。檢查順序：schema → idempotency → challenge 驗簽並消耗 → 賽事存在（404）→ 狀態 Running（409 `TOURNAMENT_NOT_RUNNING`）→ 鏈上 entry 存在（403 `NOT_ENTERED`）→ `starts_at ≤ reached_at < ends_at` 且不在未來（422 `OUTSIDE_WINDOW`）→ 來源歸因（只計 `android_legacy`／`current_device_spn`）、每小時桶夾限 250×60、桶總和 = 歸因、上限 40,000×天數 → `verified = min(steps, 歸因, 夾限, 上限)`。`verified_steps` 單調不減（DB `ON CONFLICT … WHERE < EXCLUDED`），提升時 `first_reached_at = reached_at`。回 `{week_id, verified_steps, submitted_steps, accepted, first_reached_at, rank}`。
+- `GET /tournament/{weekId}/leaderboard`：前 100 名，`ORDER BY verified_steps DESC, first_reached_at ASC NULLS LAST, wallet COLLATE "C"`（BR-20：「錢包位元組序」定義為 base58 字串位元組序，Memory／PostgreSQL 一致）；含 `generated_at`、`total_players` 與 `you {rank, verified_steps}`；地址遮罩由 App 負責（本人 row 需完整地址）。
+- BR-25 延後刪除：`DELETE /player/data` 以鏈上 entry 判斷已質押，`deletion_due_at = min(賽事 ends_at, 請求時間 + 30 天)`。
+
 ### 4.4 風險引擎
 
 規則以設定檔宣告。`rules_version` 是單調遞增的 u16 識別碼；完整 canonicalized 設定另計算 SHA-256 `rules_hash`，兩者共同保存，不得把截斷雜湊直接當版本號。
@@ -937,6 +946,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.8 | 2026-09-14 | PG-B-14：賽事 API 4.3A（鏈上為真相、步數夾限與單調、BR-20 排序定義、BR-25 接 ends_at）；新增 `RPC_URL` |
 | v0.7 | 2026-09-14 | PG-C-13～C-16：canonical entry 85 bytes、分配公式（線性遞減／空組／餘數）、cancel_tournament 與 7 天期限、錯誤 6033～6036；settle／claim 以 vault 實際餘額對帳 |
 | v0.6 | 2026-09-14 | PG-C-11／C-12：新增 `create_tournament`、Tournament 欄位 `treasury_injection_cap`／占比／`created_at`、Entry `joined_at`、錯誤 6031／6032；lock 對帳 vault 實際餘額 |
 | v0.5 | 2026-09-14 | PG-C-09 實作定案：手組 Metaplex Core CreateV1 CPI（無 crate）、MVP 無 collection、update_authority = Config PDA、常數 base URI、錯誤 6029／6030、PlayerProfile.max_streak_days 由 clock_in 維護 |
@@ -977,3 +987,11 @@ App `config/shoeProgression.ts` 集中管理五階名稱、材質色、預覽門
 素材優化時新增版本化 manifest，包含 level、revision、renderer、local asset、static fallback 及檔案 hash。先做靜態本機素材映射，再增 Lottie；載入失敗回退同階 SVG，減少動態／低效能裝置顯示同階靜態版。所有素材沿用 260×208 viewBox 的視覺錨點、鞋底及平台位置，切換不改容器尺寸。只預載當前階／下一階，不同時啟動五個動畫；Demo 圖鑑固定靜態。尚未加入未使用的 Lottie／3D runtime 或遠端素材下载。
 
 驗收：各門檻前一點／等於門檻／滿階、無效 XP、重複 claim／失敗交易、Shoe／Core 分離、五階灰階辨識、Reduce Motion、素材失敗同階 fallback。正式動畫須在 Seeker 記錄 frame time／記憶體與耗電，確定預算後才啟用 3D。
+
+## 13. 跑步指標／PB NFT 設計擴充
+
+[活動／跑步／藝廊設計](./activity-running-gallery.md) 第 3～8 章為新增設計契約，與既有 SD 11 活動及 11A 成就 NFT 共同使用。WorkoutSession、PBRevision、AchievementEligibility 和新的 claim_achievement 需獨立實作，不把未知 PB kind 傳入目前 claim_collectible。
+
+Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量只作私人參考。PB 簽章、eligibility registry、成績 revision、metadata hash 與唯一 receipt 須一起驗證，不能只新增藝廊卡片就宣稱具備可信 PB 鑄造。精確公開資訊與私人長期 PB 摘要要有獨立同意及保存政策。
+
+第 12 章素材替換契約保留；其中 Core 分離的舊驗收以最新免費同步升級規格為準。此次不變更既有免費升級鏈上程式。

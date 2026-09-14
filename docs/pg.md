@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.11（PG-C-13～C-17 完成） |
+| 文件版本 | v0.12（PG-B-14 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -171,7 +171,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-B-11 | `POST /attestation/claim` 端點整合 | SD 4.3 | 全部風險規則 | 1.0 | WIP | POST /attestation/claim：JWT→schema→idempotency（processing／succeeded／rejected，409 conflict）→challenge 消耗→風險判定→snapshot／decision→簽發→attestations→保存完整回應；0002 migration；8 端到端測試（重放、409、crash 恢復）；GET /rules/version |
 | PG-B-12 | `GET /player/history` | SD 4.1 | — | 0.5 | WIP | GET /player/history?days≤30：本人、保留期內、最新在前，redeemed_signature 由 B-16 回填；1 端到端測試 |
 | PG-B-13 | `DELETE /player/data` 與延後刪除邏輯 | SD 4.1 | BR-25 | 1.0 | WIP | DELETE /player/data：交易內撤銷 session、刪 snapshots（CASCADE）／attestations／claim_results／tournament_steps、標記 deleted_at；質押賽事延後 202＋deletion_due_at（≤30 天，B-14 接 ends_at）；刪除後重新登入視為新同意；0003 migration；3 端到端＋Postgres 整合 |
-| PG-B-14 | 賽事 API：current、steps、leaderboard 與逐操作 challenge | SD 4.1, 4.2 | — | 1.0 | TODO | |
+| PG-B-14 | 賽事 API：current、steps、leaderboard 與逐操作 challenge | SD 4.1, 4.2 | — | 1.0 | WIP | 2026-09-14 完成：`chain/{tournament,reader}.ts`（PDA、Tournament 解碼、ISO week_id、RPC 快取讀取）、`tournament/{schema,service,routes}.ts`；steps 走 tournament_steps challenge＋Idempotency-Key、單調不減、窗口／來源／每小時夾限；leaderboard BR-20 排序（Memory／PG 一致）；DELETE /player/data 接鏈上 entry 與 ends_at；vitest 10（含 PG 整合）；SD 4.3A |
 | PG-B-15 | 排行榜、同分決勝與 settlement manifest／rolling hash | SD 4.1, 6.2 | BR-20 | 1.0 | TODO | |
 | PG-B-16 | ChainIndexer：finalized 事件同步、orphan 回滾與 redeemed_sig 回填 | SD 2.1, 4.5 | — | 1.0 | TODO | |
 | PG-B-17 | 30 天保留清理排程 | SD 4.5 | BR-25 | 0.5 | TODO | |
@@ -557,6 +557,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.12 | 2026-09-14 | PG-B-14 完成（WIP）：賽事 API |
 | v0.11 | 2026-09-14 | PG-C-13～C-17 完成（WIP）：結算協議、領獎、沒收、取消退款；SD v0.7 |
 | v0.10 | 2026-09-14 | PG-C-11／C-12 完成（WIP）：錦標賽建立／開放／報名／截止／開始 |
 | v0.9 | 2026-09-14 | PG-A-14 完成（WIP）：Gear 頁與 My collection 領取流程、Seeker 版面驗證 |
@@ -577,3 +578,20 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | P3 選配 3D | 後續工作，另估 | 實機效能／記憶體預算先達標，動態按需載入；不改 XP 或 token 模型 |
 
 門檻、XP 數值及 50 任務日滿階節奏屬新設計預設；部署前由產品確認及經濟模擬，原有人天估算尚未涵蓋精緻素材及 3D，排程須另估。預覽入口：Landing → Preview the app → 五階圖鑑。
+
+## 15. 活動跑步與 PB NFT 工作規劃（設計待排程）
+
+依 [活動／跑步／藝廊設計](./activity-running-gallery.md) 第 8 章，延伸既有 PG-E／PG-G。下表為待拆解工作包，未混入目前 PG 項目統計與估算，也不代表已實作；完成來源／權限與鏈上契約評估後再建立正式 PG 編號及重算人天。
+
+| 工作包 | 需求 | 內容與依賴 | 狀態 |
+|---|---|---|---|
+| RUN-01 | FR-09～12、UC-21 | 活動報名→報到→成績→領取流程，承接 PG-E | 設計完成／待估 |
+| RUN-02 | FR-14.1、14.2 | Health Connect session、來源矩陣、去重與距離／配速 | 設計完成／待估 |
+| RUN-03 | FR-14.3 | 裝置熱量／MET 估算、體重與模型同意；先定模型適用性 | 設計完成／待估 |
+| RUN-04 | FR-15.1 | PB 分組、固定距離／最遠、資料修正與重算；依賴 RUN-02 | 設計完成／待估 |
+| RUN-05 | FR-15.2 | PB registry／簽發／claim_achievement／receipt；依賴 RUN-04 | 設計完成／待估 |
+| RUN-06 | FR-13.5、13.6 | 藝廊／NFT 詳情／PB 櫃／公開同意，承接 PG-G | 設計完成／待估 |
+| RUN-07 | FR-14.4 | 主動跑步、前景服務與最快路段；資料品質確定後開發 | 後續階段／待估 |
+| RUN-08 | 全部 | 實機裝置測試、資料刪除、跨來源去重、鑄造／撤銷競態 | 設計完成／待估 |
+
+正式交付門檻及未決事項以專章 8 為準。裝置 API、3D 藝廊與實體計時硬體不假設已獲供應商授權。第 14 章 P0「Core 分離」沿用早期提案，現應依最新免費同步升級驗收，不能恢復付費 Core。

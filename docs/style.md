@@ -773,3 +773,13 @@ export const theme = {
 - 同一畫面過多浮動面板、發光邊框與小字圖表。
 - 中英混雜的產品 UI；首版依 BRD 使用英文，繁中僅作未來 locale。
 - 無 label 的 bottom-nav icon，以及缺少交易／測試網聲明的升級按鈕。
+
+## 20. 活動旅程與 PB NFT 藝廊擴充
+
+完整流程、欄位與線框見 [活動／跑步／藝廊設計](./activity-running-gallery.md) 第 1、6 章。沿用深藍黑、青綠／紫色與四 Tab；Home 加 Running／Gallery 次入口，Gear 保留 My collection，Arena 串活動成績收藏，Profile 提供跑步歷程／PB 櫃。
+
+- 跑步摘要：公里、elapsed pace、步數、active kcal 四項主數據；每項顯示來源與 Estimated／Partial 標記。缺值用 —，暫停／移動時間分列。
+- PB 卡片：Speed 用青藍切線計時環，Distance 用紫綠里程弧，Event 用活動拱門；不以真實 GPS 路線製作公開作品。類別、來源、Current／Historical／Invalidated 必須有文字。
+- 藝廊以二欄 1:1 卡片為起點；窄螢幕／放大文字可改單欄。篩選 All／Shoes／Events／Personal best，不新增主 Tab。詳情分開原達成者與現持有人。
+- 鑄造確認先預覽作品與所有公開欄位，列出不收 tSKR、實際網路費及 rent；不以「免費」掩蓋費用。可領取／待確認／已鑄造／資料待審／已修正各有明確狀態。
+- 裝置紀錄不顯示官方認證圖章；鏈下活動徽章不標 NFT。結果修正不重播慶祝、不自動補鑄。Reduce Motion 保留靜態作品與數值，禁止熱量競賽及刺激性連續閃爍。

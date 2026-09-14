@@ -5,7 +5,12 @@ import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 import bs58 from "bs58";
 
+import { PublicKey } from "@solana/web3.js";
+
 import { ChallengeService } from "./auth/challenge.js";
+import { RpcChainReader, StaticChainReader, type ChainReader } from "./chain/reader.js";
+import { tournamentRoutes } from "./tournament/routes.js";
+import { TournamentService } from "./tournament/service.js";
 import { claimRoutes } from "./claim/routes.js";
 import { ClaimService } from "./claim/service.js";
 import { playerRoutes } from "./player/routes.js";
@@ -22,7 +27,7 @@ import { MemoryStore } from "./store/memory.js";
 import { PostgresStore } from "./store/postgres.js";
 import type { Store } from "./store/types.js";
 
-export type AppDeps = { config: AppConfig; db: Db; store?: Store; now?: () => Date; signer?: AttestorSigner; rules?: RuleSet; alertFetch?: typeof fetch };
+export type AppDeps = { config: AppConfig; db: Db; store?: Store; now?: () => Date; signer?: AttestorSigner; rules?: RuleSet; alertFetch?: typeof fetch; chain?: ChainReader };
 
 export const API_PREFIX = "/v1";
 
@@ -32,7 +37,7 @@ export const API_PREFIX = "/v1";
  * - body 上限、統一錯誤格式、`/healthz`（liveness）與 `/readyz`（DB）
  * - 業務路由掛在 `/v1`，由後續 PG-B 項目以 plugin 註冊
  */
-export function buildApp({ config, db, store, now, signer, rules, alertFetch }: AppDeps): FastifyInstance {
+export function buildApp({ config, db, store, now, signer, rules, alertFetch, chain }: AppDeps): FastifyInstance {
   const dataStore: Store = store ?? (db.pool ? new PostgresStore(db.pool) : new MemoryStore());
   const auth = new AuthService(
     dataStore,
@@ -49,6 +54,8 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch }: 
     now,
   );
   const challenge = new ChallengeService(dataStore, now);
+  const chainReader: ChainReader = chain ?? (config.PROGRAM_ID ? new RpcChainReader(config.RPC_URL, new PublicKey(config.PROGRAM_ID)) : new StaticChainReader());
+  const tournaments = new TournamentService(dataStore, chainReader, challenge, now);
   const ruleSet = rules ?? loadRuleSetFile(resolve(process.cwd(), config.RULES_FILE));
   const attestorSigner = signer ?? createSigner(config);
   const app = Fastify({
@@ -83,6 +90,7 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch }: 
   app.decorate("auth", auth);
   app.decorate("challenge", challenge);
   app.decorate("claim", claim);
+  app.decorate("tournaments", tournaments);
 
   app.setErrorHandler((raw: unknown, req, reply) => {
     if (raw instanceof ApiError) {
@@ -150,9 +158,9 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch }: 
     v1.get("/", async () => ({ name: "neonshift-attestor", version: "v1" }));
     await v1.register(authRoutes, { auth, challenge });
     await v1.register(claimRoutes, { auth, claim });
-    await v1.register(playerRoutes, { auth, store: dataStore, now: now ?? (() => new Date()) });
+    await v1.register(playerRoutes, { auth, store: dataStore, now: now ?? (() => new Date()), tournaments });
+    await v1.register(tournamentRoutes, { auth, tournaments });
     v1.get("/rules/version", async () => ({ rules_version: ruleSet.version, rules_hash: `sha256:${ruleSet.hash.toString("hex")}`, description: ruleSet.config.description ?? null }));
-    // 後續：tournament（B-14）
   }, { prefix: API_PREFIX });
 
   app.addHook("onReady", async () => {
@@ -183,6 +191,7 @@ declare module "fastify" {
     auth: AuthService;
     challenge: ChallengeService;
     claim: ClaimService;
+    tournaments: TournamentService;
     metrics: Metrics;
     alerts: Alerts;
   }

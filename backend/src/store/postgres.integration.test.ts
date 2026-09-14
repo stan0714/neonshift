@@ -18,7 +18,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: url });
-    await pool.query("DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
+    await pool.query("DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
     stores = [
       { name: "postgres", store: new PostgresStore(pool) },
       { name: "memory", store: new MemoryStore() },
@@ -120,6 +120,29 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       expect((await store.getPlayer(wallet))?.deletedAt, name).not.toBeNull();
       // 重新登入（upsert）視為新同意
       expect((await store.upsertPlayer(wallet, now)).deletedAt, name).toBeNull();
+    }
+  });
+
+  it("tournament_steps：單調不減 upsert、BR-20 排序（步數 DESC → 先達成 ASC → 錢包 C 序）、名次", async () => {
+    for (const { name, store } of stores) {
+      const week = 2026_38;
+      const t0 = new Date("2026-09-12T00:00:00Z");
+      const [a, b, c] = ["9zzz", "7aaa", "7abb"]; // C collation：7aaa < 7abb < 9zzz
+      expect((await store.upsertTournamentSteps(week, a, 10_000, new Date(t0.getTime() + 500_000), t0)).changed).toBe(true);
+      const lower = await store.upsertTournamentSteps(week, a, 9_000, new Date(t0.getTime() + 900_000), t0);
+      expect(lower.changed).toBe(false);
+      expect(lower.row.verifiedSteps).toBe(10_000);
+      expect(lower.row.firstReachedAt?.getTime()).toBe(t0.getTime() + 500_000);
+      await store.upsertTournamentSteps(week, b, 10_000, new Date(t0.getTime() + 400_000), t0);
+      await store.upsertTournamentSteps(week, c, 10_000, new Date(t0.getTime() + 500_000), t0);
+      const rows = await store.listTournamentSteps(week, 10);
+      expect(rows.map((r) => r.wallet), name).toEqual([b, c, a]);
+      expect(await store.rankOf(week, a), name).toBe(3);
+      expect(await store.rankOf(week, "none"), name).toBeNull();
+      expect(await store.countTournamentSteps(week), name).toBe(3);
+      await store.upsertTournamentSteps(week, a, 12_000, new Date(t0.getTime() + 600_000), t0);
+      expect(await store.rankOf(week, a), name).toBe(1);
+      expect((await store.getTournamentSteps(week, a))?.verifiedSteps).toBe(12_000);
     }
   });
 });

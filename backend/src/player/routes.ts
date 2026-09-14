@@ -10,12 +10,13 @@ import { requireAuth } from "../auth/routes.js";
 import type { AuthService } from "../auth/service.js";
 import { ApiError } from "../errors.js";
 import type { Store } from "../store/types.js";
+import type { TournamentService } from "../tournament/service.js";
 
 export const RETENTION_DAYS = 30;
 const SECONDS_PER_DAY = 86_400;
 
-export async function playerRoutes(app: FastifyInstance, opts: { auth: AuthService; store: Store; now: () => Date }) {
-  const { auth, store, now } = opts;
+export async function playerRoutes(app: FastifyInstance, opts: { auth: AuthService; store: Store; now: () => Date; tournaments?: TournamentService }) {
+  const { auth, store, now, tournaments } = opts;
 
   app.get("/player/history", { preHandler: requireAuth(auth) }, async (req) => {
     const raw = (req.query as { days?: string }).days ?? String(RETENTION_DAYS);
@@ -41,9 +42,11 @@ export async function playerRoutes(app: FastifyInstance, opts: { auth: AuthServi
     const wallet = req.auth!.wallet;
     const t = now();
     let deferUntil: Date | null = null;
-    if (await store.hasActiveStakedTournament(wallet)) {
-      // 最長保留至賽事完成，且不得突破 30 天（以請求時間起算）；B-14 接入後改為賽事 ends_at 與上限取小
-      deferUntil = new Date(t.getTime() + RETENTION_DAYS * SECONDS_PER_DAY * 1000);
+    // 質押事實在鏈上（TournamentEntry）：延後至賽事 ends_at，且不得突破 30 天（以請求時間起算）
+    const stakedUntil = (await tournaments?.activeStakedUntil(wallet)) ?? null;
+    if (stakedUntil !== null || (await store.hasActiveStakedTournament(wallet))) {
+      const cap = t.getTime() + RETENTION_DAYS * SECONDS_PER_DAY * 1000;
+      deferUntil = new Date(Math.min(cap, stakedUntil !== null ? Math.max(stakedUntil * 1000, t.getTime()) : cap));
     }
     const result = await store.deletePlayerData(wallet, t, deferUntil);
     if (result.deferred) {

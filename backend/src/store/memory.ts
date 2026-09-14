@@ -1,4 +1,5 @@
-import type { AttestationRow, Challenge, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, RiskDecisionInput, RuleSetRow, Session, Store } from "./types.js";
+import { compareLeaderboard } from "./leaderboard.js";
+import type { AttestationRow, Challenge, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -10,6 +11,7 @@ export class MemoryStore implements Store {
   decisions: RiskDecisionInput[] = [];
   attestations = new Map<string, AttestationRow>();
   claimResults = new Map<string, ClaimResult>();
+  tournamentSteps = new Map<string, TournamentStepsRow>();
 
   async insertChallenge(c: Challenge) {
     const k = c.nonceHash.toString("hex");
@@ -108,6 +110,29 @@ export class MemoryStore implements Store {
   async hasActiveStakedTournament(_wallet: string) {
     return false;
   }
+
+  // ---- PG-B-14 ----
+  async getTournamentSteps(weekId: number, wallet: string) {
+    return this.tournamentSteps.get(`${weekId}:${wallet}`) ?? null;
+  }
+  async upsertTournamentSteps(weekId: number, wallet: string, verifiedSteps: number, reachedAt: Date, now: Date) {
+    const k = `${weekId}:${wallet}`;
+    const cur = this.tournamentSteps.get(k);
+    if (cur && cur.verifiedSteps >= verifiedSteps) return { row: cur, changed: false };
+    const row: TournamentStepsRow = { weekId, wallet, verifiedSteps, firstReachedAt: reachedAt, updatedAt: now };
+    this.tournamentSteps.set(k, row);
+    return { row, changed: true };
+  }
+  async listTournamentSteps(weekId: number, limit: number) {
+    return sortLeaderboard([...this.tournamentSteps.values()].filter((r) => r.weekId === weekId)).slice(0, limit);
+  }
+  async countTournamentSteps(weekId: number) {
+    return [...this.tournamentSteps.values()].filter((r) => r.weekId === weekId).length;
+  }
+  async rankOf(weekId: number, wallet: string) {
+    const i = sortLeaderboard([...this.tournamentSteps.values()].filter((r) => r.weekId === weekId)).findIndex((r) => r.wallet === wallet);
+    return i < 0 ? null : i + 1;
+  }
   async deletePlayerData(wallet: string, now: Date, deferUntil: Date | null): Promise<DeletionResult> {
     const sessions = await this.revokeWallet(wallet, now);
     const p = this.players.get(wallet);
@@ -123,4 +148,8 @@ export class MemoryStore implements Store {
     for (const [k, r] of this.claimResults) if (r.wallet === wallet) { this.claimResults.delete(k); claimResults++; }
     return { deferred: false, deletionDueAt: null, deleted: { snapshots: before - this.snapshots.length, attestations, claimResults, sessions } };
   }
+}
+
+function sortLeaderboard(rows: TournamentStepsRow[]) {
+  return rows.sort(compareLeaderboard);
 }

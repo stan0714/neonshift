@@ -18,6 +18,8 @@ export const configSchema = z.object({
   /** canonical attestation 的環境識別：devnet = 1、localnet = 2（attestation-core） */
   CLUSTER_ID: z.coerce.number().int().min(1).max(255).default(1),
   PROGRAM_ID: z.string().regex(base58, "PROGRAM_ID 必須是 base58 公鑰").optional(),
+  /** 只讀 RPC（賽事狀態、報名查詢；PG-B-14）；未設 PROGRAM_ID 時不建立連線 */
+  RPC_URL: z.string().url().default("https://api.devnet.solana.com"),
   /** SIWS domain／URI 與 JWT iss／aud（SD 4.2、SD 8 網域表） */
   SIWS_DOMAIN: z.string().default("neonshift.cc"),
   SIWS_URI: z.string().url().default("https://neonshift.cc"),

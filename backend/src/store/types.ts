@@ -26,7 +26,7 @@ export type Session = {
 
 export type Player = { wallet: string; firstSeenAt: Date; lastSeenAt: Date; deletedAt: Date | null };
 
-export interface Store extends ClaimStore, PlayerDataStore {
+export interface Store extends ClaimStore, PlayerDataStore, TournamentStore {
   insertChallenge(c: Challenge): Promise<void>;
   /** 原子消耗：只有未使用且未過期才會成功，回傳被消耗的 challenge */
   consumeChallenge(nonceHash: Buffer, now: Date): Promise<Challenge | null>;
@@ -127,6 +127,27 @@ export interface PlayerDataStore {
   listHistory(wallet: string, sinceTaskDate: number): Promise<HistoryItem[]>;
   /** 撤銷 session、刪除健康摘要與衍生資料、標記 players.deleted_at；有質押賽事時延後 */
   deletePlayerData(wallet: string, now: Date, deferUntil: Date | null): Promise<DeletionResult>;
-  /** 是否有進行中且已質押的賽事（B-14 接入前恆為 false） */
+  /**
+   * 是否有進行中且已質押的賽事。質押事實在鏈上（TournamentEntry），由 TournamentService 判斷；
+   * Store 只回答「本地是否有該錢包在未結算週次的步數紀錄」作為輔助訊號。
+   */
   hasActiveStakedTournament(wallet: string): Promise<boolean>;
+}
+
+// ---------------- PG-B-14：賽事步數 ----------------
+
+export type TournamentStepsRow = { weekId: number; wallet: string; verifiedSteps: number; firstReachedAt: Date | null; updatedAt: Date };
+
+export interface TournamentStore {
+  getTournamentSteps(weekId: number, wallet: string): Promise<TournamentStepsRow | null>;
+  /**
+   * 單調不減 upsert：只有 `verifiedSteps` 大於既有值才更新，並把 `firstReachedAt` 設為本次 `reachedAt`；
+   * 回傳更新後的 row 與是否有變更。
+   */
+  upsertTournamentSteps(weekId: number, wallet: string, verifiedSteps: number, reachedAt: Date, now: Date): Promise<{ row: TournamentStepsRow; changed: boolean }>;
+  /** 依 BR-20 排序：步數 DESC、first_reached_at ASC、wallet 位元組序 ASC */
+  listTournamentSteps(weekId: number, limit: number): Promise<TournamentStepsRow[]>;
+  countTournamentSteps(weekId: number): Promise<number>;
+  /** 該錢包在此週的名次（1 起；無紀錄回 null） */
+  rankOf(weekId: number, wallet: string): Promise<number | null>;
 }
