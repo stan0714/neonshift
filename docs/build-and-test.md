@@ -460,33 +460,28 @@ devnet airdrop 有速率限制，失敗時稍等再試或改用 faucet 網頁。
 
 ### 7.4 建立 tSKR 測試代幣
 
+tSKR 為 **6 decimals**（SD 1.2／PG-I-08；早期版本誤寫 9），總供給 1,000,000、獎勵金庫預撥 200,000（BRD 8.5 假設）。一律用腳本，避免手動步驟漏掉 vault owner：
+
 ```bash
-# 建立 mint（9 位小數）
-spl-token create-token --decimals 9 --url devnet
-# 記下輸出的 MINT 位址
-
-export TSKR_MINT=<上一步的 mint 位址>
-
-# 建立金庫 token account 並鑄造固定供給
-spl-token create-account $TSKR_MINT --url devnet
-spl-token mint $TSKR_MINT 1000000 --url devnet
-
-# 撤銷 mint authority（對應 BR-22）
-spl-token authorize $TSKR_MINT mint --disable --url devnet
-
-# 驗證
-spl-token display $TSKR_MINT --url devnet
+scripts/chain/keys.sh dev          # 產生 admin／program／attestor 金鑰（~/.config/neonshift/dev）
+scripts/chain/build.sh dev         # 以 dev program id 建置
+scripts/chain/deploy.sh dev        # anchor deploy 到 devnet
+scripts/chain/token.sh dev         # mint(6)、reward vault（owner = Config PDA）、treasury vault → 回填 deploy/dev.env
+npm --prefix tools/chain-admin run admin -- init-config dev   # initialize_config
+scripts/chain/token.sh dev fund    # 鑄造固定供給、撥款金庫、撤銷 mint authority（不可逆）
 ```
 
-`spl-token display` 的輸出中 mint authority 應為空，這是 BR-22 的驗收證據，記得截圖存檔給 Pitch 用。
+`token.sh <env> fund` 最後會印出 `spl-token display`，其中 mint authority 應為空，這是 BR-22 的驗收證據，記得截圖存檔給 Pitch 用。demo 環境把 `dev` 換成 `demo`，兩者金鑰、program id、mint 完全分離（SD 8）。
 
 ### 7.5 部署鏈上程式
+
+7.4 的腳本已涵蓋；手動等價指令：
 
 ```bash
 cd programs
 anchor build --arch v0          # 一律加 --arch v0，見下方說明
 anchor deploy --provider.cluster devnet
-# 記下 Program Id，填入 App 與後端設定
+# 記下 Program Id，填入 deploy/<env>.env；App 與後端由同一份檔案取得
 ```
 
 **工具鏈注意事項**（本機實測 Anchor 1.2.0 + solana-cli 3.1.10）：

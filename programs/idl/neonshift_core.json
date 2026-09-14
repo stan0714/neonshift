@@ -1,0 +1,1078 @@
+{
+  "address": "5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf",
+  "metadata": {
+    "name": "neonshift_core",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "NeonShift 鏈上程式：Config、PlayerProfile、clock_in、跑鞋與錦標賽（SD 3）"
+  },
+  "instructions": [
+    {
+      "name": "init_player",
+      "docs": [
+        "建立 PlayerProfile PDA（玩家簽章、付 rent；每錢包一次）"
+      ],
+      "discriminator": [
+        114,
+        27,
+        219,
+        144,
+        50,
+        15,
+        228,
+        66
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "docs": [
+            "確認程式已初始化；不 mut"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "profile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_config",
+      "docs": [
+        "建立 Config PDA（僅可執行一次；只有 upgrade authority 可呼叫）"
+      ],
+      "discriminator": [
+        208,
+        127,
+        21,
+        1,
+        194,
+        190,
+        196,
+        70
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "程式的 upgrade authority；同時支付 rent"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "reward_vault",
+          "docs": [
+            "獎勵金庫：mint 相符且由 Config PDA 持有，之後由程式簽章轉出"
+          ]
+        },
+        {
+          "name": "treasury_vault",
+          "docs": [
+            "國庫：mint 相符即可，owner 由治理決定"
+          ]
+        },
+        {
+          "name": "program",
+          "docs": [
+            "本程式帳戶（upgradeable loader）"
+          ],
+          "address": "5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf"
+        },
+        {
+          "name": "program_data"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "InitializeConfigParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "rotate_attestor",
+      "docs": [
+        "輪替 attestor 公鑰（admin），寬限期 0～600 秒"
+      ],
+      "discriminator": [
+        210,
+        240,
+        181,
+        158,
+        51,
+        168,
+        80,
+        134
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_attestor",
+          "type": "pubkey"
+        },
+        {
+          "name": "grace_seconds",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "set_paused",
+      "docs": [
+        "緊急停用／恢復（admin）。pause 範圍見 instructions/admin.rs"
+      ],
+      "discriminator": [
+        91,
+        60,
+        125,
+        192,
+        176,
+        225,
+        166,
+        218
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "update_config",
+      "docs": [
+        "更新 Config（admin）；影響獎勵金額的欄位受 BR-24 限制"
+      ],
+      "discriminator": [
+        29,
+        158,
+        252,
+        191,
+        10,
+        83,
+        219,
+        99
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "UpdateConfigParams"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "PlayerProfile",
+      "discriminator": [
+        82,
+        226,
+        99,
+        87,
+        164,
+        130,
+        181,
+        80
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "AttestorRotated",
+      "discriminator": [
+        44,
+        86,
+        231,
+        16,
+        98,
+        189,
+        12,
+        63
+      ]
+    },
+    {
+      "name": "ConfigInitialized",
+      "discriminator": [
+        181,
+        49,
+        200,
+        156,
+        19,
+        167,
+        178,
+        91
+      ]
+    },
+    {
+      "name": "ConfigUpdated",
+      "discriminator": [
+        40,
+        241,
+        230,
+        122,
+        11,
+        19,
+        198,
+        194
+      ]
+    },
+    {
+      "name": "PauseChanged",
+      "discriminator": [
+        238,
+        188,
+        213,
+        78,
+        134,
+        209,
+        178,
+        218
+      ]
+    },
+    {
+      "name": "PlayerInitialized",
+      "discriminator": [
+        214,
+        37,
+        153,
+        142,
+        63,
+        109,
+        206,
+        15
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "ProgramPaused",
+      "msg": "Config 停用中"
+    },
+    {
+      "code": 6001,
+      "name": "MissingEd25519Instruction",
+      "msg": "前置 ed25519 指令缺失或格式錯誤"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidAttestorKey",
+      "msg": "attestor 公鑰不符且不在寬限期"
+    },
+    {
+      "code": 6003,
+      "name": "AttestationMismatch",
+      "msg": "canonical bytes 不一致"
+    },
+    {
+      "code": 6004,
+      "name": "WrongProgramOrCluster",
+      "msg": "program id 或 cluster 不符"
+    },
+    {
+      "code": 6005,
+      "name": "WalletMismatch",
+      "msg": "簽章者非 attestation 指定錢包"
+    },
+    {
+      "code": 6006,
+      "name": "AttestationNotYetValid",
+      "msg": "attestation 未到 not_before"
+    },
+    {
+      "code": 6007,
+      "name": "AttestationExpired",
+      "msg": "attestation 已過期"
+    },
+    {
+      "code": 6008,
+      "name": "AttestationTtlTooLong",
+      "msg": "attestation 有效期超過 600 秒"
+    },
+    {
+      "code": 6009,
+      "name": "AlreadyClaimed",
+      "msg": "此任務已領取"
+    },
+    {
+      "code": 6010,
+      "name": "DailyCapReached",
+      "msg": "今日額度已用盡"
+    },
+    {
+      "code": 6011,
+      "name": "MathOverflow",
+      "msg": "定點數運算溢位"
+    },
+    {
+      "code": 6012,
+      "name": "ShoeAlreadyMinted",
+      "msg": "跑鞋已鑄造"
+    },
+    {
+      "code": 6013,
+      "name": "MaxCoreLevel",
+      "msg": "已達最高 Core 等級"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidTournamentState",
+      "msg": "賽事狀態不允許此操作"
+    },
+    {
+      "code": 6015,
+      "name": "AlreadyJoined",
+      "msg": "已報名"
+    },
+    {
+      "code": 6016,
+      "name": "InsufficientEntrants",
+      "msg": "有效參賽人數不足"
+    },
+    {
+      "code": 6017,
+      "name": "ConservationViolation",
+      "msg": "資金守恆檢查失敗"
+    },
+    {
+      "code": 6018,
+      "name": "MissingEvidence",
+      "msg": "沒收未附證據摘要"
+    },
+    {
+      "code": 6019,
+      "name": "InvalidTaskDate",
+      "msg": "task_date 不是鏈上目前 UTC 日序"
+    },
+    {
+      "code": 6020,
+      "name": "InvalidCoreLevel",
+      "msg": "Core 等級超出 Config 範圍"
+    },
+    {
+      "code": 6021,
+      "name": "InvalidTokenAccount",
+      "msg": "mint、owner、vault PDA 或 token program 不符"
+    },
+    {
+      "code": 6022,
+      "name": "InvalidResultBatch",
+      "msg": "排名批次非連續、重複或與 manifest 不符"
+    },
+    {
+      "code": 6023,
+      "name": "InvalidConfigParam",
+      "msg": "Config 參數超出允許範圍"
+    },
+    {
+      "code": 6024,
+      "name": "NotUpgradeAuthority",
+      "msg": "簽章者不是程式的 upgrade authority"
+    },
+    {
+      "code": 6025,
+      "name": "RewardParamsChangeRequiresPause",
+      "msg": "影響獎勵金額的參數必須先 pause 並等待 600 秒後才能更新（BR-24）"
+    },
+    {
+      "code": 6026,
+      "name": "Unauthorized",
+      "msg": "簽章者不是 Config.admin"
+    }
+  ],
+  "types": [
+    {
+      "name": "AttestorRotated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "new_attestor",
+            "type": "pubkey"
+          },
+          {
+            "name": "prev_attestor",
+            "type": "pubkey"
+          },
+          {
+            "name": "prev_valid_until",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Config",
+      "docs": [
+        "PDA seeds `[\"config\"]`"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "docs": [
+              "多簽位址；update_config／rotate_attestor 等管理指令的簽章者"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "cluster_id",
+            "docs": [
+              "canonical attestation 的環境識別；devnet = 1"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "attestor_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "attestor_valid_from",
+            "docs": [
+              "輪替生效時間，支援新舊並行"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "prev_attestor_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "prev_attestor_valid_until",
+            "type": "i64"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint_decimals",
+            "docs": [
+              "初始化時要求等於 mint 的 6 decimals"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "reward_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "daily_cap",
+            "type": "u64"
+          },
+          {
+            "name": "base_steps_reward",
+            "type": "u64"
+          },
+          {
+            "name": "base_sleep_reward",
+            "type": "u64"
+          },
+          {
+            "name": "streak_enabled",
+            "docs": [
+              "FR-03.6 功能開關，MVP 預設 false"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "streak_bonus_bps",
+            "docs": [
+              "啟用後加成，預設 11000；停用時一律使用 10000"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "burn_bps",
+            "docs": [
+              "升級燒毀比例，預設 7000"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "core_multiplier_bps",
+            "docs": [
+              "Core 1～5 倍率"
+            ],
+            "type": {
+              "array": [
+                "u16",
+                5
+              ]
+            }
+          },
+          {
+            "name": "core_upgrade_costs",
+            "docs": [
+              "升至 Core 2～5 的成本"
+            ],
+            "type": {
+              "array": [
+                "u64",
+                4
+              ]
+            }
+          },
+          {
+            "name": "shoe_xp_thresholds",
+            "docs": [
+              "跑鞋 Lv1～5 的累積 XP 門檻"
+            ],
+            "type": {
+              "array": [
+                "u64",
+                5
+              ]
+            }
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "paused_at",
+            "docs": [
+              "最近一次 pause 的時間；BR-24 以此判斷有效 attestation 是否已全部過期"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "cluster_id",
+            "type": "u8"
+          },
+          {
+            "name": "attestor_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "daily_cap",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_params_changed",
+            "docs": [
+              "是否變更了影響獎勵金額的參數（BR-24 受控欄位）"
+            ],
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InitializeConfigParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "cluster_id",
+            "type": "u8"
+          },
+          {
+            "name": "attestor_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "daily_cap",
+            "type": "u64"
+          },
+          {
+            "name": "base_steps_reward",
+            "type": "u64"
+          },
+          {
+            "name": "base_sleep_reward",
+            "type": "u64"
+          },
+          {
+            "name": "streak_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "streak_bonus_bps",
+            "type": "u16"
+          },
+          {
+            "name": "burn_bps",
+            "type": "u16"
+          },
+          {
+            "name": "core_multiplier_bps",
+            "type": {
+              "array": [
+                "u16",
+                5
+              ]
+            }
+          },
+          {
+            "name": "core_upgrade_costs",
+            "type": {
+              "array": [
+                "u64",
+                4
+              ]
+            }
+          },
+          {
+            "name": "shoe_xp_thresholds",
+            "type": {
+              "array": [
+                "u64",
+                5
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "PauseChanged",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PlayerInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "profile",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PlayerProfile",
+      "docs": [
+        "PDA seeds `[\"player\", wallet]`"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "shoe_asset",
+            "docs": [
+              "跑鞋資產位址；`Pubkey::default()` 表示未鑄造"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "core_level",
+            "docs": [
+              "1～5，只能透過付費升級改變，控制獎勵倍率（BR-23）"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "shoe_level",
+            "docs": [
+              "1～5，由 XP 門檻自動提升，只影響外觀（BR-23）"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "xp",
+            "type": "u64"
+          },
+          {
+            "name": "last_task_date",
+            "docs": [
+              "最近完成任務的 UTC 日序"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "streak_days",
+            "type": "u16"
+          },
+          {
+            "name": "claimed_today",
+            "docs": [
+              "當日已領取量，`task_date` 變更時歸零"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "today_date",
+            "docs": [
+              "`claimed_today` 對應的日序"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UpdateConfigParams",
+      "docs": [
+        "全部欄位可選；`None` 表示不變。"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "daily_cap",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "base_steps_reward",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "base_sleep_reward",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "streak_enabled",
+            "type": {
+              "option": "bool"
+            }
+          },
+          {
+            "name": "streak_bonus_bps",
+            "type": {
+              "option": "u16"
+            }
+          },
+          {
+            "name": "core_multiplier_bps",
+            "type": {
+              "option": {
+                "array": [
+                  "u16",
+                  5
+                ]
+              }
+            }
+          },
+          {
+            "name": "burn_bps",
+            "type": {
+              "option": "u16"
+            }
+          },
+          {
+            "name": "core_upgrade_costs",
+            "type": {
+              "option": {
+                "array": [
+                  "u64",
+                  4
+                ]
+              }
+            }
+          },
+          {
+            "name": "shoe_xp_thresholds",
+            "type": {
+              "option": {
+                "array": [
+                  "u64",
+                  5
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "CLAIM_SEED",
+      "type": "bytes",
+      "value": "[99, 108, 97, 105, 109]"
+    },
+    {
+      "name": "CONFIG_SEED",
+      "type": "bytes",
+      "value": "[99, 111, 110, 102, 105, 103]"
+    },
+    {
+      "name": "ENTRY_SEED",
+      "type": "bytes",
+      "value": "[101, 110, 116, 114, 121]"
+    },
+    {
+      "name": "PLAYER_SEED",
+      "type": "bytes",
+      "value": "[112, 108, 97, 121, 101, 114]"
+    },
+    {
+      "name": "TOURNAMENT_SEED",
+      "type": "bytes",
+      "value": "[116, 111, 117, 114, 110, 97, 109, 101, 110, 116]"
+    },
+    {
+      "name": "TSKR_DECIMALS",
+      "docs": [
+        "tSKR 固定 6 decimals（BR-22）"
+      ],
+      "type": "u8",
+      "value": "6"
+    }
+  ]
+}

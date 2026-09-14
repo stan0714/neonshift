@@ -26,3 +26,6 @@ secrets/
 
 # Office 暫存鎖檔
 ~$*
+
+# 部署用金鑰不進 repo（deploy/README.md）
+**/*-keypair.json
