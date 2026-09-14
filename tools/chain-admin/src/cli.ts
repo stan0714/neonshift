@@ -4,18 +4,22 @@
  *   npm run admin -- status <env>
  *   npm run admin -- set-paused <env> true|false
  *   npm run admin -- rotate-attestor <env> <newPubkey> <graceSeconds>
+ *   npm run admin -- tournament <sub> <env> <weekId> [...]   # 見 tournament.ts
  */
 import { PublicKey } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 import { createCtx, DEFAULT_CONFIG, programDataAddress } from "./client.js";
 import { loadKeypair, require_ } from "./env.js";
+import { tournamentCommand } from "./tournament.js";
 
-const [cmd, envName, ...rest] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+// tournament <sub> <env> <weekId> ... → 統一成 cmd=tournament、envName、rest=[sub, weekId, ...]
+const [cmd, envName, ...rest] = argv[0] === "tournament" ? ["tournament", argv[2], argv[1], ...argv.slice(3)] : argv;
 
 async function main() {
   if (!cmd || !envName) {
-    console.error("用法：admin <init-config|status|set-paused|rotate-attestor> <dev|demo> [...]");
+    console.error("用法：admin <init-config|status|set-paused|rotate-attestor|tournament> <dev|demo> [...]");
     process.exit(2);
   }
   const ctx = createCtx(envName);
@@ -75,6 +79,9 @@ async function main() {
       console.log("signature:", sig);
       break;
     }
+    case "tournament":
+      await tournamentCommand(ctx, rest[0]!, rest[1], rest.slice(2));
+      break;
     default:
       console.error(`未知指令 ${cmd}`);
       process.exit(2);

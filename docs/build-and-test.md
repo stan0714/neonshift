@@ -492,6 +492,32 @@ anchor deploy --provider.cluster devnet
 - `claim_collectible` 測試需要 Metaplex Core 程式：`programs/neonshift-core/tests/fixtures/mpl_core.so` 是 devnet dump（`solana program dump CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d <path> --url https://api.devnet.solana.com`，約 856 KB，已入庫）。Core 升版時重新 dump 並核對 `src/mpl_core.rs` 的指令佈局。
 - 統一入口 `scripts/test-all.sh` 會依序跑 Rust／向量／DB／後端／App／鏈上六個區段。
 
+### 7.6 週末錦標賽操作（PG-C-11～C-16／B-14／B-15）
+
+全部以 admin keypair 執行（`tools/chain-admin`）；後端需開 `INDEXER_ENABLED=true`（B-16）與 `OPS_TOKEN`。
+
+```bash
+cd tools/chain-admin
+# 週五：建立並開放報名（weekId = ISO 年×100+週；時間為 unix 秒，預設報名 +1 天／開賽 +2 天／結束 +4 天）
+npm run admin -- tournament create dev 202638 --stake 50 --injection-cap 1000 --min 10 --reg-end <unix> --start <unix> --end <unix>
+npm run admin -- tournament open dev 202638
+# 報名截止後：固定分組、國庫挹注（admin 需持有 TREASURY_VAULT 的 owner 權限）、對帳 vault；人數不足自動 Cancelled
+npm run admin -- tournament lock dev 202638
+# 到 starts_at 後（任何人可呼叫）
+npm run admin -- tournament start dev 202638
+# ends_at 後：沒收（evidence 32 bytes hex，由後端風險判定產出）→ 取 manifest → 承諾 → 分批提交 → 結算
+npm run admin -- tournament forfeit dev 202638 <wallet> <evidenceHashHex>
+curl -H "Authorization: Bearer $OPS_TOKEN" https://api-dev.neonshift.cc/v1/tournament/202638/manifest > /tmp/m.json
+npm run admin -- tournament begin dev 202638 --manifest /tmp/m.json
+npm run admin -- tournament submit dev 202638 --manifest /tmp/m.json --batch 8   # 可中斷續傳（依鏈上 results_submitted）
+npm run admin -- tournament settle dev 202638
+npm run admin -- tournament show dev 202638
+# 異常：admin 隨時可取消（挹注與沒收質押歸庫，玩家 refund_all）；ends_at + 7 天未結算則任何人可取消
+npm run admin -- tournament cancel dev 202638
+```
+
+manifest 的 `consistent=false`（後端名單人數 ≠ 鏈上 `valid − forfeited`）代表有沒收尚未上鏈或反之，CLI 會拒絕 begin／submit。
+
 ---
 
 ## 8. 測試包（Release APK）產出
