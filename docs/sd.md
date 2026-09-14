@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.21（運動 session） |
+| 文件版本 | v0.22（GPS 引擎） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -967,6 +967,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.22 | 2026-09-14 | PG-R-04／R-05：GpsMetricsEngine 規則與分段／圈數實作 |
 | v0.21 | 2026-09-14 | PG-R-01：運動 session 摘要 schema、去重／版本、匯入 API 與 App 清單 |
 | v0.20 | 2026-09-14 | PG-E-09：宣傳轉換、活動保留清理與 player 刪除同步 |
 | v0.19 | 2026-09-14 | PG-E-07／E-08：CSV staging、發布與更正歷史、公開榜／成績冊實作說明 |
@@ -1063,6 +1064,8 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 | GpsMetricsEngine | 合格點判定、距離／完整 5 秒窗、split／lap 插值；純計算可由固定軌跡重播，保存規則版本 |
 | WorkoutSummarySync | 沿用第 13 章運動摘要入口，以 wallet＋session ID 去重、revision 防覆寫；只同步同意的摘要與圈，原始座標不得進請求或日誌 |
 | WorkoutScreens | 開始／記錄／暫停／摘要；展示來源與品質，串接 PB／首次資格結果，不由 UI 自行授予 NFT |
+
+**實作（2026-09-14，PG-R-04／R-05）**：`GpsMetricsEngine`（`app/src/domain/gps/engine.ts`，`GPS_RULES_VERSION = 1`）純計算：`start／pause／resume／lap／finish` 以單調毫秒驅動；`addPoint` 依序拒絕非有限座標、seq 重複、時間倒序、精度 > 20 m、與前一接受點速度超上限（跑 12／走 4 m/s，門檻待實機校準）、暫停中；與前一接受點間隔 > 5 s 或恢復後從新點重建連續段（不補直線距離；缺口計數）；位移 < 3 m 視為抖動不累加（錨點不前進）；距離為接受點間 haversine 整數毫米。速度＝最近完整 5 秒連續窗的接受距離 ÷ 5（窗起點插值），不完整回 null，最高速度取其最大；平均速度／配速用全程 elapsed（含暫停）。Splits 依 `splitLengthMm`（1,000,000／1,609,344）在兩接受點間按距離比例插值時間、一次跨多界線逐一切、跨缺口標 `uncertain`、末段 `isPartial`，最快分段只比完整且非 uncertain 者；手動 Lap 與自訂距離自動圈為獨立序列（暫停禁按、零距離／零時間不新增）；跑道等效圈 `floor(distance / lapMm)` ＋餘數。`finish()` 回摘要與品質統計（accepted／rejected 分類／stationary／segments／gaps／coverageRatio／complete）。固定軌跡重播測試 `app/src/__tests__/gpsEngine.test.ts`。
 
 同步契約須拒絕非有限數值、負距離／時長、圈界越界及不支援的 sport／版本；伺服器衍生欄位不可由客戶端覆寫。相同 revision 重試返回同結果，過期 revision 回傳衝突，刪除 tombstone 阻止離線舊資料重建。裝置摘要仍屬裝置來源，欄位合法不等於運動真實性已驗證。
 
