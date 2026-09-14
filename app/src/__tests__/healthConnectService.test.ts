@@ -62,7 +62,7 @@ describe('讀取', () => {
         { package: 'android', sourceKind: 'android_legacy', steps: 9420, records: 40 },
         { package: 'com.example.fit', sourceKind: 'third_party', steps: 3000, records: 2 },
       ],
-      stepRateSummary: { observedMinutes: 720, maxStepsPerMinute: 142 },
+      stepRateSummary: { bucketMinutes: 1, buckets: [[600, 120]], observedMinutes: 720, maxStepsPerMinute: 142 },
       deviceSpn: null,
     });
     const r = await healthConnect.readStepsForTaskDate(20_706);

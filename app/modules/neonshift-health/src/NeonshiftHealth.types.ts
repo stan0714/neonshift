@@ -25,7 +25,10 @@ export type DataOriginSummary = {
   records: number;
 };
 
+/** SD 4.4：可重算的分鐘桶 `[minute_of_utc_day, steps]`（只含允許來源，總和等於 total） */
 export type StepRateSummary = {
+  bucketMinutes: 1;
+  buckets: [number, number][];
   observedMinutes: number;
   maxStepsPerMinute: number;
 };

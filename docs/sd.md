@@ -403,8 +403,8 @@ Request
   "steps": 9420,
   "sleep_minutes": null,
   "step_rate_summary": {
-    "observed_minutes": 720,
-    "max_steps_per_minute": 142
+    "bucket_minutes": 1,
+    "buckets": [[412, 96], [413, 131], [414, 142]]
   },
   "data_origins": [
     {
@@ -504,7 +504,7 @@ threshold: 60
 
 **任務分流與達標檢查**：步數先排除不允許來源，再夾限速率與每日總量；排除資料的存在不應使其餘合格資料整筆被拒。後端必須自行檢查有效步數 ≥ 8,000 或合格睡眠 ≥ 420 分鐘，未達回 `TASK_NOT_MET`，不得只依賴 App 按鈕。睡眠不要求步數、SPN 或 live motion；其允許來源及重疊去重政策待 SA-Q6 定案。本 YAML 是規則示意，不能直接視為完整可部署規則。GPS 規則僅適用步數且有同時段位移資料時；夾限後仍達標可簽發。
 
-**摘要可重算性**：目前 API 的 `observed_minutes` 與 `max_steps_per_minute` 無法推導超限步數總量。PG-B-06／PG-A-04 必須補定可重算的時間桶／區間摘要 schema、跨桶分配及捨入規則；缺少資料不得假裝已完成逐分鐘夾限。來源、總量與時間桶须一致，並以同一 UTC 區間測試。
+**摘要可重算性【2026-09-14 定案】**：`step_rate_summary` 為分鐘桶 `buckets: [[minute_of_utc_day, steps], …]`（升冪、不重複、只含允許來源）。App 端把每筆 StepsRecord 的步數均勻攤到它涵蓋的分鐘（整數除法，餘數由前往後每分鐘 +1；裁到任務日區間），之後丟棄 records。後端 `attributeAndClampSteps`：桶總和必須等於允許來源步數總和（否則 400 VALIDATION，不簽發）；逐桶 `min(steps, 250)` 相加為有效步數（記 `RATE_EXCEEDED`），再夾單日 40,000（記 `DAILY_CAP`）；沒有桶時有效步數為 0，不假裝已夾限。`observed_minutes`／`max_steps_per_minute` 由桶推導，不再由 client 傳。
 
 ### 4.5 資料庫 schema
 

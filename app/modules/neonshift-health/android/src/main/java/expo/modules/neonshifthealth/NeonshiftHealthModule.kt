@@ -144,8 +144,15 @@ class NeonshiftHealthModule : Module() {
         "dataOrigins" to origins.values.map {
           mapOf("package" to it.pkg, "sourceKind" to it.kind, "steps" to it.steps, "records" to it.records)
         },
+        // SD 4.4「摘要可重算性」：以任務日內的分鐘桶（minute_of_utc_day → steps）回傳，
+        // 後端據此逐分鐘夾限；桶只含允許來源，總和等於 total
         "stepRateSummary" to mapOf(
-          "observedMinutes" to minuteBuckets.size,
+          "bucketMinutes" to 1,
+          "buckets" to minuteBuckets.entries
+            .map { (absMinute, steps) -> listOf((absMinute - start.epochSecond / 60).toInt(), steps) }
+            .filter { it[0].toInt() in 0..1439 && it[1].toLong() > 0 }
+            .sortedBy { it[0].toInt() },
+          "observedMinutes" to minuteBuckets.count { it.value > 0 },
           "maxStepsPerMinute" to (minuteBuckets.values.maxOrNull() ?: 0L)
         ),
         "deviceSpn" to spn
