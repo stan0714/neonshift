@@ -189,12 +189,12 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-A-03 | Native Launch、Bootstrap Loading、Landing／Demo Preview | Style 8, 9 | — | 1.0 | WIP | BrandMark SVG、adaptive icon／splash 資產、Bootstrap 300ms/3s/10s 狀態機、Landing、Demo Preview；未實機驗證 |
 | PG-A-04 | HealthConnectModule：來源歸因、aggregate 與速率摘要 | SD 5.1 | BR-05, BR-07, BR-08 | 2.5 | WIP | modules/neonshift-health Kotlin（status／extension／SPN 反射、權限、aggregate＋DataOriginFilter、來源四分類、step-rate、睡眠 end-time 歸屬）；Seeker 實測權限與讀取通過；四種來源測資與跨午夜測試待補 |
 | PG-A-05 | SensorModule：20 秒引導式 live motion check 與特徵摘要 | SD 5.1 | BR-09 | 2.0 | WIP | modules/neonshift-sensors Kotlin（50 Hz、2×10 s、自相關主頻、RMS／ZCR／freq_variance、TYPE_STEP_COUNTER 增量，原始序列不出原生層）；JUnit 7＋JS 4 測試；Seeker 靜置實測 49.5 Hz；步行實測與引導 UI 待 A-13 |
-| PG-A-06 | WalletModule：MWA 授權與 token 保存 | SD 5.1 | — | 1.5 | TODO | |
+| PG-A-06 | WalletModule：MWA 授權與 token 保存 | SD 5.1 | — | 1.5 | WIP | WalletService：MWA 2.0 authorize／reauthorize／deauthorize、SecureStore token、錯誤四分類、signMessage；walletStore；9 測試；Seeker＋Phantom 實測連線成功 |
 | PG-A-07 | ApiClient、JWT 續期、challenge 簽署 | SD 4.2, 5.1 | — | 1.0 | TODO | |
 | PG-A-08 | TaskEngine：達標判定與 UTC 日界線 | SD 5.3 | BR-01, BR-05 | 1.0 | TODO | |
 | PG-A-09 | TxBuilder：ed25519 前置指令與 Anchor 指令 | SD 3.5, 5.1 | BR-14 | 2.0 | TODO | |
 | PG-A-10 | ChainClient：簽章／blockhash 保存、確認與 ClaimReceipt 冪等輪詢 | SD 5.3 | — | 1.5 | TODO | |
-| PG-A-11 | Onboarding 四頁權限流程 | Style 10 | FR-02.5 | 1.5 | TODO | |
+| PG-A-11 | Onboarding 四頁權限流程 | Style 10 | FR-02.5 | 1.5 | WIP | 四頁 Onboarding（Style 10.1～10.4）＋OnboardingLayout／InlineState；Health／Activity 接真實權限、拒絕狀態不重複彈出；Mint 畫面接 C-09／A-09 前回「尚未開放」；7 測試；Seeker 實測至 Step 4 |
 | PG-A-12 | Dashboard 儀表板 | Style 11 | FR-08.1 | 1.5 | TODO | |
 | PG-A-13 | 打卡、live motion 引導與成功特效 | Style 15 | FR-03.1, FR-08.3 | 1.0 | TODO | |
 | PG-A-14 | Gear 頁與升級流程 | Style 12 | FR-05.2 | 1.0 | TODO | |

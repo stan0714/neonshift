@@ -33,3 +33,21 @@ jest.mock('./modules/neonshift-sensors/src/NeonshiftSensorsModule', () => ({
     addListener: jest.fn(() => ({ remove: jest.fn() })),
   },
 }));
+
+// MWA 需要原生 TurboModule；Jest 一律 mock transact，個別測試再覆寫回傳
+jest.mock('@solana-mobile/mobile-wallet-adapter-protocol-web3js', () => ({ transact: jest.fn() }));
+jest.mock('@solana-mobile/mobile-wallet-adapter-protocol', () => ({
+  transact: jest.fn(),
+  SolanaMobileWalletAdapterError: class extends Error {},
+  SolanaMobileWalletAdapterErrorCode: {},
+}));
+
+// SecureStore：記憶體版
+jest.mock('expo-secure-store', () => {
+  const mem = new Map<string, string>();
+  return {
+    getItemAsync: jest.fn(async (k: string) => mem.get(k) ?? null),
+    setItemAsync: jest.fn(async (k: string, v: string) => void mem.set(k, v)),
+    deleteItemAsync: jest.fn(async (k: string) => void mem.delete(k)),
+  };
+});
