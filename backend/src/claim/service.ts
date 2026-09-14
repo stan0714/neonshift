@@ -13,6 +13,8 @@ import { ApiError } from "../errors.js";
 import { evaluate, type RiskDecision } from "../risk/engine.js";
 import type { RuleSet } from "../risk/rules.js";
 import type { AttestationSigner } from "../signer/index.js";
+import type { Alerts } from "../ops/alerts.js";
+import type { Metrics } from "../ops/metrics.js";
 import type { Store } from "../store/types.js";
 import { type Json, requestHashOf, sha256Canonical } from "./canonical.js";
 import { type ClaimRequest, claimRequestSchema, TASK_TYPES } from "./schema.js";
@@ -46,6 +48,7 @@ export class ClaimService {
     private readonly rules: RuleSet,
     private readonly cfg: ClaimConfig,
     private readonly now: () => Date = () => new Date(),
+    private readonly ops?: { metrics: Metrics; alerts: Alerts },
   ) {}
 
   /** 啟動時把規則集寫入 rule_sets（同版本不同 hash 會拋錯，阻止靜默改規則） */
@@ -74,11 +77,17 @@ export class ClaimService {
 
     try {
       const taskType = TASK_TYPES[req.task_type];
-      await this.challenge.verifyAndConsume(
-        wallet,
-        { purpose: "claim", requestHash, taskDate: req.task_date, taskType },
-        { challengeB64: req.claim_authorization.challenge_b64, expiresAt: req.claim_authorization.expires_at, signatureB64: req.claim_authorization.signature_b64 },
-      );
+      try {
+        await this.challenge.verifyAndConsume(
+          wallet,
+          { purpose: "claim", requestHash, taskDate: req.task_date, taskType },
+          { challengeB64: req.claim_authorization.challenge_b64, expiresAt: req.claim_authorization.expires_at, signatureB64: req.claim_authorization.signature_b64 },
+        );
+      } catch (e) {
+        // 已用過的 challenge 再送 = 重放嘗試（SD 9 安全指標）
+        if (e instanceof ApiError && e.code === "CHALLENGE_INVALID") this.ops?.alerts.onReplayAttempt(wallet, now.getTime());
+        throw e;
+      }
 
       const decision = evaluate(req, this.rules);
       if (req.task_type === "steps" && decision.steps?.inconsistent) {
@@ -109,6 +118,7 @@ export class ClaimService {
       });
 
       let outcome: ClaimOutcome;
+      this.ops?.metrics.inc("neonshift_claim_decisions_total", { task: req.task_type, decision: decision.decision, code: decision.rejectCode ?? "PASS" });
       if (decision.decision === "reject") {
         outcome = {
           httpStatus: 422,
@@ -137,6 +147,8 @@ export class ClaimService {
           issuedAt: new Date(issued.issuedAt * 1000),
           expiresAt: new Date(issued.expiresAt * 1000),
         });
+        this.ops?.metrics.inc("neonshift_attestations_issued_total", { task: req.task_type });
+        this.ops?.alerts.onIssued(now.getTime());
         outcome = {
           httpStatus: 200,
           body: {

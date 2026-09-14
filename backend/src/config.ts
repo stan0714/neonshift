@@ -28,6 +28,13 @@ export const configSchema = z.object({
   /** attestor signer：`http:<url>`（隔離 signer service，配 SIGNER_TOKEN）或 dev 用 `local:<keypair 路徑|base58>` */
   ATTESTOR_SIGNER: z.string().optional(),
   SIGNER_TOKEN: z.string().optional(),
+  /** 速率限制（PG-B-18）：每錢包（已登入）與每 IP 的每分鐘上限 */
+  RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(60),
+  /** 敏感端點（nonce／verify／claim）每分鐘上限 */
+  RATE_LIMIT_SENSITIVE_PER_MINUTE: z.coerce.number().int().positive().default(10),
+  ALERT_WEBHOOK_URL: z.string().url().optional(),
+  /** /metrics 保護 token；未設定時 /metrics 只在 local 開放 */
+  METRICS_TOKEN: z.string().optional(),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;

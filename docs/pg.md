@@ -175,7 +175,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-B-15 | 排行榜、同分決勝與 settlement manifest／rolling hash | SD 4.1, 6.2 | BR-20 | 1.0 | TODO | |
 | PG-B-16 | ChainIndexer：finalized 事件同步、orphan 回滾與 redeemed_sig 回填 | SD 2.1, 4.5 | — | 1.0 | TODO | |
 | PG-B-17 | 30 天保留清理排程 | SD 4.5 | BR-25 | 0.5 | TODO | |
-| PG-B-18 | 速率限制、audit log、告警與暫停流程、可觀測性指標 | SD 4.2, 9 | — | 1.0 | TODO | |
+| PG-B-18 | 速率限制、audit log、告警與暫停流程、可觀測性指標 | SD 4.2, 9 | — | 1.0 | WIP | @fastify/rate-limit（錢包／IP，敏感端點較低上限）、結構化稽核（不含 JWT／簽章／body）、/metrics（token）計數＋延遲直方圖、Alerts：重放 >10/日／簽發量 >3× 基線 → log＋webhook（pause 由 admin CLI 執行）；4 測試 |
 | PG-B-19 | 後端測試：規則、challenge／idempotency 重放、API 整合 | SD 7 | — | 1.5 | TODO | |
 
 ---

@@ -23,11 +23,15 @@ export function requireAuth(auth: AuthService) {
 export async function authRoutes(app: FastifyInstance, opts: { auth: AuthService; challenge: ChallengeService }) {
   const { auth, challenge } = opts;
 
+  const sensitive = { rateLimit: { max: app.config.RATE_LIMIT_SENSITIVE_PER_MINUTE, timeWindow: "1 minute" } };
+
   app.post("/auth/nonce", {
+    config: sensitive,
     schema: { body: { type: "object", required: ["wallet"], properties: { wallet: { type: "string", minLength: 32, maxLength: 44 } }, additionalProperties: false } },
   }, async (req) => auth.issueNonce((req.body as { wallet: string }).wallet));
 
   app.post("/auth/verify", {
+    config: sensitive,
     schema: {
       body: {
         type: "object",
