@@ -6,7 +6,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{
     instruction::{AccountMeta, Instruction},
-    program::invoke,
+    program::invoke_signed,
 };
 
 pub const MPL_CORE_ID: Pubkey = pubkey!("CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d");
@@ -29,7 +29,7 @@ pub fn create_v1_data(name: &str, uri: &str) -> Vec<u8> {
 
 pub struct CreateV1Accounts<'a, 'info> {
     pub mpl_core_program: &'a AccountInfo<'info>,
-    /// 新 asset（signer、writable）
+    /// 新 asset（signer、writable；本專案為 PDA，以 signer_seeds 簽）
     pub asset: &'a AccountInfo<'info>,
     /// 付 rent（signer、writable）；同時作為 authority
     pub payer: &'a AccountInfo<'info>,
@@ -41,7 +41,8 @@ pub struct CreateV1Accounts<'a, 'info> {
 }
 
 /// 無 collection、無 plugins 的建立；authority 使用 payer（None → 預設 payer）。
-pub fn create_v1<'info>(accts: CreateV1Accounts<'_, 'info>, name: &str, uri: &str) -> Result<()> {
+/// `signer_seeds`：asset 為 PDA 時的 seeds（signer 權限會透過 Core 對 system program 的巢狀 CPI 傳遞）。
+pub fn create_v1<'info>(accts: CreateV1Accounts<'_, 'info>, name: &str, uri: &str, signer_seeds: &[&[&[u8]]]) -> Result<()> {
     require_keys_eq!(*accts.mpl_core_program.key, MPL_CORE_ID);
     let metas = vec![
         AccountMeta::new(*accts.asset.key, true),
@@ -54,7 +55,7 @@ pub fn create_v1<'info>(accts: CreateV1Accounts<'_, 'info>, name: &str, uri: &st
         AccountMeta::new_readonly(MPL_CORE_ID, false), // log_wrapper: None
     ];
     let ix = Instruction { program_id: MPL_CORE_ID, accounts: metas, data: create_v1_data(name, uri) };
-    invoke(
+    invoke_signed(
         &ix,
         &[
             accts.asset.clone(),
@@ -64,6 +65,7 @@ pub fn create_v1<'info>(accts: CreateV1Accounts<'_, 'info>, name: &str, uri: &st
             accts.update_authority.clone(),
             accts.system_program.clone(),
         ],
+        signer_seeds,
     )?;
     Ok(())
 }

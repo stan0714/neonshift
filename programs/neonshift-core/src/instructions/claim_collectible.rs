@@ -1,6 +1,7 @@
 //! `claim_collectible`（PG-C-09，FR-04.6、SD 3.2／11A）：達成等級／里程碑後免費領取成就 NFT。
 //! 資格以鏈上 PlayerProfile 驗證；`CollectibleReceipt` PDA `init` 保證每種一枚；
 //! CPI Metaplex Core `CreateV1` 鑄造到玩家錢包（玩家付 rent，不收 tSKR）；受 pause 影響。
+//! asset 為本程式 PDA `["asset", wallet, kind]`（invoke_signed），位址確定、App 不必產生 keypair。
 
 use anchor_lang::prelude::*;
 
@@ -31,9 +32,9 @@ pub struct ClaimCollectible<'info> {
     )]
     pub receipt: Account<'info, CollectibleReceipt>,
 
-    /// CHECK: 新 asset keypair，由 Metaplex Core 初始化
-    #[account(mut)]
-    pub asset: Signer<'info>,
+    /// CHECK: 新 asset PDA（尚未存在），由 Metaplex Core 透過 system program 建立
+    #[account(mut, seeds = [ASSET_SEED, player.key().as_ref(), &[kind]], bump)]
+    pub asset: UncheckedAccount<'info>,
 
     /// CHECK: Metaplex Core program
     #[account(address = MPL_CORE_ID @ ErrorCode::InvalidTokenAccount)]
@@ -47,8 +48,8 @@ pub fn collectible_metadata(kind: u8) -> Option<(String, String)> {
     let name = match kind {
         1 => "NeonShift Shoe · Origin".to_string(),
         2 => "NeonShift Shoe · Pulse".to_string(),
-        3 => "NeonShift Shoe · Surge".to_string(),
-        4 => "NeonShift Shoe · Apex".to_string(),
+        3 => "NeonShift Shoe · Phase".to_string(),
+        4 => "NeonShift Shoe · Surge".to_string(),
         5 => "NeonShift Shoe · Zenith".to_string(),
         COLLECTIBLE_FIRST_CLAIM => "NeonShift Badge · First Clock-In".to_string(),
         COLLECTIBLE_STREAK_7 => "NeonShift Badge · 7-Day Streak".to_string(),
@@ -76,6 +77,8 @@ pub fn handle_claim_collectible(ctx: Context<ClaimCollectible>, kind: u8) -> Res
     let (name, uri) = collectible_metadata(kind).ok_or(ErrorCode::InvalidCollectibleKind)?;
     require!(eligible(&ctx.accounts.profile, kind), ErrorCode::CollectibleNotEligible);
 
+    let player_key = ctx.accounts.player.key();
+    let asset_seeds: &[&[u8]] = &[ASSET_SEED, player_key.as_ref(), &[kind], &[ctx.bumps.asset]];
     create_v1(
         CreateV1Accounts {
             mpl_core_program: &ctx.accounts.mpl_core_program.to_account_info(),
@@ -87,6 +90,7 @@ pub fn handle_claim_collectible(ctx: Context<ClaimCollectible>, kind: u8) -> Res
         },
         &name,
         &uri,
+        &[asset_seeds],
     )?;
 
     let receipt = &mut ctx.accounts.receipt;

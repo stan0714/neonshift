@@ -925,9 +925,10 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 
 **實作定案（PG-C-09 PoC，2026-09-14）**：
 - `mpl-core` crate 0.12 只支援 Anchor 0.31／0.32（solana-program 2.x），與 Anchor 1.2／solana 3.x 不相容 → **不引入 crate**，在 `programs/neonshift-core/src/mpl_core.rs` 手組 `CreateV1`（discriminator 0 + borsh `{data_state: 0, name, uri, plugins: None}`；帳戶順序 asset／collection／authority／payer／owner／update_authority／system_program／log_wrapper，可選帳戶以 `MPL_CORE_ID` 占位）。升級 Core 版本需重新核對佈局。玩家自己簽（保持原設計，不改後端代鑄）。
+- asset 為本程式 PDA `["asset", wallet, kind]`（`invoke_signed`，signer 權限經 Core → system program 巢狀 CPI 傳遞）：位址可由 App／索引器直接推導，App 不必產生一次性 keypair 也不需 MWA 部分簽章；`CollectibleReceipt.asset` 仍記錄以便查詢。
 - MVP **不建 collection**（省一次 admin 交易與 CollectionV1 的 authority 管理），`update_authority = Config PDA`（Address 型，程式可日後以 PDA 簽章更新 metadata）；上線前若要在錢包／市集歸類為同一系列，於 C-18 補 `CreateCollectionV1` 並將 `collection` 改為必填。
 - `COLLECTIBLE_BASE_URI` 為程式常數 `https://neonshift.cc/nft/`（非 Config 欄位；改網址需升級程式，MVP 可接受）。
-- 名稱：跑鞋 `NeonShift Shoe · Origin／Pulse／Surge／Apex／Zenith`（Lv1～5）、徽章 `NeonShift Badge · First Clock-In`／`7-Day Streak`／`Arena #n`。
+- 名稱：跑鞋 `NeonShift Shoe · Origin／Pulse／Phase／Surge／Zenith`（Lv1～5）、徽章 `NeonShift Badge · First Clock-In`／`7-Day Streak`／`Arena #n`。
 - 資格：kind 1～5 ⇒ `shoe_level ≥ kind`；101 ⇒ `xp > 0`；102 ⇒ `max_streak_days ≥ 7`；111～119 ⇒ 待 C-14 `TournamentEntry` 接入，目前回 6029。重複領取由 receipt PDA `init` 擋（system program AccountAlreadyInUse），不另設錯誤碼。
 - 測試：LiteSVM 載入 devnet dump 的 Core 程式 `tests/fixtures/mpl_core.so`（`solana program dump CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d`），驗證 AssetV1 佈局（key／owner／update_authority／name／uri）、rent 花費 < 0.01 SOL、tSKR 不變。
 

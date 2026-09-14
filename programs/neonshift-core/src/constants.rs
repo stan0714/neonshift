@@ -50,6 +50,10 @@ pub const SECONDS_PER_DAY: i64 = 86_400;
 #[constant]
 pub const COLLECTIBLE_SEED: &[u8] = b"collectible";
 
+/// 成就 NFT asset PDA seeds `["asset", wallet, kind]`：位址可由 App 直接推導，不需額外 keypair 簽章
+#[constant]
+pub const ASSET_SEED: &[u8] = b"asset";
+
 /// 成就收藏種類（SD 3.2 `claim_collectible`）
 pub const COLLECTIBLE_SHOE_LV1: u8 = 1;
 pub const COLLECTIBLE_SHOE_LV5: u8 = 5;

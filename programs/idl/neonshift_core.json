@@ -74,8 +74,7 @@
         },
         {
           "name": "asset",
-          "writable": true,
-          "signer": true
+          "writable": true
         },
         {
           "name": "mpl_core_program",
@@ -1469,6 +1468,14 @@
     }
   ],
   "constants": [
+    {
+      "name": "ASSET_SEED",
+      "docs": [
+        "成就 NFT asset PDA seeds `[\"asset\", wallet, kind]`：位址可由 App 直接推導，不需額外 keypair 簽章"
+      ],
+      "type": "bytes",
+      "value": "[97, 115, 115, 101, 116]"
+    },
     {
       "name": "CLAIM_SEED",
       "type": "bytes",

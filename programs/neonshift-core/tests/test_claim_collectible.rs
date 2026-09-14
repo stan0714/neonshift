@@ -35,6 +35,10 @@ fn receipt_pda(wallet: &Pubkey, kind: u8) -> Pubkey {
     Pubkey::find_program_address(&[COLLECTIBLE_SEED, wallet.as_ref(), &[kind]], &neonshift_core::id()).0
 }
 
+fn asset_pda(wallet: &Pubkey, kind: u8) -> Pubkey {
+    Pubkey::find_program_address(&[ASSET_SEED, wallet.as_ref(), &[kind]], &neonshift_core::id()).0
+}
+
 impl World {
     fn wallet(&self) -> Pubkey {
         self.player.key.pubkey()
@@ -55,8 +59,8 @@ impl World {
         self.env.svm.set_account(key, acc).unwrap();
     }
     fn claim(&mut self, kind: u8) -> (litesvm::types::TransactionResult, Pubkey) {
-        let asset = Keypair::new();
         let wallet = self.wallet();
+        let asset = asset_pda(&wallet, kind);
         let ix = anchor_lang::solana_program::instruction::Instruction::new_with_bytes(
             neonshift_core::id(),
             &ix::ClaimCollectible { kind }.data(),
@@ -65,14 +69,16 @@ impl World {
                 config: config_pda().0,
                 profile: player_pda(&wallet).0,
                 receipt: receipt_pda(&wallet, kind),
-                asset: asset.pubkey(),
+                asset,
                 mpl_core_program: MPL_CORE_ID,
                 system_program: system_program::ID,
             }
             .to_account_metas(None),
         );
         let player = self.player.key.insecure_clone();
-        (send(&mut self.env.svm, &[ix], &player, &[&asset]), asset.pubkey())
+        // asset 為 PDA 後同一 kind 的重試交易位元組完全相同；換 blockhash 避免 LiteSVM AlreadyProcessed 去重
+        self.env.svm.expire_blockhash();
+        (send(&mut self.env.svm, &[ix], &player, &[]), asset)
     }
     fn clock_in_steps(&mut self) {
         let args = valid_args(&self.env.svm, &self.wallet(), 1);
@@ -200,24 +206,48 @@ fn blocked_when_paused() {
     assert_eq!(custom_error(&w.claim(1).0), Some(6000));
 }
 
-#[test]
-fn rejects_wrong_mpl_core_program() {
-    let mut w = world();
-    let asset = Keypair::new();
-    let wallet = w.wallet();
-    let mut metas = neonshift_core::accounts::ClaimCollectible {
-        player: wallet,
+fn claim_metas(wallet: &Pubkey, kind: u8) -> Vec<anchor_lang::solana_program::instruction::AccountMeta> {
+    neonshift_core::accounts::ClaimCollectible {
+        player: *wallet,
         config: config_pda().0,
-        profile: player_pda(&wallet).0,
-        receipt: receipt_pda(&wallet, 1),
-        asset: asset.pubkey(),
+        profile: player_pda(wallet).0,
+        receipt: receipt_pda(wallet, kind),
+        asset: asset_pda(wallet, kind),
         mpl_core_program: MPL_CORE_ID,
         system_program: system_program::ID,
     }
-    .to_account_metas(None);
-    metas[5].pubkey = system_program::ID;
-    let ix = anchor_lang::solana_program::instruction::Instruction::new_with_bytes(neonshift_core::id(), &ix::ClaimCollectible { kind: 1 }.data(), metas);
+    .to_account_metas(None)
+}
+
+fn send_metas(w: &mut World, kind: u8, metas: Vec<anchor_lang::solana_program::instruction::AccountMeta>, extra: &[&Keypair]) -> litesvm::types::TransactionResult {
+    let ix = anchor_lang::solana_program::instruction::Instruction::new_with_bytes(neonshift_core::id(), &ix::ClaimCollectible { kind }.data(), metas);
     let player = w.player.key.insecure_clone();
-    let res = send(&mut w.env.svm, &[ix], &player, &[&asset]);
-    assert!(res.is_err());
+    send(&mut w.env.svm, &[ix], &player, extra)
+}
+
+#[test]
+fn rejects_wrong_mpl_core_program() {
+    let mut w = world();
+    let mut metas = claim_metas(&w.wallet(), 1);
+    metas[5].pubkey = system_program::ID;
+    assert!(send_metas(&mut w, 1, metas, &[]).is_err());
+}
+
+#[test]
+fn rejects_non_pda_asset() {
+    let mut w = world();
+    let rogue = Keypair::new();
+    let mut metas = claim_metas(&w.wallet(), 1);
+    metas[4].pubkey = rogue.pubkey();
+    metas[4].is_signer = true;
+    let res = send_metas(&mut w, 1, metas, &[rogue.insecure_clone()].iter().collect::<Vec<_>>());
+    assert_eq!(custom_error(&res), Some(2006)); // ConstraintSeeds
+}
+
+#[test]
+fn asset_address_is_deterministic_per_wallet_and_kind() {
+    let mut w = world();
+    let (_, a1) = w.claim(1);
+    assert_eq!(a1, asset_pda(&w.wallet(), 1));
+    assert_ne!(asset_pda(&w.wallet(), 1), asset_pda(&w.wallet(), 2));
 }
