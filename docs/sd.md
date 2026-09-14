@@ -2,9 +2,9 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.2（安全性、狀態一致性與執行環境 review） |
+| 文件版本 | v0.4（新增合作活動設計） |
 | 建立日期 | 2026-09-09 |
-| 上游文件 | [BRD v0.4](./brd-detailed.md)、[SA v0.2](./sa.md)、[Style Guide v0.1](./style.md) |
+| 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
 | 網路 | Solana devnet |
 | 代幣 | `tSKR`，devnet 測試 SPL Token，無金錢價值，非官方 SKR |
@@ -295,7 +295,7 @@ let amount = amount.min(remaining);         // BR-04
 
 | offset | 長度 | 欄位 | 說明 |
 |---|---|---|---|
-| 0 | 19 | domain | ASCII `NEONSHIFT_ATTEST_V1` |
+| 0 | 19 | domain | ASCII `NEONSHIFT_ATTEST_V1`，無零結尾 |
 | 19 | 1 | `version` | 目前為 1 |
 | 20 | 32 | `program_id` | 綁定程式（BR-14） |
 | 52 | 1 | `cluster_id` | 1 = devnet |
@@ -310,6 +310,8 @@ let amount = amount.min(remaining);         // BR-04
 | 148 | 16 | `nonce` | 隨機 |
 
 **刻意不包含金額**。金額由鏈上依 Config 與 PlayerProfile 計算，符合 C-03。
+
+**2026-09-14 契約核對**：以 ASCII 編碼確認 domain 為 19 bytes，現有 164-byte layout 與 offsets 正確，不增加零結尾。時效仍須驗證 `issued_at <= not_before <= expiry`；現有 Rust／TypeScript `validate` 尚未檢查第一個不等式，列入 PG-C-04／PG-B-10 修正與負向測試。
 
 `evidence_hash` 的輸入只包含實際參與判定的欄位、資料來源摘要及 `rules_hash`，先依固定 schema 排序，再以 RFC 8785 JSON Canonicalization Scheme 產生 bytes 並做 SHA-256。伺服器保存相同 canonical bytes 的 hash，不保存一份不同排序的 request JSON 作為稽核依據。
 
@@ -353,6 +355,8 @@ Base path `/v1`。除登入相關外皆需 Bearer JWT。錯誤回應統一為 `{
 |---|---|---|---|
 | POST | `/auth/nonce` | 取得登入 nonce | UC-01 |
 | POST | `/auth/verify` | 驗證錢包簽章，發 15 分鐘 access JWT 與最長 24 小時 refresh session | UC-01 |
+| POST | `/auth/refresh` | 以 refresh token 輪替 session；不要求尚未過期的 access JWT | UC-01 |
+| POST | `/auth/logout` | 撤銷目前 session family，重複登出仍成功 | UC-01 |
 | POST | `/auth/challenge` | 取得綁定 wallet、purpose 與 request hash 的單次敏感操作 challenge | UC-05、UC-08 |
 | POST | `/attestation/claim` | 上傳單次任務的最小必要健康摘要並申請 attestation | UC-05 |
 | GET | `/player/history?days=30` | 打卡歷史 | UC-11 |
@@ -377,6 +381,8 @@ API 共通要求：TLS only、request body 上限、schema validation、wallet�
 Header `Idempotency-Key` 為 client 產生的 UUID。相同 wallet、key 與 request hash 在 10 分鐘內重試時回傳相同結果；相同 key 搭配不同 payload 回 `409 IDEMPOTENCY_CONFLICT`。attestation 過期後重簽必須使用新 key，並受 wallet／task rate limit；鏈上 ClaimReceipt 仍是最終唯一性依據。
 
 同 idempotency key 的重試應先查既有結果再檢查 challenge，因此網路中斷後可取得原回應；首次處理或使用新 key 時，challenge 必須有效、內容相符且未使用。
+
+前述快取查詢仍須先驗證身分、session 未撤銷及玩家未刪除；不可繞過刪除或登出。首次處理須以資料庫交易／唯一約束原子消耗 challenge 並保留處理狀態；相同 key 的並發請求只允許一個處理者。保存完整成功回應（message、signature、key）及拒絕結果至重試期限，不能只存 nonce 再重新簽章。現有 4.5 SQL 尚缺 idempotency result／processing 狀態，PG-B-02／B-11 須以 migration 補齊，並測試 signer 成功後 process crash 的恢復。
 
 Request
 
@@ -459,9 +465,9 @@ rules_version: 3
 rules_hash: "sha256:<computed-from-canonical-config-without-this-field>"
 hard_reject:
   - id: SRC_UNATTRIBUTED
-    when: attributed_steps == 0
+    when: task_type == "steps" && attributed_steps == 0
   - id: SRC_MANUAL
-    when: has_manual_origin
+    when: task_type == "steps" && accepted_steps_include_manual_origin
   - id: SLEEP_RANGE
     when: task_type == "sleep" && (sleep_minutes < 180 || sleep_minutes > 720)
   - id: NO_SENSOR
@@ -490,6 +496,10 @@ threshold: 60
 ```
 
 設計要點。硬拒絕與夾限先執行，評分規則只在資料通過硬拒絕後計算。門檻 60 為初始保守值，第三週依 BRD 4.1 的資料集校準（SA-Q2）。每次判定寫入 `risk_decisions`，含輸入雜湊、命中規則、分數與版本，供誤判申訴查核。
+
+**任務分流與達標檢查**：步數先排除不允許來源，再夾限速率與每日總量；排除資料的存在不應使其餘合格資料整筆被拒。後端必須自行檢查有效步數 ≥ 8,000 或合格睡眠 ≥ 420 分鐘，未達回 `TASK_NOT_MET`，不得只依賴 App 按鈕。睡眠不要求步數、SPN 或 live motion；其允許來源及重疊去重政策待 SA-Q6 定案。本 YAML 是規則示意，不能直接視為完整可部署規則。GPS 規則僅適用步數且有同時段位移資料時；夾限後仍達標可簽發。
+
+**摘要可重算性**：目前 API 的 `observed_minutes` 與 `max_steps_per_minute` 無法推導超限步數總量。PG-B-06／PG-A-04 必須補定可重算的時間桶／區間摘要 schema、跨桶分配及捨入規則；缺少資料不得假裝已完成逐分鐘夾限。來源、總量與時間桶须一致，並以同一 UTC 區間測試。
 
 ### 4.5 資料庫 schema
 
@@ -603,7 +613,7 @@ CREATE TABLE chain_events (
 );
 ```
 
-保留政策：每日排程刪除 `health_snapshots` 中 `created_at` 超過 30 天者，`risk_decisions` 以 CASCADE 連帶刪除。`attestations` 僅保留 nonce 與不可逆雜湊，不含健康數值，可長期保存供稽核。刪除請求先同步撤銷 auth sessions、禁止新 snapshot／attestation，並依 BR-25 立即刪除或排定最晚刪除時間；不得因賽事、備份或稽核需求突破 30 天。公開鏈上資料無法刪除。
+保留政策：健康摘要與其衍生資料依 BR-25 最長保留 30 天，包括 `health_snapshots`、`risk_decisions`、`tournament_steps`、可關聯健康輸入的 attestation／idempotency 快取與稽核紀錄。每日批次只能作清理補強；查詢及處理路徑須拒用逾期資料，刪除工作須在期限內完成，不能額外多留一天。`risk_decisions` 以 CASCADE 刪除；其他表須有明確清理路徑。雜湊與 wallet 仍可關聯，不能以「不可逆」自動認定可永久保存。刪除請求同步撤銷 session、禁止新處理，依 BR-25 刪除或排定期限；SQL 尚須補入 deletion_due_at 與相關保留欄位。公開鏈上資料保留與後端健康資料刪除分開處理，不因重新索引復原已刪健康資料。
 
 ChainIndexer 以 `(signature, event_index)` 冪等寫入，先記錄 `confirmed` 供 UI 快速顯示，再追蹤至 `finalized`。若交易在 finalization 前不再位於 canonical fork，標記 `orphaned_at` 並回滾其衍生 projection；不可刪除原 row 或把 `confirmed` 當永久事實。排行榜與結算輸入只採用已 `finalized` 且未 orphaned 的鏈上事件。
 
@@ -634,6 +644,8 @@ ChainIndexer 以 `(signature, event_index)` 冪等寫入，先記錄 `confirmed`
 | `TaskEngine` | 達標判定、任務狀態機（SA 6.3） | 資料讀取 |
 
 `HealthConnectModule` 在 Android 14 啟動時先檢查 SDK extension：裝置內建步數需 extension 20 以上；目前裝置 SPN 透過 framework `HealthConnectManager.getCurrentDeviceDataSource()` 動態取得，並兼容歷史 `android`。總步數以對應 `DataOrigin` filter 呼叫 `aggregate()`；為執行每分鐘速率規則，可另讀允許來源的 StepsRecord intervals，在本機彙總成 `step_rate_summary` 後立即丟棄 records。不可先聚合所有來源後再把第三方來源標成裝置來源。
+
+2026-09-14 依 [Android 官方讀取文件](https://developer.android.com/health-and-fitness/health-connect/read-data) 再核對：SPN 查詢 API 的門檻為 extension 11，內建計步則為 20，須分開檢查。所有分頁均須讀完，permission、API 不可用與無資料狀態分開呈現。
 
 ### 5.2 導航結構【對應 style.md 第 2 章】
 
@@ -770,6 +782,8 @@ total_staked + treasury_injection
 
 ## 10. 設計未決事項
 
+**本版補充的實作前置條件**：賽事 Q-09／SA-Q7 尚未定案，6.2 不是完整結算協議。須固定 canonical entry 的欄位順序／位寬／endianness、名次權重與空組公式、`first_reached_at` 的可信時間來源、零人提交、錯誤 commitment 的恢復／退款流程及 vault 實際餘額對帳；不得只用帳面等式聲稱資金守恆。另需定義 `initialize_config` 首次管理員授權、`clock_in` 未鑄鞋拒絕、pause 對各指令的作用範圍，以及 NFT 轉移後 PlayerProfile 的權威歸屬。這些需求分別列入 PG-C-01、C-05、C-02、C-09 與 C-13～C-16 的完成條件，未通過前不可標 DONE。
+
 | 編號 | 問題 | 阻擋 | 建議 |
 |---|---|---|---|
 | SD-Q1 | NFT 採 Metaplex Core 或 Token Metadata | 第二週鑄造實作 | Core |
@@ -779,6 +793,76 @@ total_staked + treasury_injection
 | SD-Q6 | 風險門檻初始值與權重（承 SA-Q2） | 第三週校準 | 先用 60，資料集校準後定案 |
 
 ---
+
+## 11. 合作活動模組設計【草案，對應 FR-09～FR-12】
+
+### 11.1 模組與權限
+
+沿用 Fastify／PostgreSQL，新增 PartnerService、EventService、CheckInService、RedemptionService、ResultService 與 CampaignService。Android Arena 增加「合作活動」入口，提供詳情／報名／報到／領取；Profile 增加成績冊。合作方以獨立管理介面操作活動、名單、庫存與成績，管理介面不要求 Health Connect。Style 頁面細節由 PG-E-02／03 補充，既有四 Tab 導航不增加第五 Tab。
+
+所有非公開 API 沿用 wallet session，操作時查 DB 的有效組織／活動角色，不把 org_id 或 role 的 client input／過期 JWT 當授權。owner 管理合作成員；staff 僅限授權 event／checkpoint；result editor 匯入，publisher 發布。發布／更正／核銷／成員權限變更需近期登入及 audit log；停權立即生效。跨組織、資源枚舉、CSV 匯出都使用相同權限檢查。合作方無鏈上 admin 權限。
+
+### 11.2 API 契約
+
+下列路徑加 `/v1`。UUID 作資源 ID；寫入 API 使用 SD 4.3 的 idempotency 規則；時間為 UTC RFC 3339，數量及成績只接受有界非負整數。GET 公開投影不回傳內部名單、wallet、聯絡資料或核銷 token。
+
+| Method／Path | 授權 | 行為 |
+|---|---|---|
+| GET `/events`、`/events/{id}` | 公開 | 分頁讀已發布活动及可公開規則／合作品牌 |
+| POST `/partner/events`；PATCH `/partner/events/{id}` | owner | 建立／編輯草稿，採 revision 樂觀鎖避免互相覆寫 |
+| POST `/partner/events/{id}/publish`、`/cancel` | publisher／owner | 發布規則版本或取消，原因必填 |
+| POST `/events/{id}/registrations`；DELETE `/events/{id}/registration` | participant | 原子檢查容量、記錄規則同意，取消復用同一 participant |
+| POST `/events/{id}/check-in-challenges` | participant | 回傳綁定 participant／event／checkpoint 的短期隨機 challenge，預設 120 秒 |
+| POST `/partner/events/{id}/check-ins` | staff | 驗證 challenge、站點與名單後確認到場，原子消耗 challenge |
+| GET `/events/{id}/benefits`；POST `/events/{id}/redemptions` | participant | 依資格預留一個品項，回傳 redemption_id 及期限 |
+| POST `/partner/redemptions/{id}/fulfill` | staff | 實體交付確認；逾期／取消者不可交付，重試返回原結果 |
+| POST `/partner/events/{id}/tags`、`/tags/{tagId}/revoke` | owner／staff 依授權 | 登記與停用 NFC 載具；補發沿用 participant 與額度 |
+| POST `/partner/events/{id}/result-imports` | result editor | CSV staging、逐列錯誤及預覽，不直接發布 |
+| POST `/partner/events/{id}/result-imports/{importId}/publish` | publisher | 原子發布有效版本；更正引用 previous_revision_id 並附原因 |
+| GET `/events/{id}/results` | 公開 | 只讀同意公開者的最新發布成績，支援分頁與組別 |
+| GET `/me/event-history` | participant | 本人報名、報到、權益及成績版本 |
+| PATCH `/events/{id}/registration/privacy` | participant | 更新公開同意／顯示名稱；撤回後移出公開投影 |
+| GET `/partner/events/{id}/campaign-summary` | owner | 去識別彙總來源及轉換，不匯出健康歷史 |
+
+錯誤碼：`EVENT_NOT_OPEN`、`EVENT_FULL`、`EVENT_CANCELLED`、`ROLE_FORBIDDEN`、`CHECKIN_CHALLENGE_EXPIRED`、`NOT_ELIGIBLE`、`OUT_OF_STOCK`、`REDEMPTION_EXPIRED`、`RESULT_VALIDATION_FAILED`、`REVISION_CONFLICT`。未登入回 401，越權 403 或一致的 404，狀態／版本衝突 409，資料格式錯誤 422。重複成功請求回傳原結果，不當成再次交付。
+
+### 11.3 資料結構與交易約束
+
+以下是新增 migration 的契約，不代表 4.5 的既有 SQL 已包含活動功能。所有活動子表帶 event_id，以複合 FK 防止跨活動誤綁。
+
+| Table | 主要欄位／約束 |
+|---|---|
+| `partner_organizations`、`partner_memberships` | org_id、wallet、role、revoked_at；唯一 org／wallet；活動層權限另存 event_roles |
+| `events`、`event_partners`、`event_rule_revisions` | 主辦組織、協辦／贊助角色、state、timezone、各時間窗、capacity、registration_count、規則版本、可空 tournament_address；活動規則快照不可覆寫 |
+| `event_participants` | event_id、wallet、status、accepted_rule_revision、display_name、public_consent_at、retention_due_at；唯一 event／wallet |
+| `checkpoints`、`nfc_tags`、`checkin_challenges`、`event_checkins` | tag opaque_ref、用途、可空 participant、revoked_at；challenge 只存 hash、expires_at、used_at；唯一 participant／checkpoint |
+| `event_benefits` | kind=`physical`／`digital_badge`、stock_total、reserved_count、fulfilled_count、per_person_limit、eligibility_rule_revision、claim_deadline |
+| `event_redemptions` | participant、benefit、quantity、status、reserved_until、fulfilled_by／at、idempotency_key；唯一 participant／key；單人額度以鎖定統計列控制 |
+| `event_badge_issues` | redemption_id 唯一、credential_id、issued_at、revoked_at；徽章是鏈下憑證，不稱為 NFT |
+| `result_imports`、`result_revisions` | event、來源檔 hash、source_kind、import_version、published_at／by；participant、division、distance_m、elapsed_ms、rank、finish_status、previous_revision_id、reason；唯一 import／participant／discipline |
+| `event_audit_logs`、`campaign_aggregates` | 事件、操作人、動作、revision／request ID、時間；來源計數不存核銷 token 或完整健康資料 |
+
+庫存交易：先鎖 benefit 與 participant-benefit counter，檢查活動、資格、每人上限、`reserved + fulfilled + requested <= total`，同交易建立 Reserved 並加計預留量。交付與 expiry worker 都鎖同一 redemption，只有 Reserved 可轉移；Fulfilled 時由預留轉已交付，Expired／Cancelled 才釋放預留。數位徽章寫入與狀態轉移在同 DB 交易完成。實體品項 staff 先確認交易成功再交付，回應丟失時查詢原紀錄，禁止再次交付；誤操作用獨立更正流程，不無痕回滾已交付數。
+
+容量、報到及取消使用同樣的行鎖／唯一性控制；取消活動與新預留需鎖同一 event，避免取消後仍發放。活動關聯 Tournament 不觸發任何鏈上寫入。未來鏈上權益需另設 EventClaim domain、預算／receipt 及確認補償協議，不能把 DB 預留成功當成鏈上完成。
+
+### 11.4 NFC 與現場流程
+
+第一階段使用 NDEF HTTPS URI 指向受控活動域名及 opaque tag reference；採 Android App Links，未安裝時落到活動網頁。標籤不存 JWT、私鑰、健康資料或可直接花用的兌換密碼。App 僅接受允許的 scheme／host／path，解析後向後端讀取目前 tag 狀態，不信任標籤提供的資格或金額。
+
+參加者感應後選擇報到，取得短期 challenge；staff 掃描參加者畫面並依名單核驗，再於已登入的工作介面確認到場。領取時後端檢查到場資格並預留，staff 確認實體交付。QR／人工入口使用相同驗證，不降低權限。離線只可保留待處理 UI，回線重新核驗；不先顯示已報到／已領取。卡片／手環補發須停用舊 reference，但複製標籤仍不能靠 UID 自行證明身分或到場。
+
+依 [Android NFC basics](https://developer.android.com/develop/connectivity/nfc/nfc) 與 [App Links 文件](https://developer.android.com/training/app-links)（2026-09-14 核對）：使用 NDEF 並處理不同 Android 版本的 URI dispatch，HTTPS NFC 在 Android 16 起可由 ACTION_VIEW 處理；實作以實機 OS／target SDK 驗證。NFC 可用性執行期檢查，未支援／關閉提供 QR；不以 NFC 硬體作整個 App 的安裝必要條件。
+
+### 11.5 成績、隱私與測試
+
+CSV schema v1：`participant_ref, discipline, division, finish_status, distance_m, elapsed_ms, rank`；來源、event、版本與更正原因由匯入 metadata 提供。FINISHED 要求可用成績；DNS／DNF／DSQ 不以零秒排進正常榜。欄位單位固定、缺值用 null、未知選手或重複列阻止發布；rank 若由主辦方提供即標記為來源排名，不跨不同組別／賽制混排。限制檔案大小、列數與欄位長度，CSV 匯出防試算表公式注入。發布以原子切換 current revision，並發更正以 revision 檢查；結果更正不自動追回已交付權益。
+
+API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時間窗、event ID mapping、唯一 external_message_id 及來源版本，重放與過期版本不得覆寫已發布結果；需人工發布的活動不由 webhook 自動公開。
+
+活動履歷、匯入原檔、核銷與公開同意需各有 retention_due_at；試辦前依 Q-13 定案並同步 DELETE /player/data。不得因合作方匯出繞過刪除與公開同意；公開榜只回同意的顯示名稱。原始健康摘要仍限 30 天；活動留存政策未配置則禁止發布正式活動。
+
+驗收包含：跨租戶越權、容量並發、複製 NFC URL、停用／補發卡、過期 challenge 重放、無 NFC、離線後重試、庫存最後一件並發、交付／expiry 競態、活動取消競態、CSV 重複／錯誤單位、成績更正、撤回公開同意及資料到期刪除。端到端 Demo 使用一場合作活動完成報名至成績冊及品項對帳；測試數據標示為測試。
 
 ## 附錄 A：對應關係速查
 
@@ -811,3 +895,5 @@ total_staked + treasury_injection
 |---|---|---|
 | v0.1 | 2026-09-09 | 初版系統設計 |
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
+| v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
+| v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |

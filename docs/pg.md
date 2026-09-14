@@ -2,13 +2,13 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.2（與 SA／SD v0.2 同步並修正進度治理） |
+| 文件版本 | v0.4（新增合作活動工作流 PG-E） |
 | 建立日期 | 2026-09-09 |
-| 上游文件 | [BRD v0.4](./brd-detailed.md)、[SA v0.2](./sa.md)、[SD v0.2](./sd.md) |
+| 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
 | UI 規範 | [Style Guide v0.1](./style.md) |
 | 衝刺期間 | 2026-09-10 至 2026-10-08（四週） |
-| 官方截止 | 2026-10-08；內部提交目標 10-07，10-08 僅作提交失敗的應變緩衝 |
+| 排程基準 | 2026-10-08（官方規則快照待補）；內部提交目標 10-07，10-08 為應變緩衝 |
 
 > **本文件是唯一的開發進度來源**。每個工作項有編號、對應設計章節、完成定義與狀態。狀態更新直接改本檔並提交，不另開試算表。
 
@@ -94,9 +94,12 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-B 後端服務 | 19 | 0 | 19.5 | API、風險引擎、簽章、索引 |
 | PG-A 行動 App | 22 | 0 | 27.0 | 原生橋接、畫面、交易組裝 |
 | PG-D 交付物 | 6 | 0 | 6.0 | APK、素材、影片、Pitch |
-| **合計** | **73** | **0** | **80.5** | 不含風險緩衝 |
+| PG-E 合作活動 | 10 | 0 | 24.0 | 新增工作流，交付批次待排定 |
+| **合計** | **83** | **0** | **104.5** | 含活動初估，不含風險緩衝 |
 
 **人力假設**：內部提交目標前共有 20 個週一至週五日曆日，尚未扣除國定假日、請假與會議。80.5 人天是無中斷的基準估算；加入 20% review、整合與返工緩衝後約為 96.6 人天，實務上需要約 5 人全職。若只有 4 人，名目容量僅 80 人天且沒有任何風險空間，必須在第一週依第 7.1 節完成範圍變更，而不能等到第三週才砍功能。這對應 BRD Q-01。
+
+**活動範圍增加後**：上述 80.5／96.6 人天僅指原四週工作。PG-E 新增初估 24 人天，全產品初估 104.5，人天緩衝 20% 後為 125.4；不含硬體採購、活動現場人力、鏈上活動獎勵與供應商串接。不能由總人天推定可在原期限完成，需依依賴與角色重排；PG-E 保持 TODO，排程待決，不擅自標為 DEFER 或把既有 M 項目移除。
 
 **M3 容量警示**：09-30 前只有 15 個週一至週五日曆日；即使 4 人全職，未扣任何非開發時間的名目容量也只有 60 人天。M3 要求所有 M 級驗收，因此需由專案負責人在 09-10 前確認至少 5 人投入、重排依賴，或正式核准 M 級範圍變更。
 
@@ -115,11 +118,11 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
-| PG-I-01 | Monorepo 結構（app / backend / programs） | SD 2.1 | — | 0.5 | TODO | |
+| PG-I-01 | Monorepo 結構（app / backend / programs） | SD 2.1 | — | 0.5 | WIP | backend、programs 已建；app/ 待 PG-I-03 |
 | PG-I-02 | 校正 Build Runbook 至 SA／SD v0.2，建置 Node.js 24 LTS、JDK 與 Android SDK 環境 | Runbook 1, SD 2.2 | — | 0.5 | TODO | |
 | PG-I-03 | Expo 專案初始化、prebuild、提交 android/ | Runbook 2, 3 | C-01 | 1.0 | TODO | |
 | PG-I-04 | CI：lint、單元測試、debug APK 產出 | SD 7 | — | 1.0 | TODO | |
-| PG-I-05 | 後端骨架與 PostgreSQL docker compose | SD 2.2 | — | 0.5 | TODO | |
+| PG-I-05 | 後端骨架與 PostgreSQL docker compose | SD 2.2 | — | 0.5 | WIP | package.json、docker-compose、vitest 已建；未合併 dev |
 | PG-I-06 | Anchor 專案骨架與 localnet 測試環境 | SD 3 | — | 0.5 | TODO | |
 | PG-I-07 | dev／demo 分離部署腳本與 build-time 環境參數管理 | SD 8 | BR-14 | 1.5 | TODO | |
 | PG-I-08 | 經典 SPL Token tSKR（6 decimals）建立、固定供給、撤銷 authority | Runbook 7.4, SD 1.2 | BR-22 | 1.0 | TODO | |
@@ -133,7 +136,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-C-01 | Config 帳戶與 `initialize_config` | SD 3.1, 3.2 | — | 1.0 | TODO | |
 | PG-C-02 | `update_config` / `rotate_attestor` 與 pause 流程 | SD 3.2 | BR-24 | 1.0 | TODO | |
 | PG-C-03 | PlayerProfile 與 `init_player` | SD 3.1 | — | 0.5 | TODO | |
-| PG-C-04 | Attestation canonical bytes 解析與 ed25519 指令驗證 | SD 3.5 | BR-14, BR-15 | 2.0 | TODO | |
+| PG-C-04 | Attestation canonical bytes 解析與 ed25519 指令驗證 | SD 3.5 | BR-14, BR-15 | 2.0 | WIP | attestation-core 編解碼＋17 測試；ed25519 指令驗證待 Anchor 骨架 |
 | PG-C-05 | `clock_in` 檢查順序主流程 | SD 3.3 | BR-03, BR-14, BR-15 | 2.0 | TODO | |
 | PG-C-06 | 獎勵計算定點數、連續加成與每日上限 | SD 3.4 | BR-02, BR-04, BR-06 | 1.0 | TODO | |
 | PG-C-07 | ClaimReceipt PDA 與重放防護 | SD 3.1 | BR-03 | 1.0 | TODO | |
@@ -156,7 +159,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
 | PG-B-01 | Fastify 骨架、設定載入、健康檢查端點 | SD 2.2 | — | 0.5 | TODO | |
-| PG-B-02 | 資料庫 schema 與 migration | SD 4.5 | — | 1.0 | TODO | |
+| PG-B-02 | 資料庫 schema 與 migration | SD 4.5 | — | 1.0 | WIP | 0001_init.sql 9 表＋13 項約束測試；8.2 P0/P1 補項未做 |
 | PG-B-03 | `/auth/nonce` 與 `/auth/verify`（SIWS） | SD 4.2 | — | 1.5 | TODO | |
 | PG-B-04 | JWT 與 refresh session 輪替、重用偵測 | SD 4.2 | — | 1.5 | TODO | |
 | PG-B-05 | `/auth/challenge`：claim／tournament 敏感操作的單次授權 | SD 4.2 | — | 1.0 | TODO | |
@@ -164,7 +167,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-B-07 | 風險規則集載入，保存單調 `rules_version` 與獨立 `rules_hash` | SD 4.4 | BR-13 | 1.0 | TODO | |
 | PG-B-08 | 硬拒絕、夾限與 live check 邊界規則 | SD 4.4 | BR-07 至 BR-10, BR-12 | 1.0 | TODO | |
 | PG-B-09 | 評分規則、權重與門檻 | SD 4.4 | BR-11, BR-12 | 1.0 | TODO | |
-| PG-B-10 | AttestationSigner：相容 signer 與 164 bytes 組裝／測試向量 | SD 3.5, 4.6 | BR-14, BR-15 | 1.5 | TODO | |
+| PG-B-10 | AttestationSigner：相容 signer 與 164 bytes 組裝／測試向量 | SD 3.5, 4.6 | BR-14, BR-15 | 1.5 | WIP | TS canonical bytes 鏡像＋12 組向量；signer/KMS 未做，向量需補至 20 組 |
 | PG-B-11 | `POST /attestation/claim` 端點整合 | SD 4.3 | 全部風險規則 | 1.0 | TODO | |
 | PG-B-12 | `GET /player/history` | SD 4.1 | — | 0.5 | TODO | |
 | PG-B-13 | `DELETE /player/data` 與延後刪除邏輯 | SD 4.1 | BR-25 | 1.0 | TODO | |
@@ -249,6 +252,22 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | DEC-02 | PG-I-08、PG-D-02 | SKR integration track 是否接受 tSKR（BRD Q-08） | 專案負責人 | 2026-09-10 | OPEN |
 
 DEC-02 若判定必須整合主網官方 SKR，PG-I-08 的 tSKR 路線、SA 5.4 與鏈上金庫設計都必須重估；不得在現有四週估算內直接替換。
+
+### 8.2 Review 發現與補充完成條件（2026-09-14）
+
+本次只修改文件。repo 已有 attestation 模組、向量與 migration，但未見完整 App／Anchor 程式；存在程式檔不代表 PG 已完成。既有 TODO 狀態維持，需負責人提供測試與 review 證據後更新。73 項／80.5 人天仍為原估算，尚未重估下列修正成本。
+
+| 優先級 | 關聯項目 | 必須補齊的證據／驗收 |
+|---|---|---|
+| P0 | PG-C-04、PG-B-10 | 保留已核對正確的 19-byte domain／164-byte layout；補 Rust／TS 對 `issued_at > not_before` 的拒絕與共用負向測試。向量比對不取代時效、安全及整合驗收 |
+| P0 | PG-A-04、PG-B-06、PG-B-08 | 決定 SA-Q6 睡眠來源；零步數的合格睡眠不被步數規則拒絕。補可重算速率摘要，後端以夾限後數值檢查 7,999／8,000 步及 419／420 分鐘 |
+| P0 | PG-B-02、PG-B-04、PG-B-11 | 補 refresh／logout、session 撤銷檢查、原子 challenge 消耗與完整冪等回應儲存；驗證並發、斷線、signer 成功後 crash，刪除後不得從快取取得證明 |
+| P0 | PG-C-13 至 C-16 | 定案 SA-Q7／BRD Q-09，覆蓋全數沒收、空組、hash 錯誤、結算恢復、退款防重領及實際 vault 對帳；SD 6.2 未補完整前不得視為可直接交付 |
+| P0 | PG-C-01、C-02、C-05、C-09 | SD 10 的初始化授權、pause 範圍、未鑄鞋打卡與 NFT 轉移政策明確且有失敗案例 |
+| P1 | PG-B-02、B-13、B-17 | 依 SD 4.5 補刪除期限與所有健康衍生表清理；期限前完成刪除，禁止重新索引復原健康資料 |
+| P1 | PG-A-13、PG-D-03 | KPI 區分 live motion、請求簽署與交易簽署耗時，依 BRD 15.1 實機量測 |
+
+DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決議紀錄，維持 OPEN，不推定核准或 BLOCKED。另將睡眠政策、賽事邊界、NFT 歸屬與 XP 參數交由專案負責人及相關工程負責人於實作前決定；決議回填 BRD／SA／SD。Core、託管、燒毀比例等既有草案仍須確認。若實際已卡住工作，依第 8 章補 BLK 並更新工作列。
 
 ---
 
@@ -473,10 +492,38 @@ DEC-02 若判定必須整合主網官方 SKR，PG-I-08 的 tSKR 路線、SA 5.4 
 | NFR 安全 | PG-C-02, PG-C-04, PG-C-18, PG-B-04, PG-B-05, PG-B-10, PG-B-18, PG-B-19 |
 | NFR 隱私 | PG-A-21, PG-B-13, PG-B-17, PG-D-02 |
 | NFR 可觀測性 | PG-B-16, PG-B-18 |
+| FR-09 活動合作／宣傳 | PG-E-01、E-02、E-03、E-09 |
+| FR-10 活動報名／報到 | PG-E-03、E-04、E-05 |
+| FR-11 NFC 發放／權益核銷 | PG-E-04、E-05、E-06 |
+| FR-12 成績／活動歷程 | PG-E-07、E-08、E-09 |
+| 活動權限／隱私／端到端驗收 | PG-E-01、E-09、E-10 |
 
 本表用於確認每個 M 級 FR 至少對應一個 PG 項目；基礎建設與交付物則以各工作列的「對應設計」欄追溯。新增或變更需求型 PG 項目時必須同步更新本表。
 
 ---
+
+### 11.1 PG-E 合作活動開發項目
+
+| 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
+|---|---|---|---|---|---|---|
+| PG-E-01 | 合作組織、角色與活動權限模型／migration | SD 11.1、11.3 | BR-26 | 2.0 | TODO | |
+| PG-E-02 | 合作管理介面、活動生命週期與規則版本 | SD 11.1～11.3 | FR-09、BR-27、BR-33 | 3.0 | TODO | |
+| PG-E-03 | App 活動列表／詳情、宣傳連結與報名容量 | SD 11.1、11.2 | FR-09、FR-10、BR-28 | 3.0 | TODO | |
+| PG-E-04 | NFC／App Links、QR 備援與可選卡片綁定 | SD 11.4 | FR-11.1、FR-11.3、BR-29 | 2.5 | TODO | |
+| PG-E-05 | 現場 staff 報到、challenge 與補登稽核 | SD 11.2～11.4 | FR-10、BR-28、BR-29 | 2.0 | TODO | |
+| PG-E-06 | 品項庫存、原子核銷、實體交付及數位徽章 | SD 11.3、11.4 | FR-11、BR-30、BR-33 | 3.5 | TODO | |
+| PG-E-07 | CSV 成績 staging、發布與更正歷史 | SD 11.2、11.5 | FR-12.1、FR-12.2、BR-31 | 3.0 | TODO | |
+| PG-E-08 | 個人成績冊與公開榜、顯示同意設定 | SD 11.2、11.5 | FR-12.3、BR-32 | 1.5 | TODO | |
+| PG-E-09 | 宣傳轉換彙總、活動保留／刪除與操作文件 | SD 11.5 | FR-09.3、BR-32 | 1.5 | TODO | |
+| PG-E-10 | 合作試辦、實機 NFC／核銷及成績端到端驗收 | SD 11.5 | FR-09～FR-12 | 2.0 | TODO | |
+
+估算是第一階段活動模組粗估，PG-E-04 的可選卡片派發規模依 Q-11 重估；FR-12.4 供應商 API／webhook 不含於此 24 人天，選定供應商後新增工作列並更新統計。FR-11 後續鏈上活動獎勵亦不含在初估。
+
+**依賴與交付順序**：E-01 → E-02；E-02 與既有 wallet／session 完成後做 E-03；E-04／E-05 完成站點驗證後接 E-06；E-07 → E-08；E-09 在正式發布前完成，E-10 最後驗收。活動模組不能繞過 PG-B-04／B-11 的 session 與冪等缺口。
+
+**新增待決追蹤**：DEC-03（BRD Q-10）試辦方／日期與是否併入黑客松，由專案負責人於排程前定案；DEC-04（Q-11）NFC 場景、載具與發放品項，由活動負責人於硬體採購／E-04 前定案；DEC-05（Q-12）成績格式、發布人及更正窗口於 E-07 前定案；DEC-06（Q-13）保留／公開政策與取消處置於正式活動發布前定案。均為 OPEN，日曆到期日待活動日期確定，沒有決議不得假裝已取得合作方同意。
+
+**完成條件補充**：各項需附對應 FR／BR 的成功與失敗案例；E-06 必測最後一件庫存並發及 expiry／交付競態，E-07 必測錯誤單位／重複匯入／更正，E-10 需交付 NFC／QR 實機證據、工作人員操作手冊、取消／斷線流程、名單與成績公開同意流程，以及報名／報到／完賽／交付對帳。僅完成 NFC 跳頁不等於完成報到或權益發放。
 
 ## 12. 完成定義通則
 
@@ -497,3 +544,6 @@ DEC-02 若判定必須整合主網官方 SKR，PG-I-08 的 tSKR 路線、SA 5.4 
 |---|---|---|
 | v0.1 | 2026-09-09 | 初版工作拆解、里程碑與追溯矩陣 |
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
+| v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
+| v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.5 | 2026-09-14 | 依 feat-第一版本開發 分支現況同步狀態：PG-I-01、I-05、B-02、B-10、C-04 改為 WIP 並註記證據；未合併 dev 前不標 DONE |
