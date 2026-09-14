@@ -1,3 +1,4 @@
+import { useNavigation } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
@@ -6,6 +7,8 @@ import { formatDuration, formatKcal, formatKm, formatPace, qualityKind } from '@
 import { useT, type TKey } from '@/i18n';
 import { ApiError, apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
 import { importFromHealthConnect } from '@/services/workouts/importer';
+import type { SessionMeta } from '@/services/workouts/LocalWorkoutStore';
+import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { color, radius, space, Text } from '@/theme';
 
 /**
@@ -19,6 +22,17 @@ export function WorkoutsScreen() {
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [notice, setNotice] = useState<{ kind: 'success' | 'info' | 'warning'; title: string } | null>(null);
+  const navigation = useNavigation();
+  const [recoverable, setRecoverable] = useState<SessionMeta[]>([]);
+  useEffect(() => {
+    void workoutRecorder.markRecoverable().then(setRecoverable).catch(() => setRecoverable([]));
+  }, []);
+  const recover = async (m: SessionMeta, action: 'finish' | 'discard') => {
+    const r = await workoutRecorder.recover(m.sessionId, action);
+    setRecoverable((cur) => cur.filter((x) => x.sessionId !== m.sessionId));
+    if (action === 'finish' && r.meta) navigation.navigate('WorkoutSummary', { sessionId: r.meta.sessionId });
+    else await load();
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -78,7 +92,11 @@ export function WorkoutsScreen() {
       <Text variant="bodySmall" tone="secondary">
         {t('wo.intro')}
       </Text>
-      <Button label={t('wo.import')} variant="secondary" style={styles.mt} onPress={() => void doImport()} loading={importing} loadingLabel={t('wo.importing')} testID="workouts-import" />
+      <Button label={t('wo.record')} style={styles.mt} onPress={() => navigation.navigate('WorkoutStart')} testID="workouts-record" />
+      <Button label={t('wo.import')} variant="secondary" style={styles.mtS} onPress={() => void doImport()} loading={importing} loadingLabel={t('wo.importing')} testID="workouts-import" />
+      {recoverable.map((m) => (
+        <InlineState key={m.sessionId} kind="warning" title={t('wo.recoverTitle')} body={t('wo.recoverBody')} action={{ label: t('wo.recoverSave'), onPress: () => void recover(m, 'finish') }} secondaryAction={{ label: t('wo.recoverDiscard'), onPress: () => void recover(m, 'discard') }} testID={`workouts-recover-${m.sessionId}`} />
+      ))}
       {notice ? <InlineState kind={notice.kind} title={notice.title} testID={`workouts-${notice.kind}`} /> : null}
       {error ? (
         error.code === 'NO_SESSION' ? (
@@ -150,6 +168,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   mt: { marginTop: space.m },
+  mtS: { marginTop: space.s },
   mtXs: { marginTop: space.xs },
   card: { marginTop: space.m },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.s },

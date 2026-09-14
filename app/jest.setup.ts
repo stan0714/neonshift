@@ -69,3 +69,40 @@ jest.mock('expo-network', () => ({
   getNetworkStateAsync: jest.fn(async () => ({ isConnected: true, isInternetReachable: true, type: 'WIFI' })),
   NetworkStateType: { WIFI: 'WIFI', NONE: 'NONE' },
 }));
+
+// PG-R-03：定位／背景任務／檔案系統在 Jest 無原生實作；recorder 測試以注入替代
+jest.mock('expo-task-manager', () => ({ defineTask: jest.fn(), isTaskDefined: jest.fn(() => true) }));
+jest.mock('expo-location', () => ({
+  Accuracy: { BestForNavigation: 6 },
+  getForegroundPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  requestForegroundPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  startLocationUpdatesAsync: jest.fn(async () => {}),
+  stopLocationUpdatesAsync: jest.fn(async () => {}),
+  hasStartedLocationUpdatesAsync: jest.fn(async () => true),
+}));
+jest.mock('expo-file-system', () => {
+  // 記憶體檔案系統：只實作 LocalWorkoutStore 用到的 File／Directory API
+  const files = new Map<string, string>();
+  const dirs = new Set<string>();
+  const join = (parts: unknown[]) => parts.map((p) => (typeof p === 'string' ? p : (p as { uri: string }).uri)).join('/').replace(/\/+/g, '/');
+  class Directory {
+    uri: string;
+    constructor(...parts: unknown[]) { this.uri = join(parts); }
+    get exists() { return dirs.has(this.uri); }
+    get name() { return this.uri.split('/').pop()!; }
+    create() { dirs.add(this.uri); }
+    delete() { dirs.delete(this.uri); for (const k of [...files.keys()]) if (k.startsWith(`${this.uri}/`)) files.delete(k); for (const d of [...dirs]) if (d.startsWith(`${this.uri}/`)) dirs.delete(d); }
+    list() { return [...dirs].filter((d) => d.startsWith(`${this.uri}/`) && !d.slice(this.uri.length + 1).includes('/')).map((d) => new Directory(d)); }
+  }
+  class File {
+    uri: string;
+    constructor(...parts: unknown[]) { this.uri = join(parts); }
+    get exists() { return files.has(this.uri); }
+    create() { if (!files.has(this.uri)) files.set(this.uri, ''); }
+    write(content: string, opts?: { append?: boolean }) { files.set(this.uri, (opts?.append ? (files.get(this.uri) ?? '') : '') + content); }
+    async text() { return files.get(this.uri) ?? ''; }
+    textSync() { return files.get(this.uri) ?? ''; }
+    delete() { files.delete(this.uri); }
+  }
+  return { Paths: { document: { uri: 'mem://doc' }, cache: { uri: 'mem://cache' } }, Directory, File, __reset: () => { files.clear(); dirs.clear(); } };
+});

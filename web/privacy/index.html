@@ -30,6 +30,8 @@
   <ul>
     <li><strong>Raw Health Connect records</strong> (individual step records, sleep sessions, their timestamps and source apps) are read on the device only. They are never uploaded.</li>
     <li><strong>Raw motion sensor samples</strong> used for the optional 20-second motion check are processed on the device and discarded.</li>
+    <li><strong>GPS routes</strong> recorded when you start a run or walk in the app are encrypted and kept only on this phone. We upload a summary (distance, elapsed time, pace, splits and a GPS-quality score) — never coordinates. Deleting a workout deletes its route. Precise location is requested only while you use the app; a visible notification shows while recording continues on the lock screen.</li>
+    <li><strong>Exercise sessions imported from Health Connect</strong> (runs and walks, distance, steps and calories from the same source app) are read on the device; only the per-session summary is uploaded, labelled with its source.</li>
     <li>Wallet authorization tokens and API session tokens are stored in Android Keystore-backed secure storage.</li>
   </ul>
 

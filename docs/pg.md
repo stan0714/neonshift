@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.35（PG-R-04／R-05 引擎完成） |
+| 文件版本 | v0.36（PG-R-03／R-06 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -565,6 +565,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.36 | 2026-09-14 | PG-R-03／R-06 完成（WIP）：GPS 記錄器、本機加密軌跡、前景服務、恢復、記錄／摘要畫面 |
 | v0.35 | 2026-09-14 | PG-R-04／R-05 引擎完成（WIP）：GPS 距離品質、5 秒速度、分段與圈數 |
 | v0.34 | 2026-09-14 | PG-R-02 完成（WIP）：Health Connect 運動 session 匯入 |
 | v0.33 | 2026-09-14 | PG-R-01 完成（WIP）：運動 session 摘要與匯入 |
@@ -665,10 +666,10 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 |---|---|---|---|---|---|---|
 | PG-R-01 | Workout session、來源／去重、摘要 schema 與 API | activity-running-gallery 3、7；walk-run-tracking 3 | FR-14.1、BR-37 | 3.0 | WIP | 2026-09-14 完成：migration 0009；匯入 schema／derive（估算距離需校準步長、步頻／速度上限、Active／Total 分開、PB 資格）；`/workouts/import`（≤ 50、限流、revision 去重 same／stale／superseded、tombstone）、`/me/workouts` 清單／明細／刪除、跨來源可能重複標記、player 刪除同步；App domain 映射（HC RUNNING／TREADMILL／WALKING）、importer（分批、unavailable）、`WorkoutsScreen`（Style 23.1）；vitest 6＋PG 整合 1、Jest 7。待：R-02 原生 ExerciseSession 讀取、實機 |
 | PG-R-02 | Health Connect 運動、距離、活動熱量匯入及裝置矩陣 | activity-running-gallery 3、4 | FR-14.1～3 | 3.0 | WIP | 2026-09-14 完成：原生 `readExerciseSessions`（RUNNING／TREADMILL／WALKING；同來源同時段 aggregate 距離／步數／Active／Total 熱量；缺權限欄位 null＋partialPermissions；不含路線）、權限常數與 Manifest／app.json（READ_EXERCISE／DISTANCE／ACTIVE／TOTAL_CALORIES）、App 匯入流程（必要 READ_EXERCISE、拒絕不阻擋其他功能）、Runbook 6.1.1 裝置矩陣表；Jest 7。待：實機實測填矩陣（Seeker 無 session 來源，需相容 App 寫入） |
-| PG-R-03 | Walking／Running GPS session、權限、前景服務與持久恢復 | walk-run-tracking 2、3 | FR-18.1、18.2 | 5.0 | TODO | 待指派 |
+| PG-R-03 | Walking／Running GPS session、權限、前景服務與持久恢復 | walk-run-tracking 2、3 | FR-18.1、18.2 | 5.0 | WIP | 2026-09-14 完成：`WorkoutRecorder` 狀態機（單一 session、暫停／恢復／Lap、Finish 先保存再同步、同步失敗保留）、`LocalWorkoutStore`（加密軌跡、checkpoint、seq 去重、刪除清路線）、expo-location 前景服務＋TaskManager 任務、權限（FINE 使用中；不申請背景定位）、恢復（跨 process 標 interrupted 只允許結束／丟棄）、摘要同步契約（origin gps、無座標）；Manifest／app.json 權限與 expo-location plugin；隱私政策補 GPS 段落；Jest 5。待：實機（鎖屏 30 分鐘、殺 process、重開機、權限撤銷）、原生 elapsedRealtime |
 | PG-R-04 | GPS 距離品質、5 秒速度／最高速度／配速引擎 | walk-run-tracking 4 | FR-18.4 | 3.0 | WIP | 2026-09-14 完成：`app/src/domain/gps/engine.ts`（GPS_RULES_VERSION 1：精度 ≤ 20 m、缺口 > 5 s 新段不補直線、跑 12／走 4 m/s 跳點、3 m 遲滯抖動、5 秒完整窗速度／最高速度、平均含暫停、coverage／gaps 品質）；固定軌跡重播 Jest 10。待：實機校準門檻（R-10） |
 | PG-R-05 | 公里分段、手動圈／自訂距離圈與 Partial 末段 | walk-run-tracking 5 | FR-18.3 | 3.0 | WIP | 2026-09-14 引擎完成：splits（1,000 m／1,609.344 m，兩點間按距離比例插值、一次跨多界線、跨缺口 uncertain、末段 partial 不參與最快）、手動圈與自訂距離自動圈獨立序列（暫停禁按、零距離去重、不重設分段）、跑道等效圈 floor＋餘數；Jest 涵蓋。待：R-06 畫面（Splits／Laps 分頁） |
-| PG-R-06 | 記錄畫面、暫停／結束、摘要與分圈表 | walk-run-tracking 6；Style 23 | FR-18.1～5 | 3.0 | TODO | 待指派 |
+| PG-R-06 | 記錄畫面、暫停／結束、摘要與分圈表 | walk-run-tracking 6；Style 23 | FR-18.1～5 | 3.0 | WIP | 2026-09-14 完成：`WorkoutStart`（運動／地點／自動圈／分段單位、室內導向匯入、權限引導）、`WorkoutRecord`（跑步配速／走路速度大數字、時間距離、GPS 與暫停狀態、Lap／Pause／Resume／Finish 確認、返回鍵鎖定）、`WorkoutSummary`（統計、needs_review、同步狀態與重試、Splits／Laps／Quality 分頁、跑道等效）、Workouts 入口與恢復提示；Style 23.2；Jest 3。待：實機視覺與 30 分鐘鎖屏驗收（R-10） |
 | PG-R-07 | 主辦方／裝置 PB 分組與修正重算 | activity-running-gallery 5 | FR-15.1、BR-38 | 3.0 | TODO | 待指派 |
 | PG-R-08 | PB eligibility registry、簽發、claim_achievement／receipt | activity-running-gallery 7；SD 13 | FR-15.2、BR-39、40 | 5.0 | TODO | 待指派 |
 | PG-R-09 | PB 櫃／藝廊／公開同意與保留刪除整合 | activity-running-gallery 6；Style 20 | FR-13.5、13.6 | 2.5 | TODO | 待指派 |
