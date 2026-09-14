@@ -18,7 +18,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: url });
-    await pool.query("DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
+    await pool.query("DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
     stores = [
       { name: "postgres", store: new PostgresStore(pool) },
       { name: "memory", store: new MemoryStore() },
@@ -143,6 +143,34 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       await store.upsertTournamentSteps(week, a, 12_000, new Date(t0.getTime() + 600_000), t0);
       expect(await store.rankOf(week, a), name).toBe(1);
       expect((await store.getTournamentSteps(week, a))?.verifiedSteps).toBe(12_000);
+    }
+  });
+
+  it("chain_events：冪等寫入、pending 依 slot、finalize／orphan、游標 upsert、redeemed_sig 回填一次", async () => {
+    for (const { name, store } of stores) {
+      const now = new Date("2026-09-14T00:00:00Z");
+      const wallet = "W" + name;
+      const nonce = Buffer.from(("ab".repeat(16)).slice(0, 32), "hex");
+      await store.upsertPlayer(wallet, now);
+      await store.insertAttestation({ nonce, idempotencyKey: "11111111-1111-4111-8111-11111111111" + (name === "postgres" ? "1" : "2"), requestHash: Buffer.alloc(32), wallet, taskDate: 20_710, taskType: 1, rulesVersion: 3, evidenceHash: Buffer.alloc(32), issuedAt: now, expiresAt: now });
+      await store.insertChainEvent({ signature: "s1", eventIndex: 0, slot: 20, blockhash: "b", commitment: "confirmed", eventName: "ClockedIn", payload: { wallet, nonce: nonce.toString("hex") } }, now);
+      await store.insertChainEvent({ signature: "s1", eventIndex: 0, slot: 999, blockhash: "x", commitment: "confirmed", eventName: "Other", payload: {} }, now); // 冪等
+      await store.insertChainEvent({ signature: "s0", eventIndex: 0, slot: 10, blockhash: "b", commitment: "confirmed", eventName: "PlayerInitialized", payload: { wallet } }, now);
+      const pending = await store.listPendingChainEvents(10);
+      expect(pending.map((p) => p.signature), name).toEqual(["s0", "s1"]);
+      expect(pending[1]!.eventName).toBe("ClockedIn");
+      await store.finalizeChainEvent("s1", 0);
+      await store.markChainEventOrphaned("s0", 0, now);
+      expect(await store.listPendingChainEvents(10), name).toHaveLength(0);
+      expect((await store.listChainEvents({ finalizedOnly: true }, 10)).map((e) => e.signature), name).toEqual(["s1"]);
+      expect((await store.listChainEvents({ eventName: "ClockedIn", wallet }, 10)), name).toHaveLength(1);
+      expect(await store.backfillRedeemedSig(nonce, "s1"), name).toBe(true);
+      expect(await store.backfillRedeemedSig(nonce, "s9"), name).toBe(false); // 已回填不覆寫
+      expect(await store.backfillRedeemedSig(Buffer.alloc(16, 7), "s1"), name).toBe(false);
+      expect((await store.listHistory(wallet, 0))[0]!.redeemedSig, name).toBe("s1");
+      await store.setCursor("c", "s1", 20);
+      await store.setCursor("c", "s2", 30);
+      expect(await store.getCursor("c"), name).toEqual({ signature: "s2", slot: 30 });
     }
   });
 });

@@ -185,6 +185,7 @@ pub fn handle_clock_in(ctx: Context<ClockIn>, args: AttestationArgs) -> Result<(
         shoe_level: profile.shoe_level,
         core_level: profile.core_level,
         streak_days: profile.streak_days,
+        max_streak_days: profile.max_streak_days,
         nonce: att.nonce,
     });
     Ok(())

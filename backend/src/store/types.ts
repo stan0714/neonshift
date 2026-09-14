@@ -26,7 +26,7 @@ export type Session = {
 
 export type Player = { wallet: string; firstSeenAt: Date; lastSeenAt: Date; deletedAt: Date | null };
 
-export interface Store extends ClaimStore, PlayerDataStore, TournamentStore {
+export interface Store extends ClaimStore, PlayerDataStore, TournamentStore, IndexerStore {
   insertChallenge(c: Challenge): Promise<void>;
   /** 原子消耗：只有未使用且未過期才會成功，回傳被消耗的 challenge */
   consumeChallenge(nonceHash: Buffer, now: Date): Promise<Challenge | null>;
@@ -150,4 +150,24 @@ export interface TournamentStore {
   countTournamentSteps(weekId: number): Promise<number>;
   /** 該錢包在此週的名次（1 起；無紀錄回 null） */
   rankOf(weekId: number, wallet: string): Promise<number | null>;
+}
+
+// ---------------- PG-B-16：ChainIndexer ----------------
+
+export type ChainEventInput = { signature: string; eventIndex: number; slot: number; blockhash: string; commitment: "confirmed" | "finalized"; eventName: string; payload: Record<string, unknown> };
+export type ChainEventRow = ChainEventInput & { orphanedAt: Date | null; ingestedAt: Date };
+export type ChainCursor = { signature: string; slot: number };
+
+export interface IndexerStore {
+  getCursor(name: string): Promise<ChainCursor | null>;
+  setCursor(name: string, signature: string, slot: number): Promise<void>;
+  /** 以 (signature, event_index) 冪等；已存在則不動 */
+  insertChainEvent(e: ChainEventInput, now: Date): Promise<void>;
+  /** commitment = confirmed 且未 orphaned，依 slot ASC */
+  listPendingChainEvents(limit: number): Promise<ChainEventRow[]>;
+  finalizeChainEvent(signature: string, eventIndex: number): Promise<void>;
+  markChainEventOrphaned(signature: string, eventIndex: number, now: Date): Promise<void>;
+  listChainEvents(filter: { eventName?: string; wallet?: string; finalizedOnly?: boolean }, limit: number): Promise<ChainEventRow[]>;
+  /** ClockedIn finalized → attestations.redeemed_sig；nonce 不存在（例如已刪除個資）時略過 */
+  backfillRedeemedSig(nonce: Buffer, signature: string): Promise<boolean>;
 }

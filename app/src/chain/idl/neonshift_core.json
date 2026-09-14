@@ -2298,6 +2298,13 @@
             "type": "u16"
           },
           {
+            "name": "max_streak_days",
+            "docs": [
+              "歷史最高連續天數（藝廊投影用，PG-G-01）"
+            ],
+            "type": "u16"
+          },
+          {
             "name": "nonce",
             "type": {
               "array": [

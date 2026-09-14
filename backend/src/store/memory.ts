@@ -1,5 +1,5 @@
 import { compareLeaderboard } from "./leaderboard.js";
-import type { AttestationRow, Challenge, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -12,6 +12,9 @@ export class MemoryStore implements Store {
   attestations = new Map<string, AttestationRow>();
   claimResults = new Map<string, ClaimResult>();
   tournamentSteps = new Map<string, TournamentStepsRow>();
+  chainEvents = new Map<string, ChainEventRow>();
+  cursors = new Map<string, ChainCursor>();
+  redeemed = new Map<string, string>();
 
   async insertChallenge(c: Challenge) {
     const k = c.nonceHash.toString("hex");
@@ -105,10 +108,45 @@ export class MemoryStore implements Store {
     return [...this.attestations.values()]
       .filter((a) => a.wallet === wallet && a.taskDate >= sinceTaskDate)
       .sort((a, b) => b.taskDate - a.taskDate || b.issuedAt.getTime() - a.issuedAt.getTime())
-      .map((a) => ({ taskDate: a.taskDate, taskType: a.taskType, issuedAt: a.issuedAt, expiresAt: a.expiresAt, redeemedSig: null }));
+      .map((a) => ({ taskDate: a.taskDate, taskType: a.taskType, issuedAt: a.issuedAt, expiresAt: a.expiresAt, redeemedSig: this.redeemed.get(a.nonce.toString("hex")) ?? null }));
   }
   async hasActiveStakedTournament(_wallet: string) {
     return false;
+  }
+
+  // ---- PG-B-16 ----
+  async getCursor(name: string) {
+    return this.cursors.get(name) ?? null;
+  }
+  async setCursor(name: string, signature: string, slot: number) {
+    this.cursors.set(name, { signature, slot });
+  }
+  async insertChainEvent(e: ChainEventInput, now: Date) {
+    const k = `${e.signature}:${e.eventIndex}`;
+    if (!this.chainEvents.has(k)) this.chainEvents.set(k, { ...e, orphanedAt: null, ingestedAt: now });
+  }
+  async listPendingChainEvents(limit: number) {
+    return [...this.chainEvents.values()].filter((e) => e.commitment === "confirmed" && !e.orphanedAt).sort((a, b) => a.slot - b.slot || a.eventIndex - b.eventIndex).slice(0, limit);
+  }
+  async finalizeChainEvent(signature: string, eventIndex: number) {
+    const e = this.chainEvents.get(`${signature}:${eventIndex}`);
+    if (e) e.commitment = "finalized";
+  }
+  async markChainEventOrphaned(signature: string, eventIndex: number, now: Date) {
+    const e = this.chainEvents.get(`${signature}:${eventIndex}`);
+    if (e) e.orphanedAt = now;
+  }
+  async listChainEvents(filter: { eventName?: string; wallet?: string; finalizedOnly?: boolean }, limit: number) {
+    return [...this.chainEvents.values()]
+      .filter((e) => (!filter.eventName || e.eventName === filter.eventName) && (!filter.wallet || e.payload.wallet === filter.wallet) && (!filter.finalizedOnly || (e.commitment === "finalized" && !e.orphanedAt)))
+      .sort((a, b) => b.slot - a.slot || b.eventIndex - a.eventIndex)
+      .slice(0, limit);
+  }
+  async backfillRedeemedSig(nonce: Buffer, signature: string) {
+    const k = nonce.toString("hex");
+    if (!this.attestations.has(k) || this.redeemed.has(k)) return false;
+    this.redeemed.set(k, signature);
+    return true;
   }
 
   // ---- PG-B-14 ----

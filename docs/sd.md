@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.9（結算 manifest） |
+| 文件版本 | v0.10（ChainIndexer） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -648,6 +648,8 @@ CREATE TABLE chain_events (
 
 ChainIndexer 以 `(signature, event_index)` 冪等寫入，先記錄 `confirmed` 供 UI 快速顯示，再追蹤至 `finalized`。若交易在 finalization 前不再位於 canonical fork，標記 `orphaned_at` 並回滾其衍生 projection；不可刪除原 row 或把 `confirmed` 當永久事實。排行榜與結算輸入只採用已 `finalized` 且未 orphaned 的鏈上事件。
 
+**實作（2026-09-14，PG-B-16）**：`backend/src/indexer/`。事件以 IDL（`backend/idl/neonshift_core.json`，build.sh 複製）驅動解碼，log 解析追蹤 CPI 深度、只取本程式層級的 `Program data:`（Metaplex Core 等 CPI 的資料不會被誤判）。`syncConfirmed()` 以 `getSignaturesForAddress(confirmed)` 由 `chain_cursor` 游標分頁抓新簽章（失敗交易只推進游標），寫入 commitment = confirmed；`finalize()` 對 pending row 查 `getSignatureStatuses`：finalized → 升級並執行 projection；狀態為 null 且超過 `orphanAfterSlots`（300）→ `orphaned_at`。**projection 只在 finalized 執行**（redeemed_sig 回填、藝廊投影），因此 orphan 不需回滾 projection；confirmed row 僅供 UI 快速顯示。與 API 同 process 以 `INDEXER_ENABLED`／`INDEXER_INTERVAL_MS` 啟動（單一 replica），需 PostgreSQL（migration 0004 `chain_cursor`）。
+
 ### 4.6 金鑰管理
 
 | 金鑰 | 用途 | 保管 | 輪替 |
@@ -947,6 +949,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.10 | 2026-09-14 | PG-B-16：ChainIndexer 實作說明（IDL 驅動解碼、confirmed→finalized、orphan、projection 只吃 finalized）；ClockedIn 事件加 `max_streak_days` |
 | v0.9 | 2026-09-14 | PG-B-15：結算 manifest 端點與三方向量；ChainReader.listEntries |
 | v0.8 | 2026-09-14 | PG-B-14：賽事 API 4.3A（鏈上為真相、步數夾限與單調、BR-20 排序定義、BR-25 接 ends_at）；新增 `RPC_URL` |
 | v0.7 | 2026-09-14 | PG-C-13～C-16：canonical entry 85 bytes、分配公式（線性遞減／空組／餘數）、cancel_tournament 與 7 天期限、錯誤 6033～6036；settle／claim 以 vault 實際餘額對帳 |

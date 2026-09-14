@@ -52,6 +52,8 @@ pub struct ClockedIn {
     pub shoe_level: u8,
     pub core_level: u8,
     pub streak_days: u16,
+    /// 歷史最高連續天數（藝廊投影用，PG-G-01）
+    pub max_streak_days: u16,
     pub nonce: [u8; 16],
 }
 

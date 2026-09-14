@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, Challenge, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -178,6 +178,48 @@ export class PostgresStore implements Store {
   async hasActiveStakedTournament(_wallet: string) {
     // 質押事實在鏈上，由 TournamentService 判斷（player routes）
     return false;
+  }
+
+  // ---- PG-B-16 ----
+  private eventRow(x: Row): ChainEventRow {
+    return { signature: x.signature as string, eventIndex: x.event_index as number, slot: Number(x.slot), blockhash: x.blockhash as string, commitment: x.commitment as "confirmed" | "finalized", eventName: x.event_name as string, payload: x.payload as Record<string, unknown>, orphanedAt: (x.orphaned_at as Date | null) ?? null, ingestedAt: x.ingested_at as Date };
+  }
+  async getCursor(name: string) {
+    const r = await this.pool.query(`SELECT signature, slot FROM chain_cursor WHERE name = $1`, [name]);
+    return r.rows[0] ? { signature: (r.rows[0] as Row).signature as string, slot: Number((r.rows[0] as Row).slot) } : null;
+  }
+  async setCursor(name: string, signature: string, slot: number) {
+    await this.pool.query(`INSERT INTO chain_cursor (name, signature, slot, updated_at) VALUES ($1, $2, $3, now()) ON CONFLICT (name) DO UPDATE SET signature = EXCLUDED.signature, slot = EXCLUDED.slot, updated_at = now()`, [name, signature, slot]);
+  }
+  async insertChainEvent(e: ChainEventInput, now: Date) {
+    await this.pool.query(
+      `INSERT INTO chain_events (signature, event_index, slot, blockhash, commitment, event_name, payload, ingested_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (signature, event_index) DO NOTHING`,
+      [e.signature, e.eventIndex, e.slot, e.blockhash, e.commitment, e.eventName, JSON.stringify(e.payload), now],
+    );
+  }
+  async listPendingChainEvents(limit: number) {
+    const r = await this.pool.query(`SELECT * FROM chain_events WHERE commitment = 'confirmed' AND orphaned_at IS NULL ORDER BY slot ASC, event_index ASC LIMIT $1`, [limit]);
+    return (r.rows as Row[]).map((x) => this.eventRow(x));
+  }
+  async finalizeChainEvent(signature: string, eventIndex: number) {
+    await this.pool.query(`UPDATE chain_events SET commitment = 'finalized' WHERE signature = $1 AND event_index = $2`, [signature, eventIndex]);
+  }
+  async markChainEventOrphaned(signature: string, eventIndex: number, now: Date) {
+    await this.pool.query(`UPDATE chain_events SET orphaned_at = $3 WHERE signature = $1 AND event_index = $2`, [signature, eventIndex, now]);
+  }
+  async listChainEvents(filter: { eventName?: string; wallet?: string; finalizedOnly?: boolean }, limit: number) {
+    const conds: string[] = [];
+    const args: unknown[] = [];
+    if (filter.eventName) { args.push(filter.eventName); conds.push(`event_name = $${args.length}`); }
+    if (filter.wallet) { args.push(filter.wallet); conds.push(`payload->>'wallet' = $${args.length}`); }
+    if (filter.finalizedOnly) conds.push(`commitment = 'finalized' AND orphaned_at IS NULL`);
+    args.push(limit);
+    const r = await this.pool.query(`SELECT * FROM chain_events ${conds.length ? "WHERE " + conds.join(" AND ") : ""} ORDER BY slot DESC, event_index DESC LIMIT $${args.length}`, args);
+    return (r.rows as Row[]).map((x) => this.eventRow(x));
+  }
+  async backfillRedeemedSig(nonce: Buffer, signature: string) {
+    const r = await this.pool.query(`UPDATE attestations SET redeemed_sig = $2 WHERE nonce = $1 AND redeemed_sig IS NULL`, [nonce, signature]);
+    return (r.rowCount ?? 0) > 0;
   }
 
   // ---- PG-B-14 ----
