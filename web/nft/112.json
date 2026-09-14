@@ -1,0 +1,34 @@
+{
+  "name": "NeonShift Badge · Arena #2",
+  "symbol": "NSBADGE",
+  "description": "Weekend step marathon runner-up. A free achievement collectible — no purchase, no monetary value.",
+  "image": "https://neonshift.cc/nft/img/112.png",
+  "external_url": "https://neonshift.cc",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Badge"
+    },
+    {
+      "trait_type": "Achievement",
+      "value": "Arena Rank 2"
+    },
+    {
+      "trait_type": "Kind",
+      "value": 112
+    }
+  ],
+  "properties": {
+    "category": "image",
+    "files": [
+      {
+        "uri": "https://neonshift.cc/nft/img/112.png",
+        "type": "image/png"
+      },
+      {
+        "uri": "https://neonshift.cc/nft/img/112.svg",
+        "type": "image/svg+xml"
+      }
+    ]
+  }
+}

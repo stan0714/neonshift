@@ -1,0 +1,34 @@
+{
+  "name": "NeonShift Badge · First Clock-In",
+  "symbol": "NSBADGE",
+  "description": "Awarded for the first verified NeonShift clock-in. Health data stays on the phone; only this badge is public. A free achievement collectible — no purchase, no monetary value.",
+  "image": "https://neonshift.cc/nft/img/101.png",
+  "external_url": "https://neonshift.cc",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Badge"
+    },
+    {
+      "trait_type": "Achievement",
+      "value": "First Clock-In"
+    },
+    {
+      "trait_type": "Kind",
+      "value": 101
+    }
+  ],
+  "properties": {
+    "category": "image",
+    "files": [
+      {
+        "uri": "https://neonshift.cc/nft/img/101.png",
+        "type": "image/png"
+      },
+      {
+        "uri": "https://neonshift.cc/nft/img/101.svg",
+        "type": "image/svg+xml"
+      }
+    ]
+  }
+}

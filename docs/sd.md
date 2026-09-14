@@ -975,6 +975,8 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 
 **後端（藝廊 API，讀鏈上）**：ChainIndexer（B-16）同步 `PlayerInitialized`／`ClockedIn`／`CollectibleClaimed` 事件到 `gallery_players (wallet, shoe_level, xp, streak_days, max_streak_days, last_task_date, updated_at)` 與 `gallery_collectibles (wallet, kind, asset, claimed_at)`；每小時（或每次事件）重算排行。
 
+**素材（2026-09-14，PG-G-04）**：`web/nft/`（由 `tools/nft-assets/build.mjs` 產生）：`<kind>.json` 依 Metaplex JSON 標準，`image` 指向 1024px PNG、`properties.files` 併列 SVG；圖片 520×520 viewBox、品牌色與 ShoeHero 同源；部署到 neonshift.cc 後 URI 不得搬移（程式常數 `COLLECTIBLE_BASE_URI`）。
+
 **實作（2026-09-14，PG-G-01／G-02）**：migration 0005 `gallery_players`（+ `core_level`、`collectible_count`、`first_seen_slot`／`updated_slot`）與 `gallery_collectibles`（PK (wallet, kind)，含 signature／slot）。`gallery/projection.ts` 只吃 finalized 事件：PlayerInitialized 建立（已存在不重置）、ClockedIn 以 `updated_slot <= 新 slot` 才覆寫（重放／亂序安全）、CollectibleClaimed `ON CONFLICT DO NOTHING` 並遞增 `collectible_count`。排行不另行重算，直接以索引 `(shoe_level DESC, xp DESC, wallet COLLATE "C")` 查詢（`row_number()` 取本人名次）。API：`GET /gallery/players?limit≤50&cursor=offset`（含 `generated_at`、`total`、`next_cursor`、`you.rank`）、`GET /gallery/players/{wallet}`（`player`、`is_you`、`collectibles`）、`GET /gallery/search?q=base58 前綴≥2`；皆需 JWT；回應不含任何健康數值；BR-25 刪除個資不影響藝廊（純鏈上公開資料）。
 
 | Method | Path | 用途 |

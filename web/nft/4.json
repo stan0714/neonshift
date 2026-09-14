@@ -1,0 +1,42 @@
+{
+  "name": "NeonShift Shoe · Surge",
+  "symbol": "NSHOE",
+  "description": "Level 4 NeonShift gear, earned with 3,600 XP of verified movement. Heel fins · energy chamber. A free achievement collectible — no purchase, no monetary value.",
+  "image": "https://neonshift.cc/nft/img/4.png",
+  "external_url": "https://neonshift.cc",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Shoe"
+    },
+    {
+      "trait_type": "Level",
+      "value": 4
+    },
+    {
+      "trait_type": "Stage",
+      "value": "Surge"
+    },
+    {
+      "trait_type": "XP threshold",
+      "value": 3600
+    },
+    {
+      "trait_type": "Detail",
+      "value": "Heel fins · energy chamber"
+    }
+  ],
+  "properties": {
+    "category": "image",
+    "files": [
+      {
+        "uri": "https://neonshift.cc/nft/img/4.png",
+        "type": "image/png"
+      },
+      {
+        "uri": "https://neonshift.cc/nft/img/4.svg",
+        "type": "image/svg+xml"
+      }
+    ]
+  }
+}

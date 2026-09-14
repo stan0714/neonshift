@@ -1,0 +1,55 @@
+{
+  "base": "https://neonshift.cc/nft",
+  "collectibles": [
+    {
+      "kind": 1,
+      "name": "NeonShift Shoe · Origin",
+      "uri": "https://neonshift.cc/nft/1.json"
+    },
+    {
+      "kind": 2,
+      "name": "NeonShift Shoe · Pulse",
+      "uri": "https://neonshift.cc/nft/2.json"
+    },
+    {
+      "kind": 3,
+      "name": "NeonShift Shoe · Phase",
+      "uri": "https://neonshift.cc/nft/3.json"
+    },
+    {
+      "kind": 4,
+      "name": "NeonShift Shoe · Surge",
+      "uri": "https://neonshift.cc/nft/4.json"
+    },
+    {
+      "kind": 5,
+      "name": "NeonShift Shoe · Zenith",
+      "uri": "https://neonshift.cc/nft/5.json"
+    },
+    {
+      "kind": 101,
+      "name": "NeonShift Badge · First Clock-In",
+      "uri": "https://neonshift.cc/nft/101.json"
+    },
+    {
+      "kind": 102,
+      "name": "NeonShift Badge · 7-Day Streak",
+      "uri": "https://neonshift.cc/nft/102.json"
+    },
+    {
+      "kind": 111,
+      "name": "NeonShift Badge · Arena #1",
+      "uri": "https://neonshift.cc/nft/111.json"
+    },
+    {
+      "kind": 112,
+      "name": "NeonShift Badge · Arena #2",
+      "uri": "https://neonshift.cc/nft/112.json"
+    },
+    {
+      "kind": 113,
+      "name": "NeonShift Badge · Arena #3",
+      "uri": "https://neonshift.cc/nft/113.json"
+    }
+  ]
+}
