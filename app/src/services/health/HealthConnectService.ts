@@ -87,6 +87,15 @@ export const healthConnect = {
     }
   },
 
+  /** 任意窗口（≤ 24 小時，分鐘桶相對 startUnix）；賽事步數彙整（PG-A-15）逐日呼叫 */
+  async readStepsInWindow(startUnix: number, endUnix: number): Promise<StepsResult> {
+    try {
+      return await NeonshiftHealth.readSteps(startUnix, endUnix);
+    } catch (e) {
+      throw mapNativeError(e);
+    }
+  },
+
   // ---- PG-A-19：背景同步（FR-02.3，S 級）與快取 ----
 
   /** 15 分鐘（WorkManager 下限）；需 READ_HEALTH_DATA_IN_BACKGROUND，未授權時工作會靜默結束 */

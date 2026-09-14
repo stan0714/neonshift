@@ -29,6 +29,15 @@ export const collectiblePda = (wallet: PublicKey, kind: number) => PublicKey.fin
 /** 成就 NFT asset PDA `["asset", wallet, kind]`：Metaplex Core asset 位址，由程式 invoke_signed 建立 */
 export const assetPda = (wallet: PublicKey, kind: number) => PublicKey.findProgramAddressSync([Buffer.from('asset'), wallet.toBytes(), Buffer.from([kind])], programId())[0];
 
+/** 錦標賽 PDA（SD 3.1）：`["tournament", week_id_le]`、vault `["vault", tournament]`、entry `["entry", tournament, wallet]` */
+export const tournamentPda = (weekId: number) => {
+  const le = Buffer.alloc(4);
+  le.writeUInt32LE(weekId, 0);
+  return PublicKey.findProgramAddressSync([Buffer.from('tournament'), le], programId())[0];
+};
+export const tournamentVaultPda = (tournament: PublicKey) => PublicKey.findProgramAddressSync([Buffer.from('vault'), tournament.toBytes()], programId())[0];
+export const entryPda = (tournament: PublicKey, wallet: PublicKey) => PublicKey.findProgramAddressSync([Buffer.from('entry'), tournament.toBytes(), wallet.toBytes()], programId())[0];
+
 /** Metaplex Core（SD 11A） */
 export const MPL_CORE_PROGRAM_ID = new PublicKey('CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d');
 

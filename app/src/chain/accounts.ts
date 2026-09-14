@@ -92,3 +92,23 @@ export async function fetchAccount<T>(conn: Connection, address: PublicKey, deco
   const info = await conn.getAccountInfo(address, 'confirmed');
   return info ? decode(new Uint8Array(info.data)) : null;
 }
+
+/** TournamentEntry（state.rs）：8 | tournament 32 | wallet 32 | stake u64 | final_steps u64 | rank u32 | group u8 | forfeited | settled | evidence 32 | joined_at i64 | bump */
+export type TournamentEntry = { stake: bigint; finalSteps: bigint; rank: number; group: number; forfeited: boolean; settled: boolean; joinedAt: number };
+
+export function decodeTournamentEntry(data: Uint8Array): TournamentEntry {
+  const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  let o = 8 + 64;
+  const stake = dv.getBigUint64(o, true);
+  o += 8;
+  const finalSteps = dv.getBigUint64(o, true);
+  o += 8;
+  const rank = dv.getUint32(o, true);
+  o += 4;
+  const group = data[o++]!;
+  const forfeited = data[o++] === 1;
+  const settled = data[o++] === 1;
+  o += 32;
+  const joinedAt = Number(dv.getBigInt64(o, true));
+  return { stake, finalSteps, rank, group, forfeited, settled, joinedAt };
+}

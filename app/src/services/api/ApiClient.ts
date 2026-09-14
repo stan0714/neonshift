@@ -34,6 +34,33 @@ export type ClaimResponse = {
   rules_version: number;
   effective_value: number;
 };
+export type TournamentStatus = 'draft' | 'registration' | 'locked' | 'running' | 'settling' | 'settled' | 'cancelled';
+export type TournamentView = {
+  week_id: number;
+  address: string;
+  status: TournamentStatus;
+  stake_amount: string;
+  treasury_injection_cap: string;
+  treasury_injection: string;
+  entrant_count: number;
+  valid_entrant_count: number;
+  forfeited_count: number;
+  min_entrants: number;
+  group_a_size: number;
+  group_b_size: number;
+  prize_a_bps: number;
+  prize_b_bps: number;
+  loser_refund_bps: number;
+  registration_ends_at: number;
+  starts_at: number;
+  ends_at: number;
+  rules_version: number;
+  registration_open: boolean;
+  settlement: { distributable_pool: string; total_refund: string; total_prize: string; treasury_remainder: string; results_submitted: number } | null;
+};
+export type TournamentCurrentResponse = { tournament: TournamentView | null; player: { joined: boolean; verified_steps: number; rank: number | null } | null; server_time: number };
+export type LeaderboardResponse = { week_id: number; status: TournamentStatus; generated_at: string; total_players: number; entries: { rank: number; wallet: string; verified_steps: number; first_reached_at: string | null; updated_at: string }[]; you: { rank: number | null; verified_steps: number } | null };
+export type TournamentStepsResponse = { week_id: number; verified_steps: number; submitted_steps: number; accepted: boolean; first_reached_at: string | null; rank: number | null };
 export type HistoryResponse = { days: number; retention_days: number; items: { task_date: number; task_type: 'steps' | 'sleep'; issued_at: string; expires_at: string; redeemed_signature: string | null }[] };
 
 async function readTokens(): Promise<Tokens | null> {
@@ -109,6 +136,20 @@ export class ApiClient {
 
   claim(body: Record<string, unknown>, idempotencyKey: string): Promise<ClaimResponse> {
     return this.request<ClaimResponse>('POST', '/attestation/claim', body, { headers: { 'idempotency-key': idempotencyKey } });
+  }
+
+  // ---------------- tournament（PG-A-15） ----------------
+
+  tournamentCurrent(): Promise<TournamentCurrentResponse> {
+    return this.request<TournamentCurrentResponse>('GET', '/tournament/current');
+  }
+
+  tournamentLeaderboard(weekId: number): Promise<LeaderboardResponse> {
+    return this.request<LeaderboardResponse>('GET', `/tournament/${weekId}/leaderboard`);
+  }
+
+  tournamentSteps(body: Record<string, unknown>, idempotencyKey: string): Promise<TournamentStepsResponse> {
+    return this.request<TournamentStepsResponse>('POST', '/tournament/steps', body, { headers: { 'idempotency-key': idempotencyKey } });
   }
 
   history(days = 30): Promise<HistoryResponse> {
