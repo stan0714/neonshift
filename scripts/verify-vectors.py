@@ -7,9 +7,14 @@
 用法：
     python3 scripts/verify-vectors.py backend/src/lib/attestation-vectors.json
 """
+import io
 import json
 import struct
 import sys
+
+# 非 UTF-8 locale（例如 CI 或 pyenv 舊版）下輸出中文不得崩潰
+if getattr(sys.stdout, "encoding", "").lower() != "utf-8":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", line_buffering=True)
 
 DOMAIN = b"NEONSHIFT_ATTEST_V1"
 LENGTH = 164

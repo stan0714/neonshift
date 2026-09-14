@@ -106,16 +106,23 @@ else
   skip "Node.js 未安裝或 app/ 尚未 npm install"
 fi
 
-section "鏈上程式（Anchor）"
+section "鏈上程式（Anchor + LiteSVM）"
 if ! command -v anchor >/dev/null; then
   skip "Anchor 未安裝"
 elif [ ! -f programs/Anchor.toml ]; then
-  # 尚未建立 Anchor workspace（PG-C-01）。這是預期狀態，不算失敗。
   skip "尚未建立 Anchor workspace（programs/Anchor.toml 不存在）"
-elif (cd programs && anchor test --skip-deploy) >/tmp/ns-anchor.log 2>&1; then
-  ok "anchor test"
 else
-  bad "anchor test"; tail -20 /tmp/ns-anchor.log
+  # --arch v0：Anchor 預設 v3 的 ELF 無法被 LiteSVM 載入，見 programs/Anchor.toml
+  if (cd programs && anchor build --arch v0) >/tmp/ns-anchor-build.log 2>&1; then
+    ok "anchor build --arch v0"
+    if (cd programs && cargo test -p neonshift-core --quiet) >/tmp/ns-anchor.log 2>&1; then
+      ok "cargo test -p neonshift-core（LiteSVM）"
+    else
+      bad "cargo test -p neonshift-core"; tail -20 /tmp/ns-anchor.log
+    fi
+  else
+    bad "anchor build"; tail -20 /tmp/ns-anchor-build.log
+  fi
 fi
 
 printf '\n\033[1m總計：%d 通過，%d 失敗\033[0m\n' "$pass" "$fail"

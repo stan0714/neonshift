@@ -18,9 +18,10 @@ wallet = "~/.config/solana/id.json"
 [workspace]
 members = ["neonshift-core"]
 
-# 測試以 LiteSVM 在程序內執行（SD 7），不需要本機 validator
+# 建置：`anchor build --arch v0`
+#   Anchor 1.2 預設 --arch v3，產出的 SBPF v3 ELF 無法被 LiteSVM 0.10 載入（InvalidAccountData），
+#   且 devnet 對 v3 的支援尚未普及；v0 為各環境皆可部署的基準。
+# 測試：`cargo test -p neonshift-core`（LiteSVM 程序內執行，SD 7；不需 validator／surfpool，
+#   因此不使用 `anchor test`）。統一入口為 repo 根目錄 scripts/test-all.sh。
 [scripts]
 test = "cargo test -p neonshift-core"
-
-[test]
-skip_local_validator = true

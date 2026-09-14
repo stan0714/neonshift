@@ -478,10 +478,17 @@ spl-token display $TSKR_MINT --url devnet
 
 ```bash
 cd programs
-anchor build
+anchor build --arch v0          # 一律加 --arch v0，見下方說明
 anchor deploy --provider.cluster devnet
 # 記下 Program Id，填入 App 與後端設定
 ```
+
+**工具鏈注意事項**（本機實測 Anchor 1.2.0 + solana-cli 3.1.10）：
+
+- Anchor 1.2 的 `anchor build` 預設 `--arch v3`，產出的 SBPF v3 ELF 無法被 LiteSVM 0.10 載入（`InvalidAccountData`），devnet 對 v3 的支援也未普及。所有建置一律 `anchor build --arch v0`。
+- 鏈上測試用 LiteSVM 在程序內執行：`cargo test -p neonshift-core`。**不要**用 `anchor test`，它會嘗試啟動 `surfpool` 本機 validator。
+- 程式 keypair 在 `programs/target/deploy/neonshift_core-keypair.json`（gitignore）。第一次 clone 後若 `declare_id!` 與本機 keypair 不同，執行 `anchor keys sync` 或依 PG-I-07 取得對應環境的 keypair；dev／demo 各自一把，不共用。
+- 統一入口 `scripts/test-all.sh` 會依序跑 Rust／向量／DB／後端／App／鏈上六個區段。
 
 ---
 

@@ -19,7 +19,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: programs/attestation-core
+          workspaces: programs
       - run: cargo test --quiet
         working-directory: programs/attestation-core
       - name: 向量檔必須與 gen_vectors 輸出一致
@@ -28,6 +28,26 @@ jobs:
           python3 ../../scripts/verify-vectors.py /tmp/vectors.json
           diff -q /tmp/vectors.json ../../backend/src/lib/attestation-vectors.json
         working-directory: programs/attestation-core
+
+  neonshift-core:
+    name: neonshift-core（Anchor＋LiteSVM）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: programs
+      - name: 安裝 Solana CLI 與 Anchor（Runbook 1.2）
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v3.1.10/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          cargo install --git https://github.com/coral-xyz/anchor --tag v1.2.0 anchor-cli --locked
+      - name: anchor build --arch v0（見 programs/Anchor.toml）
+        run: anchor build --arch v0
+        working-directory: programs
+      - run: cargo test -p neonshift-core
+        working-directory: programs
 
   backend:
     name: backend（TypeScript）＋schema 約束
