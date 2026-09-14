@@ -137,11 +137,11 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-C-02 | `update_config` / `rotate_attestor` 與 pause 流程 | SD 3.2 | BR-24 | 1.0 | WIP | set_paused／update_config（BR-24 600s 門檻）／rotate_attestor；pause 範圍定案；LiteSVM 6 測試 |
 | PG-C-03 | PlayerProfile 與 `init_player` | SD 3.1 | — | 0.5 | WIP | PlayerProfile、init_player、PlayerInitialized；LiteSVM 5 測試 |
 | PG-C-04 | Attestation canonical bytes 解析與 ed25519 指令驗證 | SD 3.5 | BR-14, BR-15 | 2.0 | WIP | attestation.rs 解析＋verify；完成定義 13 案例全部以 LiteSVM 覆蓋（test_clock_in）；向量 20 組 |
-| PG-C-05 | `clock_in` 檢查順序主流程 | SD 3.3 | BR-03, BR-14, BR-15 | 2.0 | WIP | clock_in 16 步（含 6028 未鑄鞋）、19 整合測試；mint_shoe 前以 force_shoe 測試 |
+| PG-C-05 | `clock_in` 檢查順序主流程 | SD 3.3 | BR-03, BR-14, BR-15 | 2.0 | WIP | clock_in 16 步、19 整合測試；跑鞋隨 profile 贈與，無鑄鞋檢查 |
 | PG-C-06 | 獎勵計算定點數、連續加成與每日上限 | SD 3.4 | BR-02, BR-04, BR-06 | 1.0 | WIP | reward.rs 定點數 u128、streak 推導、日額收斂；14 單元測試＋整合 |
 | PG-C-07 | ClaimReceipt PDA 與重放防護 | SD 3.1 | BR-03 | 1.0 | WIP | ClaimReceipt 手動建立於步驟 10；重放 6009、6010 不留 receipt |
 | PG-C-08 | XP、shoe_level、core_level 三者分離 | SD 3.1 | BR-23 | 1.0 | WIP | xp／shoe_level（BR-34／35）與 core_level 分離；shoe_level_for 邊界測試 |
-| PG-C-09 | `mint_shoe`（Metaplex Core） | SD 1.2 | FR-04.1 | 1.5 | TODO | |
+| PG-C-09 | `mint_shoe`（Metaplex Core） | SD 1.2 | FR-04.1 | 1.5 | DEFER | 2026-09-14 專案負責人定案：不鑄造 NFT，跑鞋隨 init_player 直接贈與（FR-04.1 改寫） |
 | PG-C-10 | `upgrade_core` 燒毀與入庫原子性 | SD 6.1 | BR-16 | 1.0 | TODO | |
 | PG-C-11 | Tournament 帳戶、專用 vault、`open`／`lock`／`start_tournament` | SD 3.1, 3.2 | BR-18, BR-19, BR-22 | 1.5 | TODO | |
 | PG-C-12 | `join_tournament` 質押與 vault PDA | SD 3.2 | BR-22 | 1.0 | TODO | |
@@ -194,7 +194,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-A-08 | TaskEngine：達標判定與 UTC 日界線 | SD 5.3 | BR-01, BR-05 | 1.0 | TODO | |
 | PG-A-09 | TxBuilder：ed25519 前置指令與 Anchor 指令 | SD 3.5, 5.1 | BR-14 | 2.0 | TODO | |
 | PG-A-10 | ChainClient：簽章／blockhash 保存、確認與 ClaimReceipt 冪等輪詢 | SD 5.3 | — | 1.5 | TODO | |
-| PG-A-11 | Onboarding 四頁權限流程 | Style 10 | FR-02.5 | 1.5 | WIP | 四頁 Onboarding（Style 10.1～10.4）＋OnboardingLayout／InlineState；Health／Activity 接真實權限、拒絕狀態不重複彈出；Mint 畫面接 C-09／A-09 前回「尚未開放」；7 測試；Seeker 實測至 Step 4 |
+| PG-A-11 | Onboarding 四頁權限流程 | Style 10 | FR-02.5 | 1.5 | WIP | 四頁 Onboarding（Style 10.1～10.4）；Step 4 改為免費領取初階跑鞋（init_player）；Seeker 實測至 Step 4 |
 | PG-A-12 | Dashboard 儀表板 | Style 11 | FR-08.1 | 1.5 | TODO | |
 | PG-A-13 | 打卡、live motion 引導與成功特效 | Style 15 | FR-03.1, FR-08.3 | 1.0 | TODO | |
 | PG-A-14 | Gear 頁與升級流程 | Style 12 | FR-05.2 | 1.0 | TODO | |
@@ -205,7 +205,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-A-19 | Health Connect 背景同步（WorkManager）與前景補同步 | SD 5.1 | FR-02.3 | 1.0 | TODO | |
 | PG-A-20 | Activity history 畫面與歷史 API 串接 | Style 2, 19.1 | FR-03.5 | 0.5 | TODO | |
 | PG-A-21 | Profile：權限、隱私、刪除資料與斷開錢包 | Style 2, 19.1; SD 5.3 | FR-01.4, BR-25 | 1.0 | TODO | |
-| PG-A-22 | 在目前 MWA／Seeker 錢包驗證並顯示跑鞋 NFT | Style 7.4 | FR-04.5 | 0.5 | TODO | |
+| PG-A-22 | 在目前 MWA／Seeker 錢包驗證並顯示跑鞋 NFT | Style 7.4 | FR-04.5 | 0.5 | DEFER | 隨 NFT 取消而移出（FR-04.5 → W） |
 
 ---
 
@@ -441,7 +441,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | 項目 | 說明 |
 |---|---|
 | `PG-I-07`, `I-08` | devnet 部署與 tSKR |
-| `PG-C-05` 至 `C-09` | 打卡主流程與跑鞋鑄造 |
+| `PG-C-05` 至 `C-08` | 打卡主流程（跑鞋隨 init_player 贈與，C-09 DEFER） |
 | `PG-B-03` 至 `B-11` | 登入、challenge、風險規則、簽章與 claim 的 M2 垂直切片 |
 | `PG-B-12`, `B-13` | 歷史查詢與資料刪除 API |
 | `PG-B-18` | 安全限流、稽核與最小可觀測性 |
@@ -484,7 +484,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | FR-01 錢包連線 | PG-A-06, PG-A-07, PG-A-21 |
 | FR-02 健康數據 | PG-A-04, PG-A-08, PG-A-11, PG-A-19 |
 | FR-03 打卡獎勵 | PG-C-04 至 C-07, PG-B-03 至 B-12, PG-A-07 至 A-10, PG-A-13, PG-A-20 |
-| FR-04 動態 NFT | PG-C-08, PG-C-09, PG-A-17, PG-A-22 |
+| FR-04 跑鞋（鏈上狀態） | PG-C-03, PG-C-08, PG-A-17 |
 | FR-05 裝備升級 | PG-C-10, PG-A-14 |
 | FR-06 錦標賽 | PG-C-11 至 C-16, PG-B-05, PG-B-14 至 B-16, PG-A-15 |
 | FR-07 風險驗證 | PG-A-04, PG-A-05, PG-B-06 至 B-09, PG-B-19 |
@@ -546,6 +546,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.6 | 2026-09-14 | 範圍變更（層級 2，專案負責人）：取消 NFT 鑄造，初階跑鞋隨 init_player 直接贈與、使用者不付費；PG-C-09、A-22 DEFER；BRD FR-04.1／04.5、D-02、SD 1.2／3.1／3.2／3.6／10 同步 |
 | v0.5 | 2026-09-14 | 依 feat-第一版本開發 分支現況同步狀態：PG-I-01、I-05、B-02、B-10、C-04 改為 WIP 並註記證據；未合併 dev 前不標 DONE |
 
 ## 14. 五階鞋款與優化路線補充（2026-09-14）

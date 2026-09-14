@@ -4,7 +4,7 @@ import type { PropsWithChildren } from 'react';
 
 import { ActivityRecognitionScreen } from '@/screens/onboarding/ActivityRecognitionScreen';
 import { HealthAccessScreen } from '@/screens/onboarding/HealthAccessScreen';
-import { ShoeMintScreen } from '@/screens/onboarding/ShoeMintScreen';
+import { StarterShoeScreen } from '@/screens/onboarding/StarterShoeScreen';
 import { WalletConnectScreen } from '@/screens/onboarding/WalletConnectScreen';
 import { WalletError } from '@/services/wallet/WalletService';
 import { useOnboardingStore } from '@/state/onboardingStore';
@@ -113,33 +113,34 @@ describe('10.3 Activity Recognition', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  test('授予後前往 Shoe Mint', async () => {
+  test('授予後前往 Starter Shoe', async () => {
     ar.request.mockResolvedValue('granted');
     await render(<ActivityRecognitionScreen />, { wrapper: Wrapper });
     await act(async () => fireEvent.press(screen.getByText('Allow activity recognition')));
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('Onboarding', { screen: 'ShoeMint' }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('Onboarding', { screen: 'StarterShoe' }));
   });
 });
 
-describe('10.4 Shoe Mint Confirmation', () => {
-  test('依序顯示 Action／Asset／Network／Owner／Expected result／Fee；未連線時 disabled 並說明原因', async () => {
-    await render(<ShoeMintScreen />, { wrapper: Wrapper });
+describe('10.4 Starter Shoe Claim（免費贈與，不鑄 NFT）', () => {
+  test('依序顯示 Action／Asset／Network／Owner／Expected result／Fee；未連線時 disabled 並說明原因；不出現 Mint', async () => {
+    await render(<StarterShoeScreen />, { wrapper: Wrapper });
     for (const label of ['Action', 'Asset', 'Network', 'Owner', 'Expected result', 'Network fee']) {
       expect(screen.getByText(label)).toBeTruthy();
     }
     await waitFor(() => expect(screen.getByText(/Starter Shoe/)).toBeTruthy());
-    expect(screen.getByText(/0\.000005 SOL/)).toBeTruthy();
+    expect(screen.getByText(/account rent \+ fee/)).toBeTruthy();
     expect(screen.getByText('Connect a wallet first')).toBeTruthy();
     expect(screen.getByText(/No monetary value/)).toBeTruthy();
+    expect(screen.queryByText(/mint/i)).toBeNull();
   });
 
-  test('本版鑄造尚未開放：顯示資訊狀態、不建立資產、不前往 Main', async () => {
+  test('本版未設定 program id：顯示資訊狀態、不建立資產、不前往 Main', async () => {
     useWalletStore.setState({ status: 'connected', session: { address: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU', publicKey: {} as never, walletUriBase: '' } });
-    await render(<ShoeMintScreen />, { wrapper: Wrapper });
+    await render(<StarterShoeScreen />, { wrapper: Wrapper });
     expect(screen.getByText('7xKX…gAsU')).toBeTruthy();
-    await act(async () => fireEvent.press(screen.getByText('Mint starter shoe')));
-    await waitFor(() => expect(screen.getByTestId('mint-error')).toBeTruthy());
-    expect(screen.getByText('Minting opens soon')).toBeTruthy();
+    await act(async () => fireEvent.press(screen.getByText('Claim starter shoe')));
+    await waitFor(() => expect(screen.getByTestId('claim-error')).toBeTruthy());
+    expect(screen.getByText('Onchain claim not enabled in this build')).toBeTruthy();
     expect(useOnboardingStore.getState().shoeMinted).toBe(false);
     expect(mockReset).not.toHaveBeenCalled();
   });

@@ -8,12 +8,12 @@ export type TabParamList = {
   Profile: undefined;
 };
 
-/** Onboarding：Wallet → Health → Activity → Shoe Mint（Style 10） */
+/** Onboarding：Wallet → Health → Activity → Starter Shoe（Style 10） */
 export type OnboardingParamList = {
   WalletConnect: undefined;
   HealthAccess: undefined;
   ActivityRecognition: undefined;
-  ShoeMint: undefined;
+  StarterShoe: undefined;
 };
 
 /** Root stack：Bootstrap → Landing → Onboarding → Tabs；次要頁面（Activity history 等）掛在 root */

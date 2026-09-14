@@ -37,6 +37,8 @@ pub struct PauseChanged {
 pub struct PlayerInitialized {
     pub wallet: Pubkey,
     pub profile: Pubkey,
+    /// 隨 profile 直接贈與的初階跑鞋等級（1）
+    pub shoe_level: u8,
 }
 
 #[event]

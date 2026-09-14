@@ -74,8 +74,7 @@ pub fn handle_clock_in(ctx: Context<ClockIn>, args: AttestationArgs) -> Result<(
     // 1. Config 未暫停
     config.require_active()?;
 
-    // 未鑄鞋拒絕（SD 10 待定項，本實作定案：打卡需先完成 onboarding 鑄造）
-    require!(ctx.accounts.profile.has_shoe(), ErrorCode::ShoeNotMinted);
+    // 跑鞋隨 PlayerProfile 直接贈與（2026-09-14 定案，不鑄造 NFT）；profile 不存在即由 Anchor 拒絕
 
     // 2～7. ed25519 前置指令、attestor 公鑰、canonical bytes、program／cluster、wallet、時效
     let att = verify_attestation(&ctx.accounts.instructions_sysvar, config, &player_key, &args, now)?;

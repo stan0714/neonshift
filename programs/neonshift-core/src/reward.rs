@@ -111,7 +111,6 @@ mod tests {
     fn profile(last: u32, streak: u16) -> PlayerProfile {
         PlayerProfile {
             wallet: Pubkey::default(),
-            shoe_asset: Pubkey::default(),
             core_level: 1,
             shoe_level: 1,
             xp: 0,

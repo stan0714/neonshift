@@ -10,7 +10,7 @@ use {
 };
 
 #[test]
-fn init_player_creates_profile_with_defaults() {
+fn init_player_creates_profile_and_grants_starter_shoe() {
     let mut env = setup();
     let _ = initialize(&mut env);
     let player = new_player(&mut env.svm);
@@ -19,8 +19,6 @@ fn init_player_creates_profile_with_defaults() {
     let (key, bump) = player_pda(&player.pubkey());
     let p: PlayerProfile = read(&env.svm, &key);
     assert_eq!(p.wallet, player.pubkey());
-    assert_eq!(p.shoe_asset, Pubkey::default());
-    assert!(!p.has_shoe());
     assert_eq!((p.core_level, p.shoe_level), (1, 1));
     assert_eq!((p.xp, p.last_task_date, p.streak_days, p.claimed_today, p.today_date), (0, 0, 0, 0, 0));
     assert_eq!(p.bump, bump);

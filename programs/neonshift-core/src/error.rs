@@ -28,8 +28,8 @@ pub enum ErrorCode {
     DailyCapReached, // 6010
     #[msg("定點數運算溢位")]
     MathOverflow, // 6011
-    #[msg("跑鞋已鑄造")]
-    ShoeAlreadyMinted, // 6012
+    #[msg("保留：原 ShoeAlreadyMinted，2026-09-14 取消 NFT 鑄造後不再使用")]
+    Reserved6012, // 6012
     #[msg("已達最高 Core 等級")]
     MaxCoreLevel, // 6013
     #[msg("賽事狀態不允許此操作")]
@@ -60,8 +60,6 @@ pub enum ErrorCode {
     Unauthorized, // 6026
     #[msg("attestation 時間欄位不自洽（issued_at <= not_before <= expiry）")]
     InvalidAttestationWindow, // 6027
-    #[msg("尚未鑄造跑鞋，無法打卡")]
-    ShoeNotMinted, // 6028
     #[msg("task_type 不是 1（steps）或 2（sleep）")]
-    InvalidTaskType, // 6029
+    InvalidTaskType, // 6028
 }

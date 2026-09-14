@@ -7,7 +7,7 @@
  * - 斷線／切換：`deauthorize` 並清除本機 token（FR-01.4）
  */
 import { transact, type Web3MobileWallet } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, type Transaction, type VersionedTransaction } from '@solana/web3.js';
 import * as SecureStore from 'expo-secure-store';
 import { Buffer } from 'buffer';
 
@@ -139,6 +139,23 @@ export const walletService = {
     }
     await writeStored(null);
     cachedAuthToken = null;
+  },
+
+  /** 由錢包簽章並送出交易；回傳 signature（base58）。送出後的確認與冪等由 ChainClient 負責（PG-A-10） */
+  async signAndSendTransaction(tx: Transaction | VersionedTransaction): Promise<string> {
+    const stored = await readStored();
+    if (!stored) throw new WalletError('SESSION_EXPIRED', 'No wallet session');
+    try {
+      const [sig] = await transact(async (wallet: Web3MobileWallet) => {
+        const auth = await wallet.authorize({ identity, chain, auth_token: cachedAuthToken ?? stored.authToken });
+        cachedAuthToken = auth.auth_token;
+        return wallet.signAndSendTransactions({ transactions: [tx] });
+      });
+      if (!sig) throw new WalletError('REJECTED', 'Transaction not sent');
+      return sig;
+    } catch (e) {
+      throw mapWalletError(e);
+    }
   },
 
   /** 以已授權 session 簽署任意訊息（SIWS、claim challenge，PG-A-07） */

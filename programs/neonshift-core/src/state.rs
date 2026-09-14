@@ -70,8 +70,6 @@ impl Config {
 #[derive(InitSpace)]
 pub struct PlayerProfile {
     pub wallet: Pubkey,
-    /// 跑鞋資產位址；`Pubkey::default()` 表示未鑄造
-    pub shoe_asset: Pubkey,
     /// 1～5，只能透過付費升級改變，控制獎勵倍率（BR-23）
     pub core_level: u8,
     /// 1～5，由 XP 門檻自動提升，只影響外觀（BR-23）
@@ -91,10 +89,6 @@ impl PlayerProfile {
     pub const SEED: &'static [u8] = crate::constants::PLAYER_SEED;
     pub const MIN_LEVEL: u8 = 1;
     pub const MAX_LEVEL: u8 = 5;
-
-    pub fn has_shoe(&self) -> bool {
-        self.shoe_asset != Pubkey::default()
-    }
 }
 
 /// PDA seeds `["claim", wallet, task_date_le, task_type]`。帳戶存在即代表已領取（BR-03）。

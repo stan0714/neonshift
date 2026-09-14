@@ -50,7 +50,7 @@ Connect Wallet
    ↓
 Health Permission → Activity Permission
    ↓
-Mint Shoe Confirmation
+Starter Shoe Claim
    ↓
 Dashboard
    ├── Gear
@@ -514,12 +514,13 @@ Landing 後採單一步驟頁面，不使用一次塞滿五頁的 carousel。
 - 獨立說明其用於動作特徵摘要與提高作弊成本。
 - 不宣稱可完全證明真人步行。
 
-### 10.4 Shoe Mint Confirmation
+### 10.4 Starter Shoe Claim（2026-09-14 由 Mint 改為免費贈與）
 
-- 顯示 NFT 名稱、network、owner 短地址、預估 network fee 和結果。
-- Primary：`Mint starter shoe`。
+- 不鑄造 NFT、不收費：初階跑鞋隨鏈上 PlayerProfile 建立直接贈與（FR-04.1）。
+- 顯示跑鞋名稱、network、owner 短地址、預估 network fee（僅帳戶 rent＋交易費，devnet SOL）和結果；不出現「Mint」字樣。
+- Primary：`Claim starter shoe`。
 - Secondary：`Back`。
-- 成功後播放一次 800ms reveal；失敗保留重試，不重複建立資產。
+- 成功後播放一次 800ms reveal；失敗保留重試，重試不會建立第二個 profile。
 
 ---
 
@@ -728,7 +729,7 @@ export const theme = {
 3. Landing（含 wallet unavailable 與 Demo Preview）。
 4. Wallet Connection。
 5. Health Access／Activity Recognition。
-6. Shoe Mint Confirmation／Success／Failure。
+6. Starter Shoe Claim／Success／Failure。
 7. Dashboard 全任務狀態。
 8. Clock In Confirmation／Verifying／Confirmed／Failed。
 9. Gear／Upgrade Confirmation／Result。

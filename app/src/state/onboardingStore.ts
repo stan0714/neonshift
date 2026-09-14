@@ -51,5 +51,5 @@ function pick(s: State): OnboardingFlags {
   return { healthGranted, activityGranted, healthDeferred, activityDeferred, shoeMinted };
 }
 
-/** 9.3：已完成 onboarding（鑄鞋）且 session 可恢復時跳過 Landing */
+/** 9.3：已完成 onboarding（已領取初階跑鞋）且 session 可恢復時跳過 Landing */
 export const isOnboardingComplete = (f: OnboardingFlags) => f.shoeMinted;

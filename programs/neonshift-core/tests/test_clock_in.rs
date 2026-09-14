@@ -366,22 +366,22 @@ fn substituted_token_accounts_are_rejected_6021() {
 }
 
 #[test]
-fn paused_6000_and_shoe_not_minted_6028() {
+fn paused_6000_and_missing_profile_rejected() {
     let mut w = world();
     let admin = w.init.admin.insecure_clone();
     send(&mut w.env.svm, &[admin_ix(&admin.pubkey(), ix::SetPaused { paused: true }.data())], &admin, &[]).unwrap();
     assert_eq!(custom_error(&w.clock_in(w.args(TASK_STEPS))), Some(6000));
     send(&mut w.env.svm, &[admin_ix(&admin.pubkey(), ix::SetPaused { paused: false }.data())], &admin, &[]).unwrap();
 
-    // 未鑄鞋的新玩家
+    // 未 init_player（沒有 profile，也就沒有跑鞋）的新錢包：Anchor 帳戶層拒絕
     let fresh = new_player(&mut w.env.svm);
-    send(&mut w.env.svm, &[init_player_ix(&fresh.pubkey())], &fresh, &[]).unwrap();
     let deployer = w.env.deployer.insecure_clone();
     let ata = create_token_account(&mut w.env.svm, &deployer, &w.init.tokens.mint, &fresh.pubkey());
     let accts = ClockInAccounts { reward_vault: w.init.tokens.reward_vault, mint: w.init.tokens.mint, player_token_account: ata };
     let args = valid_args(&w.env.svm, &fresh.pubkey(), TASK_STEPS);
-    let res = send(&mut w.env.svm, &[ed25519_ix(&w.attestor, &canonical(&args)), clock_in_ix(&fresh.pubkey(), &accts, args)], &fresh, &[]);
-    assert_eq!(custom_error(&res), Some(6028), "{res:?}");
+    let ixs = [ed25519_ix(&w.attestor, &canonical(&args)), clock_in_ix(&fresh.pubkey(), &accts, args)];
+    let res = send(&mut w.env.svm, &ixs, &fresh, &[]);
+    assert!(res.is_err(), "{res:?}");
 }
 
 #[test]

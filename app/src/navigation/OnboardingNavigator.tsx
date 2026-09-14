@@ -3,7 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { color, motion } from '@/theme';
 import { ActivityRecognitionScreen } from '@/screens/onboarding/ActivityRecognitionScreen';
 import { HealthAccessScreen } from '@/screens/onboarding/HealthAccessScreen';
-import { ShoeMintScreen } from '@/screens/onboarding/ShoeMintScreen';
+import { StarterShoeScreen } from '@/screens/onboarding/StarterShoeScreen';
 import { WalletConnectScreen } from '@/screens/onboarding/WalletConnectScreen';
 
 import type { OnboardingParamList } from './types';
@@ -24,7 +24,7 @@ export function OnboardingNavigator() {
       <Stack.Screen name="WalletConnect" component={WalletConnectScreen} />
       <Stack.Screen name="HealthAccess" component={HealthAccessScreen} />
       <Stack.Screen name="ActivityRecognition" component={ActivityRecognitionScreen} />
-      <Stack.Screen name="ShoeMint" component={ShoeMintScreen} />
+      <Stack.Screen name="StarterShoe" component={StarterShoeScreen} />
     </Stack.Navigator>
   );
 }

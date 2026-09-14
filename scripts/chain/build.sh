@@ -12,5 +12,6 @@ anchor keys sync
 anchor build --arch v0
 echo "PROGRAM_ID=$(pubkey_of "$PROGRAM_KEYPAIR")"
 cp target/idl/neonshift_core.json idl/neonshift_core.json
+cp target/idl/neonshift_core.json "$ROOT/app/src/chain/idl/neonshift_core.json"
 echo "IDL: programs/idl/neonshift_core.json（已更新，供 tools/chain-admin、backend、app 共用）"
 echo "注意：declare_id! 已改為 $1 環境的 id；提交前確認是否要保留（localnet 測試對 id 無感）。"

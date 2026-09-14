@@ -17,7 +17,7 @@ export function ActivityRecognitionScreen() {
   const [result, setResult] = useState<ActivityPermissionResult | 'unknown'>('unknown');
   const [busy, setBusy] = useState(false);
 
-  const next = () => navigation.navigate('Onboarding', { screen: 'ShoeMint' });
+  const next = () => navigation.navigate('Onboarding', { screen: 'StarterShoe' });
 
   useEffect(() => {
     void activityRecognition.check().then((ok) => {

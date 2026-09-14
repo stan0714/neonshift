@@ -1,0 +1,36 @@
+import { PublicKey } from '@solana/web3.js';
+import { Buffer } from 'buffer';
+
+import { initPlayerInstruction } from '@/chain/instructions';
+import { claimPda, configPda, discriminator, playerPda, PLAYER_PROFILE_SPACE } from '@/chain/program';
+
+// 這些測試以 dev 建置的 program id 為準；程式端 PDA seeds 見 SD 3.1
+jest.mock('@/config/app', () => ({ APP_CONFIG: { ...jest.requireActual('@/config/app').APP_CONFIG, programId: '5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf', chainConfigured: true } }));
+
+describe('chain/program（IDL 與 PDA）', () => {
+  const pid = new PublicKey('5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf');
+  const wallet = PublicKey.unique();
+
+  test('discriminator 直接取自 IDL', () => {
+    expect(discriminator('init_player')).toHaveLength(8);
+    expect(discriminator('clock_in')).toHaveLength(8);
+    expect(() => discriminator('mint_shoe')).toThrow(/IDL 沒有指令/);
+  });
+
+  test('PDA 與 Rust seeds 一致', () => {
+    expect(configPda().equals(PublicKey.findProgramAddressSync([Buffer.from('config')], pid)[0])).toBe(true);
+    expect(playerPda(wallet).equals(PublicKey.findProgramAddressSync([Buffer.from('player'), wallet.toBytes()], pid)[0])).toBe(true);
+    const date = Buffer.alloc(4);
+    date.writeUInt32LE(20_710, 0);
+    expect(claimPda(wallet, 20_710, 1).equals(PublicKey.findProgramAddressSync([Buffer.from('claim'), wallet.toBytes(), date, Buffer.from([1])], pid)[0])).toBe(true);
+  });
+
+  test('init_player 指令帳戶順序：player(signer,mut)、config、profile(mut)、system', () => {
+    const ix = initPlayerInstruction(wallet);
+    expect(ix.programId.equals(pid)).toBe(true);
+    expect(ix.keys.map((k) => [k.isSigner, k.isWritable])).toEqual([[true, true], [false, false], [false, true], [false, false]]);
+    expect(ix.keys[0]!.pubkey.equals(wallet)).toBe(true);
+    expect(ix.data).toEqual(discriminator('init_player'));
+    expect(PLAYER_PROFILE_SPACE).toBe(69);
+  });
+});

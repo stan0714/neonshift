@@ -336,22 +336,7 @@ pub fn token_balance(svm: &LiteSVM, account: &Pubkey) -> u64 {
     spl_token::state::Account::unpack(&acc.data).unwrap().amount
 }
 
-/// 在 mint_shoe（PG-C-09）完成前，直接把 profile.shoe_asset 設為非零以通過未鑄鞋檢查
-pub fn force_shoe(svm: &mut LiteSVM, wallet: &Pubkey) {
-    let (key, _) = player_pda(wallet);
-    let mut acc = svm.get_account(&key).unwrap();
-    let mut p: neonshift_core::PlayerProfile = {
-        let mut d: &[u8] = &acc.data;
-        neonshift_core::PlayerProfile::try_deserialize(&mut d).unwrap()
-    };
-    p.shoe_asset = Pubkey::new_unique();
-    let mut out = Vec::new();
-    anchor_lang::AccountSerialize::try_serialize(&p, &mut out).unwrap();
-    acc.data = out;
-    svm.set_account(key, acc).unwrap();
-}
-
-/// 一次完成：initialize（指定 attestor）、時間設定、玩家 init、鑄鞋、token 帳戶、金庫入金
+/// 一次完成：玩家 init（跑鞋隨之贈與）、token 帳戶
 pub struct Player {
     pub key: Keypair,
     pub accts: ClockInAccounts,
@@ -360,7 +345,6 @@ pub struct Player {
 pub fn ready_player(env: &mut Env, init: &Initialized) -> Player {
     let key = new_player(&mut env.svm);
     send(&mut env.svm, &[init_player_ix(&key.pubkey())], &key, &[]).unwrap();
-    force_shoe(&mut env.svm, &key.pubkey());
     let deployer = env.deployer.insecure_clone();
     let player_token_account = create_token_account(&mut env.svm, &deployer, &init.tokens.mint, &key.pubkey());
     Player {

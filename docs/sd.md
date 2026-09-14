@@ -32,7 +32,7 @@
 | 議題 | 選項 | 決定 | 理由 |
 |---|---|---|---|
 | 獎勵發放 | 鏈上驗證 attestation vs 後端轉帳 | **鏈上驗證**【定案】 | 後端轉帳無法對評審展示去信任成分，且違反 C-03 |
-| NFT 標準 | Metaplex Core vs Token Metadata | **Core**【草案】 | 帳戶較少、屬性可更新、rent 較低 |
+| 跑鞋資產 | NFT（Metaplex Core）vs 純 PDA 狀態 | **純 PDA 狀態**【2026-09-14 定案】 | 不鑄造 NFT；Lv.1 跑鞋隨 `init_player` 直接贈與，外觀由 XP 推導的 `shoe_level` 決定，使用者不付費 |
 | 獎勵狀態 | 寫入 NFT metadata vs 獨立 PDA | **獨立 PDA**【定案】 | metadata 更新需額外簽章且可能延遲，不適合作計算來源 |
 | 排行榜 | 全程上鏈 vs 鏈下計算結算時上鏈 | **鏈下計算**【定案】 | 每小時更新全程上鏈成本過高 |
 | 後端語言 | Node.js vs Rust | **Node.js（TypeScript）**【草案】 | 與前端共用型別，四週內迭代快 |
@@ -139,7 +139,6 @@ graph TB
 | 欄位 | 型別 | 說明 |
 |---|---|---|
 | `wallet` | Pubkey | 擁有者 |
-| `shoe_asset` | Pubkey | 跑鞋資產位址，預設 `Pubkey::default()` 表示未鑄造 |
 | `core_level` | u8 | 1 至 5 |
 | `shoe_level` | u8 | 1 至 5，由 XP 門檻提升，只影響外觀／收藏狀態 |
 | `xp` | u64 | 經驗值 |
@@ -211,12 +210,11 @@ graph TB
 | 指令 | 簽章者 | 主要檢查 | 事件 |
 |---|---|---|---|
 | `initialize_config` | 程式 upgrade authority | 僅可執行一次（Config PDA `init`）；簽章者必須等於 ProgramData 的 upgrade authority，`admin`（多簽）由參數指定。參數範圍：cluster_id ∈ {1,2}、基礎獎勵 > 0、daily_cap ≥ 最大基礎獎勵、streak_bonus 10000～20000、burn ≤ 10000、core 倍率 [0]=10000 且單調不減 ≤ 50000、升級成本 > 0、XP 門檻 [0]=0 且嚴格遞增、mint 為 6 decimals、reward vault owner = Config PDA | `ConfigInitialized` |
-| `set_paused` | admin 多簽 | 進入 pause 時記錄 `paused_at`（重複 pause 不重設）。pause 範圍【2026-09-14 定案】：`clock_in`、`mint_shoe`、`upgrade_core`、`join_tournament` 拒絕（6000）；`claim_prize`、`refund_all` 與管理指令不受影響，使用者永遠能取回資金 | `PauseChanged` |
+| `set_paused` | admin 多簽 | 進入 pause 時記錄 `paused_at`（重複 pause 不重設）。pause 範圍【2026-09-14 定案】：`clock_in`、`upgrade_core`、`join_tournament` 拒絕（6000）；`claim_prize`、`refund_all` 與管理指令不受影響，使用者永遠能取回資金 | `PauseChanged` |
 | `update_config` | admin 多簽 | 全欄位可選、整筆以 `initialize_config` 同一套規則驗證。`daily_cap`、`base_*_reward`、`streak_*`、`core_multiplier_bps` 為 BR-24 受控欄位，只能在 `paused && now - paused_at >= 600` 時更新（否則 6025）；`admin`、`burn_bps`、`core_upgrade_costs`、`shoe_xp_thresholds` 可即時更新。不影響已簽發證明或進行中賽事（賽事金額在建立時固定） | `ConfigUpdated` |
 | `rotate_attestor` | admin 多簽 | `grace_seconds` 0～600：>0 時舊鑰保留至 `now + grace`，0 表示立即失效（外洩處置）；新鑰不得為 default 或與現行相同 | `AttestorRotated` |
-| `init_player` | player | 帳戶未存在（PDA `init`）；需 Config 已初始化；不受 pause 影響（無資金流，onboarding 不中斷）；core／shoe level 起始 1、其餘欄位 0 | `PlayerInitialized` |
-| `mint_shoe` | player | `shoe_asset` 為預設值 | `ShoeMinted` |
-| `clock_in` | player | 見 3.3。需已鑄鞋（6028，SD 10 定案）；`ClaimReceipt` 不用 Anchor `init`，於步驟 10 手動建立以回報 6009 並保證排在 attestation 驗證之後；步驟 9 的 mint／vault／收款帳戶／token program 約束由 Anchor 在進入 handler 前檢查 | `ClockedIn` |
+| `init_player` | player | 帳戶未存在（PDA `init`）；需 Config 已初始化；不受 pause 影響（無資金流，onboarding 不中斷）；core／shoe level 起始 1、其餘欄位 0。**即為初階跑鞋的贈與**：不鑄造 NFT，事件含 `shoe_level` | `PlayerInitialized` |
+| `clock_in` | player | 見 3.3。需 PlayerProfile 存在（跑鞋隨 profile 贈與，無獨立鑄鞋檢查）；`ClaimReceipt` 不用 Anchor `init`，於步驟 10 手動建立以回報 6009 並保證排在 attestation 驗證之後；步驟 9 的 mint／vault／收款帳戶／token program 約束由 Anchor 在進入 handler 前檢查 | `ClockedIn` |
 | `upgrade_core` | player | 等級 < 5、餘額足夠、token program／mint／vault 正確；原子扣款 | `CoreUpgraded` |
 | `open_tournament` | admin | 狀態為 Draft | `TournamentOpened` |
 | `join_tournament` | player | 狀態為 Registration、未重複報名、mint 正確 | `TournamentJoined` |
@@ -333,7 +331,7 @@ let amount = amount.min(remaining);         // BR-04
 | 6009 | `AlreadyClaimed` | ClaimReceipt 已存在 |
 | 6010 | `DailyCapReached` | 剩餘額度為 0 |
 | 6011 | `MathOverflow` | 定點數運算溢位 |
-| 6012 | `ShoeAlreadyMinted` | 重複鑄造 |
+| 6012 | `Reserved6012` | 保留（原 ShoeAlreadyMinted，NFT 取消後不用） |
 | 6013 | `MaxCoreLevel` | 已達 Lv5 |
 | 6014 | `InvalidTournamentState` | 狀態機不允許 |
 | 6015 | `AlreadyJoined` | 重複報名 |
@@ -349,8 +347,7 @@ let amount = amount.min(remaining);         // BR-04
 | 6025 | `RewardParamsChangeRequiresPause` | BR-24：未 pause 或 pause 未滿 600 秒即更新影響獎勵金額的參數（實作期新增） |
 | 6026 | `Unauthorized` | 管理指令簽章者不是 `Config.admin`（實作期新增） |
 | 6027 | `InvalidAttestationWindow` | attestation 時間欄位不滿足 `issued_at <= not_before <= expiry`（實作期新增；步驟 7 的前半） |
-| 6028 | `ShoeNotMinted` | `clock_in` 時 PlayerProfile 尚未鑄鞋（實作期新增） |
-| 6029 | `InvalidTaskType` | task_type 不是 1／2（實作期新增；SD 3.4 程式片段原引用此名稱） |
+| 6028 | `InvalidTaskType` | task_type 不是 1／2（實作期新增；SD 3.4 程式片段原引用此名稱） |
 
 ---
 
@@ -803,11 +800,10 @@ total_staked + treasury_injection
 
 ## 10. 設計未決事項
 
-**本版補充的實作前置條件**：賽事 Q-09／SA-Q7 尚未定案，6.2 不是完整結算協議。須固定 canonical entry 的欄位順序／位寬／endianness、名次權重與空組公式、`first_reached_at` 的可信時間來源、零人提交、錯誤 commitment 的恢復／退款流程及 vault 實際餘額對帳；不得只用帳面等式聲稱資金守恆。另需定義（`initialize_config` 首次授權已於 2026-09-14 定案為 upgrade authority；pause 範圍見 `set_paused`；`clock_in` 未鑄鞋拒絕定案為 6028，皆見 3.2），以及 NFT 轉移後 PlayerProfile 的權威歸屬。這些需求分別列入 PG-C-01、C-05、C-02、C-09 與 C-13～C-16 的完成條件，未通過前不可標 DONE。
+**本版補充的實作前置條件**：賽事 Q-09／SA-Q7 尚未定案，6.2 不是完整結算協議。須固定 canonical entry 的欄位順序／位寬／endianness、名次權重與空組公式、`first_reached_at` 的可信時間來源、零人提交、錯誤 commitment 的恢復／退款流程及 vault 實際餘額對帳；不得只用帳面等式聲稱資金守恆。另需定義（`initialize_config` 首次授權已於 2026-09-14 定案為 upgrade authority；pause 範圍見 `set_paused`；跑鞋改為隨 `init_player` 贈與、不鑄 NFT，故「未鑄鞋拒絕」與「NFT 轉移後歸屬」兩題作廢，皆見 3.2）。這些需求分別列入 PG-C-01、C-05、C-02 與 C-13～C-16 的完成條件，未通過前不可標 DONE。
 
 | 編號 | 問題 | 阻擋 | 建議 |
 |---|---|---|---|
-| SD-Q1 | NFT 採 Metaplex Core 或 Token Metadata | 第二週鑄造實作 | Core |
 | SD-Q2 | 名次權重公式（承 SA-Q1） | `submit_results_batch`／`settle_tournament` | 線性遞減，建立賽事時寫入 |
 | SD-Q4 | 何時撤銷 program upgrade authority | 部署治理 | MVP 不撤銷，以多簽和 build hash 控制；完成審查後另行決策 |
 | SD-Q5 | 後端託管（承 BRD Q-07） | 第一週建置 | Railway |
