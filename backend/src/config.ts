@@ -20,6 +20,9 @@ export const configSchema = z.object({
   PROGRAM_ID: z.string().regex(base58, "PROGRAM_ID 必須是 base58 公鑰").optional(),
   /** ops 端點（結算 manifest）的 Bearer token；未設定時端點回 404 */
   OPS_TOKEN: z.string().min(16).optional(),
+  /** 保留清理（PG-B-17）：與 API 同 process 週期執行；也可用 `npm run retention:once` 交給外部排程 */
+  RETENTION_ENABLED: z.coerce.boolean().default(false),
+  RETENTION_INTERVAL_MS: z.coerce.number().int().min(60_000).default(60 * 60 * 1000),
   /** ChainIndexer（PG-B-16）：與 API 同 process 週期同步；正式環境建議單一 replica 開啟 */
   INDEXER_ENABLED: z.coerce.boolean().default(false),
   INDEXER_INTERVAL_MS: z.coerce.number().int().min(1_000).default(10_000),

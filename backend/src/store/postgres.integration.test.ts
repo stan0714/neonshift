@@ -173,4 +173,25 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       expect(await store.getCursor("c"), name).toEqual({ signature: "s2", slot: 30 });
     }
   });
+
+  it("purgeExpired：只刪 cutoff 前資料（CASCADE 判定）；listDueDeletions／markDeletionDone", async () => {
+    for (const { name, store } of stores) {
+      const now = new Date("2026-10-15T00:00:00Z");
+      const old = new Date("2026-09-10T00:00:00Z");
+      const wallet = "R" + name;
+      await store.upsertPlayer(wallet, old);
+      const sid = await store.insertHealthSnapshot({ wallet, taskDate: 1, taskType: 1, attributedSteps: 1, sleepMinutes: null, sourceSummary: [], stepRateSummary: null, sleepOverlapMinutes: null, sensorSummary: null, motionSummary: null, clientInfo: {}, inputHash: Buffer.alloc(32), createdAt: old });
+      await store.insertRiskDecision({ snapshotId: sid, rulesVersion: 3, riskScore: 0, matchedRules: [], decision: "pass", rejectCode: null });
+      await store.insertHealthSnapshot({ wallet, taskDate: 2, taskType: 1, attributedSteps: 1, sleepMinutes: null, sourceSummary: [], stepRateSummary: null, sleepOverlapMinutes: null, sensorSummary: null, motionSummary: null, clientInfo: {}, inputHash: Buffer.alloc(32), createdAt: now });
+      await store.upsertTournamentSteps(2026_36, wallet, 1, old, old);
+      const r = await store.purgeExpired(new Date("2026-09-15T00:00:00Z"), now);
+      expect(r.snapshots, name).toBe(1);
+      expect(r.tournamentSteps, name).toBe(1);
+      await store.deletePlayerData(wallet, now, new Date("2026-10-16T00:00:00Z"));
+      expect(await store.listDueDeletions(now), name).toEqual([]);
+      expect(await store.listDueDeletions(new Date("2026-10-17T00:00:00Z")), name).toEqual([wallet]);
+      await store.markDeletionDone(wallet);
+      expect(await store.listDueDeletions(new Date("2026-10-17T00:00:00Z")), name).toEqual([]);
+    }
+  });
 });

@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -108,10 +108,10 @@ export class PostgresStore implements Store {
   async insertHealthSnapshot(s: HealthSnapshotInput) {
     const r = await this.pool.query(
       `INSERT INTO health_snapshots (wallet, task_date, task_type, attributed_steps, sleep_minutes, source_summary, step_rate_summary,
-         sleep_overlap_minutes, sensor_summary, motion_summary, client_info, input_hash)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+         sleep_overlap_minutes, sensor_summary, motion_summary, client_info, input_hash, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, COALESCE($13, now())) RETURNING id`,
       [s.wallet, s.taskDate, s.taskType, s.attributedSteps, s.sleepMinutes, JSON.stringify(s.sourceSummary), s.stepRateSummary === null ? null : JSON.stringify(s.stepRateSummary),
-        s.sleepOverlapMinutes, s.sensorSummary === null ? null : JSON.stringify(s.sensorSummary), s.motionSummary === null ? null : JSON.stringify(s.motionSummary), JSON.stringify(s.clientInfo), s.inputHash],
+        s.sleepOverlapMinutes, s.sensorSummary === null ? null : JSON.stringify(s.sensorSummary), s.motionSummary === null ? null : JSON.stringify(s.motionSummary), JSON.stringify(s.clientInfo), s.inputHash, s.createdAt ?? null],
     );
     return Number((r.rows[0] as Row).id);
   }
@@ -178,6 +178,26 @@ export class PostgresStore implements Store {
   async hasActiveStakedTournament(_wallet: string) {
     // 質押事實在鏈上，由 TournamentService 判斷（player routes）
     return false;
+  }
+
+  // ---- PG-B-17 ----
+  async purgeExpired(cutoff: Date, now: Date): Promise<PurgeCounts> {
+    const n = async (sql: string, args: unknown[]) => (await this.pool.query(sql, args)).rowCount ?? 0;
+    return {
+      snapshots: await n(`DELETE FROM health_snapshots WHERE created_at < $1`, [cutoff]), // risk_decisions CASCADE
+      attestations: await n(`DELETE FROM attestations WHERE issued_at < $1`, [cutoff]),
+      claimResults: await n(`DELETE FROM claim_results WHERE created_at < $1`, [cutoff]),
+      tournamentSteps: await n(`DELETE FROM tournament_steps WHERE updated_at < $1`, [cutoff]),
+      challenges: await n(`DELETE FROM auth_challenges WHERE expires_at < $1`, [now]),
+      sessions: await n(`DELETE FROM auth_sessions WHERE expires_at < $1 OR revoked_at < $2`, [now, cutoff]),
+    };
+  }
+  async listDueDeletions(now: Date) {
+    const r = await this.pool.query(`SELECT wallet FROM players WHERE deleted_at IS NOT NULL AND deletion_due_at IS NOT NULL AND deletion_due_at <= $1`, [now]);
+    return (r.rows as Row[]).map((x) => x.wallet as string);
+  }
+  async markDeletionDone(wallet: string) {
+    await this.pool.query(`UPDATE players SET deletion_due_at = NULL WHERE wallet = $1`, [wallet]);
   }
 
   // ---- PG-B-16 ----
@@ -272,7 +292,7 @@ export class PostgresStore implements Store {
       await client.query("BEGIN");
       const sess = await client.query(`UPDATE auth_sessions SET revoked_at = $2 WHERE wallet = $1 AND revoked_at IS NULL`, [wallet, now]);
       await client.query(
-        `UPDATE players SET deleted_at = $2, deletion_requested_at = $2, deletion_due_at = $3 WHERE wallet = $1`,
+        `UPDATE players SET deleted_at = COALESCE(deleted_at, $2), deletion_requested_at = COALESCE(deletion_requested_at, $2), deletion_due_at = $3 WHERE wallet = $1`,
         [wallet, now, deferUntil],
       );
       let snapshots = 0;

@@ -26,7 +26,7 @@ export type Session = {
 
 export type Player = { wallet: string; firstSeenAt: Date; lastSeenAt: Date; deletedAt: Date | null };
 
-export interface Store extends ClaimStore, PlayerDataStore, TournamentStore, IndexerStore {
+export interface Store extends ClaimStore, PlayerDataStore, TournamentStore, IndexerStore, RetentionStore {
   insertChallenge(c: Challenge): Promise<void>;
   /** 原子消耗：只有未使用且未過期才會成功，回傳被消耗的 challenge */
   consumeChallenge(nonceHash: Buffer, now: Date): Promise<Challenge | null>;
@@ -60,6 +60,8 @@ export type HealthSnapshotInput = {
   motionSummary: unknown;
   clientInfo: unknown;
   inputHash: Buffer;
+  /** 預設 now；保留清理測試用 */
+  createdAt?: Date;
 };
 
 export type RiskDecisionInput = {
@@ -170,4 +172,17 @@ export interface IndexerStore {
   listChainEvents(filter: { eventName?: string; wallet?: string; finalizedOnly?: boolean }, limit: number): Promise<ChainEventRow[]>;
   /** ClockedIn finalized → attestations.redeemed_sig；nonce 不存在（例如已刪除個資）時略過 */
   backfillRedeemedSig(nonce: Buffer, signature: string): Promise<boolean>;
+}
+
+// ---------------- PG-B-17：30 天保留清理 ----------------
+
+export type PurgeCounts = { snapshots: number; attestations: number; claimResults: number; tournamentSteps: number; challenges: number; sessions: number };
+
+export interface RetentionStore {
+  /** 刪除 `cutoff` 之前的健康摘要（CASCADE 判定）、attestation、idempotency 快取、賽事步數；順帶清過期 challenge／session */
+  purgeExpired(cutoff: Date, now: Date): Promise<PurgeCounts>;
+  /** 延後刪除已到期（deletion_due_at <= now 且尚未執行）的錢包 */
+  listDueDeletions(now: Date): Promise<string[]>;
+  /** 延後刪除執行完成：清 deletion_due_at（deleted_at 保留） */
+  markDeletionDone(wallet: string): Promise<void>;
 }

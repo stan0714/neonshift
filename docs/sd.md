@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.10（ChainIndexer） |
+| 文件版本 | v0.11（保留清理） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -644,6 +644,8 @@ CREATE TABLE chain_events (
 );
 ```
 
+**保留清理實作（2026-09-14，PG-B-17）**：`backend/src/retention/service.ts` — `purgeExpired(cutoff = now − 30 天)` 刪除 `health_snapshots.created_at`（CASCADE `risk_decisions`）、`attestations.issued_at`、`claim_results.created_at`、`tournament_steps.updated_at` 早於 cutoff 的資料，順帶清過期 `auth_challenges` 與過期／撤銷逾 30 天的 `auth_sessions`；再執行 `deletion_due_at <= now` 的延後刪除（同 `DELETE /player/data` 路徑，保留最初 `deleted_at`）。以 `RETENTION_ENABLED`／`RETENTION_INTERVAL_MS`（預設 1 小時）同 process 執行，或 `npm run retention:once` 交給外部 cron。
+
 保留政策：健康摘要與其衍生資料依 BR-25 最長保留 30 天，包括 `health_snapshots`、`risk_decisions`、`tournament_steps`、可關聯健康輸入的 attestation／idempotency 快取與稽核紀錄。每日批次只能作清理補強；查詢及處理路徑須拒用逾期資料，刪除工作須在期限內完成，不能額外多留一天。`risk_decisions` 以 CASCADE 刪除；其他表須有明確清理路徑。雜湊與 wallet 仍可關聯，不能以「不可逆」自動認定可永久保存。刪除請求同步撤銷 session、禁止新處理，依 BR-25 刪除或排定期限；`players.deletion_requested_at`／`deletion_due_at` 由 migration 0003 補入（2026-09-14）。刪除後以 SIWS 重新登入視為新的同意，`deleted_at` 清除，舊資料不復原。公開鏈上資料保留與後端健康資料刪除分開處理，不因重新索引復原已刪健康資料。
 
 ChainIndexer 以 `(signature, event_index)` 冪等寫入，先記錄 `confirmed` 供 UI 快速顯示，再追蹤至 `finalized`。若交易在 finalization 前不再位於 canonical fork，標記 `orphaned_at` 並回滾其衍生 projection；不可刪除原 row 或把 `confirmed` 當永久事實。排行榜與結算輸入只採用已 `finalized` 且未 orphaned 的鏈上事件。
@@ -949,6 +951,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.11 | 2026-09-14 | PG-B-17：保留清理實作說明 |
 | v0.10 | 2026-09-14 | PG-B-16：ChainIndexer 實作說明（IDL 驅動解碼、confirmed→finalized、orphan、projection 只吃 finalized）；ClockedIn 事件加 `max_streak_days` |
 | v0.9 | 2026-09-14 | PG-B-15：結算 manifest 端點與三方向量；ChainReader.listEntries |
 | v0.8 | 2026-09-14 | PG-B-14：賽事 API 4.3A（鏈上為真相、步數夾限與單調、BR-20 排序定義、BR-25 接 ends_at）；新增 `RPC_URL` |

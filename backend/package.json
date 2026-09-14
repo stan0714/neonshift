@@ -15,7 +15,8 @@
     "db:migrate": "for f in migrations/[0-9]*.sql; do docker compose exec -T db psql -U neonshift -d neonshift -v ON_ERROR_STOP=1 -f - < \"$f\" || exit 1; done",
     "vectors:check": "node --test-force-exit scripts/check-vectors-fresh.mjs",
     "dev": "tsx watch src/server.ts",
-    "start": "node --import tsx src/server.ts"
+    "start": "node --import tsx src/server.ts",
+    "retention:once": "node --import tsx src/retention/once.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

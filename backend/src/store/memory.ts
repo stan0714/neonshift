@@ -1,10 +1,10 @@
 import { compareLeaderboard } from "./leaderboard.js";
-import type { AttestationRow, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
+import type { AttestationRow, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, PurgeCounts, RiskDecisionInput, RuleSetRow, Session, Store, TournamentStepsRow } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
   challenges = new Map<string, Challenge>();
-  players = new Map<string, Player>();
+  players = new Map<string, Player & { deletionDueAt?: Date | null }>();
   sessions = new Map<string, Session>();
   ruleSets = new Map<number, RuleSetRow>();
   snapshots: (HealthSnapshotInput & { id: number })[] = [];
@@ -76,7 +76,7 @@ export class MemoryStore implements Store {
   }
   async insertHealthSnapshot(s: HealthSnapshotInput) {
     const id = this.snapshots.length + 1;
-    this.snapshots.push({ ...s, id });
+    this.snapshots.push({ ...s, id, createdAt: s.createdAt ?? new Date() });
     return id;
   }
   async insertRiskDecision(d: RiskDecisionInput) {
@@ -112,6 +112,32 @@ export class MemoryStore implements Store {
   }
   async hasActiveStakedTournament(_wallet: string) {
     return false;
+  }
+
+  // ---- PG-B-17 ----
+  async purgeExpired(cutoff: Date, now: Date): Promise<PurgeCounts> {
+    const before = this.snapshots.length;
+    const removed = new Set(this.snapshots.filter((x) => (x.createdAt ?? now) < cutoff).map((x) => x.id));
+    this.snapshots = this.snapshots.filter((x) => !removed.has(x.id));
+    this.decisions = this.decisions.filter((d) => !removed.has(d.snapshotId));
+    let attestations = 0;
+    for (const [k, a] of this.attestations) if (a.issuedAt < cutoff) { this.attestations.delete(k); this.redeemed.delete(k); attestations++; }
+    let claimResults = 0;
+    for (const [k, r] of this.claimResults) if (r.createdAt < cutoff) { this.claimResults.delete(k); claimResults++; }
+    let tournamentSteps = 0;
+    for (const [k, r] of this.tournamentSteps) if (r.updatedAt < cutoff) { this.tournamentSteps.delete(k); tournamentSteps++; }
+    let challenges = 0;
+    for (const [k, c] of this.challenges) if (c.expiresAt < now) { this.challenges.delete(k); challenges++; }
+    let sessions = 0;
+    for (const [k, sess] of this.sessions) if (sess.expiresAt < now || (sess.revokedAt && sess.revokedAt < cutoff)) { this.sessions.delete(k); sessions++; }
+    return { snapshots: before - this.snapshots.length, attestations, claimResults, tournamentSteps, challenges, sessions };
+  }
+  async listDueDeletions(now: Date) {
+    return [...this.players.values()].filter((p) => p.deletedAt && p.deletionDueAt && p.deletionDueAt <= now).map((p) => p.wallet);
+  }
+  async markDeletionDone(wallet: string) {
+    const p = this.players.get(wallet);
+    if (p) p.deletionDueAt = null;
   }
 
   // ---- PG-B-16 ----
@@ -174,7 +200,10 @@ export class MemoryStore implements Store {
   async deletePlayerData(wallet: string, now: Date, deferUntil: Date | null): Promise<DeletionResult> {
     const sessions = await this.revokeWallet(wallet, now);
     const p = this.players.get(wallet);
-    if (p) p.deletedAt = now;
+    if (p) {
+      p.deletedAt ??= now; // 延後刪除到期執行時保留最初的請求時間
+      p.deletionDueAt = deferUntil;
+    }
     if (deferUntil) return { deferred: true, deletionDueAt: deferUntil, deleted: { snapshots: 0, attestations: 0, claimResults: 0, sessions } };
     const before = this.snapshots.length;
     const removedIds = new Set(this.snapshots.filter((s) => s.wallet === wallet).map((s) => s.id));
