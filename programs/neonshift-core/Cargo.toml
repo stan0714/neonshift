@@ -25,6 +25,8 @@ anchor-lang = "1.2.0"
 anchor-spl = { version = "1.2.0", features = ["token", "associated_token"] }
 # canonical bytes 與後端逐 byte 一致的唯一來源（PG-C-04 / PG-B-10）
 attestation-core = { path = "../attestation-core" }
+solana-instructions-sysvar = "3"
+solana-sdk-ids = "3"
 
 [dev-dependencies]
 litesvm = "0.10.0"
@@ -32,6 +34,8 @@ solana-message = "3.0.1"
 solana-transaction = "3.0.2"
 solana-signer = "3.0.0"
 solana-keypair = "3.0.1"
+solana-ed25519-program = "3.0.0"
+ed25519-dalek = "2.2.0"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

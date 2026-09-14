@@ -79,7 +79,7 @@ pub enum AttestationError {
         /// 收到的值。
         got: u8,
     },
-    /// not_before 晚於 expiry，或 issued_at 晚於 expiry。
+    /// 時間欄位不滿足 `issued_at <= not_before <= expiry`。
     BadTimeWindow,
     /// 有效期超過 MAX_TTL_SECONDS。對應錯誤碼 6008。
     TtlTooLong {
@@ -95,7 +95,7 @@ impl core::fmt::Display for AttestationError {
             Self::BadDomain => write!(f, "domain separator mismatch"),
             Self::BadVersion { got } => write!(f, "unsupported version {got}"),
             Self::BadTaskType { got } => write!(f, "invalid task type {got}"),
-            Self::BadTimeWindow => write!(f, "not_before/issued_at must not exceed expiry"),
+            Self::BadTimeWindow => write!(f, "require issued_at <= not_before <= expiry"),
             Self::TtlTooLong { ttl } => write!(f, "ttl {ttl}s exceeds {MAX_TTL_SECONDS}s"),
         }
     }
@@ -195,12 +195,13 @@ impl Attestation {
         })
     }
 
-    /// 檢查時間欄位是否自洽。後端簽章前必須通過這關。
+    /// 檢查時間欄位是否自洽：`issued_at <= not_before <= expiry`（SD 3.3 步驟 7）。
+    /// 後端簽章前必須通過這關。
     ///
     /// 這不取代鏈上驗證。鏈上還要用自己的 clock 檢查 now 落在
     /// `[not_before, expiry]` 之間（錯誤碼 6006、6007）。
     pub fn validate(&self) -> Result<(), AttestationError> {
-        if self.not_before > self.expiry || self.issued_at > self.expiry {
+        if self.issued_at > self.not_before || self.not_before > self.expiry {
             return Err(AttestationError::BadTimeWindow);
         }
         let ttl = self.expiry.saturating_sub(self.issued_at);

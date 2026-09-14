@@ -136,7 +136,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-C-01 | Config 帳戶與 `initialize_config` | SD 3.1, 3.2 | — | 1.0 | WIP | Config、initialize_config（upgrade authority 授權、參數範圍、vault 檢查）、ConfigInitialized；LiteSVM 6 測試 |
 | PG-C-02 | `update_config` / `rotate_attestor` 與 pause 流程 | SD 3.2 | BR-24 | 1.0 | WIP | set_paused／update_config（BR-24 600s 門檻）／rotate_attestor；pause 範圍定案；LiteSVM 6 測試 |
 | PG-C-03 | PlayerProfile 與 `init_player` | SD 3.1 | — | 0.5 | WIP | PlayerProfile、init_player、PlayerInitialized；LiteSVM 5 測試 |
-| PG-C-04 | Attestation canonical bytes 解析與 ed25519 指令驗證 | SD 3.5 | BR-14, BR-15 | 2.0 | WIP | attestation-core 編解碼＋17 測試；ed25519 指令驗證待 Anchor 骨架 |
+| PG-C-04 | Attestation canonical bytes 解析與 ed25519 指令驗證 | SD 3.5 | BR-14, BR-15 | 2.0 | WIP | attestation-core validate 補 issued_at<=not_before、向量 20 組（5 負向）；鏈上 attestation.rs 解析＋verify（6001～6008／6027）、7 單元測試；整合案例隨 C-05 clock_in |
 | PG-C-05 | `clock_in` 檢查順序主流程 | SD 3.3 | BR-03, BR-14, BR-15 | 2.0 | TODO | |
 | PG-C-06 | 獎勵計算定點數、連續加成與每日上限 | SD 3.4 | BR-02, BR-04, BR-06 | 1.0 | TODO | |
 | PG-C-07 | ClaimReceipt PDA 與重放防護 | SD 3.1 | BR-03 | 1.0 | TODO | |
@@ -167,7 +167,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-B-07 | 風險規則集載入，保存單調 `rules_version` 與獨立 `rules_hash` | SD 4.4 | BR-13 | 1.0 | TODO | |
 | PG-B-08 | 硬拒絕、夾限與 live check 邊界規則 | SD 4.4 | BR-07 至 BR-10, BR-12 | 1.0 | TODO | |
 | PG-B-09 | 評分規則、權重與門檻 | SD 4.4 | BR-11, BR-12 | 1.0 | TODO | |
-| PG-B-10 | AttestationSigner：相容 signer 與 164 bytes 組裝／測試向量 | SD 3.5, 4.6 | BR-14, BR-15 | 1.5 | WIP | TS canonical bytes 鏡像＋12 組向量；signer/KMS 未做，向量需補至 20 組 |
+| PG-B-10 | AttestationSigner：相容 signer 與 164 bytes 組裝／測試向量 | SD 3.5, 4.6 | BR-14, BR-15 | 1.5 | WIP | TS canonical bytes 鏡像＋20 組向量＋validate 負向測試；signer／KMS 未做 |
 | PG-B-11 | `POST /attestation/claim` 端點整合 | SD 4.3 | 全部風險規則 | 1.0 | TODO | |
 | PG-B-12 | `GET /player/history` | SD 4.1 | — | 0.5 | TODO | |
 | PG-B-13 | `DELETE /player/data` 與延後刪除邏輯 | SD 4.1 | BR-25 | 1.0 | TODO | |
@@ -547,3 +547,16 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
 | v0.5 | 2026-09-14 | 依 feat-第一版本開發 分支現況同步狀態：PG-I-01、I-05、B-02、B-10、C-04 改為 WIP 並註記證據；未合併 dev 前不標 DONE |
+
+## 14. 五階鞋款與優化路線補充（2026-09-14）
+
+本次已實作五階向量結構差異、集中預覽設定與 Demo 圖鑑，新增 XP 邊界測試；未接入鏈上 XP、未完成真實升級交易。PG-C-08／PG-A-17 不因此自動標 DONE。
+
+| 階段 | 對應工作 | 完成門檻 |
+|---|---|---|
+| P0 成長閉環 | PG-C-01、C-05、C-08、C-18、A-14、A-17 | BRD 17 參數部署、真實 XP／等級顯示、唯一 claim 加 XP、Core 分離與原子回滾 |
+| P1 靜態精修 | PG-A-17 | 五階同視角 WebP／PNG、manifest 版本與同階 SVG fallback、24／48dp 辨識及灰階評估 |
+| P2 進化動效 | PG-A-17、A-18 | 僅成功升階播放一次；切背景停止、減少動態、失敗回退及實機幀耗時驗證 |
+| P3 選配 3D | 後續工作，另估 | 實機效能／記憶體預算先達標，動態按需載入；不改 XP 或 token 模型 |
+
+門檻、XP 數值及 50 任務日滿階節奏屬新設計預設；部署前由產品確認及經濟模擬，原有人天估算尚未涵蓋精緻素材及 3D，排程須另估。預覽入口：Landing → Preview the app → 五階圖鑑。

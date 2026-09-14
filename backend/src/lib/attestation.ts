@@ -136,8 +136,9 @@ export function decode(bytes: Buffer): Attestation {
  * 這不取代鏈上驗證，鏈上仍會用自己的 clock 檢查時效。
  */
 export function validate(a: Attestation): void {
-  if (a.notBefore > a.expiry || a.issuedAt > a.expiry) {
-    throw new AttestationFormatError("notBefore/issuedAt 不得晚於 expiry");
+  // SD 3.3 步驟 7：issued_at <= not_before <= expiry
+  if (a.issuedAt > a.notBefore || a.notBefore > a.expiry) {
+    throw new AttestationFormatError("必須滿足 issuedAt <= notBefore <= expiry");
   }
   const ttl = a.expiry - a.issuedAt;
   if (ttl > BigInt(MAX_TTL_SECONDS)) {

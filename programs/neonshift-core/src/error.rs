@@ -58,4 +58,6 @@ pub enum ErrorCode {
     RewardParamsChangeRequiresPause, // 6025
     #[msg("簽章者不是 Config.admin")]
     Unauthorized, // 6026
+    #[msg("attestation 時間欄位不自洽（issued_at <= not_before <= expiry）")]
+    InvalidAttestationWindow, // 6027
 }

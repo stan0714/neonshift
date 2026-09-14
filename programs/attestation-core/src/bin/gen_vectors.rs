@@ -131,6 +131,59 @@ fn cases() -> Vec<Case> {
                 a.expiry = 0x0708_090a_0b0c_0f3e;
             }),
         },
+        // ---- 以下為 validate 負向與邊界案例（PG-C-04／PG-B-10 補齊至 20 組）----
+        Case {
+            name: "invalid_issued_at_after_not_before",
+            note: "issued_at 晚於 not_before，validate 必須拒絕（2026-09-14 契約核對新增）",
+            att: with(|a| {
+                a.issued_at = 1_789_000_100;
+                a.not_before = 1_789_000_000;
+                a.expiry = 1_789_000_600;
+            }),
+        },
+        Case {
+            name: "invalid_not_before_after_expiry",
+            note: "not_before 晚於 expiry",
+            att: with(|a| {
+                a.not_before = a.expiry + 1;
+            }),
+        },
+        Case {
+            name: "invalid_expiry_before_issued_at",
+            note: "expiry 早於 issued_at",
+            att: with(|a| {
+                a.expiry = a.issued_at - 1;
+                a.not_before = a.issued_at - 1;
+            }),
+        },
+        Case {
+            name: "invalid_ttl_601",
+            note: "有效期 601 秒，超過上限一秒",
+            att: with(|a| a.expiry = a.issued_at + MAX_TTL_SECONDS + 1),
+        },
+        Case {
+            name: "invalid_ttl_one_year",
+            note: "expiry 被改成一年後（SD 7 必測攻擊案例）",
+            att: with(|a| a.expiry = a.issued_at + 365 * 86_400),
+        },
+        Case {
+            name: "all_timestamps_equal",
+            note: "issued_at == not_before == expiry，零秒有效期為合法邊界",
+            att: with(|a| {
+                a.not_before = a.issued_at;
+                a.expiry = a.issued_at;
+            }),
+        },
+        Case {
+            name: "rules_version_zero",
+            note: "rules_version 為 0",
+            att: with(|a| a.rules_version = 0),
+        },
+        Case {
+            name: "task_date_2026_09_14",
+            note: "實際日期 2026-09-14 的 UTC 日序 20_710",
+            att: with(|a| a.task_date = 20_710),
+        },
     ]
 }
 

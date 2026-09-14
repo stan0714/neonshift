@@ -94,3 +94,26 @@ describe("attestation canonical bytes", () => {
     });
   }
 });
+
+describe("validate 負向案例（SD 3.3 步驟 7，與 Rust 共用向量之外的直接測試）", () => {
+  const base = toAttestation(doc.vectors[0]!.fields);
+
+  it("至少 20 組向量，且含 validate 失敗案例", () => {
+    expect(doc.vectors.length).toBeGreaterThanOrEqual(20);
+    expect(doc.vectors.some((v) => !v.validate_ok)).toBe(true);
+  });
+
+  it("issuedAt > notBefore 拒絕", () => {
+    expect(() => validate({ ...base, issuedAt: base.notBefore + 1n })).toThrow(/issuedAt <= notBefore/);
+  });
+
+  it("notBefore > expiry 拒絕", () => {
+    expect(() => validate({ ...base, notBefore: base.expiry + 1n })).toThrow();
+  });
+
+  it("ttl 601 拒絕、600 通過、三者相等通過", () => {
+    expect(() => validate({ ...base, expiry: base.issuedAt + 601n })).toThrow(/超過上限/);
+    expect(() => validate({ ...base, expiry: base.issuedAt + 600n })).not.toThrow();
+    expect(() => validate({ ...base, notBefore: base.issuedAt, expiry: base.issuedAt })).not.toThrow();
+  });
+});

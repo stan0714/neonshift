@@ -234,12 +234,12 @@ graph TB
 順序不可調換，前面的檢查較便宜且能擋掉多數攻擊。
 
 1. `Config.paused == false`。
-2. 由 `instructions` sysvar 取得目前 instruction index 並讀取緊鄰的前一道指令；index 為 0 時直接拒絕。確認前一道是 Ed25519 program、僅有一組簽章，且 signature／pubkey／message offsets 全部指向該指令自身並落在合法邊界內。
+2. 由 `instructions` sysvar 取得目前 instruction index 並讀取緊鄰的前一道指令；index 為 0 時直接拒絕。確認前一道是 Ed25519 program、僅有一組簽章，signature／pubkey／message 的 instruction index 皆為該指令自身（其實際 index 或 `0xFFFF`）、message 長度恰為 164、三段 offset 落在合法邊界且不落在 header 區。任一不符為 6001。
 3. 比對 ed25519 指令內的公鑰等於 `attestor_pubkey`，或在寬限期內等於 `prev_attestor_pubkey`。
 4. 比對 ed25519 指令內的訊息 bytes 與本指令參數重建的 canonical bytes 完全一致。
 5. 檢查 `program_id` 等於本程式、`cluster_id` 等於 Config 設定。
 6. 檢查 `wallet` 等於簽章者。
-7. 檢查 `issued_at <= not_before <= now <= expiry`，並以 checked arithmetic 驗證 `expiry - issued_at <= 600`。
+7. 檢查 `issued_at <= not_before <= expiry`（否則 6027）、`expiry - issued_at <= 600`（checked，否則 6008）、`now >= not_before`（否則 6006）、`now <= expiry`（否則 6007）。
 8. 計算 `current_task_date = floor(Clock.unix_timestamp / 86400)` 並要求 `task_date == current_task_date`；禁止前一日補領或讓 `today_date` 倒退。
 9. 驗證 PlayerProfile、reward vault、收款 token account 的 wallet／mint／PDA seeds 與 token program 全部符合 Config。
 10. 以 PDA 建立 `ClaimReceipt`，rent 由 player 支付；帳戶已存在則交易失敗（BR-03、BR-14 同時成立）。
@@ -313,7 +313,7 @@ let amount = amount.min(remaining);         // BR-04
 
 **刻意不包含金額**。金額由鏈上依 Config 與 PlayerProfile 計算，符合 C-03。
 
-**2026-09-14 契約核對**：以 ASCII 編碼確認 domain 為 19 bytes，現有 164-byte layout 與 offsets 正確，不增加零結尾。時效仍須驗證 `issued_at <= not_before <= expiry`；現有 Rust／TypeScript `validate` 尚未檢查第一個不等式，列入 PG-C-04／PG-B-10 修正與負向測試。
+**2026-09-14 契約核對**：以 ASCII 編碼確認 domain 為 19 bytes，現有 164-byte layout 與 offsets 正確，不增加零結尾。時效須驗證 `issued_at <= not_before <= expiry`；Rust／TypeScript `validate` 已於 2026-09-14 補上第一個不等式並加入負向測試與向量（`invalid_issued_at_after_not_before` 等 5 組），鏈上以 6027 拒絕。
 
 `evidence_hash` 的輸入只包含實際參與判定的欄位、資料來源摘要及 `rules_hash`，先依固定 schema 排序，再以 RFC 8785 JSON Canonicalization Scheme 產生 bytes 並做 SHA-256。伺服器保存相同 canonical bytes 的 hash，不保存一份不同排序的 request JSON 作為稽核依據。
 
@@ -348,6 +348,7 @@ let amount = amount.min(remaining);         // BR-04
 | 6024 | `NotUpgradeAuthority` | `initialize_config` 的簽章者不是程式 upgrade authority（實作期新增） |
 | 6025 | `RewardParamsChangeRequiresPause` | BR-24：未 pause 或 pause 未滿 600 秒即更新影響獎勵金額的參數（實作期新增） |
 | 6026 | `Unauthorized` | 管理指令簽章者不是 `Config.admin`（實作期新增） |
+| 6027 | `InvalidAttestationWindow` | attestation 時間欄位不滿足 `issued_at <= not_before <= expiry`（實作期新增；步驟 7 的前半） |
 
 ---
 
@@ -903,3 +904,13 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+
+## 12. 跑鞋成長與素材替換契約
+
+設計預設詳 BRD 17；Config 新增 `steps_xp: u64 = 100`、`sleep_xp: u64 = 50`，`shoe_xp_thresholds = [0,450,1500,3600,7500]`。初始化要求首項為 0、其餘嚴格遞增，XP 加法 checked；`clock_in` 成功路徑以 task_type 決定 XP，不以 tSKR amount 換算。每日任務唯一性沿用 ClaimReceipt。Config 變更與既有玩家遷移依 BR-24／SA 12，不得默默降階。
+
+App `config/shoeProgression.ts` 集中管理五階名稱、材質色、預覽門檻及純計算函式；僅用於 Demo。真實狀態接入後由鏈上資料提供 XP／等級／門檻。`ShoeHeroProps` 保持 level／size／active，預留以內部 renderer 替換 SVG；不让頁面依賴 SVG path。
+
+素材優化時新增版本化 manifest，包含 level、revision、renderer、local asset、static fallback 及檔案 hash。先做靜態本機素材映射，再增 Lottie；載入失敗回退同階 SVG，減少動態／低效能裝置顯示同階靜態版。所有素材沿用 260×208 viewBox 的視覺錨點、鞋底及平台位置，切換不改容器尺寸。只預載當前階／下一階，不同時啟動五個動畫；Demo 圖鑑固定靜態。尚未加入未使用的 Lottie／3D runtime 或遠端素材下载。
+
+驗收：各門檻前一點／等於門檻／滿階、無效 XP、重複 claim／失敗交易、Shoe／Core 分離、五階灰階辨識、Reduce Motion、素材失敗同階 fallback。正式動畫須在 Seeker 記錄 frame time／記憶體與耗電，確定預算後才啟用 3D。

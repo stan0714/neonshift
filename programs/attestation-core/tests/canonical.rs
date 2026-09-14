@@ -173,6 +173,17 @@ fn validate_rejects_inverted_time_window() {
     let mut b = sample();
     b.issued_at = b.expiry + 1;
     assert_eq!(b.validate(), Err(AttestationError::BadTimeWindow));
+
+    // 2026-09-14 契約核對補上的不等式：issued_at 不得晚於 not_before
+    let mut c = sample();
+    c.not_before = c.issued_at - 1;
+    assert_eq!(c.validate(), Err(AttestationError::BadTimeWindow));
+
+    // 三者相等為合法邊界
+    let mut d = sample();
+    d.not_before = d.issued_at;
+    d.expiry = d.issued_at;
+    assert_eq!(d.validate(), Ok(()));
 }
 
 #[test]

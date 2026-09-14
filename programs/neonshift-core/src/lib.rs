@@ -2,12 +2,14 @@
 
 use anchor_lang::prelude::*;
 
+pub mod attestation;
 pub mod constants;
 pub mod error;
 pub mod events;
 pub mod instructions;
 pub mod state;
 
+pub use attestation::AttestationArgs;
 pub use constants::*;
 pub use instructions::*;
 pub use state::*;
