@@ -159,7 +159,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
 | PG-B-01 | Fastify 骨架、設定載入、健康檢查端點 | SD 2.2 | — | 0.5 | WIP | src/app.ts／config.ts／db.ts／errors.ts：healthz、readyz、/v1、統一錯誤格式、redact log；9 項測試 |
-| PG-B-02 | 資料庫 schema 與 migration | SD 4.5 | — | 1.0 | WIP | 0001 9 表＋13 約束測試；0002 claim_results（idempotency 處理狀態）；deletion_due_at 等 BR-25 欄位待 B-13 |
+| PG-B-02 | 資料庫 schema 與 migration | SD 4.5 | — | 1.0 | WIP | 0001 9 表＋13 約束；0002 claim_results；0003 players.deletion_requested_at／deletion_due_at；30 天清理排程於 B-17 |
 | PG-B-03 | `/auth/nonce` 與 `/auth/verify`（SIWS） | SD 4.2 | — | 1.5 | WIP | SIWS 訊息 build／parse、/auth/nonce（32B nonce 只存雜湊、5 分鐘）、/auth/verify（domain／URI／chain／statement／時效／驗簽／原子消耗）；Store 介面＋Memory／Postgres 實作；11 單元＋整合測試 |
 | PG-B-04 | JWT 與 refresh session 輪替、重用偵測 | SD 4.2 | — | 1.5 | WIP | HS256 access 15 分鐘（iss／aud／sub／jti／iat／nbf／exp）、refresh 24 小時輪替＋重用偵測撤銷 family、/auth/refresh、/auth/logout（重複成功）、requireAuth 檢查 session 撤銷與玩家刪除 |
 | PG-B-05 | `/auth/challenge`：claim／tournament 敏感操作的單次授權 | SD 4.2 | — | 1.0 | WIP | ChallengeService：/auth/challenge（JWT 後）、32B nonce／5 分鐘整秒、綁定 wallet／purpose／task／request_hash／expiry；verifyAndConsume 先驗簽再原子消耗；6 測試；B-11／B-14 接用 |
@@ -169,8 +169,8 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-B-09 | 評分規則、權重與門檻 | SD 4.4 | BR-11, BR-12 | 1.0 | WIP | freq_variance_low／no_displacement／stride／sleep_overlap 權重與門檻 60；無定位不加分（BR-11）、短暫重疊不拒（BR-12）；判定含 rules_version／hash；12 測試；資料集校準（KPI）待第三週 |
 | PG-B-10 | AttestationSigner：相容 signer 與 164 bytes 組裝／測試向量 | SD 3.5, 4.6 | BR-14, BR-15 | 1.5 | WIP | AttestorSigner 介面：LocalKeypairSigner（僅 local）、HttpSignerClient（隔離 signer service，Bearer）；AttestationSigner 組 164 bytes、validate、ttl≤600、無金額；dev／demo 強制 http signer；20 組向量；KMS 選型與 signer service 部署待定 |
 | PG-B-11 | `POST /attestation/claim` 端點整合 | SD 4.3 | 全部風險規則 | 1.0 | WIP | POST /attestation/claim：JWT→schema→idempotency（processing／succeeded／rejected，409 conflict）→challenge 消耗→風險判定→snapshot／decision→簽發→attestations→保存完整回應；0002 migration；8 端到端測試（重放、409、crash 恢復）；GET /rules/version |
-| PG-B-12 | `GET /player/history` | SD 4.1 | — | 0.5 | TODO | |
-| PG-B-13 | `DELETE /player/data` 與延後刪除邏輯 | SD 4.1 | BR-25 | 1.0 | TODO | |
+| PG-B-12 | `GET /player/history` | SD 4.1 | — | 0.5 | WIP | GET /player/history?days≤30：本人、保留期內、最新在前，redeemed_signature 由 B-16 回填；1 端到端測試 |
+| PG-B-13 | `DELETE /player/data` 與延後刪除邏輯 | SD 4.1 | BR-25 | 1.0 | WIP | DELETE /player/data：交易內撤銷 session、刪 snapshots（CASCADE）／attestations／claim_results／tournament_steps、標記 deleted_at；質押賽事延後 202＋deletion_due_at（≤30 天，B-14 接 ends_at）；刪除後重新登入視為新同意；0003 migration；3 端到端＋Postgres 整合 |
 | PG-B-14 | 賽事 API：current、steps、leaderboard 與逐操作 challenge | SD 4.1, 4.2 | — | 1.0 | TODO | |
 | PG-B-15 | 排行榜、同分決勝與 settlement manifest／rolling hash | SD 4.1, 6.2 | BR-20 | 1.0 | TODO | |
 | PG-B-16 | ChainIndexer：finalized 事件同步、orphan 回滾與 redeemed_sig 回填 | SD 2.1, 4.5 | — | 1.0 | TODO | |

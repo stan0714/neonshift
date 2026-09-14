@@ -7,6 +7,7 @@ import bs58 from "bs58";
 import { ChallengeService } from "./auth/challenge.js";
 import { claimRoutes } from "./claim/routes.js";
 import { ClaimService } from "./claim/service.js";
+import { playerRoutes } from "./player/routes.js";
 import { loadRuleSetFile, type RuleSet } from "./risk/rules.js";
 import { AttestationSigner, type AttestorSigner, HttpSignerClient, LocalKeypairSigner } from "./signer/index.js";
 import { authRoutes } from "./auth/routes.js";
@@ -101,8 +102,9 @@ export function buildApp({ config, db, store, now, signer, rules }: AppDeps): Fa
     v1.get("/", async () => ({ name: "neonshift-attestor", version: "v1" }));
     await v1.register(authRoutes, { auth, challenge });
     await v1.register(claimRoutes, { auth, claim });
+    await v1.register(playerRoutes, { auth, store: dataStore, now: now ?? (() => new Date()) });
     v1.get("/rules/version", async () => ({ rules_version: ruleSet.version, rules_hash: `sha256:${ruleSet.hash.toString("hex")}`, description: ruleSet.config.description ?? null }));
-    // 後續：player（B-12～13）、tournament（B-14）
+    // 後續：tournament（B-14）
   }, { prefix: API_PREFIX });
 
   app.addHook("onReady", async () => {

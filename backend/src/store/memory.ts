@@ -1,4 +1,4 @@
-import type { AttestationRow, Challenge, ClaimResult, HealthSnapshotInput, Player, RiskDecisionInput, RuleSetRow, Session, Store } from "./types.js";
+import type { AttestationRow, Challenge, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, RiskDecisionInput, RuleSetRow, Session, Store } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -25,6 +25,8 @@ export class MemoryStore implements Store {
   async upsertPlayer(wallet: string, now: Date) {
     const p = this.players.get(wallet) ?? { wallet, firstSeenAt: now, lastSeenAt: now, deletedAt: null };
     p.lastSeenAt = now;
+    // 刪除後重新登入視為新的同意：重新啟用
+    p.deletedAt = null;
     this.players.set(wallet, p);
     return { ...p };
   }
@@ -94,5 +96,31 @@ export class MemoryStore implements Store {
   async releaseClaim(wallet: string, idempotencyKey: string) {
     const k = `${wallet}:${idempotencyKey}`;
     if (this.claimResults.get(k)?.status === "processing") this.claimResults.delete(k);
+  }
+
+  // ---- PG-B-12／B-13 ----
+  async listHistory(wallet: string, sinceTaskDate: number): Promise<HistoryItem[]> {
+    return [...this.attestations.values()]
+      .filter((a) => a.wallet === wallet && a.taskDate >= sinceTaskDate)
+      .sort((a, b) => b.taskDate - a.taskDate || b.issuedAt.getTime() - a.issuedAt.getTime())
+      .map((a) => ({ taskDate: a.taskDate, taskType: a.taskType, issuedAt: a.issuedAt, expiresAt: a.expiresAt, redeemedSig: null }));
+  }
+  async hasActiveStakedTournament(_wallet: string) {
+    return false;
+  }
+  async deletePlayerData(wallet: string, now: Date, deferUntil: Date | null): Promise<DeletionResult> {
+    const sessions = await this.revokeWallet(wallet, now);
+    const p = this.players.get(wallet);
+    if (p) p.deletedAt = now;
+    if (deferUntil) return { deferred: true, deletionDueAt: deferUntil, deleted: { snapshots: 0, attestations: 0, claimResults: 0, sessions } };
+    const before = this.snapshots.length;
+    const removedIds = new Set(this.snapshots.filter((s) => s.wallet === wallet).map((s) => s.id));
+    this.snapshots = this.snapshots.filter((s) => s.wallet !== wallet);
+    this.decisions = this.decisions.filter((d) => !removedIds.has(d.snapshotId));
+    let attestations = 0;
+    for (const [k, a] of this.attestations) if (a.wallet === wallet) { this.attestations.delete(k); attestations++; }
+    let claimResults = 0;
+    for (const [k, r] of this.claimResults) if (r.wallet === wallet) { this.claimResults.delete(k); claimResults++; }
+    return { deferred: false, deletionDueAt: null, deleted: { snapshots: before - this.snapshots.length, attestations, claimResults, sessions } };
   }
 }

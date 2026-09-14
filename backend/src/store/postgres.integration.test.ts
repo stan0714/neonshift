@@ -18,7 +18,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: url });
-    await pool.query("DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
+    await pool.query("DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
     stores = [
       { name: "postgres", store: new PostgresStore(pool) },
       { name: "memory", store: new MemoryStore() },
@@ -80,6 +80,46 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       expect(p1.firstSeenAt.getTime(), name).toBe(t1.getTime());
       expect(p2.firstSeenAt.getTime(), name).toBe(t1.getTime());
       expect(p2.lastSeenAt.getTime(), name).toBe(t2.getTime());
+    }
+  });
+
+  it("claim idempotency：beginClaim 只有一個取得處理權；complete 後回既有；release 只刪 processing", async () => {
+    for (const { name, store } of stores) {
+      const now = new Date();
+      const wallet = "w" + randomUUID().slice(0, 8);
+      await store.upsertPlayer(wallet, now);
+      const key = randomUUID();
+      const rh = randomBytes(32);
+      const results = await Promise.all(Array.from({ length: 6 }, () => store.beginClaim(wallet, key, rh, now)));
+      expect(results.filter((r) => r.acquired), name).toHaveLength(1);
+      expect(results.filter((r) => !r.acquired && r.existing?.status === "processing"), name).toHaveLength(5);
+      await store.completeClaim(wallet, key, "succeeded", 200, { ok: true }, now);
+      const again = await store.beginClaim(wallet, key, rh, now);
+      expect(again.existing?.status, name).toBe("succeeded");
+      expect(again.existing?.response, name).toEqual({ ok: true });
+      await store.releaseClaim(wallet, key);
+      expect((await store.beginClaim(wallet, key, rh, now)).acquired, name).toBe(false);
+    }
+  });
+
+  it("deletePlayerData：撤銷 session、刪 snapshot（CASCADE decision）／attestation／claim_results，並標記 deleted_at；歷史只回本人", async () => {
+    for (const { name, store } of stores) {
+      const now = new Date();
+      const wallet = "w" + randomUUID().slice(0, 8);
+      await store.upsertPlayer(wallet, now);
+      await store.insertSession({ jti: randomUUID(), familyId: randomUUID(), wallet, refreshHash: randomBytes(32), expiresAt: new Date(now.getTime() + 1000), usedAt: null, rotatedTo: null, revokedAt: null });
+      const sid = await store.insertHealthSnapshot({ wallet, taskDate: 20_710, taskType: 1, attributedSteps: 1, sleepMinutes: null, sourceSummary: [], stepRateSummary: null, sleepOverlapMinutes: null, sensorSummary: null, motionSummary: null, clientInfo: {}, inputHash: randomBytes(32) });
+      await store.insertRiskDecision({ snapshotId: sid, rulesVersion: 3, riskScore: 0, matchedRules: [], decision: "pass", rejectCode: null });
+      await store.ensureRuleSet({ rulesVersion: 3, rulesHash: randomBytes(32), config: {} }).catch(() => {});
+      await store.insertAttestation({ nonce: randomBytes(16), idempotencyKey: randomUUID(), requestHash: randomBytes(32), wallet, taskDate: 20_710, taskType: 1, rulesVersion: 3, evidenceHash: randomBytes(32), issuedAt: now, expiresAt: new Date(now.getTime() + 600_000) });
+      await store.beginClaim(wallet, randomUUID(), randomBytes(32), now);
+      expect(await store.listHistory(wallet, 20_700), name).toHaveLength(1);
+      const r = await store.deletePlayerData(wallet, now, null);
+      expect(r, name).toMatchObject({ deferred: false, deleted: { snapshots: 1, attestations: 1, claimResults: 1, sessions: 1 } });
+      expect(await store.listHistory(wallet, 20_700), name).toHaveLength(0);
+      expect((await store.getPlayer(wallet))?.deletedAt, name).not.toBeNull();
+      // 重新登入（upsert）視為新同意
+      expect((await store.upsertPlayer(wallet, now)).deletedAt, name).toBeNull();
     }
   });
 });

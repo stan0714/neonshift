@@ -26,7 +26,7 @@ export type Session = {
 
 export type Player = { wallet: string; firstSeenAt: Date; lastSeenAt: Date; deletedAt: Date | null };
 
-export interface Store extends ClaimStore {
+export interface Store extends ClaimStore, PlayerDataStore {
   insertChallenge(c: Challenge): Promise<void>;
   /** 原子消耗：只有未使用且未過期才會成功，回傳被消耗的 challenge */
   consumeChallenge(nonceHash: Buffer, now: Date): Promise<Challenge | null>;
@@ -104,4 +104,29 @@ export interface ClaimStore {
   completeClaim(wallet: string, idempotencyKey: string, status: "succeeded" | "rejected", httpStatus: number, response: unknown, now: Date): Promise<void>;
   /** processing 卡住（例如 signer 成功後 process crash）時釋放，讓同 key 可重新處理 */
   releaseClaim(wallet: string, idempotencyKey: string): Promise<void>;
+}
+
+// ---------------- PG-B-12／B-13：歷史與刪除 ----------------
+
+export type HistoryItem = {
+  taskDate: number;
+  taskType: number;
+  issuedAt: Date;
+  expiresAt: Date;
+  redeemedSig: string | null;
+};
+
+export type DeletionResult = {
+  /** true：有進行中且已質押的賽事，摘要延後至 deletionDueAt */
+  deferred: boolean;
+  deletionDueAt: Date | null;
+  deleted: { snapshots: number; attestations: number; claimResults: number; sessions: number };
+};
+
+export interface PlayerDataStore {
+  listHistory(wallet: string, sinceTaskDate: number): Promise<HistoryItem[]>;
+  /** 撤銷 session、刪除健康摘要與衍生資料、標記 players.deleted_at；有質押賽事時延後 */
+  deletePlayerData(wallet: string, now: Date, deferUntil: Date | null): Promise<DeletionResult>;
+  /** 是否有進行中且已質押的賽事（B-14 接入前恆為 false） */
+  hasActiveStakedTournament(wallet: string): Promise<boolean>;
 }

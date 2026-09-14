@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, Challenge, ClaimResult, HealthSnapshotInput, Player, RiskDecisionInput, RuleSetRow, Session, Store } from "./types.js";
+import type { AttestationRow, Challenge, ClaimResult, DeletionResult, HealthSnapshotInput, HistoryItem, Player, RiskDecisionInput, RuleSetRow, Session, Store } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -56,7 +56,7 @@ export class PostgresStore implements Store {
   async upsertPlayer(wallet: string, now: Date) {
     const r = await this.pool.query(
       `INSERT INTO players (wallet, first_seen_at, last_seen_at) VALUES ($1, $2, $2)
-       ON CONFLICT (wallet) DO UPDATE SET last_seen_at = EXCLUDED.last_seen_at
+       ON CONFLICT (wallet) DO UPDATE SET last_seen_at = EXCLUDED.last_seen_at, deleted_at = NULL, deletion_requested_at = NULL, deletion_due_at = NULL
        RETURNING *`,
       [wallet, now],
     );
@@ -158,5 +158,53 @@ export class PostgresStore implements Store {
   }
   async releaseClaim(wallet: string, idempotencyKey: string) {
     await this.pool.query(`DELETE FROM claim_results WHERE wallet = $1 AND idempotency_key = $2 AND status = 'processing'`, [wallet, idempotencyKey]);
+  }
+
+  // ---- PG-B-12／B-13 ----
+  async listHistory(wallet: string, sinceTaskDate: number): Promise<HistoryItem[]> {
+    const r = await this.pool.query(
+      `SELECT task_date, task_type, issued_at, expires_at, redeemed_sig FROM attestations
+       WHERE wallet = $1 AND task_date >= $2 ORDER BY task_date DESC, issued_at DESC`,
+      [wallet, sinceTaskDate],
+    );
+    return (r.rows as Row[]).map((x) => ({
+      taskDate: x.task_date as number,
+      taskType: x.task_type as number,
+      issuedAt: x.issued_at as Date,
+      expiresAt: x.expires_at as Date,
+      redeemedSig: (x.redeemed_sig as string | null) ?? null,
+    }));
+  }
+  async hasActiveStakedTournament(_wallet: string) {
+    // B-14 賽事 API 接入前，尚無質押資料
+    return false;
+  }
+  async deletePlayerData(wallet: string, now: Date, deferUntil: Date | null): Promise<DeletionResult> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const sess = await client.query(`UPDATE auth_sessions SET revoked_at = $2 WHERE wallet = $1 AND revoked_at IS NULL`, [wallet, now]);
+      await client.query(
+        `UPDATE players SET deleted_at = $2, deletion_requested_at = $2, deletion_due_at = $3 WHERE wallet = $1`,
+        [wallet, now, deferUntil],
+      );
+      let snapshots = 0;
+      let attestations = 0;
+      let claimResults = 0;
+      if (!deferUntil) {
+        // risk_decisions 以 CASCADE 隨 snapshot 刪除
+        snapshots = (await client.query(`DELETE FROM health_snapshots WHERE wallet = $1`, [wallet])).rowCount ?? 0;
+        attestations = (await client.query(`DELETE FROM attestations WHERE wallet = $1`, [wallet])).rowCount ?? 0;
+        claimResults = (await client.query(`DELETE FROM claim_results WHERE wallet = $1`, [wallet])).rowCount ?? 0;
+        await client.query(`DELETE FROM tournament_steps WHERE wallet = $1`, [wallet]);
+      }
+      await client.query("COMMIT");
+      return { deferred: deferUntil !== null, deletionDueAt: deferUntil, deleted: { snapshots, attestations, claimResults, sessions: sess.rowCount ?? 0 } };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 }
