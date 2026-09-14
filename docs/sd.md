@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.6（錦標賽建立／報名／截止） |
+| 文件版本 | v0.7（錦標賽結算協議） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -226,12 +226,13 @@ graph TB
 | `join_tournament` | player | 受 pause 影響；狀態為 Registration 且 `now < registration_ends_at`（否則 6032）；`TournamentEntry` PDA `init` 擋重複報名；玩家 token account owner／mint 正確（6021）；轉 `stake_amount` 到 vault | `TournamentJoined` |
 | `lock_tournament` | admin | 狀態為 Registration 且 `now ≥ registration_ends_at`；`valid_entrant_count = entrant_count`（join 已逐筆驗證）；人數 < `min_entrants` → Cancelled 且不挹注；否則依 BR-18 固定 `group_a_size`／`group_b_size`（B 可為 0），由 admin 以國庫 owner 身分轉入 `min(cap, 國庫餘額)`，並 **對帳 vault 實際餘額 = total_staked + treasury_injection**（否則 6017）→ Locked | `TournamentLocked` / `TournamentCancelled` |
 | `start_tournament` | 任意 payer | 已到 starts_at 且狀態為 Locked；只推進為 Running，不可改規則 | `TournamentStarted` |
-| `begin_settlement` | admin 多簽 | 已過 ends_at、沒收處置完成、承諾最終有效人數與 results hash；轉為 Settling 後禁止新增沒收 | `SettlementBegan` |
-| `submit_results_batch` | admin 多簽 | 狀態為 Settling、排名連續且不重複、符合預先承諾的 manifest hash | `ResultsBatchSubmitted` |
-| `settle_tournament` | admin 多簽 | 所有合格 entry 已排名、資金守恆、轉為 Settled | `TournamentSettled` |
-| `claim_prize` | player | 已 Settled、未領取 | `PrizeClaimed` |
-| `forfeit_entry` | admin 多簽 | 只能在 `ends_at` 後、`begin_settlement` 前執行；需帶非零 `evidence_hash` 與 `rules_version` | `EntryForfeited` |
-| `refund_all` | player | 賽事 Cancelled | `Refunded` |
+| `begin_settlement` | admin 多簽 | Running 且已過 ends_at；`expected_count` 必須等於 `valid_entrant_count - forfeited_count`（6022）；寫入承諾 `results_hash`，並以 `tournament_math::budget` **預算** `total_refund`／`total_prize`／`treasury_remainder`／`distributable_pool`（見 6.2）；轉為 Settling 後禁止新增沒收 | `SettlementBegan` |
+| `submit_results_batch` | admin 多簽 | Settling；`items: Vec<{wallet, final_steps, first_reached_at}>`，對應 entry 依序放 remaining_accounts（PDA 位址、writable 逐筆核對）；rank 從 `results_submitted + 1` 連續配發，entry 已排名（rank ≠ 0）或已沒收拒絕；group 由 rank 與 lock 時的組大小推導；逐筆更新 rolling hash | `ResultsBatchSubmitted` |
+| `settle_tournament` | admin 多簽 | Settling；筆數 = 有效人數（6022）、rolling hash = 承諾（6035）、帳面守恆（6017）且 **vault 實際餘額 = total_staked + treasury_injection**；把 `treasury_remainder` 由 Tournament PDA 簽章轉回國庫 → Settled | `TournamentSettled` |
+| `claim_prize` | player | 已 Settled、未領取（6033）、未沒收（6034）、已排名；金額 = `refund_for(rank) + prize_for(rank)`（與 begin_settlement 預算同一函式）；累加 `distributed` 並重跑守恆斷言；不受 pause 影響 | `PrizeClaimed` |
+| `forfeit_entry` | admin 多簽 | Running 且 `now ≥ ends_at`、`begin_settlement` 前；需非零 `evidence_hash`（6018）與相符 `rules_version`（6036）；重複沒收 6034 | `EntryForfeited` |
+| `cancel_tournament` | admin 隨時；任何人於 `ends_at + 7 天` 後 | 【實作期新增】Registration／Locked／Running／Settling → Cancelled：挹注 + 沒收者質押由 PDA 簽章歸庫，`total_refund` = 可退質押；保證質押不會無限期鎖住（BRD P0） | `TournamentCancelledLate` |
+| `refund_all` | player | 賽事 Cancelled、未領取、未沒收；退回全額質押；不受 pause 影響 | `Refunded` |
 
 ### 3.3 `clock_in` 檢查順序【定案】
 
@@ -357,7 +358,11 @@ let amount = amount.min(remaining);         // BR-04
 | 6029 | `CollectibleNotEligible` | `claim_collectible`：尚未達成該 kind 的資格（含錦標賽名次在 C-14 接入前一律不合格） |
 | 6030 | `InvalidCollectibleKind` | `claim_collectible`：kind 不在 1～5／101／102／111～119 |
 | 6031 | `InvalidTournamentParam` | `create_tournament` 參數超出範圍（實作期新增） |
-| 6032 | `TournamentTimingViolation` | open／join／lock／start 不在時間窗內（實作期新增） |
+| 6032 | `TournamentTimingViolation` | open／join／lock／start／forfeit／begin_settlement／非 admin cancel 不在時間窗內（實作期新增） |
+| 6033 | `EntryAlreadySettled` | claim_prize／refund_all 重複領取 |
+| 6034 | `EntryForfeited` | 沒收者不得排名、領獎或退款；重複沒收 |
+| 6035 | `ResultsHashMismatch` | settle_tournament：最終 rolling hash ≠ begin_settlement 承諾 |
+| 6036 | `RulesVersionMismatch` | forfeit_entry 的 rules_version ≠ Tournament.rules_version |
 
 ---
 
@@ -743,7 +748,15 @@ total_staked + treasury_injection
 且 distributed <= total_refund + total_prize
 ```
 
-每筆結果的 canonical encoding 至少包含 `tournament、wallet、final_steps、first_reached_at、rank、forfeited`；rolling hash 定義為 `H(previous_hash || canonical_entry)`，初始值為 32 bytes zero。`submit_results_batch` 只接受從 `results_submitted + 1` 開始的連續 rank，entry 不可重複，並逐筆累加應退款與應得獎金；group 必須由 rank 與鎖定時的 group size 在鏈上推導，不接受管理員自報。`settle_tournament` 要求提交筆數等於 `valid_entrant_count - forfeited_count` 且 rolling hash 等於 `begin_settlement` 承諾值，再把 `treasury_remainder` 轉回 treasury vault。這使管理員提交可稽核且不可在批次中途偷換，但健康分數與排序本身仍信任後端及管理員多簽，不得宣稱為去信任排行榜。
+**Canonical entry【2026-09-14 定案，PG-C-13】**：85 bytes = `tournament(32) ‖ wallet(32) ‖ final_steps u64 LE ‖ first_reached_at i64 LE ‖ rank u32 LE ‖ forfeited u8`；rolling hash = `SHA-256(previous_hash ‖ canonical_entry)`，初始 32 bytes zero；沒收者不進批次（forfeited 欄位恆為 0，保留供未來擴充）。後端 B-15 產生 manifest 時必須用同一編碼（`programs/neonshift-core/src/tournament_math.rs`）。
+
+**分配公式【實作定案，對應 SA-Q7／BRD Q-09，待專案負責人確認】**（`tournament_math.rs`，單元測試涵蓋 8 種人數／挹注／沒收組合的守恆）：
+- `ranked = valid_entrant_count - forfeited_count`；實際得獎 `filled_a = min(ranked, group_a_size)`、`filled_b = min(ranked - filled_a, group_b_size)`。
+- 退款：得獎者 100% 質押、未得獎者 `loser_refund_bps`（50%）、沒收者 0。
+- `pool = total_staked + treasury_injection - total_refund`；`pool_a = pool × 60%`、`pool_b = pool × 40%`（floor）。
+- 組內線性遞減：k 個實際得獎者中第 i 名權重 `k - i + 1`，獎金 = `pool_g × w / (k(k+1)/2)`（floor）。整組無人 → 該組份額歸 `treasury_remainder`；所有 floor 餘數歸 `treasury_remainder`（UC-09）。
+- 全數沒收：`expected_count = 0`、承諾 hash = 零值，settle 把全部歸庫。
+- 錯誤承諾／結算中斷：admin 可 `cancel_tournament` 走全額退款；超過 `ends_at + 7 天` 未 Settled 則任何人可取消。`submit_results_batch` 只接受從 `results_submitted + 1` 開始的連續 rank，entry 不可重複，並逐筆累加應退款與應得獎金；group 必須由 rank 與鎖定時的 group size 在鏈上推導，不接受管理員自報。`settle_tournament` 要求提交筆數等於 `valid_entrant_count - forfeited_count` 且 rolling hash 等於 `begin_settlement` 承諾值，再把 `treasury_remainder` 轉回 treasury vault。這使管理員提交可稽核且不可在批次中途偷換，但健康分數與排序本身仍信任後端及管理員多簽，不得宣稱為去信任排行榜。
 
 ---
 
@@ -924,6 +937,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.7 | 2026-09-14 | PG-C-13～C-16：canonical entry 85 bytes、分配公式（線性遞減／空組／餘數）、cancel_tournament 與 7 天期限、錯誤 6033～6036；settle／claim 以 vault 實際餘額對帳 |
 | v0.6 | 2026-09-14 | PG-C-11／C-12：新增 `create_tournament`、Tournament 欄位 `treasury_injection_cap`／占比／`created_at`、Entry `joined_at`、錯誤 6031／6032；lock 對帳 vault 實際餘額 |
 | v0.5 | 2026-09-14 | PG-C-09 實作定案：手組 Metaplex Core CreateV1 CPI（無 crate）、MVP 無 collection、update_authority = Config PDA、常數 base URI、錯誤 6029／6030、PlayerProfile.max_streak_days 由 clock_in 維護 |
 

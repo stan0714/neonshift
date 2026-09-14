@@ -77,6 +77,8 @@ pub const GROUP_A_BPS: u32 = 1_000;
 pub const PRIZE_A_BPS: u16 = 6_000;
 pub const PRIZE_B_BPS: u16 = 4_000;
 pub const LOSER_REFUND_BPS: u16 = 5_000;
+/// ends_at 後超過此期限仍未 Settled，任何人可 cancel_tournament 讓玩家取回質押（BRD P0：不得無限期鎖住）
+pub const SETTLEMENT_DEADLINE_SECONDS: i64 = 7 * SECONDS_PER_DAY;
 /// week_id = ISO 年 × 100 + ISO 週（SD 3.1）
 pub const MIN_WEEK_ID: u32 = 2026_01;
 pub const MAX_WEEK_ID: u32 = 2100_53;

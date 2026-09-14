@@ -127,7 +127,7 @@ pub struct CollectibleReceipt {
 /// 週末錦標賽（SD 3.1）。PDA seeds `["tournament", week_id_le]`。
 /// 金額、分組比例、國庫挹注上限與時間窗於 `create_tournament` 寫入後不可變（BRD 8.4）。
 #[account]
-#[derive(InitSpace)]
+#[derive(InitSpace, Default)]
 pub struct Tournament {
     /// ISO week-based year × 100 + ISO week，例如 202641
     pub week_id: u32,

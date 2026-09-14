@@ -112,3 +112,62 @@ pub struct TournamentStarted {
     pub tournament: Pubkey,
     pub at: i64,
 }
+
+#[event]
+pub struct EntryForfeited {
+    pub tournament: Pubkey,
+    pub wallet: Pubkey,
+    pub evidence_hash: [u8; 32],
+    pub rules_version: u16,
+    pub forfeited_count: u32,
+}
+
+#[event]
+pub struct SettlementBegan {
+    pub tournament: Pubkey,
+    pub expected_count: u32,
+    pub results_hash: [u8; 32],
+    pub distributable_pool: u64,
+    pub total_refund: u64,
+    pub total_prize: u64,
+    pub treasury_remainder: u64,
+}
+
+#[event]
+pub struct ResultsBatchSubmitted {
+    pub tournament: Pubkey,
+    pub from_rank: u32,
+    pub to_rank: u32,
+    pub rolling_hash: [u8; 32],
+}
+
+#[event]
+pub struct TournamentSettled {
+    pub tournament: Pubkey,
+    pub results_submitted: u32,
+    pub treasury_remainder: u64,
+}
+
+#[event]
+pub struct PrizeClaimed {
+    pub tournament: Pubkey,
+    pub wallet: Pubkey,
+    pub rank: u32,
+    pub group: u8,
+    pub refund: u64,
+    pub prize: u64,
+}
+
+#[event]
+pub struct Refunded {
+    pub tournament: Pubkey,
+    pub wallet: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
+pub struct TournamentCancelledLate {
+    pub tournament: Pubkey,
+    pub by: Pubkey,
+    pub returned_to_treasury: u64,
+}

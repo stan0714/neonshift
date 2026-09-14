@@ -27,6 +27,7 @@ anchor-spl = { version = "1.2.0", features = ["token", "associated_token"] }
 attestation-core = { path = "../attestation-core" }
 solana-instructions-sysvar = "3"
 solana-sdk-ids = "3"
+solana-sha256-hasher = { version = "3", features = ["sha2"] }
 
 [dev-dependencies]
 litesvm = { version = "0.10.0", features = ["precompiles"] }

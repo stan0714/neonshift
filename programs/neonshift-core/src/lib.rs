@@ -9,6 +9,7 @@ pub mod error;
 pub mod events;
 pub mod instructions;
 pub mod mpl_core;
+pub mod tournament_math;
 pub mod state;
 
 pub use attestation::AttestationArgs;
@@ -77,6 +78,41 @@ pub mod neonshift_core {
     /// Locked → Running（任意 payer，到 starts_at 後）
     pub fn start_tournament(ctx: Context<StartTournament>) -> Result<()> {
         instructions::tournament::handle_start_tournament(ctx)
+    }
+
+    /// 沒收質押（admin）：ends_at 後、begin_settlement 前；需非零 evidence_hash 與相符 rules_version
+    pub fn forfeit_entry(ctx: Context<ForfeitEntry>, evidence_hash: [u8; 32], rules_version: u16) -> Result<()> {
+        instructions::settlement::handle_forfeit_entry(ctx, evidence_hash, rules_version)
+    }
+
+    /// 開始結算（admin）：承諾有效人數與最終 rolling hash，預算退款／獎金／餘數
+    pub fn begin_settlement(ctx: Context<AdminSettlement>, expected_count: u32, results_hash: [u8; 32]) -> Result<()> {
+        instructions::settlement::handle_begin_settlement(ctx, expected_count, results_hash)
+    }
+
+    /// 提交連續排名批次（admin）；entry 依序放在 remaining_accounts
+    pub fn submit_results_batch<'info>(ctx: Context<'info, AdminSettlement<'info>>, items: Vec<ResultItem>) -> Result<()> {
+        instructions::settlement::handle_submit_results_batch(ctx, items)
+    }
+
+    /// 完成結算（admin）：筆數與 hash 相符、資金守恆、餘數歸庫
+    pub fn settle_tournament(ctx: Context<SettleTournament>) -> Result<()> {
+        instructions::settlement::handle_settle_tournament(ctx)
+    }
+
+    /// 領取退款＋獎金（玩家；不受 pause 影響）
+    pub fn claim_prize(ctx: Context<ClaimPrize>) -> Result<()> {
+        instructions::settlement::handle_claim_prize(ctx)
+    }
+
+    /// 取消賽事（admin 隨時；或任何人於 ends_at + 7 天後仍未 Settled 時）：挹注與沒收質押歸庫
+    pub fn cancel_tournament(ctx: Context<CancelTournament>) -> Result<()> {
+        instructions::settlement::handle_cancel_tournament(ctx)
+    }
+
+    /// 賽事 Cancelled 後取回全額質押（玩家；不受 pause 影響）
+    pub fn refund_all(ctx: Context<ClaimPrize>) -> Result<()> {
+        instructions::settlement::handle_refund_all(ctx)
     }
 
     /// 輪替 attestor 公鑰（admin），寬限期 0～600 秒

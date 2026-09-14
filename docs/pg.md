@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.10（PG-C-11／C-12 完成） |
+| 文件版本 | v0.11（PG-C-13～C-17 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -145,11 +145,11 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-C-10 | `upgrade_core` 燒毀與入庫原子性 | SD 6.1 | BR-16 | 1.0 | DEFER | 2026-09-14 專案負責人定案：升級免費，core_level 隨 XP 與 shoe_level 同步提升（clock_in 步驟 15）；無扣款／燒毀 |
 | PG-C-11 | Tournament 帳戶、專用 vault、`open`／`lock`／`start_tournament` | SD 3.1, 3.2 | BR-18, BR-19, BR-22 | 1.5 | WIP | 2026-09-14 完成：`create_tournament`（實作期新增；參數驗證 6031、vault PDA owner = Tournament）、open／lock／start；lock 固定 BR-18 分組（含 B=0）、挹注 min(cap, 國庫餘額)、對帳 vault 實際餘額（6017）、人數不足轉 Cancelled 不挹注；LiteSVM 12 案例（`tests/test_tournament.rs`）；SD v0.6 |
 | PG-C-12 | `join_tournament` 質押與 vault PDA | SD 3.2 | BR-22 | 1.0 | WIP | 2026-09-14 完成：TournamentEntry PDA init 擋重複、pause／時間窗（6000／6032）、token account owner／mint（6021）、餘額不足失敗；測試併入 test_tournament.rs |
-| PG-C-13 | `begin_settlement`、`submit_results_batch` 與 rolling hash 驗證 | SD 3.2, 6.2 | BR-20 | 1.5 | TODO | |
-| PG-C-14 | `settle_tournament` + `claim_prize` 與資金守恆斷言 | SD 6.2 | BR-17 | 2.0 | TODO | |
-| PG-C-15 | `forfeit_entry` 與證據摘要 | SD 3.2 | BR-21 | 0.5 | TODO | |
-| PG-C-16 | `refund_all` 賽事取消退款 | SD 3.2 | BR-19 | 0.5 | TODO | |
-| PG-C-17 | 錯誤碼 6000-6022 與事件定義 | SD 3.6 | — | 0.5 | TODO | |
+| PG-C-13 | `begin_settlement`、`submit_results_batch` 與 rolling hash 驗證 | SD 3.2, 6.2 | BR-20 | 1.5 | WIP | 2026-09-14 完成：canonical entry 85 bytes + SHA-256 rolling（`tournament_math.rs`）；begin 預算退款／獎金／餘數並承諾 hash；批次以 remaining_accounts 逐筆核對 PDA、連續 rank、拒絕重複／沒收者；`tests/test_settlement.rs` |
+| PG-C-14 | `settle_tournament` + `claim_prize` 與資金守恆斷言 | SD 6.2 | BR-17 | 2.0 | WIP | 2026-09-14 完成：settle 驗筆數／hash／帳面守恆／vault 實際餘額，餘數歸庫；claim_prize 與預算同源計算、累加 distributed 再斷言、不受 pause；10 人＋挹注全流程領完 vault 歸零。**分配公式為實作定案（SD 6.2），待專案負責人確認 SA-Q7／Q-09** |
+| PG-C-15 | `forfeit_entry` 與證據摘要 | SD 3.2 | BR-21 | 0.5 | WIP | 2026-09-14 完成：ends_at 後、begin 前；非零 evidence（6018）、rules_version 相符（6036）、重複 6034；沒收者質押留在池中、不得排名／領獎／退款 |
+| PG-C-16 | `refund_all` 賽事取消退款 | SD 3.2 | BR-19 | 0.5 | WIP | 2026-09-14 完成：lock 人數不足自動 Cancelled；新增 `cancel_tournament`（admin 隨時／任何人於 ends_at + 7 天後）歸還挹注與沒收質押；refund_all 全額退還、防重領 |
+| PG-C-17 | 錯誤碼 6000-6022 與事件定義 | SD 3.6 | — | 0.5 | WIP | 2026-09-14：6000～6036 全部定義並同步 SD 3.6；事件涵蓋 Config／Player／ClockedIn／Collectible／Tournament 全生命週期 |
 | PG-C-18 | 鏈上測試：單元、property、攻擊案例 | SD 7 | 全部 | 2.0 | TODO | |
 
 ---
@@ -557,6 +557,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.11 | 2026-09-14 | PG-C-13～C-17 完成（WIP）：結算協議、領獎、沒收、取消退款；SD v0.7 |
 | v0.10 | 2026-09-14 | PG-C-11／C-12 完成（WIP）：錦標賽建立／開放／報名／截止／開始 |
 | v0.9 | 2026-09-14 | PG-A-14 完成（WIP）：Gear 頁與 My collection 領取流程、Seeker 版面驗證 |
 | v0.8 | 2026-09-14 | PG-C-09 完成（WIP）：手組 Metaplex Core CPI、max_streak_days、SD v0.5 實作定案 |

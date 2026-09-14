@@ -70,4 +70,12 @@ pub enum ErrorCode {
     InvalidTournamentParam, // 6031
     #[msg("尚未到達或已超過此操作的時間窗")]
     TournamentTimingViolation, // 6032
+    #[msg("此 entry 已領取或已退款")]
+    EntryAlreadySettled, // 6033
+    #[msg("此 entry 已被沒收")]
+    EntryForfeited, // 6034
+    #[msg("最終 rolling hash 與 begin_settlement 承諾不符")]
+    ResultsHashMismatch, // 6035
+    #[msg("rules_version 與賽事不符")]
+    RulesVersionMismatch, // 6036
 }
