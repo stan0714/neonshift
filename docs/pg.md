@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.12（PG-B-14 完成） |
+| 文件版本 | v0.13（PG-B-15 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -172,7 +172,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-B-12 | `GET /player/history` | SD 4.1 | — | 0.5 | WIP | GET /player/history?days≤30：本人、保留期內、最新在前，redeemed_signature 由 B-16 回填；1 端到端測試 |
 | PG-B-13 | `DELETE /player/data` 與延後刪除邏輯 | SD 4.1 | BR-25 | 1.0 | WIP | DELETE /player/data：交易內撤銷 session、刪 snapshots（CASCADE）／attestations／claim_results／tournament_steps、標記 deleted_at；質押賽事延後 202＋deletion_due_at（≤30 天，B-14 接 ends_at）；刪除後重新登入視為新同意；0003 migration；3 端到端＋Postgres 整合 |
 | PG-B-14 | 賽事 API：current、steps、leaderboard 與逐操作 challenge | SD 4.1, 4.2 | — | 1.0 | WIP | 2026-09-14 完成：`chain/{tournament,reader}.ts`（PDA、Tournament 解碼、ISO week_id、RPC 快取讀取）、`tournament/{schema,service,routes}.ts`；steps 走 tournament_steps challenge＋Idempotency-Key、單調不減、窗口／來源／每小時夾限；leaderboard BR-20 排序（Memory／PG 一致）；DELETE /player/data 接鏈上 entry 與 ends_at；vitest 10（含 PG 整合）；SD 4.3A |
-| PG-B-15 | 排行榜、同分決勝與 settlement manifest／rolling hash | SD 4.1, 6.2 | BR-20 | 1.0 | TODO | |
+| PG-B-15 | 排行榜、同分決勝與 settlement manifest／rolling hash | SD 4.1, 6.2 | BR-20 | 1.0 | WIP | 2026-09-14 完成：排序與決勝在 B-14；`tournament/manifest.ts` 與鏈上 `tournament_math.rs` 同編碼（85-byte canonical、SHA-256 rolling），三方向量 Python／Rust／TS 一致；`GET /tournament/{weekId}/manifest`（OPS_TOKEN）含 chain_expected_count 一致性；`ChainReader.listEntries`（getProgramAccounts）；vitest 3 |
 | PG-B-16 | ChainIndexer：finalized 事件同步、orphan 回滾與 redeemed_sig 回填 | SD 2.1, 4.5 | — | 1.0 | TODO | |
 | PG-B-17 | 30 天保留清理排程 | SD 4.5 | BR-25 | 0.5 | TODO | |
 | PG-B-18 | 速率限制、audit log、告警與暫停流程、可觀測性指標 | SD 4.2, 9 | — | 1.0 | WIP | @fastify/rate-limit（錢包／IP，敏感端點較低上限）、結構化稽核（不含 JWT／簽章／body）、/metrics（token）計數＋延遲直方圖、Alerts：重放 >10/日／簽發量 >3× 基線 → log＋webhook（pause 由 admin CLI 執行）；4 測試 |
@@ -557,6 +557,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.13 | 2026-09-14 | PG-B-15 完成（WIP）：結算 manifest |
 | v0.12 | 2026-09-14 | PG-B-14 完成（WIP）：賽事 API |
 | v0.11 | 2026-09-14 | PG-C-13～C-17 完成（WIP）：結算協議、領獎、沒收、取消退款；SD v0.7 |
 | v0.10 | 2026-09-14 | PG-C-11／C-12 完成（WIP）：錦標賽建立／開放／報名／截止／開始 |

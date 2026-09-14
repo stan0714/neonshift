@@ -13,6 +13,7 @@ import { requestHashOf, type Json } from "../claim/canonical.js";
 import { ALLOWED_SOURCE_KINDS, MAX_STEPS_PER_DAY, MAX_STEPS_PER_MINUTE } from "../claim/steps.js";
 import { ApiError } from "../errors.js";
 import type { Store } from "../store/types.js";
+import { buildManifest } from "./manifest.js";
 import { tournamentStepsRequestSchema } from "./schema.js";
 
 export const LEADERBOARD_LIMIT = 100;
@@ -157,6 +158,20 @@ export class TournamentService {
       }
       throw e;
     }
+  }
+
+  /** 結算 manifest（ops）：只在 ends_at 之後、Running／Settling 狀態產生 */
+  async manifest(weekId: number) {
+    const t = await this.chain.getTournament(weekId);
+    if (!t) throw new ApiError(404, "NOT_FOUND", "tournament not found");
+    const nowUnix = Math.floor(this.now().getTime() / 1000);
+    if (nowUnix < t.endsAt) throw new ApiError(409, "TOURNAMENT_NOT_ENDED", "tournament has not ended");
+    if (t.status !== "running" && t.status !== "settling") throw new ApiError(409, "TOURNAMENT_NOT_RUNNING", `tournament is ${t.status}`);
+    const entries = await this.chain.listEntries(weekId);
+    const steps = await this.store.listTournamentSteps(weekId, Number.MAX_SAFE_INTEGER);
+    const m = buildManifest(weekId, t.address, entries, steps);
+    const chainExpected = t.validEntrantCount - t.forfeitedCount;
+    return { ...m, chain_expected_count: chainExpected, consistent: chainExpected === m.expected_count, generated_at: this.now().toISOString(), rules_version: t.rulesVersion };
   }
 
   /** BR-25：有已質押且尚未 Settled／Cancelled 的賽事 → 刪除延後至該賽事 ends_at（不超過保留上限） */

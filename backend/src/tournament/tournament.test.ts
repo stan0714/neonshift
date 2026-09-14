@@ -26,7 +26,7 @@ let chain: StaticChainReader;
 let clock: Date;
 
 const tournament = (over: Partial<TournamentView> = {}): TournamentView => ({
-  address: "T1", weekId: WEEK, status: "running", vault: "V", stakeAmount: 50_000_000n, totalStaked: 500_000_000n, treasuryInjectionCap: 0n, treasuryInjection: 0n,
+  address: "7Vb2s5wmE3sGqcNNpfkqz3jmA4sm3uyE1DK2TDeR6vE8", weekId: WEEK, status: "running", vault: "V", stakeAmount: 50_000_000n, totalStaked: 500_000_000n, treasuryInjectionCap: 0n, treasuryInjection: 0n,
   entrantCount: 10, validEntrantCount: 10, forfeitedCount: 0, groupASize: 1, groupBSize: 2, distributablePool: 0n, distributed: 0n, totalRefund: 0n, totalPrize: 0n, treasuryRemainder: 0n,
   resultsSubmitted: 0, resultsHash: Buffer.alloc(32), resultsRollingHash: Buffer.alloc(32), minEntrants: 10, registrationEndsAt: STARTS - 3600, startsAt: STARTS, endsAt: ENDS, rulesVersion: 3, prizeABps: 6000, prizeBBps: 4000, loserRefundBps: 5000, createdAt: STARTS - 7200,
   ...over,
@@ -37,7 +37,7 @@ beforeEach(async () => {
   chain = new StaticChainReader();
   clock = new Date(CLOCK);
   chain.tournaments.set(WEEK, tournament());
-  app = buildApp({ config: loadConfig({ NODE_ENV: "test", PROGRAM_ID: "6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA" }), db, store, now: () => clock, signer: LocalKeypairSigner.random(), chain });
+  app = buildApp({ config: loadConfig({ NODE_ENV: "test", PROGRAM_ID: "6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA", OPS_TOKEN: "ops-token-for-tests-0001" }), db, store, now: () => clock, signer: LocalKeypairSigner.random(), chain });
   await app.ready();
 });
 afterEach(async () => app.close());
@@ -208,5 +208,35 @@ describe("BR-25：刪除個資遇進行中已質押賽事", () => {
     // 未報名 → 204
     const v = await login();
     expect((await app.inject({ method: "DELETE", url: "/v1/player/data", headers: bearer(v) })).statusCode).toBe(204);
+  });
+});
+
+describe("GET /tournament/:weekId/manifest（PG-B-15，ops）", () => {
+  it("需 OPS_TOKEN；ends_at 前 409；結束後回連續排名、承諾 hash 與鏈上人數一致性", async () => {
+    const a = await enteredUser();
+    const b = await enteredUser();
+    const c = await enteredUser(); // 報名但未回報
+    await submit(a, await authorize(a, stepsBody(10_000, STARTS + 500)));
+    await submit(b, await authorize(b, stepsBody(12_000, STARTS + 900)));
+    const url = `/v1/tournament/${WEEK}/manifest`;
+    expect((await app.inject({ method: "GET", url, headers: bearer(a) })).statusCode).toBe(401);
+    const ops = { authorization: "Bearer ops-token-for-tests-0001" };
+    expect((await app.inject({ method: "GET", url, headers: ops })).json().error.code).toBe("TOURNAMENT_NOT_ENDED");
+    clock = new Date((ENDS + 60) * 1000);
+    chain.tournaments.set(WEEK, tournament({ validEntrantCount: 3, entrantCount: 3, forfeitedCount: 0 }));
+    const res = await app.inject({ method: "GET", url, headers: ops });
+    expect(res.statusCode).toBe(200);
+    const m = res.json();
+    expect(m.items.map((i: { rank: number; wallet: string; final_steps: number }) => [i.rank, i.wallet, i.final_steps])).toEqual([[1, b.wallet, 12_000], [2, a.wallet, 10_000], [3, c.wallet, 0]]);
+    expect(m.expected_count).toBe(3);
+    expect(m.chain_expected_count).toBe(3);
+    expect(m.consistent).toBe(true);
+    expect(m.results_hash_hex).toHaveLength(64);
+    // 沒收 c 後名單縮短，鏈上人數不一致時標示
+    chain.forfeited.add(`${WEEK}:${c.wallet}`);
+    const m2 = (await app.inject({ method: "GET", url, headers: ops })).json();
+    expect(m2.expected_count).toBe(2);
+    expect(m2.forfeited).toEqual([c.wallet]);
+    expect(m2.consistent).toBe(false);
   });
 });

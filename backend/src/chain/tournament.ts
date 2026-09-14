@@ -2,6 +2,7 @@
  * 鏈上 Tournament／TournamentEntry 的 PDA 與解碼（SD 3.1；佈局以 programs/neonshift-core/src/state.rs 為準）。
  * 後端只讀鏈上狀態，不簽任何交易。
  */
+import { createHash } from "node:crypto";
 import { PublicKey } from "@solana/web3.js";
 
 export const TOURNAMENT_STATUS = ["draft", "registration", "locked", "running", "settling", "settled", "cancelled"] as const;
@@ -138,3 +139,27 @@ export function nextWeekId(weekId: number, now: Date): number {
   const n = weekIdOf(next);
   return n > weekId ? n : weekId + 1;
 }
+
+export type EntryView = { wallet: string; stake: bigint; finalSteps: bigint; rank: number; group: number; forfeited: boolean; settled: boolean; joinedAt: number };
+
+/** TournamentEntry：8 disc | tournament 32 | wallet 32 | stake u64 | final_steps u64 | rank u32 | group u8 | forfeited bool | settled bool | evidence 32 | joined_at i64 | bump */
+export function decodeEntry(data: Buffer): EntryView {
+  let o = 8 + 32;
+  const wallet = new PublicKey(data.subarray(o, o + 32)).toBase58();
+  o += 32;
+  const stake = data.readBigUInt64LE(o);
+  o += 8;
+  const finalSteps = data.readBigUInt64LE(o);
+  o += 8;
+  const rank = data.readUInt32LE(o);
+  o += 4;
+  const group = data.readUInt8(o++);
+  const forfeited = data.readUInt8(o++) === 1;
+  const settled = data.readUInt8(o++) === 1;
+  o += 32;
+  const joinedAt = Number(data.readBigInt64LE(o));
+  return { wallet, stake, finalSteps, rank, group, forfeited, settled, joinedAt };
+}
+
+/** Anchor account discriminator = sha256("account:TournamentEntry")[..8] */
+export const ENTRY_DISCRIMINATOR = createHash("sha256").update("account:TournamentEntry").digest().subarray(0, 8);

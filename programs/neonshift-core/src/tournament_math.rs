@@ -210,6 +210,19 @@ mod tests {
         assert_eq!(budget(&tt, 0).unwrap(), (0, 0, 500 * TSKR_UNIT, 500 * TSKR_UNIT));
     }
 
+    /// 三方向量（Python 產生；backend `tournament/manifest.test.ts` 使用同一組），確保後端 manifest 與鏈上承諾一致
+    #[test]
+    fn rolling_hash_cross_language_vector() {
+        let t = [1u8; 32];
+        let items = [([2u8; 32], 50_000u64, 1_789_180_000i64, 1u32), ([3u8; 32], 49_000, 1_789_180_001, 2), ([4u8; 32], 0, 0, 3)];
+        let mut h = [0u8; 32];
+        for (w, steps, at, rank) in items {
+            h = roll(&h, &canonical_result(&t, &w, steps, at, rank, false));
+        }
+        let hex: String = h.iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(hex, "e6f93404e2b0f0aafad67dd3114925b07e0a50373a8e4c90351809f0e8868157");
+    }
+
     #[test]
     fn canonical_layout_and_roll() {
         let c = canonical_result(&[1; 32], &[2; 32], 12_345, 1_789_000_000, 7, true);

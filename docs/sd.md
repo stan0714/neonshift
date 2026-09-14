@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.8（賽事 API） |
+| 文件版本 | v0.9（結算 manifest） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -485,6 +485,7 @@ Response 422（拒絕）
 - `POST /tournament/steps`（Idempotency-Key 必填）：body `{week_id, steps, reached_at, data_origins, step_rate_summary{bucket_minutes: 60, buckets:[[hour_from_starts_at, steps]]}, client, claim_authorization}`；challenge `purpose = tournament_steps`、`task_date = week_id`、`task_type = 1`。檢查順序：schema → idempotency → challenge 驗簽並消耗 → 賽事存在（404）→ 狀態 Running（409 `TOURNAMENT_NOT_RUNNING`）→ 鏈上 entry 存在（403 `NOT_ENTERED`）→ `starts_at ≤ reached_at < ends_at` 且不在未來（422 `OUTSIDE_WINDOW`）→ 來源歸因（只計 `android_legacy`／`current_device_spn`）、每小時桶夾限 250×60、桶總和 = 歸因、上限 40,000×天數 → `verified = min(steps, 歸因, 夾限, 上限)`。`verified_steps` 單調不減（DB `ON CONFLICT … WHERE < EXCLUDED`），提升時 `first_reached_at = reached_at`。回 `{week_id, verified_steps, submitted_steps, accepted, first_reached_at, rank}`。
 - `GET /tournament/{weekId}/leaderboard`：前 100 名，`ORDER BY verified_steps DESC, first_reached_at ASC NULLS LAST, wallet COLLATE "C"`（BR-20：「錢包位元組序」定義為 base58 字串位元組序，Memory／PostgreSQL 一致）；含 `generated_at`、`total_players` 與 `you {rank, verified_steps}`；地址遮罩由 App 負責（本人 row 需完整地址）。
 - BR-25 延後刪除：`DELETE /player/data` 以鏈上 entry 判斷已質押，`deletion_due_at = min(賽事 ends_at, 請求時間 + 30 天)`。
+- `GET /tournament/{weekId}/manifest`（ops，`OPS_TOKEN` Bearer；未設定回 404）【PG-B-15】：`ends_at` 後、Running／Settling 時產生結算 manifest。名單 = 鏈上全部 `TournamentEntry`（`getProgramAccounts` memcmp discriminator + tournament）去掉已沒收者，未回報者以 0 步、`first_reached_at = 0` 排最後；依 BR-20 排序配發連續 rank；每筆附 85-byte canonical hex 與累計 rolling hash，`results_hash_hex` 即 `begin_settlement` 承諾值；`chain_expected_count`／`consistent` 標示與鏈上 `valid - forfeited` 是否一致（不一致代表有沒收尚未上鏈或反之，不得結算）。三方向量（Python／Rust／TS）`e6f93404…8157` 鎖定編碼。
 
 ### 4.4 風險引擎
 
@@ -946,6 +947,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.9 | 2026-09-14 | PG-B-15：結算 manifest 端點與三方向量；ChainReader.listEntries |
 | v0.8 | 2026-09-14 | PG-B-14：賽事 API 4.3A（鏈上為真相、步數夾限與單調、BR-20 排序定義、BR-25 接 ends_at）；新增 `RPC_URL` |
 | v0.7 | 2026-09-14 | PG-C-13～C-16：canonical entry 85 bytes、分配公式（線性遞減／空組／餘數）、cancel_tournament 與 7 天期限、錯誤 6033～6036；settle／claim 以 vault 實際餘額對帳 |
 | v0.6 | 2026-09-14 | PG-C-11／C-12：新增 `create_tournament`、Tournament 欄位 `treasury_injection_cap`／占比／`created_at`、Entry `joined_at`、錯誤 6031／6032；lock 對帳 vault 實際餘額 |

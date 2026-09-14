@@ -1,11 +1,15 @@
 /** 只讀鏈上狀態（PG-B-14）。RPC 實作附短快取，避免每個請求都打 RPC；測試用 StaticChainReader。 */
 import { Connection, PublicKey } from "@solana/web3.js";
 
-import { decodeTournament, entryPda, tournamentPda, type TournamentView } from "./tournament.js";
+import bs58 from "bs58";
+
+import { decodeEntry, decodeTournament, ENTRY_DISCRIMINATOR, entryPda, tournamentPda, type EntryView, type TournamentView } from "./tournament.js";
 
 export interface ChainReader {
   getTournament(weekId: number): Promise<TournamentView | null>;
   hasEntry(weekId: number, wallet: string): Promise<boolean>;
+  /** 該賽事所有 TournamentEntry（結算 manifest 需要全體報名者，含未回報步數者） */
+  listEntries(weekId: number): Promise<EntryView[]>;
 }
 
 export class RpcChainReader implements ChainReader {
@@ -38,6 +42,17 @@ export class RpcChainReader implements ChainReader {
     });
   }
 
+  listEntries(weekId: number) {
+    return this.cached(`entries:${weekId}`, async () => {
+      const tournament = tournamentPda(this.programId, weekId);
+      const accounts = await this.conn.getProgramAccounts(this.programId, {
+        commitment: "confirmed",
+        filters: [{ memcmp: { offset: 0, bytes: bs58.encode(ENTRY_DISCRIMINATOR) } }, { memcmp: { offset: 8, bytes: tournament.toBase58() } }],
+      });
+      return accounts.map((a) => decodeEntry(Buffer.from(a.account.data)));
+    });
+  }
+
   hasEntry(weekId: number, wallet: string) {
     return this.cached(`e:${weekId}:${wallet}`, async () => {
       const pda = entryPda(this.programId, tournamentPda(this.programId, weekId), new PublicKey(wallet));
@@ -51,10 +66,17 @@ export class RpcChainReader implements ChainReader {
 export class StaticChainReader implements ChainReader {
   tournaments = new Map<number, TournamentView>();
   entries = new Set<string>();
+  forfeited = new Set<string>();
   async getTournament(weekId: number) {
     return this.tournaments.get(weekId) ?? null;
   }
   async hasEntry(weekId: number, wallet: string) {
     return this.entries.has(`${weekId}:${wallet}`);
+  }
+  async listEntries(weekId: number) {
+    return [...this.entries]
+      .filter((k) => k.startsWith(`${weekId}:`))
+      .map((k) => k.slice(String(weekId).length + 1))
+      .map((wallet) => ({ wallet, stake: 0n, finalSteps: 0n, rank: 0, group: 0, forfeited: this.forfeited.has(`${weekId}:${wallet}`), settled: false, joinedAt: 0 }));
   }
 }
