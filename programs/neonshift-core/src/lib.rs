@@ -15,7 +15,7 @@ pub use constants::*;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf");
+declare_id!("6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA");
 
 #[program]
 pub mod neonshift_core {

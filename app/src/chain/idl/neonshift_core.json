@@ -1,5 +1,5 @@
 {
-  "address": "5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf",
+  "address": "6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA",
   "metadata": {
     "name": "neonshift_core",
     "version": "0.1.0",
@@ -243,7 +243,7 @@
           "docs": [
             "本程式帳戶（upgradeable loader）"
           ],
-          "address": "5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf"
+          "address": "6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA"
         },
         {
           "name": "program_data"

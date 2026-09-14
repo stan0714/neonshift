@@ -30,7 +30,8 @@ config_pda() { solana find-program-derived-address "$1" string:config | awk '{pr
 
 # 回填 KEY=VALUE 到 deploy/<env>.env
 set_env_value() {
-  local env="$1" key="$2" value="$3" f="$ROOT/deploy/$env.env"
+  local envname="$1" key="$2" value="$3"
+  local f="$ROOT/deploy/$envname.env"
   if grep -q "^$key=" "$f"; then
     sed -i '' "s|^$key=.*|$key=$value|" "$f"
   else
