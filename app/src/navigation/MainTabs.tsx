@@ -4,6 +4,7 @@ import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { color, glowStyle, layout, typography } from "@/theme";
+import { EvolutionReveal } from "@/components/EvolutionReveal";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { ArenaScreen } from "@/screens/tabs/ArenaScreen";
 import { GearScreen } from "@/screens/tabs/GearScreen";
@@ -76,6 +77,7 @@ export function MainTabs() {
         <Tab.Screen name="Arena" component={ArenaScreen} />
         <Tab.Screen name="Profile" component={ProfileScreen} />
       </Tab.Navigator>
+      <EvolutionReveal />
     </>
   );
 }

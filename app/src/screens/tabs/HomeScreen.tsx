@@ -10,6 +10,7 @@ import { secondsUntilUtcMidnight, type TaskType } from '@/domain/taskEngine';
 import type { ClaimInput, ClaimPhase } from '@/services/claim/ClaimFlow';
 import { estimateReward, formatTskr, sleepProgress, stepsProgress, useDashboardStore } from '@/state/dashboardStore';
 import { healthConnect, type HealthPermissionSummary } from '@/services/health/HealthConnectService';
+import { useLevelRevealStore } from '@/state/levelRevealStore';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
 import { color, space, Text, useTheme } from '@/theme';
 
@@ -75,6 +76,10 @@ export function HomeScreen() {
       if (p.kind === 'awaiting_signature') d.dispatch(type, { kind: 'attested' });
       if (p.kind === 'confirming') d.dispatch(type, { kind: 'sent' });
       if (p.kind === 'confirmed' || p.kind === 'already_claimed') d.dispatch(type, { kind: 'receipt_exists' });
+      if (p.kind === 'confirmed') {
+        useLevelRevealStore.getState().setLastTx(p.signature ?? null);
+        if (session) void d.syncChain(session.publicKey); // 升級發生在打卡交易內：立即重讀 profile 觸發 reveal
+      }
       if (p.kind === 'rejected') d.dispatch(type, { kind: 'rejected' });
       if (p.kind === 'failed') d.dispatch(type, { kind: 'failed' });
     },
