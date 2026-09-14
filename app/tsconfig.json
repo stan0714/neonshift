@@ -1,0 +1,22 @@
+{
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "extends": "expo/tsconfig.base",
+  "exclude": [
+    "node_modules",
+    "android"
+  ],
+  "compilerOptions": {
+    "types": [
+      "jest"
+    ],
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    },
+    "strict": true
+  }
+}

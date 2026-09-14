@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "orientation": "portrait",
+    "version": "0.1.0",
+    "android": {
+      "package": "xyz.neonshift.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#050711",
+        "monochromeImage": "./assets/android-icon-monochrome.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "blockedPermissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION"
+      ],
+      "permissions": [
+        "android.permission.ACTIVITY_RECOGNITION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_SLEEP",
+        "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "userInterfaceStyle": "dark",
+    "plugins": [
+      "expo-dev-client",
+      "expo-secure-store",
+      "react-native-health-connect",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.0.0",
+            "compileSdkVersion": 36,
+            "minSdkVersion": 34
+          }
+        }
+      ],
+      "expo-asset",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#050711",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain"
+        }
+      ]
+    ],
+    "platforms": [
+      "android"
+    ],
+    "backgroundColor": "#050711",
+    "name": "NeonShift",
+    "slug": "neonshift",
+    "scheme": "neonshift",
+    "icon": "./assets/icon.png"
+  }
+}

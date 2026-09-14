@@ -123,10 +123,12 @@ anchor --version
 ### 2.1 建立 Expo 專案
 
 ```bash
-cd ~/Documents/GitHub/neonshift
+cd <repo 根目錄>
 npx create-expo-app@latest app --template blank-typescript
 cd app
 ```
+
+實際建立時使用 Expo SDK 57（React Native 0.86、React 19.2、TypeScript 6）。`package.json` 只保留 Android 相關 script（`start` 帶 `--dev-client`、`android`、`android:release`、`typecheck`、`lint`、`test`），移除 `ios`／`web`。
 
 專案結構建議如下，與 SD 第 2 章的分層對應。
 
@@ -178,31 +180,42 @@ npm install lottie-react-native
     "version": "0.1.0",
     "scheme": "neonshift",
     "userInterfaceStyle": "dark",
+    "backgroundColor": "#050711",
     "platforms": ["android"],
     "android": {
       "package": "xyz.neonshift.app",
       "versionCode": 1,
-      "minSdkVersion": 34,
-      "compileSdkVersion": 35,
-      "targetSdkVersion": 35,
       "permissions": [
         "android.permission.ACTIVITY_RECOGNITION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.health.READ_STEPS",
         "android.permission.health.READ_SLEEP",
         "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"
+      ],
+      // FR-07.3 只用粗粒度定位；expo-location 預設會加 FINE，明確擋掉
+      "blockedPermissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION"
       ]
     },
     "plugins": [
       "expo-dev-client",
       "expo-secure-store",
-      "react-native-health-connect"
+      "react-native-health-connect",
+      // SDK 57 起 android.minSdkVersion 等欄位不再由 app.json 直接套用，改用 expo-build-properties
+      ["expo-build-properties", { "android": {
+        "minSdkVersion": 34, "compileSdkVersion": 36, "targetSdkVersion": 36, "buildToolsVersion": "36.0.0"
+      } }],
+      // Style 8.1：canvas 背景、置中 mark、無 spinner
+      ["expo-splash-screen", { "backgroundColor": "#050711", "image": "./assets/splash-icon.png", "imageWidth": 160, "resizeMode": "contain" }]
     ]
   }
 }
 ```
 
 `"platforms": ["android"]` 明確排除 iOS，對應 BRD 決策 D-04。
+
+compileSdk／targetSdk 採 36 而非原規劃的 35：React Native 0.86 與 Expo SDK 57 的原生模組以 API 36 編譯，強降 35 會讓部分相依無法解析；minSdk 維持 34（Health Connect 內建於系統的最低版本，BRD NFR 相容性）。完整可用版本以 `app/app.json` 為準。
 
 ### 2.4 生成原生目錄
 
@@ -243,6 +256,8 @@ Android 14 起 Health Connect 已內建於系統，不需另外安裝 App。但�
 
 因為 minSdk 為 34，**不需要**舊版的 `androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE` intent filter，也不需要 `<queries>` 宣告 Health Connect 套件。
 
+`react-native-health-connect` 的 config plugin 在 prebuild 時會自動加入上述 `activity-alias`（同時也會加舊版 rationale filter，無害）；prebuild 後以 `grep -n activity-alias android/app/src/main/AndroidManifest.xml` 確認即可，不需手改。
+
 ### 3.2 本地後端連線（僅 debug）
 
 實機要連開發機的後端時，在 `android/app/src/debug/` 建立 `AndroidManifest.xml`：
@@ -255,13 +270,15 @@ Android 14 起 Health Connect 已內建於系統，不需另外安裝 App。但�
 
 放在 `debug/` 目錄，release 版不受影響。
 
+Expo SDK 57 的 prebuild 模板已內建這份 debug manifest（含 `usesCleartextTraffic="true"`），不需手動建立；確認 `android/app/src/debug/AndroidManifest.xml` 存在即可。
+
 ### 3.3 確認 Gradle 設定
 
 ```bash
-grep -n "minSdkVersion\|targetSdkVersion\|compileSdkVersion" android/build.gradle
+grep -n "SdkVersion" android/gradle.properties
 ```
 
-三者應為 34 / 35 / 35。
+應為 `android.minSdkVersion=34`、`android.compileSdkVersion=36`、`android.targetSdkVersion=36`（由 expo-build-properties 寫入；SDK 57 不再放在 `build.gradle` 的 `ext`）。
 
 ---
 
