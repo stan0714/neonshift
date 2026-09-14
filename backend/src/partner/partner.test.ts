@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../app.js";
 import { loadConfig } from "../config.js";
 import type { Db } from "../db.js";
+import { RetentionService } from "../retention/service.js";
 import { LocalKeypairSigner } from "../signer/index.js";
 import { MemoryStore } from "../store/memory.js";
 
@@ -24,7 +25,9 @@ beforeEach(async () => {
 afterEach(async () => app.close());
 
 async function login() {
-  const kp = nacl.sign.keyPair();
+  return loginAs(nacl.sign.keyPair());
+}
+async function loginAs(kp: nacl.SignKeyPair) {
   const wallet = bs58.encode(kp.publicKey);
   const n = (await app.inject({ method: "POST", url: "/v1/auth/nonce", payload: { wallet } })).json();
   const sig = Buffer.from(nacl.sign.detached(new TextEncoder().encode(n.message), kp.secretKey)).toString("base64");
@@ -39,6 +42,7 @@ async function login() {
       out.h = { authorization: `Bearer ${r.access_token as string}` };
       out.refresh = r.refresh_token as string;
     },
+    kp,
   };
   return out;
 }
@@ -404,5 +408,50 @@ describe("PG-E-02 partner API", () => {
     await Promise.all([publisher.renew(), editor.renew()]);
     const late = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/result-imports`, headers: editor.h, payload: { csv: `${HEAD}\n${b.wallet},walk,,finished,5000,3000000,1` } }));
     expect((await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/result-imports/${late.import_id}/publish`, headers: publisher.h, payload: {} })).json().error.code).toBe("RECENT_LOGIN_REQUIRED");
+  });
+  it("保留與刪除（PG-E-09）：宣傳彙總含轉換率與 CSV；活動結束 180 天後清理個人層資料但保留活動／彙總；DELETE /player/data 同步移除該錢包活動資料並釋放預留", async () => {
+    const { owner, orgId } = await orgWithOwner();
+    const ev = j(await app.inject({ method: "POST", url: "/v1/partner/events", headers: owner.h, payload: draft(orgId) }));
+    const rev = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/rule-revisions`, headers: owner.h, payload: { rules: {} } }));
+    await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/publish`, headers: owner.h, payload: { revision_id: rev.revision_id } });
+    const gate = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/checkpoints`, headers: owner.h, payload: { name: "Gate", purpose: "check_in" } }));
+    const towel = j(await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/benefits`, headers: owner.h, payload: { kind: "physical", name: "Towel", stock_total: 5, requires_checkin: false } }));
+    await app.inject({ method: "GET", url: `/v1/events/river-5k?source=ig` });
+    const a = await login();
+    const b = await login();
+    await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations?source=ig`, headers: a.h, payload: { accepted_rule_revision: rev.revision_id, display_name: "Alice", public_consent: true } });
+    await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/registrations`, headers: b.h, payload: { accepted_rule_revision: rev.revision_id } });
+    const ch = j(await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/check-in-challenges`, headers: a.h, payload: { checkpoint_id: gate.checkpoint_id } }));
+    await app.inject({ method: "POST", url: `/v1/partner/events/${ev.event_id}/check-ins`, headers: owner.h, payload: { code: ch.code, checkpoint_id: gate.checkpoint_id } });
+    await app.inject({ method: "POST", url: `/v1/events/${ev.event_id}/redemptions`, headers: b.h, payload: { benefit_id: towel.benefit_id, idempotency_key: "11111111-1111-4111-8111-111111111111" } });
+    // 彙總：ig 來源 1 view / 1 registration；轉換率；CSV
+    const sum = j(await app.inject({ method: "GET", url: `/v1/partner/events/${ev.event_id}/campaign-summary`, headers: owner.h }));
+    expect(sum.by_source.ig).toMatchObject({ views: 1, registrations: 1 });
+    expect(sum.conversion.ig.registration_rate).toBe(1);
+    expect(sum.retention.purged_at).toBeNull();
+    const csv = await app.inject({ method: "GET", url: `/v1/partner/events/${ev.event_id}/campaign-summary?format=csv`, headers: owner.h });
+    expect(csv.headers["content-type"]).toMatch(/text\/csv/);
+    expect(csv.body.split("\n")[0]).toBe("source,day,views,registrations,checkins,redemptions");
+    // DELETE /player/data（b）：報名、預留消失，庫存釋放；a 不受影響
+    const del = await app.inject({ method: "DELETE", url: `/v1/player/data`, headers: b.h });
+    expect(del.statusCode).toBe(204);
+    expect(await store.getParticipant(ev.event_id, b.wallet)).toBeNull();
+    expect((await store.getBenefit(ev.event_id, towel.benefit_id))?.reservedCount).toBe(0);
+    expect((await store.getParticipant(ev.event_id, a.wallet))?.status).toBe("checked_in");
+    // 保留：活動結束（2026-10-03T04:00Z）＋180 天前不清；到期後清理個人層資料，活動與彙總保留
+    let r = await new RetentionService(store, () => new Date("2027-03-01T00:00:00Z")).runOnce();
+    expect(r.events.events).toEqual([]);
+    r = await new RetentionService(store, () => new Date("2027-04-05T00:00:00Z")).runOnce();
+    expect(r.events).toMatchObject({ events: [ev.event_id], participants: 1, checkins: 1 });
+    expect(await store.getParticipant(ev.event_id, a.wallet)).toBeNull();
+    expect(await store.listCheckins(ev.event_id)).toEqual([]);
+    expect((await store.getEvent(ev.event_id))?.purgedAt).toBeTruthy();
+    expect(j(await app.inject({ method: "GET", url: `/v1/events/river-5k` })).title).toBe("River 5K");
+    // 時間快轉後 owner 的 session 也被保留清理清掉（正常）；重新登入後彙總仍在
+    const ownerAgain = await loginAs(owner.kp);
+    expect(j(await app.inject({ method: "GET", url: `/v1/partner/events/${ev.event_id}/campaign-summary`, headers: ownerAgain.h })).by_source.ig.registrations).toBe(1);
+    // 二次執行不重複
+    r = await new RetentionService(store, () => new Date("2027-04-06T00:00:00Z")).runOnce();
+    expect(r.events.events).toEqual([]);
   });
 });

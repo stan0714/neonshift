@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.19（活動成績） |
+| 文件版本 | v0.20（活動保留） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -930,6 +930,8 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 
 活動履歷、匯入原檔、核銷與公開同意需各有 retention_due_at；試辦前依 Q-13 定案並同步 DELETE /player/data。不得因合作方匯出繞過刪除與公開同意；公開榜只回同意的顯示名稱。原始健康摘要仍限 30 天；活動留存政策未配置則禁止發布正式活動。
 
+**實作（2026-09-14，PG-E-09）**：宣傳彙總 `GET /partner/events/{id}/campaign-summary` 加 `conversion`（views→registrations→checkins 比率）與 `?format=csv`（`csvSafeCell` 防公式注入）。保留：migration 0008 `events.purged_at`；`RetentionService` 每輪呼叫 `purgeEventData(now − EVENT_RETENTION_DAYS)`（預設 180 天，環境變數可調；Q-13／DEC-06 定案後更新）：對 `COALESCE(cancelled_at, ends_at)` 早於 cutoff 且未清理的活動，在單一交易內釋放未交付預留、刪除 badge_issues／redemptions／checkins／challenges／result_revisions／participant 載具／participants，並清空 `result_imports.staged_rows.rows`（保留 hash 與版本紀錄），最後標記 `purged_at`；活動、規則版本、品項計數、稽核與 `campaign_aggregates` 保留。`DELETE /player/data`（立即刪除路徑）同步對該錢包所有活動執行同樣清理（`deleteWalletEventData`）。Runbook 7.8 提供合作活動 API 操作流程。
+
 驗收包含：跨租戶越權、容量並發、複製 NFC URL、停用／補發卡、過期 challenge 重放、無 NFC、離線後重試、庫存最後一件並發、交付／expiry 競態、活動取消競態、CSV 重複／錯誤單位、成績更正、撤回公開同意及資料到期刪除。端到端 Demo 使用一場合作活動完成報名至成績冊及品項對帳；測試數據標示為測試。
 
 ## 附錄 A：對應關係速查
@@ -965,6 +967,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.20 | 2026-09-14 | PG-E-09：宣傳轉換、活動保留清理與 player 刪除同步 |
 | v0.19 | 2026-09-14 | PG-E-07／E-08：CSV staging、發布與更正歷史、公開榜／成績冊實作說明 |
 | v0.18 | 2026-09-14 | PG-E-06：品項庫存、原子預留／交付、數位徽章實作說明 |
 | v0.17 | 2026-09-14 | PG-E-05：報到 challenge 與 staff 報到實作說明 |

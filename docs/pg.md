@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.31（PG-E-07／E-08 完成） |
+| 文件版本 | v0.32（PG-E-09 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -533,7 +533,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-E-06 | 品項庫存、原子核銷、實體交付及數位徽章 | SD 11.3、11.4 | FR-11、BR-30、BR-33 | 3.5 | WIP | 2026-09-14 完成：migration 0007（claim_code）；品項建立／公開投影／對帳；原子預留（鎖 event→benefit→participant、名單／報到／截止／每人上限／庫存、冪等 key、15 分鐘保留）、數位徽章同交易發放憑證、staff 交付（只交付 reserved、重試 already、逾期 410、取消 409、稽核）、lazy 逾期釋放、活動取消釋放預留（BR-33）、對帳分狀態計數（FR-11.4）、event-history 附核銷；App `Perks`（EventDetail）與 StaffCheckIn「權益交付」模式；vitest 11、Jest 170。待：相機掃描、實機驗證、checkpoint 限定 staff 的交付站點約束 |
 | PG-E-07 | CSV 成績 staging、發布與更正歷史 | SD 11.2、11.5 | FR-12.1、FR-12.2、BR-31 | 3.0 | WIP | 2026-09-14 完成：CSV v1 解析／逐列驗證（表頭、名單、狀態、單位、重複、大小上限）、staging（版本遞增、hash、預覽、錯誤）、publisher 發布（近期登入、無錯誤、更正需原因、previous_revision 鏈、稽核）；vitest csv 3＋端到端 1。待：合作方網頁介面（目前 API）、FR-12.4 webhook（S） |
 | PG-E-08 | 個人成績冊與公開榜、顯示同意設定 | SD 11.2、11.5 | FR-12.3、BR-32 | 1.5 | WIP | 2026-09-14 完成：公開榜 API（只回同意者顯示名稱、主辦方名次排序、DNF／DNS／DQ 另列、標示來源）、event-history 成績版本；App `Results`（公開榜、本人成績與更正、公開同意／顯示名稱設定）；Jest 3。待：實機驗證 |
-| PG-E-09 | 宣傳轉換彙總、活動保留／刪除與操作文件 | SD 11.5 | FR-09.3、BR-32 | 1.5 | TODO | |
+| PG-E-09 | 宣傳轉換彙總、活動保留／刪除與操作文件 | SD 11.5 | FR-09.3、BR-32 | 1.5 | WIP | 2026-09-14 完成：campaign-summary 轉換率＋CSV 匯出；migration 0008；`EVENT_RETENTION_DAYS`（180）活動個人層資料清理（保留活動／規則／稽核／彙總）；DELETE /player/data 同步清活動資料並釋放預留；Runbook 7.8 合作活動操作；vitest 1。待：Q-13／DEC-06 定案後調整天數與公開同意處置 |
 | PG-E-10 | 合作試辦、實機 NFC／核銷及成績端到端驗收 | SD 11.5 | FR-09～FR-12 | 2.0 | TODO | |
 
 估算是第一階段活動模組粗估，PG-E-04 的可選卡片派發規模依 Q-11 重估；FR-12.4 供應商 API／webhook 不含於此 24 人天，選定供應商後新增工作列並更新統計。FR-11 後續鏈上活動獎勵亦不含在初估。
@@ -565,6 +565,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.32 | 2026-09-14 | PG-E-09 完成（WIP）：宣傳轉換、活動保留清理、操作文件 |
 | v0.31 | 2026-09-14 | PG-E-07／E-08 完成（WIP）：成績 CSV、發布／更正、公開榜與成績冊 |
 | v0.30 | 2026-09-14 | PG-E-06 完成（WIP）：品項庫存、預留／交付、數位徽章 |
 | v0.29 | 2026-09-14 | PG-E-05 完成（WIP）：報到 challenge 與 staff 報到 |

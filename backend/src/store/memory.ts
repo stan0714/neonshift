@@ -442,6 +442,37 @@ export class MemoryStore implements Store {
       return { ...x, displayName: p?.displayName ?? null, publicConsent: !!p?.publicConsentAt };
     });
   }
+  // ---- PG-E-09 ----
+  private wipeWalletInEvent(eventId: string, wallet: string, counts: { participants: number; checkins: number; redemptions: number; results: number }) {
+    const before = this.checkins.length;
+    this.checkins = this.checkins.filter((c) => !(c.eventId === eventId && c.wallet === wallet));
+    counts.checkins += before - this.checkins.length;
+    for (const [k, c] of this.checkinChallenges) if (c.eventId === eventId && c.wallet === wallet) this.checkinChallenges.delete(k);
+    for (const [k, r] of this.redemptions) if (r.eventId === eventId && r.wallet === wallet) { if (r.status === "reserved") this.release(r, "cancelled"); this.redemptions.delete(k); counts.redemptions += 1; }
+    const rb = this.resultRevisions.length;
+    this.resultRevisions = this.resultRevisions.filter((r) => !(r.eventId === eventId && r.wallet === wallet));
+    counts.results += rb - this.resultRevisions.length;
+    for (const imp of this.resultImports.values()) if (imp.eventId === eventId) imp.stagedRows = imp.stagedRows.filter((r) => r.wallet !== wallet);
+    for (const [k, t] of this.tags) if (t.eventId === eventId && t.participantWallet === wallet) this.tags.delete(k);
+    if (this.participants.delete(`${eventId}:${wallet}`)) counts.participants += 1;
+  }
+  async purgeEventData(cutoff: Date, now: Date) {
+    const counts = { events: [] as string[], participants: 0, checkins: 0, redemptions: 0, results: 0 };
+    for (const e of this.events.values()) {
+      const end = e.cancelledAt ?? e.endsAt;
+      if (e.purgedAt || !end || end >= cutoff) continue;
+      for (const p of [...this.participants.values()]) if (p.eventId === e.eventId) this.wipeWalletInEvent(e.eventId, p.wallet, counts);
+      for (const imp of this.resultImports.values()) if (imp.eventId === e.eventId) imp.stagedRows = [];
+      e.purgedAt = now;
+      counts.events.push(e.eventId);
+    }
+    return counts;
+  }
+  async deleteWalletEventData(wallet: string, _now: Date) {
+    const counts = { participants: 0, checkins: 0, redemptions: 0, results: 0 };
+    for (const p of [...this.participants.values()]) if (p.wallet === wallet) this.wipeWalletInEvent(p.eventId, wallet, counts);
+    return counts;
+  }
   async listResultHistory(eventId: string, wallet: string) {
     // 同一時刻發布時以插入順序為準（後發布者在前）
     return this.resultRevisions.filter((x) => x.eventId === eventId && x.wallet === wallet).reverse().sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime()).map((x) => ({ ...x }));
@@ -588,6 +619,7 @@ export class MemoryStore implements Store {
     for (const [k, a] of this.attestations) if (a.wallet === wallet) { this.attestations.delete(k); attestations++; }
     let claimResults = 0;
     for (const [k, r] of this.claimResults) if (r.wallet === wallet) { this.claimResults.delete(k); claimResults++; }
+    await this.deleteWalletEventData(wallet, now); // BR-32：活動個人層資料一併刪除
     return { deferred: false, deletionDueAt: null, deleted: { snapshots: before - this.snapshots.length, attestations, claimResults, sessions } };
   }
 }

@@ -7,13 +7,16 @@
 import { RETENTION_DAYS } from "../player/routes.js";
 import type { Store } from "../store/types.js";
 
-export type RetentionReport = { cutoff: string; purged: Awaited<ReturnType<Store["purgeExpired"]>>; deferredDeletions: string[] };
+export const EVENT_RETENTION_DAYS = 180;
+export type RetentionReport = { cutoff: string; purged: Awaited<ReturnType<Store["purgeExpired"]>>; deferredDeletions: string[]; events: Awaited<ReturnType<Store["purgeEventData"]>> };
 
 export class RetentionService {
   constructor(
     private readonly store: Store,
     private readonly now: () => Date = () => new Date(),
     private readonly retentionDays = RETENTION_DAYS,
+    /** 活動個人層資料保留天數（PG-E-09；Q-13／DEC-06 定案前預設 180） */
+    private readonly eventRetentionDays = EVENT_RETENTION_DAYS,
   ) {}
 
   async runOnce(): Promise<RetentionReport> {
@@ -25,19 +28,20 @@ export class RetentionService {
       await this.store.deletePlayerData(wallet, now, null);
       await this.store.markDeletionDone(wallet);
     }
-    return { cutoff: cutoff.toISOString(), purged, deferredDeletions: due };
+    const events = await this.store.purgeEventData(new Date(now.getTime() - this.eventRetentionDays * 86_400_000), now);
+    return { cutoff: cutoff.toISOString(), purged, deferredDeletions: due, events };
   }
 }
 
-export function startRetention(store: Store, log: { info: (o: unknown, m?: string) => void; error: (o: unknown, m?: string) => void }, intervalMs: number, now?: () => Date) {
-  const svc = new RetentionService(store, now);
+export function startRetention(store: Store, log: { info: (o: unknown, m?: string) => void; error: (o: unknown, m?: string) => void }, intervalMs: number, now?: () => Date, eventRetentionDays = EVENT_RETENTION_DAYS) {
+  const svc = new RetentionService(store, now, RETENTION_DAYS, eventRetentionDays);
   let running = false;
   const tick = async () => {
     if (running) return;
     running = true;
     try {
       const r = await svc.runOnce();
-      if (Object.values(r.purged).some((n) => n > 0) || r.deferredDeletions.length) log.info(r, "retention run");
+      if (Object.values(r.purged).some((n) => n > 0) || r.deferredDeletions.length || r.events.events.length) log.info(r, "retention run");
     } catch (e) {
       log.error({ err: e }, "retention run failed");
     } finally {

@@ -535,6 +535,37 @@ ssh root@l1.neonshift.cc 'journalctl -u neonshift-api -n 100 --no-pager'
 
 attestor 私鑰只在 `neonshift-signer.service`（`127.0.0.1:6081`、獨立帳號）；API 透過 `ATTESTOR_SIGNER=http:http://127.0.0.1:6081` 簽章。鏈上 `Config.attestor_pubkey` 需與 `/etc/neonshift/keys/attestor.json` 一致（`init-config` 用同一把 `~/.config/neonshift/dev/attestor.json`）。
 
+### 7.8 合作活動操作（PG-E-01～E-09）
+
+目前沒有合作方網頁介面，全部以 API 操作（`API=https://api.neonshift.cc/v1`）。錢包登入用 App 的 SIWS；下列 `$OWNER`／`$PUB`／`$EDITOR` 為對應角色的 access token（可用 `POST /auth/nonce` → 錢包簽 → `POST /auth/verify` 取得；發布／取消／權限變更需 30 分鐘內登入）。
+
+```bash
+# 1. ops 建組織並指定第一位 owner（OPS_TOKEN 在 l1 /etc/neonshift/api.env）
+curl -s -X POST $API/partner/orgs -H "Authorization: Bearer $OPS_TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"Taipei Run Club","slug":"taipei-run","owner_wallet":"<owner wallet>"}'
+# 2. owner 建活動草稿 → 規則版本 → 發布
+curl -s -X POST $API/partner/events -H "Authorization: Bearer $OWNER" -H 'content-type: application/json' \
+  -d '{"org_id":"<org_id>","slug":"river-5k","title":"River 5K","timezone":"Asia/Taipei","starts_at":"2026-10-03T00:00:00Z","ends_at":"2026-10-03T04:00:00Z","capacity":100}'
+curl -s -X POST $API/partner/events/$EV/rule-revisions -H "Authorization: Bearer $OWNER" -H 'content-type: application/json' -d '{"rules":{"distance_m":5000}}'
+curl -s -X POST $API/partner/events/$EV/publish -H "Authorization: Bearer $OWNER" -H 'content-type: application/json' -d '{"revision_id":"<revision_id>"}'
+# 3. 站點、角色、品項
+curl -s -X POST $API/partner/events/$EV/checkpoints -H "Authorization: Bearer $OWNER" -H 'content-type: application/json' -d '{"name":"Gate","purpose":"check_in"}'
+curl -s -X POST $API/partner/events/$EV/roles -H "Authorization: Bearer $OWNER" -H 'content-type: application/json' -d '{"wallet":"<staff wallet>","role":"staff","checkpoint_id":"<gate id>"}'
+curl -s -X POST $API/partner/events/$EV/benefits -H "Authorization: Bearer $OWNER" -H 'content-type: application/json' -d '{"kind":"physical","name":"Towel","stock_total":200}'
+# 4. NFC 標籤內容（寫入 NDEF URI）：POST …/tags 回傳的 url，例如 https://neonshift.cc/e/river-5k?tag=<ref>
+# 5. 活動日：staff 用 App「Staff tools」報到／交付；對帳
+curl -s $API/partner/events/$EV/check-ins  -H "Authorization: Bearer $OWNER"
+curl -s $API/partner/events/$EV/redemptions -H "Authorization: Bearer $OWNER"
+# 6. 成績：result_editor 上傳 CSV（schema v1，wallet 為 participant_ref）→ 看逐列錯誤 → publisher 發布；更正再傳一版並附 reason
+curl -s -X POST $API/partner/events/$EV/result-imports -H "Authorization: Bearer $EDITOR" -H 'content-type: application/json' \
+  -d "$(python3 -c 'import json,sys;print(json.dumps({"csv":open("results.csv").read()}))')"
+curl -s -X POST $API/partner/events/$EV/result-imports/$IMP/publish -H "Authorization: Bearer $PUB" -H 'content-type: application/json' -d '{}'
+# 7. 宣傳轉換（JSON 或 CSV）
+curl -s "$API/partner/events/$EV/campaign-summary?format=csv" -H "Authorization: Bearer $OWNER"
+```
+
+保留：活動結束／取消後 `EVENT_RETENTION_DAYS`（預設 180，Q-13 定案前）由保留清理刪除名單、報到、核銷、成績版本與匯入原檔列，只留活動、規則、稽核與宣傳彙總；`DELETE /player/data` 立即同步移除該錢包的活動個人層資料。稽核：`GET /partner/events/$EV/audit`。
+
 ## 8. 測試包（Release APK）產出
 
 ### 8.1 產生 keystore（只做一次）

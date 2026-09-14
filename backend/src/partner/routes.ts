@@ -13,7 +13,7 @@ import { canonicalize, type Json } from "../claim/canonical.js";
 import { ApiError } from "../errors.js";
 import type { EventBenefit, EventRedemption, EventRow, EventRuleRevision, ResultImport, ResultRevision, Store } from "../store/types.js";
 import { PartnerAuthz } from "./authz.js";
-import { RESULT_CSV_MAX_BYTES, stageResultsCsv } from "./csv.js";
+import { csvSafeCell, RESULT_CSV_MAX_BYTES, stageResultsCsv } from "./csv.js";
 
 const uuid = z.string().uuid();
 export const CHECKIN_CHALLENGE_SECONDS = 120;
@@ -484,7 +484,7 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
     return { event_id: e.eventId, slug: e.slug, total_finished: finished.length, results: finished.slice(q.offset, q.offset + q.limit).map(pub), non_finishers: others.map(pub), source: "organizer" };
   });
 
-  app.get("/partner/events/:id/campaign-summary", { preHandler: requireAuth(auth) }, async (req) => {
+  app.get("/partner/events/:id/campaign-summary", { preHandler: requireAuth(auth) }, async (req, reply) => {
     const id = parse(uuid, (req.params as { id: string }).id);
     const access = await authz.requireEventRole(id, req.auth!.wallet, []);
     if (!access.isOwner) throw new ApiError(403, "ROLE_FORBIDDEN", "organization owner required");
@@ -494,7 +494,14 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
       const t = (bySource[r.source] ??= { views: 0, registrations: 0, checkins: 0, redemptions: 0 });
       t.views += r.views; t.registrations += r.registrations; t.checkins += r.checkins; t.redemptions += r.redemptions;
     }
-    return { event_id: id, registration_count: access.event.registrationCount, capacity: access.event.capacity, by_source: bySource, daily: rows };
+    // 轉換率（FR-09.3）：來源 views → registrations → checkins；views 為 0 時不計
+    const conv = Object.fromEntries(Object.entries(bySource).map(([k, v]) => [k, { registration_rate: v.views > 0 ? Number((v.registrations / v.views).toFixed(4)) : null, checkin_rate: v.registrations > 0 ? Number((v.checkins / v.registrations).toFixed(4)) : null }]));
+    const format = (req.query as { format?: string } | undefined)?.format;
+    if (format === "csv") {
+      const lines = ["source,day,views,registrations,checkins,redemptions", ...rows.map((r) => [csvSafeCell(r.source), r.day, r.views, r.registrations, r.checkins, r.redemptions].join(","))];
+      return reply.type("text/csv; charset=utf-8").header("content-disposition", `attachment; filename="campaign-${access.event.slug}.csv"`).send(`${lines.join("\n")}\n`);
+    }
+    return { event_id: id, registration_count: access.event.registrationCount, capacity: access.event.capacity, by_source: bySource, conversion: conv, daily: rows, retention: { purged_at: access.event.purgedAt?.toISOString() ?? null } };
   });
 
   // ---- ops：組織與第一位 owner ----

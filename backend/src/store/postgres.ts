@@ -191,6 +191,7 @@ export class PostgresStore implements Store {
     return {
       eventId: x.event_id as string, orgId: x.org_id as string, slug: x.slug as string, title: x.title as string, description: x.description as string, state: x.state as EventState, timezone: x.timezone as string,
       registrationOpensAt: (x.registration_opens_at as Date | null) ?? null, registrationClosesAt: (x.registration_closes_at as Date | null) ?? null, startsAt: (x.starts_at as Date | null) ?? null, endsAt: (x.ends_at as Date | null) ?? null,
+      purgedAt: (x.purged_at as Date | null) ?? null,
       capacity: Number(x.capacity), registrationCount: Number(x.registration_count), currentRuleRevision: (x.current_rule_revision as string | null) ?? null, tournamentAddress: (x.tournament_address as string | null) ?? null,
       revision: Number(x.revision), cancelReason: (x.cancel_reason as string | null) ?? null, createdBy: x.created_by as string, createdAt: x.created_at as Date, updatedAt: x.updated_at as Date, publishedAt: (x.published_at as Date | null) ?? null, cancelledAt: (x.cancelled_at as Date | null) ?? null,
     };
@@ -646,6 +647,68 @@ export class PostgresStore implements Store {
     );
     return (r.rows as Row[]).map((x) => ({ ...this.revisionRow(x), displayName: (x.display_name as string | null) ?? null, publicConsent: x.public_consent_at !== null }));
   }
+  // ---- PG-E-09 ----
+  /** 交易內刪除某活動（可選：某錢包）的個人層資料；呼叫方負責 BEGIN／COMMIT */
+  private async wipeEventRows(client: pg.PoolClient, eventId: string, wallet: string | null) {
+    const w = wallet ? " AND wallet = $2" : "";
+    const params = wallet ? [eventId, wallet] : [eventId];
+    // 未交付預留先釋放庫存，再刪核銷（badge_issues 依 FK 先刪）
+    const reserved = await client.query(`SELECT benefit_id, quantity FROM event_redemptions WHERE event_id = $1 AND status = 'reserved'${w}`, params);
+    for (const x of reserved.rows as Row[]) await client.query(`UPDATE event_benefits SET reserved_count = GREATEST(0, reserved_count - $3) WHERE event_id = $1 AND benefit_id = $2`, [eventId, x.benefit_id, x.quantity]);
+    await client.query(`DELETE FROM event_badge_issues WHERE redemption_id IN (SELECT redemption_id FROM event_redemptions WHERE event_id = $1${w})`, params);
+    const redemptions = (await client.query(`DELETE FROM event_redemptions WHERE event_id = $1${w}`, params)).rowCount ?? 0;
+    const checkins = (await client.query(`DELETE FROM event_checkins WHERE event_id = $1${w}`, params)).rowCount ?? 0;
+    await client.query(`DELETE FROM checkin_challenges WHERE event_id = $1${w}`, params);
+    const results = (await client.query(`DELETE FROM result_revisions WHERE event_id = $1${w}`, params)).rowCount ?? 0;
+    if (wallet) await client.query(`UPDATE result_imports SET staged_rows = jsonb_set(staged_rows, '{rows}', COALESCE((SELECT jsonb_agg(r) FROM jsonb_array_elements(staged_rows->'rows') r WHERE r->>'wallet' <> $2), '[]'::jsonb)) WHERE event_id = $1`, [eventId, wallet]);
+    else await client.query(`UPDATE result_imports SET staged_rows = jsonb_set(staged_rows, '{rows}', '[]'::jsonb) WHERE event_id = $1`, [eventId]);
+    await client.query(`DELETE FROM nfc_tags WHERE event_id = $1 AND participant_wallet IS NOT NULL${wallet ? " AND participant_wallet = $2" : ""}`, params);
+    const participants = (await client.query(`DELETE FROM event_participants WHERE event_id = $1${w}`, params)).rowCount ?? 0;
+    return { participants, checkins, redemptions, results };
+  }
+  async purgeEventData(cutoff: Date, now: Date) {
+    const counts = { events: [] as string[], participants: 0, checkins: 0, redemptions: 0, results: 0 };
+    const due = await this.pool.query(`SELECT event_id FROM events WHERE purged_at IS NULL AND COALESCE(cancelled_at, ends_at) < $1`, [cutoff]);
+    for (const x of due.rows as Row[]) {
+      const eventId = x.event_id as string;
+      const client = await this.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(`SELECT 1 FROM events WHERE event_id = $1 FOR UPDATE`, [eventId]);
+        const c = await this.wipeEventRows(client, eventId, null);
+        await client.query(`UPDATE events SET purged_at = $2 WHERE event_id = $1`, [eventId, now]);
+        await client.query("COMMIT");
+        counts.events.push(eventId);
+        counts.participants += c.participants; counts.checkins += c.checkins; counts.redemptions += c.redemptions; counts.results += c.results;
+      } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+      } finally {
+        client.release();
+      }
+    }
+    return counts;
+  }
+  async deleteWalletEventData(wallet: string, _now: Date) {
+    const counts = { participants: 0, checkins: 0, redemptions: 0, results: 0 };
+    const evs = await this.pool.query(`SELECT event_id FROM event_participants WHERE wallet = $1`, [wallet]);
+    for (const x of evs.rows as Row[]) {
+      const client = await this.pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query(`SELECT 1 FROM events WHERE event_id = $1 FOR UPDATE`, [x.event_id]);
+        const c = await this.wipeEventRows(client, x.event_id as string, wallet);
+        await client.query("COMMIT");
+        counts.participants += c.participants; counts.checkins += c.checkins; counts.redemptions += c.redemptions; counts.results += c.results;
+      } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+      } finally {
+        client.release();
+      }
+    }
+    return counts;
+  }
   async listResultHistory(eventId: string, wallet: string) {
     const r = await this.pool.query(`SELECT r.* FROM result_revisions r JOIN result_imports i ON i.import_id = r.import_id WHERE r.event_id = $1 AND r.wallet = $2 ORDER BY r.published_at DESC, i.import_version DESC`, [eventId, wallet]);
     return (r.rows as Row[]).map((x) => this.revisionRow(x));
@@ -830,6 +893,7 @@ export class PostgresStore implements Store {
         await client.query(`DELETE FROM tournament_steps WHERE wallet = $1`, [wallet]);
       }
       await client.query("COMMIT");
+      if (!deferUntil) await this.deleteWalletEventData(wallet, now); // BR-32：活動個人層資料一併刪除（各活動獨立交易）
       return { deferred: deferUntil !== null, deletionDueAt: deferUntil, deleted: { snapshots, attestations, claimResults, sessions: sess.rowCount ?? 0 } };
     } catch (e) {
       await client.query("ROLLBACK");

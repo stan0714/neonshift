@@ -216,7 +216,7 @@ export type EventState = "draft" | "published" | "cancelled" | "completed";
 
 export type PartnerOrganization = { orgId: string; name: string; slug: string; createdBy: string; createdAt: Date; suspendedAt: Date | null };
 export type PartnerMembership = { orgId: string; wallet: string; role: OrgRole; grantedBy: string; grantedAt: Date; revokedAt: Date | null };
-export type EventRow = {
+export type EventRow = { purgedAt?: Date | null;
   eventId: string; orgId: string; slug: string; title: string; description: string; state: EventState; timezone: string;
   registrationOpensAt: Date | null; registrationClosesAt: Date | null; startsAt: Date | null; endsAt: Date | null;
   capacity: number; registrationCount: number; currentRuleRevision: string | null; tournamentAddress: string | null;
@@ -326,6 +326,12 @@ export interface PartnerStore {
   listCurrentResults(eventId: string): Promise<(ResultRevision & { displayName: string | null; publicConsent: boolean })[]>;
   /** 本人全部版本（含被更正的舊版），新到舊 */
   listResultHistory(eventId: string, wallet: string): Promise<ResultRevision[]>;
+
+  // ---- PG-E-09：活動資料保留與刪除（BR-32） ----
+  /** 活動結束／取消超過保留期（COALESCE(cancelled_at, ends_at) < cutoff）且未清理：刪除個人層資料、標記 purged_at；回清理的活動與筆數 */
+  purgeEventData(cutoff: Date, now: Date): Promise<{ events: string[]; participants: number; checkins: number; redemptions: number; results: number }>;
+  /** DELETE /player/data 同步：刪除該錢包在所有活動的個人層資料（未交付預留釋放、已交付只留匿名計數） */
+  deleteWalletEventData(wallet: string, now: Date): Promise<{ participants: number; checkins: number; redemptions: number; results: number }>;
 }
 
 export type ResultImport = { importId: string; eventId: string; sourceKind: "csv" | "manual"; fileHash: Buffer; importVersion: number; rowCount: number; errorCount: number; stagedRows: StagedResult[]; errors: { line: number; field: string; message: string }[]; createdBy: string; createdAt: Date; publishedAt: Date | null; publishedBy: string | null };

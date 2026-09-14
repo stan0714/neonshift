@@ -23,6 +23,8 @@ export const configSchema = z.object({
   /** 保留清理（PG-B-17）：與 API 同 process 週期執行；也可用 `npm run retention:once` 交給外部排程 */
   RETENTION_ENABLED: z.coerce.boolean().default(false),
   RETENTION_INTERVAL_MS: z.coerce.number().int().min(60_000).default(60 * 60 * 1000),
+  /** 活動個人層資料保留天數（PG-E-09；BRD Q-13／DEC-06 定案前預設 180；活動結束或取消後起算） */
+  EVENT_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(180),
   /** ChainIndexer（PG-B-16）：與 API 同 process 週期同步；正式環境建議單一 replica 開啟 */
   INDEXER_ENABLED: z.coerce.boolean().default(false),
   INDEXER_INTERVAL_MS: z.coerce.number().int().min(1_000).default(10_000),
