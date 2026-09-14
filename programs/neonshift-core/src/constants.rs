@@ -93,3 +93,17 @@ pub mod tournament_status {
     pub const SETTLED: u8 = 5;
     pub const CANCELLED: u8 = 6;
 }
+
+// ---- PG-R-08：成就（PB）NFT ----
+/// eligibility registry PDA seeds `["eligibility", wallet, achievement_id]`
+pub const ELIGIBILITY_SEED: &[u8] = b"eligibility";
+/// receipt PDA seeds `["achievement", wallet, achievement_id]`（每個 achievement_id 最多一枚）
+pub const ACHIEVEMENT_SEED: &[u8] = b"achievement";
+/// asset PDA seeds `["aasset", wallet, achievement_id]`
+pub const ACHIEVEMENT_ASSET_SEED: &[u8] = b"aasset";
+/// 成就 metadata URI：`<base><achievement_id hex>.json`（由後端依 canonical metadata 提供）
+pub const ACHIEVEMENT_BASE_URI: &str = "https://api.neonshift.cc/v1/nft/achievements/";
+/// registry 狀態
+pub const ELIGIBILITY_APPROVED: u8 = 1;
+/// registry 狀態：已撤銷
+pub const ELIGIBILITY_REVOKED: u8 = 2;

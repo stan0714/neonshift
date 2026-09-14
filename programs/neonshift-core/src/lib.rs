@@ -115,6 +115,16 @@ pub mod neonshift_core {
         instructions::settlement::handle_refund_all(ctx)
     }
 
+    /// PG-R-08：成就資格 registry（admin）
+    pub fn set_achievement_eligibility(ctx: Context<SetAchievementEligibility>, params: SetEligibilityParams) -> Result<()> {
+        instructions::claim_achievement::handle_set_achievement_eligibility(ctx, params)
+    }
+
+    /// PG-R-08：領取 PB 成就 NFT（attestor 簽章證明＋registry）
+    pub fn claim_achievement(ctx: Context<ClaimAchievement>, args: AchievementArgs) -> Result<()> {
+        instructions::claim_achievement::handle_claim_achievement(ctx, args)
+    }
+
     /// 輪替 attestor 公鑰（admin），寬限期 0～600 秒
     pub fn rotate_attestor(ctx: Context<AdminOnly>, new_attestor: Pubkey, grace_seconds: i64) -> Result<()> {
         instructions::admin::handle_rotate_attestor(ctx, new_attestor, grace_seconds)

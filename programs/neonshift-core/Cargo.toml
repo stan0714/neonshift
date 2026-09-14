@@ -21,7 +21,7 @@ custom-heap = []
 custom-panic = []
 
 [dependencies]
-anchor-lang = "1.2.0"
+anchor-lang = { version = "1.2.0", features = ["init-if-needed"] }
 anchor-spl = { version = "1.2.0", features = ["token", "associated_token"] }
 # canonical bytes 與後端逐 byte 一致的唯一來源（PG-C-04 / PG-B-10）
 attestation-core = { path = "../attestation-core" }

@@ -173,3 +173,23 @@ pub struct TournamentCancelledLate {
     pub by: Pubkey,
     pub returned_to_treasury: u64,
 }
+
+/// PG-R-08：成就 NFT 已鑄造（indexer 以此標記 minted 並更新藝廊）
+#[event]
+pub struct AchievementClaimed {
+    pub wallet: Pubkey,
+    pub achievement_id: [u8; 32],
+    pub category: u8,
+    pub verification_class: u8,
+    pub source_revision: u32,
+    pub asset: Pubkey,
+}
+
+/// PG-R-08：資格 registry 更新（approved／revoked）
+#[event]
+pub struct AchievementEligibilitySet {
+    pub wallet: Pubkey,
+    pub achievement_id: [u8; 32],
+    pub status: u8,
+    pub source_revision: u32,
+}

@@ -61,6 +61,14 @@ impl From<&AttestationArgs> for Attestation {
 /// `ed25519_ix_index` 是該 ed25519 指令在交易中的 index；offsets 內的 instruction index
 /// 必須等於它或 `u16::MAX`（同義為本指令），否則視為指向其他指令（6001）。
 pub fn parse_ed25519_instruction(data: &[u8], ed25519_ix_index: u16) -> Result<([u8; PUBKEY_LEN], [u8; ATTESTATION_LEN])> {
+    let (pubkey, msg) = parse_ed25519_instruction_len(data, ed25519_ix_index, ATTESTATION_LEN)?;
+    let mut message = [0u8; ATTESTATION_LEN];
+    message.copy_from_slice(&msg);
+    Ok((pubkey, message))
+}
+
+/// 同上，但訊息長度由呼叫端指定（成就證明 194 bytes 也走這裡）。
+pub fn parse_ed25519_instruction_len(data: &[u8], ed25519_ix_index: u16, expected_len: usize) -> Result<([u8; PUBKEY_LEN], Vec<u8>)> {
     let err = || error!(ErrorCode::MissingEd25519Instruction);
     if data.len() < HEADER_LEN + OFFSETS_LEN {
         return Err(err());
@@ -84,12 +92,12 @@ pub fn parse_ed25519_instruction(data: &[u8], ed25519_ix_index: u16) -> Result<(
         return Err(err());
     }
     // 長度固定為 canonical bytes
-    if message_size != ATTESTATION_LEN {
+    if message_size != expected_len {
         return Err(err());
     }
     // 邊界檢查（checked 避免 u16 → usize 加法後越界）
     let in_bounds = |off: usize, len: usize| off.checked_add(len).is_some_and(|end| end <= data.len());
-    if !(in_bounds(signature_offset, SIG_LEN) && in_bounds(pubkey_offset, PUBKEY_LEN) && in_bounds(message_offset, ATTESTATION_LEN)) {
+    if !(in_bounds(signature_offset, SIG_LEN) && in_bounds(pubkey_offset, PUBKEY_LEN) && in_bounds(message_offset, expected_len)) {
         return Err(err());
     }
     // 三段不得落在 header／offsets 區
@@ -99,9 +107,25 @@ pub fn parse_ed25519_instruction(data: &[u8], ed25519_ix_index: u16) -> Result<(
 
     let mut pubkey = [0u8; PUBKEY_LEN];
     pubkey.copy_from_slice(&data[pubkey_offset..pubkey_offset + PUBKEY_LEN]);
-    let mut message = [0u8; ATTESTATION_LEN];
-    message.copy_from_slice(&data[message_offset..message_offset + ATTESTATION_LEN]);
-    Ok((pubkey, message))
+    Ok((pubkey, data[message_offset..message_offset + expected_len].to_vec()))
+}
+
+/// 取出緊鄰前一道 ed25519 指令的簽章公鑰與訊息（長度 `expected_len`），並檢查 attestor 公鑰。
+pub fn load_signed_message(instructions_sysvar: &AccountInfo, config: &Config, now: i64, expected_len: usize) -> Result<Vec<u8>> {
+    let current = load_current_index_checked(instructions_sysvar)?;
+    if current == 0 {
+        return Err(error!(ErrorCode::MissingEd25519Instruction));
+    }
+    let prev_index = current - 1;
+    let prev = load_instruction_at_checked(prev_index as usize, instructions_sysvar)?;
+    if prev.program_id != ed25519_program::id() {
+        return Err(error!(ErrorCode::MissingEd25519Instruction));
+    }
+    let (signer_key, message) = parse_ed25519_instruction_len(&prev.data, prev_index, expected_len)?;
+    if !config.attestor_accepts(&Pubkey::new_from_array(signer_key), now) {
+        return Err(error!(ErrorCode::InvalidAttestorKey));
+    }
+    Ok(message)
 }
 
 /// SD 3.3 步驟 2～7。成功時回傳已解碼的 attestation。

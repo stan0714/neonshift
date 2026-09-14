@@ -19,6 +19,10 @@
 
 #![deny(missing_docs)]
 
+/// 成就（PB）證明格式（PG-R-08）。
+pub mod achievement;
+pub use achievement::*;
+
 /// Domain separation 前綴。換格式時必須同時換這個字串，
 /// 舊簽章才不會在新格式下被重新解讀。
 pub const DOMAIN: &[u8; 19] = b"NEONSHIFT_ATTEST_V1";

@@ -204,3 +204,33 @@ pub struct TournamentEntry {
     pub joined_at: i64,
     pub bump: u8,
 }
+
+/// 成就資格 registry（PG-R-08，activity-running-gallery 7）：由 admin 寫入／更新；
+/// 鑄造必查最新狀態、source_revision 與 metadata_hash 需與簽章證明一致。撤銷交易 finalized 才算鏈上已撤銷。
+#[account]
+#[derive(InitSpace)]
+pub struct AchievementEligibility {
+    pub wallet: Pubkey,
+    pub achievement_id: [u8; 32],
+    pub category: u8,
+    pub verification_class: u8,
+    pub status: u8,
+    pub source_revision: u32,
+    pub metadata_hash: [u8; 32],
+    pub updated_at: i64,
+    pub bump: u8,
+}
+
+/// 成就 NFT 領取憑證：每個 achievement_id 一枚（BR-39）。
+#[account]
+#[derive(InitSpace)]
+pub struct AchievementReceipt {
+    pub wallet: Pubkey,
+    pub achievement_id: [u8; 32],
+    pub category: u8,
+    pub verification_class: u8,
+    pub source_revision: u32,
+    pub asset: Pubkey,
+    pub claimed_at: i64,
+    pub bump: u8,
+}

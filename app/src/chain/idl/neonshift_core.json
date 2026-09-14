@@ -184,6 +184,80 @@
       "args": []
     },
     {
+      "name": "claim_achievement",
+      "docs": [
+        "PG-R-08：領取 PB 成就 NFT（attestor 簽章證明＋registry）"
+      ],
+      "discriminator": [
+        107,
+        181,
+        102,
+        247,
+        207,
+        212,
+        251,
+        24
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "eligibility"
+        },
+        {
+          "name": "receipt",
+          "writable": true
+        },
+        {
+          "name": "asset",
+          "writable": true
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "AchievementArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "claim_collectible",
       "docs": [
         "領取成就收藏 NFT（免費；玩家付 rent）；kind 見 constants"
@@ -1320,6 +1394,68 @@
       ]
     },
     {
+      "name": "set_achievement_eligibility",
+      "docs": [
+        "PG-R-08：成就資格 registry（admin）"
+      ],
+      "discriminator": [
+        41,
+        245,
+        130,
+        182,
+        133,
+        44,
+        11,
+        253
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "eligibility",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "SetEligibilityParams"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "set_paused",
       "docs": [
         "緊急停用／恢復（admin）。pause 範圍見 instructions/admin.rs"
@@ -1653,6 +1789,32 @@
   ],
   "accounts": [
     {
+      "name": "AchievementEligibility",
+      "discriminator": [
+        197,
+        180,
+        118,
+        61,
+        156,
+        130,
+        70,
+        37
+      ]
+    },
+    {
+      "name": "AchievementReceipt",
+      "discriminator": [
+        149,
+        5,
+        79,
+        178,
+        116,
+        231,
+        43,
+        248
+      ]
+    },
+    {
       "name": "CollectibleReceipt",
       "discriminator": [
         175,
@@ -1719,6 +1881,32 @@
     }
   ],
   "events": [
+    {
+      "name": "AchievementClaimed",
+      "discriminator": [
+        14,
+        49,
+        71,
+        199,
+        214,
+        248,
+        116,
+        232
+      ]
+    },
+    {
+      "name": "AchievementEligibilitySet",
+      "discriminator": [
+        200,
+        47,
+        220,
+        67,
+        248,
+        144,
+        78,
+        115
+      ]
+    },
     {
       "name": "AttestorRotated",
       "discriminator": [
@@ -2165,9 +2353,285 @@
       "code": 6036,
       "name": "RulesVersionMismatch",
       "msg": "rules_version 與賽事不符"
+    },
+    {
+      "code": 6037,
+      "name": "AchievementProofMismatch",
+      "msg": "成就證明與指令參數不符"
+    },
+    {
+      "code": 6038,
+      "name": "AchievementNotApproved",
+      "msg": "成就資格未核准或已撤銷"
+    },
+    {
+      "code": 6039,
+      "name": "AchievementRegistryMismatch",
+      "msg": "成就資格 revision／metadata 與證明不符"
+    },
+    {
+      "code": 6040,
+      "name": "AchievementProofExpired",
+      "msg": "成就證明已過期或尚未生效"
     }
   ],
   "types": [
+    {
+      "name": "AchievementArgs",
+      "docs": [
+        "claim 參數：與 194-byte canonical bytes 一一對應"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "program_id",
+            "type": "pubkey"
+          },
+          {
+            "name": "cluster_id",
+            "type": "u8"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "achievement_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "category",
+            "type": "u8"
+          },
+          {
+            "name": "verification_class",
+            "type": "u8"
+          },
+          {
+            "name": "source_revision",
+            "type": "u32"
+          },
+          {
+            "name": "rules_version",
+            "type": "u16"
+          },
+          {
+            "name": "metadata_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "issued_at",
+            "type": "i64"
+          },
+          {
+            "name": "expiry",
+            "type": "i64"
+          },
+          {
+            "name": "nonce",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "AchievementClaimed",
+      "docs": [
+        "PG-R-08：成就 NFT 已鑄造（indexer 以此標記 minted 並更新藝廊）"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "achievement_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "category",
+            "type": "u8"
+          },
+          {
+            "name": "verification_class",
+            "type": "u8"
+          },
+          {
+            "name": "source_revision",
+            "type": "u32"
+          },
+          {
+            "name": "asset",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AchievementEligibility",
+      "docs": [
+        "成就資格 registry（PG-R-08，activity-running-gallery 7）：由 admin 寫入／更新；",
+        "鑄造必查最新狀態、source_revision 與 metadata_hash 需與簽章證明一致。撤銷交易 finalized 才算鏈上已撤銷。"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "achievement_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "category",
+            "type": "u8"
+          },
+          {
+            "name": "verification_class",
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "source_revision",
+            "type": "u32"
+          },
+          {
+            "name": "metadata_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "updated_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AchievementEligibilitySet",
+      "docs": [
+        "PG-R-08：資格 registry 更新（approved／revoked）"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "achievement_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "source_revision",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AchievementReceipt",
+      "docs": [
+        "成就 NFT 領取憑證：每個 achievement_id 一枚（BR-39）。"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "achievement_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "category",
+            "type": "u8"
+          },
+          {
+            "name": "verification_class",
+            "type": "u8"
+          },
+          {
+            "name": "source_revision",
+            "type": "u32"
+          },
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "claimed_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
     {
       "name": "AttestationArgs",
       "docs": [
@@ -2918,6 +3382,52 @@
           },
           {
             "name": "rolling_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "SetEligibilityParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "achievement_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "category",
+            "type": "u8"
+          },
+          {
+            "name": "verification_class",
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "source_revision",
+            "type": "u32"
+          },
+          {
+            "name": "metadata_hash",
             "type": {
               "array": [
                 "u8",

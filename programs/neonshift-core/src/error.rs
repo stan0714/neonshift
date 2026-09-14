@@ -78,4 +78,12 @@ pub enum ErrorCode {
     ResultsHashMismatch, // 6035
     #[msg("rules_version 與賽事不符")]
     RulesVersionMismatch, // 6036
+    #[msg("成就證明與指令參數不符")]
+    AchievementProofMismatch, // 6037
+    #[msg("成就資格未核准或已撤銷")]
+    AchievementNotApproved, // 6038
+    #[msg("成就資格 revision／metadata 與證明不符")]
+    AchievementRegistryMismatch, // 6039
+    #[msg("成就證明已過期或尚未生效")]
+    AchievementProofExpired, // 6040
 }
