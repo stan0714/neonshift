@@ -55,6 +55,37 @@ pub struct ClockedIn {
     /// 歷史最高連續天數（藝廊投影用，PG-G-01）
     pub max_streak_days: u16,
     pub nonce: [u8; 16],
+    // ---- PG-V-02 ----
+    /// 本筆計入的週期索引與計入後的期內維持點／活躍日 bitmap
+    pub epoch: u32,
+    pub epoch_points: u16,
+    pub epoch_bitmap: u8,
+    pub highest_level: u8,
+}
+
+/// PG-V-02：一期結算（每期一筆；缺席期 points 0）
+#[event]
+pub struct EpochSettled {
+    pub wallet: Pubkey,
+    pub epoch: u32,
+    pub points: u16,
+    pub active_days: u8,
+    pub level_before: u8,
+    pub level_after: u8,
+    pub highest_level: u8,
+    pub rules_version: u16,
+    /// 結算所用鏈上時間
+    pub settled_at: i64,
+}
+
+/// PG-V-02：舊帳戶遷移
+#[event]
+pub struct PlayerMigrated {
+    pub wallet: Pubkey,
+    pub epoch_anchor: u32,
+    pub active_level: u8,
+    pub highest_level: u8,
+    pub rules_version: u16,
 }
 
 #[event]

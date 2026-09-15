@@ -45,6 +45,12 @@ describe("galleryProjection", () => {
     expect([p.shoeLevel, p.xp, p.streakDays, p.maxStreakDays, p.lastTaskDate]).toEqual([2, 450n, 3, 5, 20_710]);
     await galleryProjection(ev("PlayerInitialized", 5, { wallet: w, shoe_level: 1 }), store, now); // 重放不重置
     expect((await store.getGalleryPlayer(w))?.xp).toBe(450n);
+    // PG-V-02：期末結算切換等級（其餘沿用）；較舊 slot 忽略
+    await galleryProjection(ev("EpochSettled", 25, { wallet: w, epoch: 3, points: 0, active_days: 0, level_before: 2, level_after: 1, highest_level: 2, rules_version: 1 }), store, now);
+    const q = (await store.getGalleryPlayer(w))!;
+    expect([q.shoeLevel, q.coreLevel, q.xp, q.streakDays, q.lastTaskDate]).toEqual([1, 1, 450n, 3, 20_710]);
+    await galleryProjection(ev("EpochSettled", 22, { wallet: w, epoch: 2, level_before: 2, level_after: 3, highest_level: 3 }), store, now);
+    expect((await store.getGalleryPlayer(w))?.shoeLevel).toBe(1);
     await galleryProjection(ev("CollectibleClaimed", 30, { wallet: w, kind: 1, asset: "A1" }), store, now);
     await galleryProjection(ev("CollectibleClaimed", 30, { wallet: w, kind: 1, asset: "A1" }), store, now);
     await galleryProjection(ev("CollectibleClaimed", 31, { wallet: w, kind: 101, asset: "A2" }), store, now);

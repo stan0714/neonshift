@@ -360,3 +360,32 @@ pub fn ready_player(env: &mut Env, init: &Initialized) -> Player {
 }
 
 pub const T0: i64 = 1_789_000_000; // 2026-09-14 前後
+
+// ---------------- PG-V-02 維持挑戰工具 ----------------
+
+pub fn settle_epochs_ix(payer: &Pubkey, wallet: &Pubkey, max_epochs: u8) -> Instruction {
+    Instruction::new_with_bytes(
+        neonshift_core::id(),
+        &neonshift_core::instruction::SettlePlayerEpochs { max_epochs }.data(),
+        neonshift_core::accounts::SettlePlayerEpochs { payer: *payer, config: config_pda().0, profile: player_pda(wallet).0 }.to_account_metas(None),
+    )
+}
+
+pub fn migrate_player_ix(payer: &Pubkey, wallet: &Pubkey) -> Instruction {
+    use anchor_lang::solana_program::system_program;
+    Instruction::new_with_bytes(
+        neonshift_core::id(),
+        &neonshift_core::instruction::MigratePlayer {}.data(),
+        neonshift_core::accounts::MigratePlayer { payer: *payer, profile: player_pda(wallet).0, system_program: system_program::ID }.to_account_metas(None),
+    )
+}
+
+/// 把玩家 profile 改寫成 PG-V-02 前的 63-byte 舊版佈局（模擬既有帳戶），供 migrate_player 測試
+pub fn downgrade_profile_to_v1(svm: &mut LiteSVM, wallet: &Pubkey) {
+    let key = player_pda(wallet).0;
+    let mut acc = svm.get_account(&key).unwrap();
+    let old_len = 8 + neonshift_core::PlayerProfile::V1_SPACE;
+    acc.data.truncate(old_len);
+    acc.lamports = svm.minimum_balance_for_rent_exemption(old_len);
+    svm.set_account(key, acc).unwrap();
+}

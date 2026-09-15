@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Chip, DataCard, InlineState, MissionCard, Wordmark } from '@/components';
 import { ShoeHero } from '@/components/ShoeHero';
+import { maintenanceNeeds } from '@/chain/accounts';
 import { APP_CONFIG } from '@/config/app';
 import { secondsUntilUtcMidnight, type TaskType } from '@/domain/taskEngine';
 import type { ClaimInput, ClaimPhase } from '@/services/claim/ClaimFlow';
@@ -66,6 +67,7 @@ export function HomeScreen() {
       steps: d.health?.steps ?? null,
       sleep: d.health?.sleep ?? null,
       chain: { mint: d.config.mint, rewardVault: d.config.rewardVault },
+      maintenance: maintenanceNeeds(d.profile, d.taskDate),
       client: { appVersion: '0.1.0', deviceModel: 'Android', osApi: 34, sdkExtension: 0 },
     });
     d.dispatch(type, { kind: 'submit' });

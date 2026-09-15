@@ -21,6 +21,33 @@ export function initPlayerInstruction(wallet: PublicKey): TransactionInstruction
   });
 }
 
+/** PG-V-02 `migrate_player`：舊版 PlayerProfile 補維持欄位；payer 付 rent 差額（打卡交易前置） */
+export function migratePlayerInstruction(payer: PublicKey, wallet: PublicKey): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: programId(),
+    keys: [
+      { pubkey: payer, isSigner: true, isWritable: true },
+      { pubkey: playerPda(wallet), isSigner: false, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: discriminator('migrate_player'),
+  });
+}
+
+/** PG-V-02 `settle_player_epochs`：任何 payer 結算已過期週期（bounded；clock_in 落後 > 8 期時前置） */
+export function settlePlayerEpochsInstruction(payer: PublicKey, wallet: PublicKey, maxEpochs = 64): TransactionInstruction {
+  if (!Number.isInteger(maxEpochs) || maxEpochs < 1 || maxEpochs > 255) throw new RangeError(`maxEpochs 必須是 1..255：${maxEpochs}`);
+  return new TransactionInstruction({
+    programId: programId(),
+    keys: [
+      { pubkey: payer, isSigner: true, isWritable: false },
+      { pubkey: configPda(), isSigner: false, isWritable: false },
+      { pubkey: playerPda(wallet), isSigner: false, isWritable: true },
+    ],
+    data: Buffer.concat([discriminator('settle_player_epochs'), Buffer.from([maxEpochs])]),
+  });
+}
+
 /** `claim_collectible`：免費領取成就 NFT（只付 rent）；帳戶順序與 programs/.../claim_collectible.rs 一致 */
 export function claimCollectibleInstruction(wallet: PublicKey, kind: number): TransactionInstruction {
   if (!Number.isInteger(kind) || kind < 0 || kind > 255) throw new RangeError(`kind 必須是 u8：${kind}`);

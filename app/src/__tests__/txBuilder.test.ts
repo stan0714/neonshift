@@ -94,4 +94,24 @@ describe('PG-A-09 TxBuilder', () => {
     ).toThrow(/wallet/);
     expect(f.programId.toBase58()).not.toBe(PID);
   });
+
+  test('PG-V-02 前置：舊帳戶 → [migrate_player, ATA, ed25519, clock_in]；落後 > 8 期 → [settle_player_epochs(64), …]；落後 ≤ 8 期不加', () => {
+    const wallet = PublicKey.unique();
+    const f = decodeAttestation(new Uint8Array(Buffer.from(vec[0]!.expected_hex, 'hex')));
+    f.wallet = wallet;
+    f.programId = new PublicKey(PID);
+    const message = new Uint8Array(164);
+    message.set(new TextEncoder().encode('NEONSHIFT_ATTEST_V1'), 0);
+    message.set(encodeAttestationArgs(f), 19);
+    const base = { player: wallet, attestation: { message_b64: Buffer.from(message).toString('base64'), signature_b64: Buffer.alloc(64, 1).toString('base64'), attestor_pubkey_bytes: new Uint8Array(32).fill(9) }, accts: { mint: PublicKey.unique(), rewardVault: PublicKey.unique() } };
+    const mig = buildClaimInstructions({ ...base, maintenance: { migrate: true, pendingEpochs: 0 } }).instructions;
+    expect(mig).toHaveLength(4);
+    expect(mig[0]!.data).toEqual(discriminator('migrate_player'));
+    expect(mig[0]!.keys.map((k) => [k.pubkey.toBase58(), k.isSigner, k.isWritable])).toEqual([[wallet.toBase58(), true, true], [PublicKey.findProgramAddressSync([Buffer.from('player'), wallet.toBytes()], new PublicKey(PID))[0].toBase58(), false, true], ['11111111111111111111111111111111', false, false]]);
+    const settle = buildClaimInstructions({ ...base, maintenance: { migrate: false, pendingEpochs: 9 } }).instructions;
+    expect(settle).toHaveLength(4);
+    expect(settle[0]!.data).toEqual(Buffer.concat([discriminator('settle_player_epochs'), Buffer.from([64])]));
+    expect(settle[0]!.keys[1]!.pubkey.toBase58()).toBe(PublicKey.findProgramAddressSync([Buffer.from('config')], new PublicKey(PID))[0].toBase58());
+    expect(buildClaimInstructions({ ...base, maintenance: { migrate: false, pendingEpochs: 8 } }).instructions).toHaveLength(3);
+  });
 });

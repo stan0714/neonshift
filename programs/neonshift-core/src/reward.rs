@@ -120,6 +120,12 @@ mod tests {
             claimed_today: 0,
             today_date: 0,
             bump: 0,
+            highest_level: 1,
+            epoch_anchor: 0,
+            last_settled_epoch: 0,
+            epoch_points: 0,
+            epoch_bitmap: 0,
+            maintenance_rules_version: 1,
         }
     }
 

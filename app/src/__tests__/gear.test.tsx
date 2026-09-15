@@ -17,7 +17,7 @@ jest.mock('@/services/chain/CollectibleService', () => ({ collectibleService: { 
 jest.mock('expo-haptics', () => ({ notificationAsync: jest.fn(), NotificationFeedbackType: { Success: 'success' } }));
 
 const wallet = new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
-const profile = (p: Partial<PlayerProfile>): PlayerProfile => ({ wallet, coreLevel: 2, shoeLevel: 2, xp: BigInt(600), lastTaskDate: 0, streakDays: 1, maxStreakDays: 1, claimedToday: BigInt(0), todayDate: 0, ...p });
+const profile = (p: Partial<PlayerProfile>): PlayerProfile => ({ wallet, coreLevel: 2, shoeLevel: 2, xp: BigInt(600), lastTaskDate: 0, streakDays: 1, maxStreakDays: 1, claimedToday: BigInt(0), todayDate: 0, migrated: true, highestLevel: 2, epochAnchor: 0, lastSettledEpoch: 0, epochPoints: 0, epochBitmap: 0, maintenanceRulesVersion: 1, ...p });
 const config = { clusterId: 1, attestorPubkey: new Uint8Array(32), mint: wallet, rewardVault: wallet, dailyCap: BigInt(0), baseStepsReward: BigInt(0), baseSleepReward: BigInt(0), coreMultiplierBps: [10_000, 11_000, 12_500, 14_000, 16_000], shoeXpThresholds: [0, 450, 1500, 3600, 7500].map(BigInt), paused: false };
 
 const Wrapper = ({ children }: PropsWithChildren) => (

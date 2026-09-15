@@ -7,6 +7,8 @@ import { Buffer } from 'buffer';
 
 import { ATTESTATION_LEN, decodeAttestation, encodeAttestationArgs, type AttestationFields } from './attestation';
 import { claimPda, configPda, discriminator, playerPda, programId } from './program';
+import { MAX_INLINE_SETTLE_EPOCHS } from './accounts';
+import { migratePlayerInstruction, settlePlayerEpochsInstruction } from './instructions';
 
 export const ED25519_PROGRAM_ID = new PublicKey('Ed25519SigVerify111111111111111111111111111');
 export const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
@@ -86,6 +88,8 @@ export type ClaimTxInput = {
   player: PublicKey;
   attestation: { message_b64: string; signature_b64: string; attestor_pubkey_bytes: Uint8Array };
   accts: ClockInAccounts;
+  /** PG-V-02：依目前 profile 決定前置指令（舊帳戶遷移；落後超過 8 期先批次結算） */
+  maintenance?: { migrate: boolean; pendingEpochs: number };
 };
 
 /**
@@ -98,7 +102,11 @@ export function buildClaimInstructions(input: ClaimTxInput): { instructions: Tra
   const fields = decodeAttestation(message);
   if (!fields.wallet.equals(input.player)) throw new Error('attestation wallet does not match signer');
   if (!fields.programId.equals(programId())) throw new Error('attestation program id does not match this build');
+  const prefix: TransactionInstruction[] = [];
+  if (input.maintenance?.migrate) prefix.push(migratePlayerInstruction(input.player, input.player));
+  else if ((input.maintenance?.pendingEpochs ?? 0) > MAX_INLINE_SETTLE_EPOCHS) prefix.push(settlePlayerEpochsInstruction(input.player, input.player, 64));
   const instructions = [
+    ...prefix,
     createAtaIdempotentInstruction(input.player, input.accts.mint, input.player),
     ed25519Instruction(message, signature, input.attestation.attestor_pubkey_bytes),
     clockInInstruction(input.player, fields, input.accts),

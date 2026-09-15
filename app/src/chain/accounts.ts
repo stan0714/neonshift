@@ -12,7 +12,27 @@ export type PlayerProfile = {
   maxStreakDays: number;
   claimedToday: bigint;
   todayDate: number;
+  // ---- PG-V-02 維持挑戰；舊帳戶（63 bytes）→ migrated=false、其餘為預設 ----
+  migrated: boolean;
+  highestLevel: number;
+  epochAnchor: number;
+  lastSettledEpoch: number;
+  epochPoints: number;
+  epochBitmap: number;
+  maintenanceRulesVersion: number;
 };
+
+/** PG-V-02：與 programs/.../maintenance.rs 一致的期索引 */
+export const EPOCH_DAYS = 7;
+export const epochIndexOf = (anchor: number, taskDate: number) => Math.floor(Math.max(0, taskDate - anchor) / EPOCH_DAYS);
+/** clock_in 可順帶結算的期數上限（MAX_INLINE_SETTLE_EPOCHS）；超過須先 settle_player_epochs */
+export const MAX_INLINE_SETTLE_EPOCHS = 8;
+/** 需要先做的維持動作：遷移／補結算（期數） */
+export function maintenanceNeeds(profile: PlayerProfile | null, todayTaskDate: number): { migrate: boolean; pendingEpochs: number } {
+  if (!profile) return { migrate: false, pendingEpochs: 0 };
+  if (!profile.migrated) return { migrate: true, pendingEpochs: 0 };
+  return { migrate: false, pendingEpochs: Math.max(0, epochIndexOf(profile.epochAnchor, todayTaskDate) - profile.lastSettledEpoch) };
+}
 
 export type ChainConfig = {
   clusterId: number;
@@ -45,7 +65,16 @@ export function decodePlayerProfile(data: Uint8Array, PublicKeyCtor: { new (v: U
   const claimedToday = dv.getBigUint64(o, true);
   o += 8;
   const todayDate = dv.getUint32(o, true);
-  return { wallet, coreLevel, shoeLevel, xp, lastTaskDate, streakDays, maxStreakDays, claimedToday, todayDate };
+  o += 4;
+  o += 1; // bump
+  const migrated = data.byteLength >= o + 14;
+  const highestLevel = migrated ? data[o]! : Math.max(coreLevel, shoeLevel);
+  const epochAnchor = migrated ? dv.getUint32(o + 1, true) : 0;
+  const lastSettledEpoch = migrated ? dv.getUint32(o + 5, true) : 0;
+  const epochPoints = migrated ? dv.getUint16(o + 9, true) : 0;
+  const epochBitmap = migrated ? data[o + 11]! : 0;
+  const maintenanceRulesVersion = migrated ? dv.getUint16(o + 12, true) : 0;
+  return { wallet, coreLevel, shoeLevel, xp, lastTaskDate, streakDays, maxStreakDays, claimedToday, todayDate, migrated, highestLevel, epochAnchor, lastSettledEpoch, epochPoints, epochBitmap, maintenanceRulesVersion };
 }
 
 export function decodeConfig(data: Uint8Array, PublicKeyCtor: { new (v: Uint8Array): PublicKey }): ChainConfig {

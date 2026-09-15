@@ -14,7 +14,9 @@ use crate::attestation::{verify_attestation, AttestationArgs};
 use crate::constants::*;
 use crate::error::ErrorCode;
 use crate::events::ClockedIn;
-use crate::reward::{capped_reward, effective_streak_days, raw_reward, shoe_level_for, xp_for};
+use crate::instructions::maintenance::{is_settled, settle_pending};
+use crate::maintenance::day_offset;
+use crate::reward::{capped_reward, effective_streak_days, raw_reward, xp_for};
 use crate::state::{ClaimReceipt, Config, PlayerProfile};
 
 #[derive(Accounts)]
@@ -82,6 +84,10 @@ pub fn handle_clock_in(ctx: Context<ClockIn>, args: AttestationArgs) -> Result<(
     // 8. task_date 必須等於鏈上目前 UTC 日序
     let current_task_date = u32::try_from(now.div_euclid(SECONDS_PER_DAY)).map_err(|_| ErrorCode::InvalidTaskDate)?;
     require!(att.task_date == current_task_date, ErrorCode::InvalidTaskDate);
+
+    // 8b. PG-V-02：先結算已過期週期（最多 MAX_INLINE_SETTLE_EPOCHS 期），仍未追平 → 6041；獎勵用結算後的 Active level
+    settle_pending(&mut ctx.accounts.profile, config, player_key, now, MAX_INLINE_SETTLE_EPOCHS)?;
+    require!(is_settled(&ctx.accounts.profile, now)?, ErrorCode::SettlementRequired);
 
     // 9. token 帳戶檢查已由 Anchor 約束完成（見 struct）
 
@@ -152,11 +158,11 @@ pub fn handle_clock_in(ctx: Context<ClockIn>, args: AttestationArgs) -> Result<(
         }
     }
 
-    // 15. 依 XP 門檻更新等級。2026-09-14 定案：升級免費，core_level 與 shoe_level 一起由 XP 推導
-    //     （本次獎勵已在步驟 12 以升級前的 core_level 計算；新倍率自下一次打卡生效）
-    let level = shoe_level_for(profile.xp, &config.shoe_xp_thresholds);
-    profile.shoe_level = level;
-    profile.core_level = level;
+    // 15. PG-V-02：Active level 只在期末結算切換（取代「XP 達標立刻升級」）；本筆計入本期維持點與活躍日
+    //     （同日雙任務只算一個活躍日；每任務每日一張 receipt，故每日最多 150 點）
+    let points: u16 = if att.task_type == TASK_STEPS { MAINTENANCE_POINTS_STEPS } else { MAINTENANCE_POINTS_SLEEP };
+    profile.epoch_points = profile.epoch_points.saturating_add(points);
+    profile.epoch_bitmap |= 1u8 << day_offset(profile.epoch_anchor, att.task_date);
 
     // 寫入 receipt 內容（帳戶已於步驟 10 建立）
     {
@@ -187,6 +193,10 @@ pub fn handle_clock_in(ctx: Context<ClockIn>, args: AttestationArgs) -> Result<(
         streak_days: profile.streak_days,
         max_streak_days: profile.max_streak_days,
         nonce: att.nonce,
+        epoch: profile.last_settled_epoch,
+        epoch_points: profile.epoch_points,
+        epoch_bitmap: profile.epoch_bitmap,
+        highest_level: profile.highest_level,
     });
     Ok(())
 }

@@ -54,6 +54,17 @@ impl World {
     fn balance(&self) -> u64 {
         token_balance(&self.env.svm, &self.player.accts.player_token_account)
     }
+    /// PG-V-02：任何 payer（deployer）結算
+    fn settle(&mut self, max: u8) -> litesvm::types::TransactionResult {
+        let payer = self.env.deployer.insecure_clone();
+        let wallet = self.wallet();
+        send(&mut self.env.svm, &[settle_epochs_ix(&payer.pubkey(), &wallet, max)], &payer, &[])
+    }
+    fn migrate(&mut self) -> litesvm::types::TransactionResult {
+        let payer = self.env.deployer.insecure_clone();
+        let wallet = self.wallet();
+        send(&mut self.env.svm, &[migrate_player_ix(&payer.pubkey(), &wallet)], &payer, &[])
+    }
 }
 
 // ---------------------------------------------------------------- 正常路徑
@@ -306,22 +317,113 @@ fn streak_bonus_applies_on_seventh_consecutive_day() {
 }
 
 #[test]
-fn xp_raises_shoe_and_core_level_together_and_multiplier_applies_next_claim() {
-    // 升級免費（2026-09-14）：達門檻時 shoe_level 與 core_level 一起提升；本次獎勵仍用升級前倍率
+fn level_changes_only_at_epoch_settlement_and_multiplier_applies_after() {
+    // PG-V-02：XP 立即累積，但 Active level 只在期末結算切換；期內倍率固定
     let mut w = world_with(|p| p.shoe_xp_thresholds = [0, 100, 150, 250, 400]);
     let a = w.args(TASK_STEPS);
-    w.clock_in(a).unwrap(); // xp 100 → Lv2
-    let r: ClaimReceipt = read(&w.env.svm, &receipt_pda(&w.wallet(), a.task_date, TASK_STEPS));
-    assert_eq!(r.amount, 10 * TSKR_UNIT, "本次以 Lv1 倍率 1.0x 計算");
+    w.clock_in(a).unwrap(); // xp 100（舊規則會立刻 Lv2）
     let p = w.profile();
-    assert_eq!((p.xp, p.shoe_level, p.core_level), (100, 2, 2));
-
+    assert_eq!((p.xp, p.shoe_level, p.core_level, p.highest_level), (100, 1, 1, 1));
+    assert_eq!((p.epoch_points, p.epoch_bitmap, p.last_settled_epoch), (100, 0b1, 0));
     let s = w.args(TASK_SLEEP);
-    w.clock_in(s).unwrap(); // 以 Lv2 1.2x：5 × 1.2 = 6；xp 150 → Lv3
+    w.clock_in(s).unwrap(); // 同日睡眠：仍 Lv1 1.0x → 5；點數 150、活躍日仍 1
     let r: ClaimReceipt = read(&w.env.svm, &receipt_pda(&w.wallet(), s.task_date, TASK_SLEEP));
-    assert_eq!(r.amount, 6 * TSKR_UNIT);
+    assert_eq!(r.amount, 5 * TSKR_UNIT);
+    assert_eq!((w.profile().epoch_points, w.profile().epoch_bitmap), (150, 0b1));
+    // 第 2 日步數 → 250 點／2 活躍日（Lv2 門檻 200／2）
+    advance_time(&mut w.env.svm, SECONDS_PER_DAY);
+    w.clock_in(w.args(TASK_STEPS)).unwrap();
+    assert_eq!((w.profile().epoch_points, w.profile().epoch_bitmap, w.profile().core_level), (250, 0b11, 1));
+    // 第 8 日（新期）打卡：先結算第 0 期 → XP 250 上限 Lv4、成績 250／2 只撐 Lv2 → Lv2；本筆以 Lv2 1.2x 計算並計入第 1 期
+    advance_time(&mut w.env.svm, 6 * SECONDS_PER_DAY);
+    let a8 = w.args(TASK_STEPS);
+    w.clock_in(a8).unwrap();
+    let r: ClaimReceipt = read(&w.env.svm, &receipt_pda(&w.wallet(), a8.task_date, TASK_STEPS));
+    assert_eq!(r.amount, 12 * TSKR_UNIT, "結算後的 Active level 倍率");
     let p = w.profile();
-    assert_eq!((p.xp, p.shoe_level, p.core_level), (150, 3, 3));
+    assert_eq!((p.core_level, p.shoe_level, p.highest_level, p.last_settled_epoch, p.epoch_points, p.epoch_bitmap), (2, 2, 2, 1, 100, 0b1));
+}
+
+#[test]
+fn absence_demotes_one_level_per_epoch_and_settle_is_bounded_and_idempotent() {
+    // 用低門檻讓 XP 上限不擋：第 0 期 3 日雙任務（450 點／3 日）→ Lv3；接著缺席 4 期
+    let mut w = world_with(|p| p.shoe_xp_thresholds = [0, 100, 150, 250, 400]);
+    for _ in 0..3 {
+        w.clock_in(w.args(TASK_STEPS)).unwrap();
+        w.clock_in(w.args(TASK_SLEEP)).unwrap();
+        advance_time(&mut w.env.svm, SECONDS_PER_DAY);
+    }
+    assert_eq!((w.profile().epoch_points, w.profile().epoch_bitmap.count_ones()), (450, 3));
+    // 跳到第 5 期開頭（缺席第 1～4 期）：任何 payer 可結算；max 2 → 只結算 2 期
+    advance_time(&mut w.env.svm, (7 * 5 - 3) * SECONDS_PER_DAY);
+    w.settle(2).unwrap();
+    let p = w.profile();
+    assert_eq!((p.last_settled_epoch, p.core_level, p.highest_level), (2, 2, 3), "第 0 期升 Lv3；第 1 期缺席降 Lv2");
+    // 其餘 3 期：每期最多降一階 → Lv1；highest 不變；XP 不扣
+    w.settle(64).unwrap();
+    let p = w.profile();
+    assert_eq!((p.last_settled_epoch, p.core_level, p.shoe_level, p.highest_level, p.xp), (5, 1, 1, 3, 450));
+    // 冪等：已追平再結算不改變（換 blockhash 避免同筆交易去重）
+    w.env.svm.expire_blockhash();
+    w.settle(64).unwrap();
+    assert_eq!(w.profile().last_settled_epoch, 5);
+    // 回歸：第 5 期 2 日雙任務（300／2）→ 第 6 期打卡結算後恢復 Lv2（XP 上限允許，不逐階等待亦不自動回 Lv3）
+    w.clock_in(w.args(TASK_STEPS)).unwrap();
+    w.clock_in(w.args(TASK_SLEEP)).unwrap();
+    advance_time(&mut w.env.svm, SECONDS_PER_DAY);
+    w.clock_in(w.args(TASK_STEPS)).unwrap();
+    w.clock_in(w.args(TASK_SLEEP)).unwrap();
+    advance_time(&mut w.env.svm, 6 * SECONDS_PER_DAY);
+    w.clock_in(w.args(TASK_STEPS)).unwrap();
+    let p = w.profile();
+    assert_eq!((p.last_settled_epoch, p.core_level, p.highest_level), (6, 2, 3));
+}
+
+#[test]
+fn far_behind_requires_explicit_settlement_6041_then_clock_in_succeeds() {
+    let mut w = world();
+    w.clock_in(w.args(TASK_STEPS)).unwrap();
+    // 缺席 12 期：clock_in 只能順帶結算 8 期 → 6041
+    advance_time(&mut w.env.svm, 12 * 7 * SECONDS_PER_DAY);
+    let res = w.clock_in(w.args(TASK_STEPS));
+    assert_eq!(custom_error(&res), Some(6041));
+    assert_eq!(w.profile().last_settled_epoch, 0, "失敗交易不寫入");
+    w.settle(64).unwrap();
+    assert_eq!(w.profile().last_settled_epoch, 12);
+    w.clock_in(w.args(TASK_STEPS)).unwrap();
+    assert_eq!((w.profile().epoch_points, w.profile().core_level), (100, 1));
+}
+
+#[test]
+fn migrate_player_upgrades_v1_layout_keeps_levels_and_starts_new_epoch() {
+    let mut w = world_with(|p| p.shoe_xp_thresholds = [0, 100, 150, 250, 400]);
+    // 先到 Lv2（第 0 期 250／2 → 第 1 期結算）
+    w.clock_in(w.args(TASK_STEPS)).unwrap();
+    w.clock_in(w.args(TASK_SLEEP)).unwrap();
+    advance_time(&mut w.env.svm, SECONDS_PER_DAY);
+    w.clock_in(w.args(TASK_STEPS)).unwrap();
+    advance_time(&mut w.env.svm, 6 * SECONDS_PER_DAY);
+    w.clock_in(w.args(TASK_STEPS)).unwrap();
+    let before = w.profile();
+    assert_eq!(before.core_level, 2);
+    // 模擬舊版帳戶（63 bytes）：clock_in 無法反序列化 → 失敗；migrate 後恢復
+    let wallet = w.wallet();
+    downgrade_profile_to_v1(&mut w.env.svm, &wallet);
+    advance_time(&mut w.env.svm, 3 * SECONDS_PER_DAY);
+    assert!(w.clock_in(w.args(TASK_SLEEP)).is_err());
+    let payer_key = w.env.deployer.pubkey();
+    let payer_before = w.env.svm.get_balance(&payer_key).unwrap();
+    w.migrate().unwrap();
+    assert!(w.env.svm.get_balance(&payer_key).unwrap() < payer_before, "payer 付 rent 差額");
+    let p = w.profile();
+    assert_eq!((p.core_level, p.shoe_level, p.highest_level, p.xp, p.streak_days), (2, 2, 2, before.xp, before.streak_days));
+    assert_eq!((p.epoch_anchor, p.last_settled_epoch, p.epoch_points, p.epoch_bitmap, p.maintenance_rules_version), (task_date_of(now(&w.env.svm)), 0, 0, 0, 1));
+    // 再遷移 → 6042；遷移後打卡正常並計入新期
+    w.env.svm.expire_blockhash();
+    let res = w.migrate();
+    assert_eq!(custom_error(&res), Some(6042));
+    w.clock_in(w.args(TASK_SLEEP)).unwrap();
+    assert_eq!((w.profile().epoch_points, w.profile().epoch_bitmap), (50, 0b1));
 }
 
 #[test]

@@ -8,6 +8,7 @@ pub mod constants;
 pub mod error;
 pub mod events;
 pub mod instructions;
+pub mod maintenance;
 pub mod mpl_core;
 pub mod tournament_math;
 pub mod state;
@@ -41,6 +42,16 @@ pub mod neonshift_core {
     /// 建立 PlayerProfile PDA（玩家簽章、付 rent；每錢包一次）
     pub fn init_player(ctx: Context<InitPlayer>) -> Result<()> {
         instructions::init_player::handle_init_player(ctx)
+    }
+
+    /// PG-V-02：舊版 PlayerProfile 補齊維持欄位（任何 payer 付 rent 差額；保留目前與歷史鞋階、自當日起新週期）
+    pub fn migrate_player(ctx: Context<MigratePlayer>) -> Result<()> {
+        instructions::maintenance::handle_migrate_player(ctx)
+    }
+
+    /// PG-V-02：結算已過期週期（任何 payer；冪等、單調 cursor、bounded batch）
+    pub fn settle_player_epochs(ctx: Context<SettlePlayerEpochs>, max_epochs: u8) -> Result<()> {
+        instructions::maintenance::handle_settle_player_epochs(ctx, max_epochs)
     }
 
     /// 每日打卡（SD 3.3 16 步）；前一道指令必須是 Ed25519 program 驗簽

@@ -86,4 +86,10 @@ pub enum ErrorCode {
     AchievementRegistryMismatch, // 6039
     #[msg("成就證明已過期或尚未生效")]
     AchievementProofExpired, // 6040
+    #[msg("維持週期尚未結算到目前期，請先呼叫 settle_player_epochs")]
+    SettlementRequired, // 6041
+    #[msg("PlayerProfile 已是最新版本，不需遷移")]
+    AlreadyMigrated, // 6042
+    #[msg("PlayerProfile 帳戶無效（owner／discriminator／seeds）")]
+    InvalidProfileAccount, // 6043
 }
