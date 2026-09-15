@@ -8,7 +8,7 @@ import { ShoeHero } from '@/components/ShoeHero';
 import { SHOE_PROGRESSION, type ShoeLevel } from '@/config/shoeProgression';
 import { COLLECTIBLES, collectibleName, stageName } from '@/domain/collectibles';
 import type { RootParamList } from '@/navigation/types';
-import { ApiError, apiClient, type GalleryListResponse, type GalleryPlayerResponse, type GalleryPlayerView } from '@/services/api/ApiClient';
+import { ApiError, apiClient, type GalleryBoard, type GalleryListResponse, type GalleryPlayerResponse, type GalleryPlayerView } from '@/services/api/ApiClient';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
 import { PbCard } from './PbCard';
 import { color, radius, space, Text } from '@/theme';
@@ -35,11 +35,12 @@ export function GalleryScreen() {
   const [q, setQ] = useState('');
   const [err, setErr] = useState<Err | null>(null);
   const [loading, setLoading] = useState(false);
+  const [board, setBoard] = useState<GalleryBoard>('active'); // PG-V-04：現役榜／歷史成就榜分開
 
   const load = useCallback(async (cursor: string | null = null) => {
     setLoading(true);
     try {
-      const page = await apiClient.galleryPlayers(cursor);
+      const page = await apiClient.galleryPlayers(cursor, 50, board);
       setData((prev) => (cursor && prev ? { ...page, players: [...prev.players, ...page.players] } : page));
       setErr(null);
     } catch (e) {
@@ -47,7 +48,7 @@ export function GalleryScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [board]);
 
   useEffect(() => {
     void load();
@@ -73,6 +74,15 @@ export function GalleryScreen() {
       <View style={styles.searchRow}>
         <Feather name="search" size={16} color={color.textMuted} />
         <TextInput value={q} onChangeText={(t) => void search(t)} placeholder={t('gal.search')} placeholderTextColor={color.textMuted} autoCapitalize="none" autoCorrect={false} style={styles.search} accessibilityLabel={t('gal.search')} testID="gallery-search" />
+      </View>
+      <View style={styles.filters} accessibilityRole="tablist">
+        {(['active', 'lifetime'] as const).map((b) => (
+          <Pressable key={b} onPress={() => setBoard(b)} accessibilityRole="tab" accessibilityState={{ selected: board === b }} style={[styles.filter, board === b && styles.filterOn]} testID={`gallery-board-${b}`}>
+            <Text variant="caption" tone={board === b ? undefined : 'secondary'} style={board === b && styles.filterOnText}>
+              {t(`gal.board.${b}` as TKey)}
+            </Text>
+          </Pressable>
+        ))}
       </View>
       {data ? (
         <View style={styles.meta}>
@@ -112,7 +122,7 @@ export function GalleryScreen() {
                   {t('gal.rowMeta', { xp: Number(p.xp), n: p.collectible_count, count: p.collectible_count })}
                 </Text>
               </View>
-              <Chip label={t('common.lv', { n: p.shoe_level })} kind="level" />
+              <Chip label={t('common.lv', { n: board === 'lifetime' ? (p.highest_level ?? p.shoe_level) : p.shoe_level })} kind={board === 'lifetime' ? 'synced' : 'level'} />
             </Surface>
           </Pressable>
         );

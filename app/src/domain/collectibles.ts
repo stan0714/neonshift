@@ -38,10 +38,19 @@ export const stageDetail = (t: Translate, level: ShoeLevel) => t(`col.detail.${l
 export const collectibleName = (t: Translate, c: Collectible) => (c.shoeLevel ? t('col.shoe', { stage: stageName(t, c.shoeLevel) }) : t(c.nameKey));
 export const collectibleUnlock = (t: Translate, c: Collectible) => (c.shoeLevel && c.shoeLevel > 1 ? t('col.reachLv', { n: c.shoeLevel }) : t(c.unlockKey));
 
-/** 對應鏈上 `eligible()`：跑鞋 kind ≤ shoe_level、首次打卡 xp > 0、7 天用 max_streak_days；名次待 C-14 */
+/** PG-V-04 收藏分區：目前裝備（＝Active）／曾經達成（≤ Highest、非現役）／尚未解鎖 */
+export type ShoeSection = 'equipped' | 'achieved' | 'locked';
+export function shoeSection(profile: PlayerProfile | null, kind: CollectibleKind): ShoeSection {
+  if (!profile || kind < 1 || kind > 5) return 'locked';
+  const active = profile.coreLevel || 1;
+  const highest = Math.max(profile.highestLevel ?? 1, profile.shoeLevel);
+  return kind === active ? 'equipped' : kind <= highest ? 'achieved' : 'locked';
+}
+
+/** 對應鏈上 `eligible()`：跑鞋 kind ≤ highest_level、首次打卡 xp > 0、7 天用 max_streak_days；名次待 C-14 */
 export function isEligible(profile: PlayerProfile | null, kind: CollectibleKind): boolean {
   if (!profile) return false;
-  if (kind >= 1 && kind <= 5) return profile.shoeLevel >= kind;
+  if (kind >= 1 && kind <= 5) return Math.max(profile.highestLevel ?? 1, profile.shoeLevel) >= kind; // PG-V-02：鞋階依歷史最高（降級後仍可補領）
   if (kind === 101) return profile.xp > 0n;
   if (kind === 102) return profile.maxStreakDays >= 7;
   return false;

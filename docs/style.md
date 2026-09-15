@@ -799,6 +799,13 @@ export const theme = {
 
 降階顯示現在鞋階、歷史保留與下期恢復條件，不以資產損失或羞辱文案催促。48／24 小時提醒需使用者可關閉。現役排行與歷史成就榜分開，標示結算時間。永久收藏、退款及個資操作不因等級變灰或停用。
 
+### 21.1 實作（PG-V-04，2026-09-15）
+
+- **Gear Hero**：上方 Chip「現役 LV.n」（level）與「歷史最高 LV.n」（高於現役時 synced 色）；ShoeHero／倍率只用 Active level（`coreLevel`）。XP ring 與 XP 區塊照舊，與維持區塊分開。
+- **本期維持挑戰** Surface（`gear-maintenance-<state>`）：右上「剩 n 天」；兩格 Stat「維持點 x / 目標」「活躍日 x / 目標」（目標＝回歸階級 > 下一階 > 維持本階）；caption 本期結束本地時間＋UTC；文字列：維持 Lv n（已達／還需 x 點、y 活躍日，約 z 天雙任務）、回歸 Lv n（歷史最高高於現役時，附「你的成就仍在收藏中」）或升到 Lv n（XP 不足時改「還需累積更多 XP」）；註腳「步數 +100、睡眠 +50…未達標只調整裝備等級，不扣 XP、代幣或 NFT」。狀態：`migration_required`（下次打卡自動更新）、`settlement_pending`（n 期未結算，下次打卡先結算）。
+- **收藏**：跑鞋依 `shoeSection` 分「目前裝備／曾經達成／尚未解鎖」三組；曾經達成 Tile 加「曾經達成」label、保留完整作品與 Claim（資格依歷史最高）；尚未解鎖維持灰階鎖頭。
+- **藝廊**：列表頂部 tab「現役排行／歷史成就」（`?board=active|lifetime`）；歷史成就榜 Chip 顯示歷史最高（synced 色）、排序歷史最高 → 收藏 → XP；「n 位玩家 · 更新時間」即結算時間標示。
+
 ## 22. Genesis Distance 與紀念系列
 
 作品概念、狀態及詳細流程見 [首次里程碑與紀念 NFT](./commemorative-nfts.md)。四枚以一致 1:1 框架設計：5K 青綠起跑門、10K 冰藍雙地平線、半馬紫色半環、全馬紫綠完整環與終點拱門。使用清楚距離字標／圖形，不只依顏色辨識；不使用未授權主辦方商標。
@@ -831,3 +838,7 @@ Lap／Pause 至少 48dp；Finish 置於暫停頁並確認。摘要分 Splits／L
 ### 23.1 運動紀錄清單（PG-R-01 實作，2026-09-14）
 
 Home 「Workouts ›」進入 `WorkoutsScreen`：每筆一張 Surface — 標題「Run／Walk（· Indoor）」＋品質 Chip（Measured＝synced／Estimated、Partial＝neutral／Needs review＝devnet 警示色／Invalid＝offline），日期，四格指標（km、time、pace、kcal）以 `elevated` 底色成列；kcal 只有 Total 時顯示「350 kcal (total)」，缺值一律「—」。來源列「Source: Health Connect · <package>」＋步數；待審核原因與「可能重複」以 warning 文字列在指標下方，不合併、不相加。PB eligible 以 level Chip 標示（由後端判定，UI 不自行授予）。刪除為 caption danger 連結，需 Alert 確認並說明只移除 NeonShift 摘要。頂部「Import from Health Connect」secondary Button；原生模組未提供時以 info InlineState 說明，不假裝已匯入。
+
+## 24. 三模式運動與探索冊體驗
+
+依 [補充規格](./sport-experience-gameplay.md) 第 1～5 章。延續深色霓虹設計，三模式使用文字＋圖示，不只靠顏色；健走不呈現成跑步等級。運動中三項大數字、狀態與主要操作優先，慶祝與 NFT 預覽延至保存後。探索冊使用可逐格點亮的抽象城市章節，不展示真實位置；分列「探索進度」「鞋階維持」，不可合成同一進度條。大字、讀屏、減少動態設定須驗收。

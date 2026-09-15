@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { compareLeaderboard } from "./leaderboard.js";
-import type { LevelHistoryEntry, AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type { GalleryBoard, LevelHistoryEntry, AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -598,8 +598,8 @@ export class MemoryStore implements Store {
   }
 
   // ---- PG-G-01 ----
-  private galleryRanked() {
-    return [...this.galleryPlayers.values()].filter((p) => !this.galleryHidden.has(p.wallet)).sort(compareGallery);
+  private galleryRanked(board: GalleryBoard = "active") {
+    return [...this.galleryPlayers.values()].filter((p) => !this.galleryHidden.has(p.wallet)).sort(board === "lifetime" ? compareLifetime : compareGallery);
   }
   async setGalleryHidden(wallet: string, hidden: boolean, _now: Date) {
     if (hidden) this.galleryHidden.add(wallet);
@@ -646,14 +646,14 @@ export class MemoryStore implements Store {
   async getGalleryPlayer(wallet: string) {
     return this.galleryPlayers.get(wallet) ?? null;
   }
-  async listGalleryPlayers(limit: number, offset: number) {
-    return this.galleryRanked().slice(offset, offset + limit);
+  async listGalleryPlayers(limit: number, offset: number, board: GalleryBoard = "active") {
+    return this.galleryRanked(board).slice(offset, offset + limit);
   }
   async countGalleryPlayers() {
     return this.galleryRanked().length;
   }
-  async galleryRankOf(wallet: string) {
-    const i = this.galleryRanked().findIndex((p) => p.wallet === wallet);
+  async galleryRankOf(wallet: string, board: GalleryBoard = "active") {
+    const i = this.galleryRanked(board).findIndex((p) => p.wallet === wallet);
     return i < 0 ? null : i + 1;
   }
   async searchGalleryPlayers(prefix: string, limit: number) {
@@ -781,6 +781,13 @@ function sortLeaderboard(rows: TournamentStepsRow[]) {
 }
 
 /** 藝廊排行：shoe_level DESC → xp DESC → wallet base58 位元組序（與 PostgreSQL 索引一致） */
+/** PG-V-04 Lifetime 榜：歷史最高 → 收藏數 → XP → 錢包 C 序 */
+function compareLifetime(a: GalleryPlayer, b: GalleryPlayer) {
+  if (a.highestLevel !== b.highestLevel) return b.highestLevel - a.highestLevel;
+  if (a.collectibleCount !== b.collectibleCount) return b.collectibleCount - a.collectibleCount;
+  if (a.xp !== b.xp) return a.xp > b.xp ? -1 : 1;
+  return a.wallet < b.wallet ? -1 : a.wallet > b.wallet ? 1 : 0;
+}
 function compareGallery(a: GalleryPlayer, b: GalleryPlayer) {
   if (a.shoeLevel !== b.shoeLevel) return b.shoeLevel - a.shoeLevel;
   if (a.xp !== b.xp) return a.xp < b.xp ? 1 : -1;

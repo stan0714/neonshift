@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.31（能力快照） |
+| 文件版本 | v0.32（維持儀表） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -967,6 +967,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.32 | 2026-09-15 | PG-V-04：藝廊 board=lifetime、App 維持儀表與收藏分區 |
 | v0.31 | 2026-09-15 | PG-V-03：level_history 投影、PB NFT Lv3 達成日門檻與能力快照 |
 | v0.30 | 2026-09-15 | PG-V-02：PlayerProfile 維持欄位、settle_player_epochs／migrate_player、clock_in 期末結算、EpochSettled |
 | v0.29 | 2026-09-15 | PG-M-04：活動留念章（events.badges、報名鞋階快照、category 12–13、migration 0014） |
@@ -1062,7 +1063,9 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 
 **實作（2026-09-15，PG-V-02 鏈上狀態／結算／migration）**：`PlayerProfile` 追加 `highest_level u8`、`epoch_anchor u32`（init_player／migrate 當日 UTC 日序）、`last_settled_epoch u32`（cursor＝目前開放期）、`epoch_points u16`、`epoch_bitmap u8`（7-bit 活躍日）、`maintenance_rules_version u16`（71 → 85 bytes；`V1_SPACE = 63`）。純規則 `maintenance.rs`（`epoch_index／day_offset／xp_cap_level／meets／settle_one`，與 `tools/maintenance-sim/rules.mjs` 同版參數：點數 [0,200,450,700,900]、活躍日 [0,2,3,5,6]、步數 100／睡眠 50）。`settle_pending`：逐期結算（缺席期 0 點）、每期 emit `EpochSettled{wallet, epoch, points, active_days, level_before, level_after, highest_level, rules_version, settled_at}`、清空期內累計、cursor +1；`clock_in` 步驟 8b 先順帶結算最多 `MAX_INLINE_SETTLE_EPOCHS = 8` 期，仍未追平 → 6041 `SettlementRequired`；獎勵用結算後 `core_level`；步驟 15 改為累計本期點數與 bitmap（不再由 XP 立即升級）；`ClockedIn` 追加 `epoch／epoch_points／epoch_bitmap／highest_level`。新指令：`settle_player_epochs(max_epochs ≤ 64)`（任何 payer、冪等、bounded）、`migrate_player`（任何 payer 付 rent 差額；驗 owner／discriminator／seeds、長度須為舊版，否則 6042 `AlreadyMigrated`／6043 `InvalidProfileAccount`；保留 levels／XP／streak，active＝max(core, shoe)＝highest，anchor＝當日、cursor 0；emit `PlayerMigrated`）。`claim_collectible` 鞋階 kind 改依 `highest_level`。LiteSVM：期末切換與倍率、缺席逐期降階／bounded／冪等／回歸、6041 後補結算、v1 佈局遷移；App `decodePlayerProfile`（舊 71 bytes → `migrated=false`）、`maintenanceNeeds`（遷移／落後期數）、打卡交易前置 `[migrate_player]` 或落後 > 8 期 `[settle_player_epochs(64)]`；indexer `EpochSettled` → 藝廊等級；chain-admin `migrate-players／settle-players`。**未部署 devnet**（程式需升級；上線步驟：升級 → `migrate-players` → App 更新）。
 
-**實作（2026-09-15，PG-V-03 能力快照）**：migration 0015 `level_history(wallet, effective_from_date, active_level, highest_level, epoch, source init|migrate|epoch, signature, slot)`（PK wallet＋signature＋source，冪等）與 `gallery_players.highest_level`；投影：`PlayerInitialized` → Lv1（自 finalized 日）、`PlayerMigrated` → 自 `epoch_anchor` 起、`EpochSettled` → 自 `settled_at` 日起 `level_after`，並更新 highest（只增）。`levelAt(wallet, date)`＝生效日 ≤ date 的最新一筆，無 → 無可查歷史。PB 成就 `ensure`：達成日 active_level ≥ `PB_NFT_MIN_LEVEL = 3`，否則 409 `LEVEL_REQUIRED`／`LEVEL_HISTORY_UNKNOWN`（只保留私人 PB，不用匯入時等級、回填無歷史不授予）；通過者把 `capability {active_level, effective_from}` 寫入 metadata `properties`（簽章綁 metadata_hash，不信任 client）。`GET /me/personal-bests` 每組附 `nft_eligibility`；App PB 區塊以原因文字取代 Mint。鞋階 NFT 依 `highest_level`（V-02）、活動章依報名快照 Lv2（M-04）、首次章 Lv1（M-02）。待：V-04 Gear／藝廊維持儀表與 Lifetime 榜、V-05 凍結治理。
+**實作（2026-09-15，PG-V-03 能力快照）**：migration 0015 `level_history(wallet, effective_from_date, active_level, highest_level, epoch, source init|migrate|epoch, signature, slot)`（PK wallet＋signature＋source，冪等）與 `gallery_players.highest_level`；投影：`PlayerInitialized` → Lv1（自 finalized 日）、`PlayerMigrated` → 自 `epoch_anchor` 起、`EpochSettled` → 自 `settled_at` 日起 `level_after`，並更新 highest（只增）。`levelAt(wallet, date)`＝生效日 ≤ date 的最新一筆，無 → 無可查歷史。PB 成就 `ensure`：達成日 active_level ≥ `PB_NFT_MIN_LEVEL = 3`，否則 409 `LEVEL_REQUIRED`／`LEVEL_HISTORY_UNKNOWN`（只保留私人 PB，不用匯入時等級、回填無歷史不授予）；通過者把 `capability {active_level, effective_from}` 寫入 metadata `properties`（簽章綁 metadata_hash，不信任 client）。`GET /me/personal-bests` 每組附 `nft_eligibility`；App PB 區塊以原因文字取代 Mint。鞋階 NFT 依 `highest_level`（V-02）、活動章依報名快照 Lv2（M-04）、首次章 Lv1（M-02）。
+
+**實作（2026-09-15，PG-V-04）**：`GET /gallery/players?board=active|lifetime`（active＝目前有效等級 → XP → 錢包；lifetime＝`highest_level` → 收藏數 → XP → 錢包；回 `board`、每列 `highest_level`）；`galleryRankOf(wallet, board)`。App `domain/maintenance.ts`（與 rules.mjs 同版：期索引／期末時間／點數／活躍日／維持、升階、回歸目標與差額；`migration_required`／`settlement_pending`）、`shoeSection`（目前裝備／曾經達成／尚未解鎖）、跑鞋資格依 `highestLevel`；Gear 儀表與收藏三區、藝廊雙榜（Style 21.1）。待：V-05 凍結治理與實機。
 
 ## 15. 首次成就 NFT 契約補充
 
@@ -1095,3 +1098,9 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 同步契約須拒絕非有限數值、負距離／時長、圈界越界及不支援的 sport／版本；伺服器衍生欄位不可由客戶端覆寫。相同 revision 重試返回同結果，過期 revision 回傳衝突，刪除 tombstone 阻止離線舊資料重建。裝置摘要仍屬裝置來源，欄位合法不等於運動真實性已驗證。
 
 Indoor 不啟用 GPS 推算距離，僅接可信裝置／已標記來源；缺來源顯示缺值。背景服務與定位權限依 Android／Expo 實作時官方文件驗證，不假設鎖屏與 process 被殺時持續可用。測試以專章 7 的固定軌跡、圈界、跳點、暫停、恢復及實機證據作 PG-R-10 完成門檻。
+
+## 17. 運動目標與探索冊契約（新增待實作）
+
+依 [補充規格](./sport-experience-gameplay.md)。WorkoutSession 新增可空 intent 與 goal_snapshot（kind、target、unit、version）；舊資料不回填為健走。擬新增 QuestTemplate、QuestEnrollment（wallet、template_version、start/end UTC、timezone、goal）、QuestContribution（來源穩定 ID／revision）、QuestReceipt（wallet＋enrollment 唯一）與 CosmeticEntitlement。資格由後端依有效摘要計算，禁止接受 client 自報 completed；發放 receipt 與外觀權限同交易原子提交。重播同來源不重領，來源修正／刪除觸發重算及權限撤銷。走路與健走共用來源去重鍵。
+
+擬新增本人任務查詢／接受／領取 API，皆沿用 wallet authentication；接受與領取支援 idempotency key，活動序列與截止時間由服務端驗證。探索模組只讀既有摘要，不寫鏈上維持帳戶或 NFT registry；不收原始座標。具體 schema／API migration 由 PG-U-04 實作並驗證唯一性、併發與刪除事件。

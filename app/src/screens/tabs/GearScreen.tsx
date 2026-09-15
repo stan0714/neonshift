@@ -7,6 +7,8 @@ import Svg, { Circle } from "react-native-svg";
 import { Button, Chip, InlineState, Screen, Surface } from "@/components";
 import { ShoeHero } from "@/components/ShoeHero";
 import { Milestones } from "@/screens/workouts/Milestones";
+import { maintenanceView, nextSteps } from "@/domain/maintenance";
+import { shoeSection } from "@/domain/collectibles";
 import { APP_CONFIG } from "@/config/app";
 import { SHOE_PROGRESSION, type ShoeLevel } from "@/config/shoeProgression";
 import {
@@ -57,7 +59,9 @@ export function GearScreen() {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [c.outcome]);
 
-  const level = (d.profile?.shoeLevel ?? 1) as ShoeLevel;
+  const level = (d.profile?.coreLevel ?? d.profile?.shoeLevel ?? 1) as ShoeLevel; // PG-V-04：Hero 只展示 Active level
+  const highest = Math.max(d.profile?.highestLevel ?? 1, level);
+  const mv = maintenanceView(d.profile, d.config?.shoeXpThresholds ?? SHOE_PROGRESSION.stages.map((s) => BigInt(s.xp)), Date.now());
   const xp = d.profile ? Number(d.profile.xp) : 0;
   const thresholds = d.config
     ? d.config.shoeXpThresholds.map(Number)
@@ -111,6 +115,10 @@ export function GearScreen() {
       </View>
 
       <Surface hero style={styles.heroCard} testID="gear-hero">
+        <View style={styles.levelRow}>
+          <Chip label={t("gear.activeLv", { n: level })} kind="level" />
+          <Chip label={t("gear.highestLv", { n: highest })} kind={highest > level ? "synced" : "neutral"} />
+        </View>
         <ShoeHero level={level} size={220} />
         <View style={styles.heroRow}>
           <XpRing ratio={ratio} tint={stage.tint}>
@@ -167,6 +175,54 @@ export function GearScreen() {
       <Text variant="caption" tone="muted" style={styles.note}>
         {t("gear.note")}
       </Text>
+
+      {mv ? (
+        <Surface style={styles.maint} testID={`gear-maintenance-${mv.state}`}>
+          <View style={styles.sectionHead}>
+            <Text variant="label" tone="muted" uppercase>
+              {t("gear.maint.title")}
+            </Text>
+            {mv.state === "active" ? (
+              <Text variant="label" tone="secondary" numeric>
+                {t("gear.maint.daysLeft", { n: mv.daysLeft })}
+              </Text>
+            ) : null}
+          </View>
+          {mv.state === "migration_required" ? (
+            <Text variant="bodySmall" tone="secondary">{t("gear.maint.migrate")}</Text>
+          ) : mv.state === "settlement_pending" ? (
+            <Text variant="bodySmall" tone="secondary">{t("gear.maint.pending", { n: mv.pendingEpochs })}</Text>
+          ) : (
+            <>
+              <View style={styles.stats}>
+                <Stat label={t("gear.maint.points")} value={`${mv.points} / ${mv.restore?.points ?? mv.next?.points ?? mv.keep.points}`} tint={color.mint} />
+                <View style={styles.gap} />
+                <Stat label={t("gear.maint.activeDays")} value={`${mv.activeDays} / ${mv.restore?.activeDays ?? mv.next?.activeDays ?? mv.keep.activeDays}`} tint={color.cyan} />
+              </View>
+              <Text variant="caption" tone="muted" style={styles.mtXs}>
+                {t("gear.maint.endsAt", { local: new Date(mv.epochEndsAtMs).toLocaleString(), utc: new Date(mv.epochEndsAtMs).toISOString().slice(0, 16).replace("T", " ") })}
+              </Text>
+              {mv.activeLevel >= 2 ? (
+                <Text variant="bodySmall" tone={mv.keep.met ? "mint" : "secondary"} style={styles.mtXs} testID="gear-maint-keep">
+                  {mv.keep.met ? t("gear.maint.keepMet", { n: mv.activeLevel }) : t("gear.maint.keep", { n: mv.activeLevel, ...nextSteps(mv.keep, mv.points, mv.activeDays) })}
+                </Text>
+              ) : null}
+              {mv.restore ? (
+                <Text variant="bodySmall" tone="secondary" style={styles.mtXs} testID="gear-maint-restore">
+                  {t("gear.maint.restore", { n: mv.restore.level, ...nextSteps(mv.restore, mv.points, mv.activeDays) })}
+                </Text>
+              ) : mv.next ? (
+                <Text variant="bodySmall" tone="secondary" style={styles.mtXs} testID="gear-maint-next">
+                  {mv.next.xpAllowed ? (mv.next.met ? t("gear.maint.nextMet", { n: mv.next.level }) : t("gear.maint.next", { n: mv.next.level, ...nextSteps(mv.next, mv.points, mv.activeDays) })) : t("gear.maint.nextXp", { n: mv.next.level })}
+                </Text>
+              ) : null}
+            </>
+          )}
+          <Text variant="caption" tone="muted" style={styles.mtXs}>
+            {t("gear.maint.footnote")}
+          </Text>
+        </Surface>
+      ) : null}
 
       <View style={styles.sectionHead}>
         <Text variant="label" tone="muted" uppercase>
@@ -229,21 +285,33 @@ export function GearScreen() {
       >
         {t("gear.shoes")}
       </Text>
-      <View style={styles.grid}>
-        {shoes.map(({ item, status }) => (
-          <Tile
-            key={item.kind}
-            item={item}
-            status={status}
-            claiming={c.claiming === item.kind}
-            busy={c.claiming !== null}
-            disabledReason={claimDisabledReason}
-            onClaim={() =>
-              session && void c.claim(session.publicKey, item.kind)
-            }
-          />
-        ))}
-      </View>
+      {(["equipped", "achieved", "locked"] as const).map((section) => {
+        const list = shoes.filter(({ item }) => shoeSection(d.profile, item.kind) === section);
+        if (!list.length) return null;
+        return (
+          <View key={section} testID={`gear-shoes-${section}`}>
+            <Text variant="caption" tone={section === "equipped" ? "mint" : "muted"} style={styles.subhead}>
+              {t(`gear.section.${section}` as TKey)}
+            </Text>
+            <View style={styles.grid}>
+              {list.map(({ item, status }) => (
+                <Tile
+                  key={item.kind}
+                  item={item}
+                  status={status}
+                  history={section === "achieved"}
+                  claiming={c.claiming === item.kind}
+                  busy={c.claiming !== null}
+                  disabledReason={claimDisabledReason}
+                  onClaim={() =>
+                    session && void c.claim(session.publicKey, item.kind)
+                  }
+                />
+              ))}
+            </View>
+          </View>
+        );
+      })}
       <Text
         variant="label"
         tone="secondary"
@@ -382,12 +450,15 @@ type TileProps = {
   busy: boolean;
   disabledReason?: string;
   onClaim: () => void;
+  /** PG-V-04：曾經達成（History 標籤；保留完整作品與 Claim 入口） */
+  history?: boolean;
 };
 
 /** Style 12：Claimed 實圖、Claimable mint border＋Claim、Locked 灰階＋解鎖條件 */
 function Tile({
   item,
   status,
+  history = false,
   claiming,
   busy,
   disabledReason,
@@ -444,6 +515,11 @@ function Tile({
         <Text variant="title" numberOfLines={1}>
           {collectibleName(t, item)}
         </Text>
+        {history ? (
+          <Text variant="label" tone="secondary" uppercase testID={`collectible-history-${item.kind}`}>
+            {t("gear.history")}
+          </Text>
+        ) : null}
         {status === "claimed" ? (
           <Text variant="label" tone="success" uppercase>
             {t("gear.claimed")}
@@ -494,6 +570,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   stats: { flexDirection: "row", marginTop: space.m },
+  levelRow: { flexDirection: "row", gap: space.xs, marginBottom: space.s },
+  maint: { marginTop: space.m },
+  mtXs: { marginTop: space.xs },
+  subhead: { marginTop: space.s, marginBottom: space.xs },
   stat: { flex: 1, padding: space.s },
   gap: { width: space.xs },
   note: { marginTop: space.xs },

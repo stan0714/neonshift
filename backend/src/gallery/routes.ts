@@ -7,7 +7,7 @@ import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../auth/routes.js";
 import type { AuthService } from "../auth/service.js";
 import { ApiError } from "../errors.js";
-import type { Achievement, PbRevision } from "../store/types.js";
+import type { GalleryBoard, Achievement, PbRevision } from "../store/types.js";
 import type { GalleryPlayer, Store } from "../store/types.js";
 
 const base58 = /^[1-9A-HJ-NP-Za-km-z]{1,44}$/;
@@ -23,6 +23,8 @@ const view = (p: GalleryPlayer, rank: number | null) => ({
   max_streak_days: p.maxStreakDays,
   last_task_date: p.lastTaskDate,
   collectible_count: p.collectibleCount,
+  /** PG-V-04：歷史最高（Lifetime 榜）；shoe_level＝目前有效等級（結算時間見 updated_at） */
+  highest_level: p.highestLevel,
   updated_at: p.updatedAt.toISOString(),
 });
 
@@ -30,12 +32,15 @@ export async function galleryRoutes(app: FastifyInstance, opts: { auth: AuthServ
   const { auth, store, now } = opts;
 
   app.get("/gallery/players", { preHandler: requireAuth(auth) }, async (req) => {
-    const q = req.query as { limit?: string; cursor?: string };
+    const q = req.query as { limit?: string; cursor?: string; board?: string };
     const limit = Math.min(GALLERY_PAGE, Math.max(1, Number(q.limit ?? GALLERY_PAGE) || GALLERY_PAGE));
     const offset = Math.max(0, Number(q.cursor ?? 0) || 0);
-    const [rows, total, you] = await Promise.all([store.listGalleryPlayers(limit, offset), store.countGalleryPlayers(), store.galleryRankOf(req.auth!.wallet)]);
+    // PG-V-04：現役榜（目前有效等級）與歷史成就榜（歷史最高）分開
+    const board: GalleryBoard = q.board === "lifetime" ? "lifetime" : "active";
+    const [rows, total, you] = await Promise.all([store.listGalleryPlayers(limit, offset, board), store.countGalleryPlayers(), store.galleryRankOf(req.auth!.wallet, board)]);
     return {
       generated_at: now().toISOString(),
+      board,
       total,
       next_cursor: offset + rows.length < total ? String(offset + rows.length) : null,
       players: rows.map((p, i) => view(p, offset + i + 1)),

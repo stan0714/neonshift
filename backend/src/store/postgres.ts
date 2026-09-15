@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBadges, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, LevelHistoryEntry, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBadges, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryBoard, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, LevelHistoryEntry, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -927,15 +927,18 @@ export class PostgresStore implements Store {
     return r.rows[0] ? this.galleryRow(r.rows[0] as Row) : null;
   }
   private static readonly GALLERY_VISIBLE = `NOT EXISTS (SELECT 1 FROM gallery_prefs gp WHERE gp.wallet = gallery_players.wallet AND gp.hidden)`;
-  async listGalleryPlayers(limit: number, offset: number) {
-    const r = await this.pool.query(`SELECT * FROM gallery_players WHERE ${PostgresStore.GALLERY_VISIBLE} ORDER BY shoe_level DESC, xp DESC, wallet COLLATE "C" ASC LIMIT $1 OFFSET $2`, [limit, offset]);
+  private static galleryOrder(board: GalleryBoard = "active") {
+    return board === "lifetime" ? `highest_level DESC, collectible_count DESC, xp DESC, wallet COLLATE "C" ASC` : `shoe_level DESC, xp DESC, wallet COLLATE "C" ASC`;
+  }
+  async listGalleryPlayers(limit: number, offset: number, board: GalleryBoard = "active") {
+    const r = await this.pool.query(`SELECT * FROM gallery_players WHERE ${PostgresStore.GALLERY_VISIBLE} ORDER BY ${PostgresStore.galleryOrder(board)} LIMIT $1 OFFSET $2`, [limit, offset]);
     return (r.rows as Row[]).map((x) => this.galleryRow(x));
   }
   async countGalleryPlayers() {
     return ((await this.pool.query(`SELECT count(*)::int AS n FROM gallery_players WHERE ${PostgresStore.GALLERY_VISIBLE}`)).rows[0] as { n: number }).n;
   }
-  async galleryRankOf(wallet: string) {
-    const r = await this.pool.query(`SELECT rank FROM (SELECT wallet, row_number() OVER (ORDER BY shoe_level DESC, xp DESC, wallet COLLATE "C" ASC) AS rank FROM gallery_players WHERE ${PostgresStore.GALLERY_VISIBLE}) t WHERE wallet = $1`, [wallet]);
+  async galleryRankOf(wallet: string, board: GalleryBoard = "active") {
+    const r = await this.pool.query(`SELECT rank FROM (SELECT wallet, row_number() OVER (ORDER BY ${PostgresStore.galleryOrder(board)}) AS rank FROM gallery_players WHERE ${PostgresStore.GALLERY_VISIBLE}) t WHERE wallet = $1`, [wallet]);
     return r.rows[0] ? Number((r.rows[0] as { rank: string | number }).rank) : null;
   }
   async searchGalleryPlayers(prefix: string, limit: number) {

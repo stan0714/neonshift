@@ -194,6 +194,7 @@ export interface RetentionStore {
 export type GalleryPlayer = { wallet: string; shoeLevel: number; coreLevel: number; xp: bigint; streakDays: number; maxStreakDays: number; lastTaskDate: number | null; collectibleCount: number; updatedSlot: number; updatedAt: Date; /** PG-V-03 歷史最高（Lifetime） */ highestLevel: number };
 /** PG-V-03：歷史有效等級（由 finalized 事件投影） */
 export type LevelHistoryEntry = { wallet: string; effectiveFromDate: number; activeLevel: number; highestLevel: number; epoch: number | null; source: "init" | "migrate" | "epoch"; signature: string; slot: number };
+export type GalleryBoard = "active" | "lifetime";
 export type GalleryCollectible = { wallet: string; kind: number; asset: string; signature: string; slot: number; claimedAt: Date };
 
 export interface GalleryStore {
@@ -210,9 +211,10 @@ export interface GalleryStore {
   listLevelHistory(wallet: string, limit: number): Promise<LevelHistoryEntry[]>;
   getGalleryPlayer(wallet: string): Promise<GalleryPlayer | null>;
   /** 排行：shoe_level DESC → xp DESC → wallet C 序；offset 分頁 */
-  listGalleryPlayers(limit: number, offset: number): Promise<GalleryPlayer[]>;
+  /** PG-V-04：board active（預設；目前有效等級 → XP → 錢包）｜lifetime（歷史最高 → 收藏數 → XP → 錢包） */
+  listGalleryPlayers(limit: number, offset: number, board?: GalleryBoard): Promise<GalleryPlayer[]>;
   countGalleryPlayers(): Promise<number>;
-  galleryRankOf(wallet: string): Promise<number | null>;
+  galleryRankOf(wallet: string, board?: GalleryBoard): Promise<number | null>;
   searchGalleryPlayers(prefix: string, limit: number): Promise<GalleryPlayer[]>;
   listGalleryCollectibles(wallet: string): Promise<GalleryCollectible[]>;
   /** PG-R-09：退出／加入藝廊展示（只影響 App 展示） */

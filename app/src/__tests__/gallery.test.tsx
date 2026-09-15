@@ -44,6 +44,19 @@ describe('GalleryScreen', () => {
     await act(async () => {}); // 讓 load() 的 finally（setLoading）在 act 內完成，避免影響下一個 render
   });
 
+  test('PG-V-04：切換歷史成就榜 → 以 board=lifetime 重新載入、Chip 顯示歷史最高', async () => {
+    api.galleryPlayers.mockResolvedValueOnce({ generated_at: '2026-09-14T00:00:00Z', board: 'active', total: 1, next_cursor: null, players: [player(B, 1, { shoe_level: 2, highest_level: 5 })], you: null });
+    await render(<GalleryScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId(`gallery-row-${B}`)).toBeTruthy());
+    expect(api.galleryPlayers).toHaveBeenLastCalledWith(null, 50, 'active');
+    expect(screen.getByText('LV. 2')).toBeTruthy();
+    api.galleryPlayers.mockResolvedValueOnce({ generated_at: '2026-09-14T00:00:00Z', board: 'lifetime', total: 1, next_cursor: null, players: [player(B, 1, { shoe_level: 2, highest_level: 5 })], you: null });
+    await fireEvent.press(screen.getByTestId('gallery-board-lifetime'));
+    await waitFor(() => expect(api.galleryPlayers).toHaveBeenLastCalledWith(null, 50, 'lifetime'));
+    await waitFor(() => expect(screen.getByText('LV. 5')).toBeTruthy());
+    await act(async () => {});
+  });
+
   test('搜尋地址前綴', async () => {
     api.galleryPlayers.mockResolvedValue({ generated_at: '2026-09-14T00:00:00Z', total: 1, next_cursor: null, players: [player(B, 1)], you: null });
     api.gallerySearch.mockResolvedValue({ players: [player(B, 1)] });

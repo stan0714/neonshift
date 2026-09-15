@@ -91,6 +91,15 @@ describe("gallery API", () => {
     body = (await app.inject({ method: "GET", url: "/v1/gallery/players?limit=2&cursor=2", headers: h })).json();
     expect(body.players.map((p: { wallet: string }) => p.wallet)).toEqual([a]);
     expect(body.next_cursor).toBeNull();
+    // PG-V-04：a 曾達 Lv5 後降回 Lv2 → 現役榜仍第 3；Lifetime 榜（歷史最高 → 收藏 → XP）第 1
+    await galleryProjection(ev("EpochSettled", 5, { wallet: a, epoch: 3, level_before: 5, level_after: 2, highest_level: 5, settled_at: "1700000000" }), store, now);
+    body = (await app.inject({ method: "GET", url: "/v1/gallery/players", headers: h })).json();
+    expect(body.board).toBe("active");
+    expect(body.players.map((p: { wallet: string; highest_level: number }) => [p.wallet, p.highest_level])).toEqual([[b, 3], [u.wallet, 2], [a, 5]]);
+    body = (await app.inject({ method: "GET", url: "/v1/gallery/players?board=lifetime", headers: h })).json();
+    expect(body.board).toBe("lifetime");
+    expect(body.players.map((p: { wallet: string; rank: number }) => [p.rank, p.wallet])).toEqual([[1, a], [2, b], [3, u.wallet]]);
+    expect(body.you).toEqual({ rank: 3 });
 
     res = await app.inject({ method: "GET", url: `/v1/gallery/players/${b}`, headers: h });
     body = res.json();

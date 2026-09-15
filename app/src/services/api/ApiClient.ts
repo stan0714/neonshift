@@ -63,8 +63,9 @@ export type TournamentView = {
 export type TournamentCurrentResponse = { tournament: TournamentView | null; player: { joined: boolean; verified_steps: number; rank: number | null } | null; server_time: number };
 export type LeaderboardResponse = { week_id: number; status: TournamentStatus; generated_at: string; total_players: number; entries: { rank: number; wallet: string; verified_steps: number; first_reached_at: string | null; updated_at: string }[]; you: { rank: number | null; verified_steps: number } | null };
 export type TournamentStepsResponse = { week_id: number; verified_steps: number; submitted_steps: number; accepted: boolean; first_reached_at: string | null; rank: number | null };
-export type GalleryPlayerView = { rank: number | null; wallet: string; shoe_level: number; core_level: number; xp: string; streak_days: number; max_streak_days: number; last_task_date: number | null; collectible_count: number; updated_at: string };
-export type GalleryListResponse = { generated_at: string; total: number; next_cursor: string | null; players: GalleryPlayerView[]; you: { rank: number } | null };
+export type GalleryPlayerView = { rank: number | null; wallet: string; shoe_level: number; core_level: number; xp: string; streak_days: number; max_streak_days: number; last_task_date: number | null; collectible_count: number; /** PG-V-04 歷史最高（舊後端可能缺） */ highest_level?: number; updated_at: string };
+export type GalleryBoard = 'active' | 'lifetime';
+export type GalleryListResponse = { generated_at: string; board?: GalleryBoard; total: number; next_cursor: string | null; players: GalleryPlayerView[]; you: { rank: number } | null };
 export type GalleryAchievement = { achievement_id: string; asset: string | null; kind?: 'pb' | 'milestone' | 'event'; series: 'pb_speed' | 'pb_distance' | 'genesis_distance' | 'first_finish' | 'event_check_in' | 'event_finish'; category: PbCategory | MilestoneCategory | 'event_check_in' | 'event_finish'; event?: { title: string | null; event_id: string | null } | null; verification_class: 'organizer' | 'device'; environment: string; record: 'current' | 'historical' | 'invalidated'; public: boolean; value: string | null; achieved_on: string | null; image: string; name: string; minted_at: string | null; minted_signature: string | null; metadata_uri: string };
 export type GalleryAchievementDetail = GalleryAchievement & { original_achiever: string; metadata: Record<string, unknown>; network: string; explorer_url: string };
 export type GalleryPlayerResponse = { player: GalleryPlayerView; is_you: boolean; hidden?: boolean; collectibles: { kind: number; asset: string; signature: string; claimed_at: string }[]; achievements?: GalleryAchievement[] };
@@ -214,8 +215,8 @@ export class ApiClient {
 
   // ---------------- gallery（PG-G-03） ----------------
 
-  galleryPlayers(cursor: string | null = null, limit = 50): Promise<GalleryListResponse> {
-    return this.request<GalleryListResponse>('GET', `/gallery/players?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
+  galleryPlayers(cursor: string | null = null, limit = 50, board: GalleryBoard = 'active'): Promise<GalleryListResponse> {
+    return this.request<GalleryListResponse>('GET', `/gallery/players?limit=${limit}&board=${board}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
   }
 
   galleryPlayer(wallet: string): Promise<GalleryPlayerResponse> {
