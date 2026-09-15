@@ -384,7 +384,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       const rows = await store.syncPbRevisions(wallet, [{ key: "run|longest_run|outdoor|device|elapsed|1", discipline: "run", category: "longest_run", environment: "outdoor", verificationClass: "device", timingBasis: "elapsed", rulesMajor: 1, value: 5_000_000n, sourceKind: "workout", sourceId: "s", sourceRevision: 1, achievedAt: t0, status: "current", isBaseline: true, previousSourceId: null }], t0);
       const pb = rows[0]!;
       const id = "a".repeat(64);
-      const base = { achievementId: id, wallet, pbId: pb.pbId, category: "longest_run", verificationClass: "device" as const, sourceRevision: 1, rulesMajor: 1, publicConsent: false, metadata: { name: "x" }, metadataHash: Buffer.alloc(32, 1), status: "pending_registry" as const, registrySignature: null, registryUpdatedAt: null, asset: null, mintedSignature: null, mintedAt: null };
+      const base = { achievementId: id, wallet, kind: "pb" as const, pbId: pb.pbId, milestoneKey: null, sourceKind: "workout" as const, sourceId: pb.sourceId, category: "longest_run", verificationClass: "device" as const, sourceRevision: 1, rulesMajor: 1, publicConsent: false, metadata: { name: "x" }, metadataHash: Buffer.alloc(32, 1), status: "pending_registry" as const, registrySignature: null, registryUpdatedAt: null, asset: null, mintedSignature: null, mintedAt: null };
       const a1 = await store.upsertAchievement(base, t0);
       expect(a1.status, name).toBe("pending_registry");
       await store.setAchievementStatus(id, "approved", { registrySignature: "sig1" }, t0);
@@ -398,6 +398,16 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       await store.deletePlayerData(wallet, t0, null);
       expect((await store.listAchievements(wallet)).length, name).toBe(1); // 已鑄造保留
       expect((await store.listPbRevisions(wallet)).length, name).toBe(1); // 其 PB 列保留
+      // PG-M-02：里程碑成就（pb_id 空、milestone_key 唯一）；setAchievementSource 只動來源；錢包刪除未鑄造者刪除、PB 刪除不受 NULL pb_id 影響
+      const mid = "b".repeat(64);
+      const ms = { ...base, achievementId: mid, kind: "milestone" as const, pbId: null, milestoneKey: "first_5k|outdoor|device", sourceKind: "workout" as const, sourceId: "w1", category: "first_5k", metadataHash: Buffer.alloc(32, 9) };
+      const m1 = await store.upsertAchievement(ms, t0);
+      expect([m1.kind, m1.pbId, m1.milestoneKey, m1.sourceId], name).toEqual(["milestone", null, "first_5k|outdoor|device", "w1"]);
+      const m2 = await store.setAchievementSource(mid, { sourceKind: "workout", sourceId: "w0", sourceRevision: 2 }, t0);
+      expect([m2?.sourceId, m2?.sourceRevision, m2?.status, m2?.metadataHash.equals(Buffer.alloc(32, 9))], name).toEqual(["w0", 2, "pending_registry", true]);
+      await store.deletePlayerData(wallet, t0, null);
+      expect((await store.listAchievements(wallet)).map((x) => x.achievementId), name).toEqual([id]); // 未鑄造里程碑刪除、已鑄造 PB 成就保留
+      expect((await store.listPbRevisions(wallet)).length, name).toBe(1);
     }
   });
   it("gallery_prefs（R-09）：hidden 排除排行／計數／搜尋／名次，本人仍可 get；再顯示恢復；getAchievementByAsset", async () => {

@@ -361,12 +361,15 @@ export interface PartnerStore {
   upsertAchievement(a: Omit<Achievement, "createdAt" | "updatedAt">, now: Date): Promise<Achievement>;
   getAchievement(achievementId: string): Promise<Achievement | null>;
   getAchievementByPb(pbId: string): Promise<Achievement | null>;
+  /** PG-M-02：已鑄造成就的來源更正／重新達標時只更新來源欄位（metadata 快照不動） */
+  setAchievementSource(achievementId: string, source: { sourceKind: "workout" | "result"; sourceId: string; sourceRevision: number }, now: Date): Promise<Achievement | null>;
   listAchievements(wallet: string): Promise<Achievement[]>;
   listAchievementsByStatus(status: Achievement["status"][], limit: number): Promise<Achievement[]>;
   setAchievementStatus(achievementId: string, status: Achievement["status"], extra: { registrySignature?: string; asset?: string; mintedSignature?: string }, now: Date): Promise<Achievement | null>;
 }
 
-export type Achievement = { achievementId: string; wallet: string; pbId: string; category: string; verificationClass: "organizer" | "device"; sourceRevision: number; rulesMajor: number; publicConsent: boolean; metadata: Record<string, unknown>; metadataHash: Buffer; status: "pending_registry" | "approved" | "minted" | "revoke_pending" | "revoked"; registrySignature: string | null; registryUpdatedAt: Date | null; asset: string | null; mintedSignature: string | null; mintedAt: Date | null; createdAt: Date; updatedAt: Date };
+/** PG-R-08 PB 成就＋ PG-M-02 首次里程碑：kind=pb 以 pbId 為來源；kind=milestone 以穩定 key（category|environment|class）為來源，來源更正沿用同一 achievement_id（終身一枚） */
+export type Achievement = { achievementId: string; wallet: string; kind: "pb" | "milestone"; pbId: string | null; milestoneKey: string | null; sourceKind: "workout" | "result" | null; sourceId: string | null; category: string; verificationClass: "organizer" | "device"; sourceRevision: number; rulesMajor: number; publicConsent: boolean; metadata: Record<string, unknown>; metadataHash: Buffer; status: "pending_registry" | "approved" | "minted" | "revoke_pending" | "revoked"; registrySignature: string | null; registryUpdatedAt: Date | null; asset: string | null; mintedSignature: string | null; mintedAt: Date | null; createdAt: Date; updatedAt: Date };
 
 export type PbDesired = { key: string; discipline: "run"; category: string; environment: string; verificationClass: string; timingBasis: string; rulesMajor: number; value: bigint; sourceKind: "workout" | "result"; sourceId: string; sourceRevision: number; achievedAt: Date; status: "current" | "historical"; isBaseline: boolean; previousSourceId: string | null };
 export type PbRevision = { pbId: string; wallet: string; discipline: string; category: string; environment: string; verificationClass: string; timingBasis: string; rulesMajor: number; value: bigint; sourceKind: "workout" | "result"; sourceId: string; sourceRevision: number; achievedAt: Date; status: "current" | "historical" | "invalidated"; isBaseline: boolean; previousPbId: string | null; createdAt: Date; invalidatedAt: Date | null; reason: string | null };

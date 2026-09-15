@@ -91,14 +91,17 @@ export async function galleryRoutes(app: FastifyInstance, opts: { auth: AuthServ
 
 /** 公開投影：類別、系列、驗證等級、狀態；精確值只有 public_consent 時（來自 canonical metadata） */
 function publicAchievement(a: Achievement, pbs: PbRevision[]) {
-  const pb = pbs.find((p) => p.pbId === a.pbId);
-  const record: "current" | "historical" | "invalidated" = a.status === "revoked" || a.status === "revoke_pending" || !pb || pb.status === "invalidated" ? "invalidated" : pb.status === "current" ? "current" : "historical";
+  const pb = a.kind === "pb" ? pbs.find((p) => p.pbId === a.pbId) : null;
+  const invalid = a.status === "revoked" || a.status === "revoke_pending";
+  // PG-M-02 里程碑：有效即 current（沒有「被超越」的歷史概念）；來源失效 → invalidated
+  const record: "current" | "historical" | "invalidated" = a.kind === "milestone" ? (invalid ? "invalidated" : "current") : invalid || !pb || pb.status === "invalidated" ? "invalidated" : pb.status === "current" ? "current" : "historical";
   const attrs = (a.metadata.attributes as { trait_type: string; value: string }[] | undefined) ?? [];
   const valueAttr = attrs.find((x) => x.trait_type === "Time" || x.trait_type === "Distance");
   return {
     achievement_id: a.achievementId,
     asset: a.asset,
-    series: a.category === "longest_run" ? "pb_distance" : "pb_speed",
+    kind: a.kind,
+    series: a.kind === "milestone" ? (a.category === "first_finish" ? "first_finish" : "genesis_distance") : a.category === "longest_run" ? "pb_distance" : "pb_speed",
     category: a.category,
     verification_class: a.verificationClass,
     environment: (attrs.find((x) => x.trait_type === "Environment")?.value as string | undefined) ?? "outdoor",

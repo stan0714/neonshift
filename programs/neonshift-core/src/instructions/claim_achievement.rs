@@ -7,7 +7,7 @@
 //! - 與 `claim_collectible`（固定 kind／每錢包一次）分開，不可把 PB 當 kind 傳入舊指令。
 
 use anchor_lang::prelude::*;
-use attestation_core::{AchievementProof, ACHIEVEMENT_LEN};
+use attestation_core::{AchievementProof, ACHIEVEMENT_LEN, CATEGORY_MAX};
 
 use crate::attestation::load_signed_message;
 use crate::constants::*;
@@ -47,7 +47,7 @@ pub struct SetAchievementEligibility<'info> {
 
 pub fn handle_set_achievement_eligibility(ctx: Context<SetAchievementEligibility>, params: SetEligibilityParams) -> Result<()> {
     require!(params.status == ELIGIBILITY_APPROVED || params.status == ELIGIBILITY_REVOKED, ErrorCode::AchievementNotApproved);
-    require!((1..=6).contains(&params.category) && (1..=2).contains(&params.verification_class), ErrorCode::InvalidCollectibleKind);
+    require!((1..=CATEGORY_MAX).contains(&params.category) && (1..=2).contains(&params.verification_class), ErrorCode::InvalidCollectibleKind);
     let e = &mut ctx.accounts.eligibility;
     e.wallet = params.wallet;
     e.achievement_id = params.achievement_id;

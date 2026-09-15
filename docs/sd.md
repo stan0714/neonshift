@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.27（跑道模式） |
+| 文件版本 | v0.28（首次里程碑） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -967,6 +967,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.28 | 2026-09-15 | PG-M-01／M-02：里程碑判定、穩定 key 併入 achievements、category 7–11、migration 0013 |
 | v0.27 | 2026-09-15 | PG-R-12：跑道模式 trackLapMm、即時等效圈、恢復沿用 |
 | v0.26 | 2026-09-15 | PG-R-09：藝廊 PB 投影、NFT 詳情、退出藝廊、作品 |
 | v0.25 | 2026-09-14 | PG-R-08：成就證明格式、registry、claim_achievement、簽發與鑄造流程 |
@@ -1063,6 +1064,8 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 不沿用「每次破 PB 一個新 achievement ID」為首次章重分配 ID；重傳／更早資料回填／失效後重新達標沿用同 key。claim_achievement 必須驗證 key 與已核准 registry 對應，原子鑄造與 receipt；轉出資產不恢復資格。半馬／全馬初期只啟用 organizer 類別，device 類別須通過長距離品質驗收才開。
 
 長期紀念索引與保存政策需獨立同意，不延長原健康摘要 30 天；精確成績／日期不預設寫入公開 metadata。NFT 與來源更正狀態分開讀取，圖片失效只回退呈現，不重鑄。
+
+**實作（2026-09-15，PG-M-01／M-02）**：`backend/src/milestones/compute.ts` 純函式——門檻 5,000,000／10,000,000／21,097,500／42,195,000 mm 整數比較（不四捨五入）；裝置候選＝run、非 deleted／invalid、distance ≥ 門檻，資格＝saved 且 pb_eligible 且距離非 estimated 且非 manual（否則 needs_review／estimated／manual），半馬／全馬裝置版 `device_pending`；主辦方候選＝FINISHED（run／walk）→ first_finish，run 距離 ≥ 門檻 → 距離章，完成時間＝賽事 `starts_at ?? ends_at`，缺 → `missing_time` 待審；穩定 key `category|environment|verification_class`，每 key 取 achieved_at 最早（同時間依 sourceId）→ `eligible｜pending_review｜device_pending｜locked`；目錄固定 9 張（5 organizer＋4 device 戶外）＋候選其他環境附加。`MilestoneService.resolve` 讀取即重算；`GET /me/milestones`（items、`unlocked_by_source`＝同一來源解鎖清單、imported_since）。M-02：`achievements` 表 migration 0013 加 `kind(pb|milestone)`、`pb_id` 可空、`milestone_key`（wallet＋key 唯一）、`source_kind／source_id`；`achievement_id = sha256("neonshift-milestone|wallet|key")`（不含來源／revision／規則／年份）；`POST /me/milestones/mint-intent {key, public_consent}`（非 eligible → 409 `MILESTONE_NOT_ELIGIBLE`）沿用 registry／證明／ops 流程，category 碼 7 first_5k／8 first_10k／9 first_half／10 first_marathon／11 first_finish（Rust `CATEGORY_MAX = 11`、`claim_achievement` 範圍同步、向量 12 組）；metadata 預設只含 Series／Milestone／Verification／Environment／Rules／Threshold，公開同意才加 Distance／Achieved，image `milestones/<category>-<class>.svg`；PB 重算後 `reconcileMilestones`：失效 → revoke_pending（已鑄造保留 minted 事實）、重新達標 → 同 id 恢復（未鑄造重建 metadata 回 pending_registry；已鑄造回 minted 只更新來源）、更早回填／來源更正 → 未鑄造重建、已鑄造只更新 `source_*`（metadata 快照不動）；藝廊投影 `kind: milestone`、series genesis_distance｜first_finish、record current｜invalidated。待：M-03 作品與收藏頁、M-04 活動 First Finish 權限與端到端。
 
 ## 16. GPS 運動模組契約（待實作）
 

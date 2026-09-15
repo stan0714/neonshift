@@ -7,6 +7,10 @@ HOST="${DEPLOY_HOST:-root@l1.neonshift.cc}"
 LOCAL_PORT="${LOCAL_PORT:-15432}"
 SSH="ssh -o BatchMode=yes -o ConnectTimeout=10 $HOST"
 
+# migrations 以本機工作樹為準（不用 /opt/neonshift/backend 已部署的舊版），rsync 到獨立目錄再套用
+echo "→ 同步本機 migrations → $HOST:/opt/neonshift/test-migrations"
+rsync -a --delete -e "ssh -o BatchMode=yes" "$ROOT/backend/migrations/" "$HOST:/opt/neonshift/test-migrations/"
+
 echo "→ 重建 neonshift_test 並套用 migrations（$HOST）"
 $SSH bash -s <<'REMOTE'
 set -euo pipefail
@@ -14,9 +18,9 @@ runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_database WHERE datname='neons
 runuser -u postgres -- createdb -O neonshift neonshift_test
 PW=$(cat /etc/neonshift/.dbpass)
 URL="postgres://neonshift:$PW@127.0.0.1:5432/neonshift_test"
-cd /opt/neonshift/backend
-for f in migrations/[0-9]*.sql; do psql "$URL" -v ON_ERROR_STOP=1 -q -f "$f" >/dev/null 2>&1 || { echo "migration 失敗：$f"; exit 1; }; done
-out=$(psql "$URL" -v ON_ERROR_STOP=1 -q -f migrations/test_constraints.sql 2>&1)
+cd /opt/neonshift/test-migrations
+for f in [0-9]*.sql; do psql "$URL" -v ON_ERROR_STOP=1 -q -f "$f" >/dev/null 2>&1 || { echo "migration 失敗：$f"; exit 1; }; done
+out=$(psql "$URL" -v ON_ERROR_STOP=1 -q -f test_constraints.sql 2>&1)
 echo "  約束測試 PASS $(echo "$out" | grep -c PASS) 項$(echo "$out" | grep -q FAIL && echo '，有 FAIL！')"
 REMOTE
 PW=$($SSH 'cat /etc/neonshift/.dbpass')

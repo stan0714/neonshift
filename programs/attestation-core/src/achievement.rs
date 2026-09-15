@@ -12,7 +12,7 @@
 //! | 57 | 1 | cluster_id |
 //! | 58 | 32 | wallet |
 //! | 90 | 32 | achievement_id（伺服器穩定分配，不由 client 自選） |
-//! | 122 | 1 | category（1..=6） |
+//! | 122 | 1 | category（1..=6 PB；7..=11 首次里程碑，PG-M-02） |
 //! | 123 | 1 | verification_class（1 organizer／2 device） |
 //! | 124 | 4 | source_revision u32 LE |
 //! | 128 | 2 | rules_version u16 LE |
@@ -57,6 +57,18 @@ pub const CATEGORY_FASTEST_HALF: u8 = 4;
 pub const CATEGORY_FASTEST_MARATHON: u8 = 5;
 /// 最遠單次跑步。
 pub const CATEGORY_LONGEST_RUN: u8 = 6;
+/// 首次 5K（Genesis Distance，PG-M-02；穩定 key＝wallet＋category＋environment＋class）。
+pub const CATEGORY_FIRST_5K: u8 = 7;
+/// 首次 10K。
+pub const CATEGORY_FIRST_10K: u8 = 8;
+/// 首次半馬。
+pub const CATEGORY_FIRST_HALF: u8 = 9;
+/// 首次全馬。
+pub const CATEGORY_FIRST_MARATHON: u8 = 10;
+/// 首次完賽（主辦方 FINISHED）。
+pub const CATEGORY_FIRST_FINISH: u8 = 11;
+/// 有效 category 上限（含）。
+pub const CATEGORY_MAX: u8 = CATEGORY_FIRST_FINISH;
 /// 驗證等級：主辦方。
 pub const CLASS_ORGANIZER: u8 = 1;
 /// 驗證等級：裝置／GPS。
@@ -77,7 +89,7 @@ pub enum AchievementError {
         /// 收到的版本。
         got: u8,
     },
-    /// category 不在 1..=6。
+    /// category 不在 1..=CATEGORY_MAX。
     BadCategory {
         /// 收到的值。
         got: u8,
@@ -185,7 +197,7 @@ impl AchievementProof {
             i64::from_le_bytes(a)
         };
         let category = bytes[OFF_CATEGORY];
-        if !(CATEGORY_FASTEST_1K..=CATEGORY_LONGEST_RUN).contains(&category) {
+        if !(CATEGORY_FASTEST_1K..=CATEGORY_MAX).contains(&category) {
             return Err(AchievementError::BadCategory { got: category });
         }
         let verification_class = bytes[OFF_CLASS];
@@ -253,8 +265,10 @@ mod tests {
         b[0] ^= 1;
         assert_eq!(AchievementProof::decode(&b).unwrap_err(), AchievementError::BadDomain);
         let mut c = base();
-        c.category = 9;
-        assert_eq!(AchievementProof::decode(&c.encode()).unwrap_err(), AchievementError::BadCategory { got: 9 });
+        c.category = 12;
+        assert_eq!(AchievementProof::decode(&c.encode()).unwrap_err(), AchievementError::BadCategory { got: 12 });
+        c.category = CATEGORY_FIRST_FINISH; // 里程碑類別在範圍內
+        assert!(AchievementProof::decode(&c.encode()).is_ok());
         let mut t = base();
         t.expiry = t.issued_at + 901;
         assert_eq!(t.validate().unwrap_err(), AchievementError::TtlTooLong { ttl: 901 });

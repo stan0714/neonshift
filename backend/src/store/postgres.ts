@@ -823,19 +823,23 @@ export class PostgresStore implements Store {
   }
   // ---- PG-R-08 ----
   private achievementRow(x: Row): Achievement {
-    return { achievementId: x.achievement_id as string, wallet: x.wallet as string, pbId: x.pb_id as string, category: x.category as string, verificationClass: x.verification_class as Achievement["verificationClass"], sourceRevision: Number(x.source_revision), rulesMajor: Number(x.rules_major), publicConsent: Boolean(x.public_consent), metadata: x.metadata as Record<string, unknown>, metadataHash: x.metadata_hash as Buffer, status: x.status as Achievement["status"], registrySignature: (x.registry_signature as string | null) ?? null, registryUpdatedAt: (x.registry_updated_at as Date | null) ?? null, asset: (x.asset as string | null) ?? null, mintedSignature: (x.minted_signature as string | null) ?? null, mintedAt: (x.minted_at as Date | null) ?? null, createdAt: x.created_at as Date, updatedAt: x.updated_at as Date };
+    return { achievementId: x.achievement_id as string, wallet: x.wallet as string, kind: (x.kind as Achievement["kind"] | undefined) ?? "pb", pbId: (x.pb_id as string | null) ?? null, milestoneKey: (x.milestone_key as string | null) ?? null, sourceKind: (x.source_kind as Achievement["sourceKind"] | undefined) ?? null, sourceId: (x.source_id as string | null) ?? null, category: x.category as string, verificationClass: x.verification_class as Achievement["verificationClass"], sourceRevision: Number(x.source_revision), rulesMajor: Number(x.rules_major), publicConsent: Boolean(x.public_consent), metadata: x.metadata as Record<string, unknown>, metadataHash: x.metadata_hash as Buffer, status: x.status as Achievement["status"], registrySignature: (x.registry_signature as string | null) ?? null, registryUpdatedAt: (x.registry_updated_at as Date | null) ?? null, asset: (x.asset as string | null) ?? null, mintedSignature: (x.minted_signature as string | null) ?? null, mintedAt: (x.minted_at as Date | null) ?? null, createdAt: x.created_at as Date, updatedAt: x.updated_at as Date };
   }
   async upsertAchievement(a: Omit<Achievement, "createdAt" | "updatedAt">, now: Date) {
     const r = await this.pool.query(
-      `INSERT INTO achievements (achievement_id, wallet, pb_id, category, verification_class, source_revision, rules_major, public_consent, metadata, metadata_hash, status, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12)
-       ON CONFLICT (achievement_id) DO UPDATE SET metadata = EXCLUDED.metadata, metadata_hash = EXCLUDED.metadata_hash, public_consent = EXCLUDED.public_consent, source_revision = EXCLUDED.source_revision, status = 'pending_registry', updated_at = EXCLUDED.updated_at
+      `INSERT INTO achievements (achievement_id, wallet, kind, pb_id, milestone_key, source_kind, source_id, category, verification_class, source_revision, rules_major, public_consent, metadata, metadata_hash, status, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$16)
+       ON CONFLICT (achievement_id) DO UPDATE SET metadata = EXCLUDED.metadata, metadata_hash = EXCLUDED.metadata_hash, public_consent = EXCLUDED.public_consent, source_kind = EXCLUDED.source_kind, source_id = EXCLUDED.source_id, source_revision = EXCLUDED.source_revision, status = 'pending_registry', updated_at = EXCLUDED.updated_at
          WHERE achievements.status <> 'minted' AND achievements.metadata_hash <> EXCLUDED.metadata_hash
        RETURNING *`,
-      [a.achievementId, a.wallet, a.pbId, a.category, a.verificationClass, a.sourceRevision, a.rulesMajor, a.publicConsent, JSON.stringify(a.metadata), a.metadataHash, a.status, now],
+      [a.achievementId, a.wallet, a.kind, a.pbId, a.milestoneKey, a.sourceKind, a.sourceId, a.category, a.verificationClass, a.sourceRevision, a.rulesMajor, a.publicConsent, JSON.stringify(a.metadata), a.metadataHash, a.status, now],
     );
     if (r.rows[0]) return this.achievementRow(r.rows[0] as Row);
     return (await this.getAchievement(a.achievementId))!;
+  }
+  async setAchievementSource(achievementId: string, source: { sourceKind: "workout" | "result"; sourceId: string; sourceRevision: number }, now: Date) {
+    const r = await this.pool.query(`UPDATE achievements SET source_kind = $2, source_id = $3, source_revision = $4, updated_at = $5 WHERE achievement_id = $1 RETURNING *`, [achievementId, source.sourceKind, source.sourceId, source.sourceRevision, now]);
+    return r.rows[0] ? this.achievementRow(r.rows[0] as Row) : null;
   }
   async getAchievement(achievementId: string) {
     const r = await this.pool.query(`SELECT * FROM achievements WHERE achievement_id = $1`, [achievementId]);
@@ -1066,7 +1070,7 @@ export class PostgresStore implements Store {
         await client.query(`DELETE FROM achievements WHERE wallet = $1 AND minted_signature IS NULL`, [wallet]); // PG-R-08：未鑄造刪除；已鑄造保留鏈上事實
         await client.query(`INSERT INTO gallery_prefs (wallet, hidden, updated_at) VALUES ($1, true, $2) ON CONFLICT (wallet) DO UPDATE SET hidden = true, updated_at = EXCLUDED.updated_at`, [wallet, now]); // PG-R-09：停止藝廊展示
         await client.query(`UPDATE pb_revisions SET previous_pb_id = NULL WHERE wallet = $1`, [wallet]);
-        await client.query(`DELETE FROM pb_revisions WHERE wallet = $1 AND pb_id NOT IN (SELECT pb_id FROM achievements WHERE wallet = $1)`, [wallet]); // PG-R-07：PB 一併刪除（已鑄造成就的 PB 列保留）
+        await client.query(`DELETE FROM pb_revisions WHERE wallet = $1 AND pb_id NOT IN (SELECT pb_id FROM achievements WHERE wallet = $1 AND pb_id IS NOT NULL)`, [wallet]); // PG-R-07：PB 一併刪除（已鑄造成就的 PB 列保留）
       }
       await client.query("COMMIT");
       if (!deferUntil) await this.deleteWalletEventData(wallet, now); // BR-32：活動個人層資料一併刪除（各活動獨立交易）

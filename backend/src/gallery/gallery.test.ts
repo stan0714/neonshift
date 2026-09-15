@@ -107,7 +107,7 @@ describe("gallery API", () => {
     for (const [pb, consent, asset] of [[pbs[0]!, true, assetA], [pbs[1]!, false, assetB]] as const) {
       const id = achievementIdOf(u.wallet, pb.pbId);
       const metadata = buildMetadata(pb, id, consent);
-      await store.upsertAchievement({ achievementId: id, wallet: u.wallet, pbId: pb.pbId, category: pb.category, verificationClass: "device", sourceRevision: 1, rulesMajor: 1, publicConsent: consent, metadata, metadataHash: metadataHashOf(metadata), status: "approved", registrySignature: "r", registryUpdatedAt: now, asset: null, mintedSignature: null, mintedAt: null }, now);
+      await store.upsertAchievement({ achievementId: id, wallet: u.wallet, kind: "pb", pbId: pb.pbId, milestoneKey: null, sourceKind: "workout", sourceId: pb.sourceId, category: pb.category, verificationClass: "device", sourceRevision: 1, rulesMajor: 1, publicConsent: consent, metadata, metadataHash: metadataHashOf(metadata), status: "approved", registrySignature: "r", registryUpdatedAt: now, asset: null, mintedSignature: null, mintedAt: null }, now);
       await galleryProjection(ev("AchievementClaimed", 10, { wallet: u.wallet, achievement_id: id, category: 2, verification_class: 2, source_revision: 1, asset }, `mint-${asset}`), store, now);
     }
     let body = (await app.inject({ method: "GET", url: `/v1/gallery/players/${u.wallet}`, headers: hv })).json();

@@ -550,7 +550,7 @@ export class MemoryStore implements Store {
   async upsertAchievement(a: Omit<Achievement, "createdAt" | "updatedAt">, now: Date) {
     const cur = this.achievements.get(a.achievementId);
     if (cur) {
-      if (cur.status !== "minted" && !cur.metadataHash.equals(a.metadataHash)) Object.assign(cur, { metadata: a.metadata, metadataHash: a.metadataHash, publicConsent: a.publicConsent, sourceRevision: a.sourceRevision, status: "pending_registry", updatedAt: now });
+      if (cur.status !== "minted" && !cur.metadataHash.equals(a.metadataHash)) Object.assign(cur, { metadata: a.metadata, metadataHash: a.metadataHash, publicConsent: a.publicConsent, sourceKind: a.sourceKind, sourceId: a.sourceId, sourceRevision: a.sourceRevision, status: "pending_registry", updatedAt: now });
       return { ...cur };
     }
     const row: Achievement = { ...a, createdAt: now, updatedAt: now };
@@ -560,6 +560,12 @@ export class MemoryStore implements Store {
   async getAchievement(achievementId: string) {
     const x = this.achievements.get(achievementId);
     return x ? { ...x } : null;
+  }
+  async setAchievementSource(achievementId: string, source: { sourceKind: "workout" | "result"; sourceId: string; sourceRevision: number }, now: Date) {
+    const cur = this.achievements.get(achievementId);
+    if (!cur) return null;
+    Object.assign(cur, { ...source, updatedAt: now });
+    return { ...cur };
   }
   async getAchievementByPb(pbId: string) {
     const x = [...this.achievements.values()].find((a) => a.pbId === pbId);
