@@ -799,6 +799,13 @@ export const theme = {
 
 降階顯示現在鞋階、歷史保留與下期恢復條件，不以資產損失或羞辱文案催促。48／24 小時提醒需使用者可關閉。現役排行與歷史成就榜分開，標示結算時間。永久收藏、退款及個資操作不因等級變灰或停用。
 
+### 21.1 實作（PG-V-04，2026-09-15）
+
+- **Gear Hero**：上方 Chip「現役 LV.n」（level）與「歷史最高 LV.n」（高於現役時 synced 色）；ShoeHero／倍率只用 Active level（`coreLevel`）。XP ring 與 XP 區塊照舊，與維持區塊分開。
+- **本期維持挑戰** Surface（`gear-maintenance-<state>`）：右上「剩 n 天」；兩格 Stat「維持點 x / 目標」「活躍日 x / 目標」（目標＝回歸階級 > 下一階 > 維持本階）；caption 本期結束本地時間＋UTC；文字列：維持 Lv n（已達／還需 x 點、y 活躍日，約 z 天雙任務）、回歸 Lv n（歷史最高高於現役時，附「你的成就仍在收藏中」）或升到 Lv n（XP 不足時改「還需累積更多 XP」）；註腳「步數 +100、睡眠 +50…未達標只調整裝備等級，不扣 XP、代幣或 NFT」。狀態：`migration_required`（下次打卡自動更新）、`settlement_pending`（n 期未結算，下次打卡先結算）。
+- **收藏**：跑鞋依 `shoeSection` 分「目前裝備／曾經達成／尚未解鎖」三組；曾經達成 Tile 加「曾經達成」label、保留完整作品與 Claim（資格依歷史最高）；尚未解鎖維持灰階鎖頭。
+- **藝廊**：列表頂部 tab「現役排行／歷史成就」（`?board=active|lifetime`）；歷史成就榜 Chip 顯示歷史最高（synced 色）、排序歷史最高 → 收藏 → XP；「n 位玩家 · 更新時間」即結算時間標示。
+
 ## 22. Genesis Distance 與紀念系列
 
 作品概念、狀態及詳細流程見 [首次里程碑與紀念 NFT](./commemorative-nfts.md)。四枚以一致 1:1 框架設計：5K 青綠起跑門、10K 冰藍雙地平線、半馬紫色半環、全馬紫綠完整環與終點拱門。使用清楚距離字標／圖形，不只依顏色辨識；不使用未授權主辦方商標。
@@ -806,6 +813,14 @@ export const theme = {
 My collection 新增 Milestones；摘要可同時呈現首次、活動與 PB 卡片，文字不得混稱。首次卡顯示資料涵蓋範圍與 Organizer／Device；已達成用完整作品，不因鞋階降低變成灰色未解鎖。長距離同時解鎖多章採逐枚領取，不宣稱一次簽章可批次鑄造。
 
 紀念情境以首次完賽、活動留念、回歸及週年為主；不把回歸推論為康復／傷病，不引導高熱量或超量運動。圖案抽象化，不展示原始路線；公開預覽明列成就門檻本身亦會透露運動紀錄。
+
+### 22.1 實作（PG-M-03，2026-09-15）
+
+- **作品**：`tools/nft-assets/build.mjs` → `web/nft/achievements/milestones/<category>-<class>.svg`（9 張：四距離 × organizer／device ＋ first_finish organizer）。統一 520×520 框架：細邊框、halo、主圖、距離字標（5K／10K／21.0975K／42.195K／FINISH）、系列字（GENESIS DISTANCE · FIRST …／FIRST FINISH · EVENT）、來源字（OFFICIAL RESULT mint／DEVICE RECORDED muted）。5K 青綠起跑門＋5 光點；10K 冰藍雙地平線＋日；半馬紫色半環＋虛線地平；全馬紫→青綠完整環＋終點拱門；First Finish 方格終點帶。
+- **Milestones 區塊** `Milestones`（Gear → My collection 之後，PG-M-03）：資料涵蓋起點 caption（「依已匯入的紀錄判定首次…不代表人生首次」）、「同一筆紀錄解鎖 N 個里程碑，請逐枚領取」；每卡：章名＋作品名、Official／Device（室內另標）、門檻「單次 ≥ x km」、達成日（已解鎖才顯示）、狀態 Chip：未解鎖 neutral／裝置版尚未開放 neutral＋說明／待審 devnet／可領取 synced＋「Mint NFT」／等待核准 devnet／已領取 level／已撤銷 offline。未解鎖卡 opacity 0.7，不用鞋階變灰。
+- **領取流程**：同意對話（預設只公開類別／門檻／驗證等級；門檻本身也會透露）→ intent → 「領取預覽」Alert 逐項列出會寫入 NFT 的屬性＋rent 揭露 → MWA 簽送；409 顯示「目前沒有符合的紀錄可領取」。
+- **藝廊**：`PbCard` 同一卡片支援 genesis_distance（award 圖示）／first_finish（flag）；未公開顯示「距離與日期未公開」；玩家頁新增「首次」篩選與「首次里程碑」區（與 PB 區分開，不混稱）；NFT 詳情系列文字依 kind。
+- **活動紀念章（PG-M-04）**：活動詳情在 Perks 之後加 `EventBadges` Surface（主辦方有發行才顯示）：說明「報到章與完賽章分開、每人每章一枚、免費只付 rent、需報名時 Lv2」；每列章名＋提示（未達權限時顯示「需報名時跑鞋 Lv2（你當時為 Lv1）」）、狀態 Chip（需報名／未達成／未達權限／已取消／可領取＋Mint／等待核准／已領取／已撤銷）。藝廊 Events 篩選改列活動章（check-circle／flag 圖示、卡名＝活動名、活動日期公開、時間名次未公開文案），無則空狀態。
 
 ## 23. 走路／跑步記錄與分圈
 
@@ -815,11 +830,15 @@ Lap／Pause 至少 48dp；Finish 置於暫停頁並確認。摘要分 Splits／L
 
 ### 23.2 開始／記錄／摘要（PG-R-03／R-06 實作，2026-09-14）
 
-- **開始頁** `WorkoutStart`：Segmented（48dp、選中 mint 底／`onMint` 字）選 Run／Walk、Outdoor (GPS)／Indoor、自動圈 Off／400 m／1 km、分段 1 km／1 mile。Indoor 顯示 info InlineState 導向匯入並停用「Start recording」（disabledReason）。定位拒絕 → warning InlineState（說明路線只留手機、可改匯入）＋「Open settings」。
-- **記錄頁** `WorkoutRecord`（無 header、返回鍵鎖定）：頂列 GPS Chip（good＝synced／low accuracy＝devnet 警示／searching、off＝offline）與狀態 Chip（Recording＝level／Paused＝devnet）；主數字 88px tabular（跑步 min/km、走路 km/h，不足 5 秒窗顯示 —）；次列 displayM 時間／公里；底部兩顆 64dp 圓角控制鍵：記錄中「Lap」（surface 描邊）＋「Pause」（mint）；暫停中「Finish」（danger 描邊，Alert 確認）＋「Resume」（mint）。記錄中無動畫。
+- **開始頁** `WorkoutStart`：Segmented（48dp、選中 mint 底／`onMint` 字）選 Run／Walk、Outdoor (GPS)／Indoor、自動圈 Off／400 m／1 km、分段 1 km／1 mile；跑道模式 Off／400 m／200 m／自訂（number-pad，100～2000 m）＋ caption 提示「依 GPS 距離估算，非實體過線；各跑道線長度不同請先核對」與「我已核對圈長」Switch，未核對或圈長無效時「Start recording」停用（disabledReason）（PG-R-12）。Indoor 顯示 info InlineState 導向匯入並停用「Start recording」（disabledReason）。定位拒絕 → warning InlineState（說明路線只留手機、可改匯入）＋「Open settings」。
+- **記錄頁** `WorkoutRecord`（無 header、返回鍵鎖定）：頂列 GPS Chip（good＝synced／low accuracy＝devnet 警示／searching、off＝offline）與狀態 Chip（Recording＝level／Paused＝devnet）；主數字 88px tabular（跑步 min/km、走路 km/h，不足 5 秒窗顯示 —）；次列 displayM 時間／公里；底部兩顆 64dp 圓角控制鍵：記錄中「Lap」（surface 描邊）＋「Pause」（mint）；暫停中「Finish」（danger 描邊，Alert 確認）＋「Resume」（mint）。記錄中無動畫。 跑道模式時距離下方加一列 title「第 N 圈 ＋ m」與 caption「{len} m／圈 · 依距離估算」（PG-R-12）。
 - **摘要頁** `WorkoutSummary`（無返回）：displayL 距離、四格 elevated 統計（Elapsed、Avg pace／speed、Top speed (5 s avg)、Active kcal — 無裝置值為 —）；needs_review 以 warning InlineState 說明不具 PB 資格；同步狀態列（已同步 success／未同步＋「Sync now」）；Tabs Splits／Laps／Quality：列＝序號、距離、時間、配速＋ Chip（Partial＝neutral、Across a gap＝devnet、Fastest＝synced）；跑道等效以 caption 標「依距離估算」；Quality 為 Chips（接受／拒絕／缺口／涵蓋率）。路線不顯示（地圖供應商未定）。
 - **恢復**：Workouts 清單頂部 warning InlineState「Unfinished workout」＋ Save（secondary）／Discard（danger）。
 
 ### 23.1 運動紀錄清單（PG-R-01 實作，2026-09-14）
 
 Home 「Workouts ›」進入 `WorkoutsScreen`：每筆一張 Surface — 標題「Run／Walk（· Indoor）」＋品質 Chip（Measured＝synced／Estimated、Partial＝neutral／Needs review＝devnet 警示色／Invalid＝offline），日期，四格指標（km、time、pace、kcal）以 `elevated` 底色成列；kcal 只有 Total 時顯示「350 kcal (total)」，缺值一律「—」。來源列「Source: Health Connect · <package>」＋步數；待審核原因與「可能重複」以 warning 文字列在指標下方，不合併、不相加。PB eligible 以 level Chip 標示（由後端判定，UI 不自行授予）。刪除為 caption danger 連結，需 Alert 確認並說明只移除 NeonShift 摘要。頂部「Import from Health Connect」secondary Button；原生模組未提供時以 info InlineState 說明，不假裝已匯入。
+
+## 24. 三模式運動與探索冊體驗
+
+依 [補充規格](./sport-experience-gameplay.md) 第 1～5 章。延續深色霓虹設計，三模式使用文字＋圖示，不只靠顏色；健走不呈現成跑步等級。運動中三項大數字、狀態與主要操作優先，慶祝與 NFT 預覽延至保存後。探索冊使用可逐格點亮的抽象城市章節，不展示真實位置；分列「探索進度」「鞋階維持」，不可合成同一進度條。大字、讀屏、減少動態設定須驗收。

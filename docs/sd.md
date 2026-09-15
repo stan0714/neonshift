@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.26（藝廊 PB） |
+| 文件版本 | v0.33（事故凍結） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -967,6 +967,13 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.33 | 2026-09-15 | PG-V-05：IncidentFreeze PDA、set_incident_freeze、凍結期不升不降、6044 |
+| v0.32 | 2026-09-15 | PG-V-04：藝廊 board=lifetime、App 維持儀表與收藏分區 |
+| v0.31 | 2026-09-15 | PG-V-03：level_history 投影、PB NFT Lv3 達成日門檻與能力快照 |
+| v0.30 | 2026-09-15 | PG-V-02：PlayerProfile 維持欄位、settle_player_epochs／migrate_player、clock_in 期末結算、EpochSettled |
+| v0.29 | 2026-09-15 | PG-M-04：活動留念章（events.badges、報名鞋階快照、category 12–13、migration 0014） |
+| v0.28 | 2026-09-15 | PG-M-01／M-02：里程碑判定、穩定 key 併入 achievements、category 7–11、migration 0013 |
+| v0.27 | 2026-09-15 | PG-R-12：跑道模式 trackLapMm、即時等效圈、恢復沿用 |
 | v0.26 | 2026-09-15 | PG-R-09：藝廊 PB 投影、NFT 詳情、退出藝廊、作品 |
 | v0.25 | 2026-09-14 | PG-R-08：成就證明格式、registry、claim_achievement、簽發與鑄造流程 |
 | v0.24 | 2026-09-14 | PG-R-07：PB 版本鏈、分組與更正重算 |
@@ -1055,6 +1062,14 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 
 新權限與維持參數尚未部署；此前 SD 3／12 內與本章衝突的永久 XP 升級規則僅記錄現有實作。上線須一次完成鏈上規則、客戶端、索引與遷移，不先以 UI 假裝已降級。具體 canonical 欄位、帳戶空間、batch 上限及費用待正式 PG 拆項後實作驗證。
 
+**實作（2026-09-15，PG-V-02 鏈上狀態／結算／migration）**：`PlayerProfile` 追加 `highest_level u8`、`epoch_anchor u32`（init_player／migrate 當日 UTC 日序）、`last_settled_epoch u32`（cursor＝目前開放期）、`epoch_points u16`、`epoch_bitmap u8`（7-bit 活躍日）、`maintenance_rules_version u16`（71 → 85 bytes；`V1_SPACE = 63`）。純規則 `maintenance.rs`（`epoch_index／day_offset／xp_cap_level／meets／settle_one`，與 `tools/maintenance-sim/rules.mjs` 同版參數：點數 [0,200,450,700,900]、活躍日 [0,2,3,5,6]、步數 100／睡眠 50）。`settle_pending`：逐期結算（缺席期 0 點）、每期 emit `EpochSettled{wallet, epoch, points, active_days, level_before, level_after, highest_level, rules_version, settled_at}`、清空期內累計、cursor +1；`clock_in` 步驟 8b 先順帶結算最多 `MAX_INLINE_SETTLE_EPOCHS = 8` 期，仍未追平 → 6041 `SettlementRequired`；獎勵用結算後 `core_level`；步驟 15 改為累計本期點數與 bitmap（不再由 XP 立即升級）；`ClockedIn` 追加 `epoch／epoch_points／epoch_bitmap／highest_level`。新指令：`settle_player_epochs(max_epochs ≤ 64)`（任何 payer、冪等、bounded）、`migrate_player`（任何 payer 付 rent 差額；驗 owner／discriminator／seeds、長度須為舊版，否則 6042 `AlreadyMigrated`／6043 `InvalidProfileAccount`；保留 levels／XP／streak，active＝max(core, shoe)＝highest，anchor＝當日、cursor 0；emit `PlayerMigrated`）。`claim_collectible` 鞋階 kind 改依 `highest_level`。LiteSVM：期末切換與倍率、缺席逐期降階／bounded／冪等／回歸、6041 後補結算、v1 佈局遷移；App `decodePlayerProfile`（舊 71 bytes → `migrated=false`）、`maintenanceNeeds`（遷移／落後期數）、打卡交易前置 `[migrate_player]` 或落後 > 8 期 `[settle_player_epochs(64)]`；indexer `EpochSettled` → 藝廊等級；chain-admin `migrate-players／settle-players`。**未部署 devnet**（程式需升級；上線步驟：升級 → `migrate-players` → App 更新）。
+
+**實作（2026-09-15，PG-V-03 能力快照）**：migration 0015 `level_history(wallet, effective_from_date, active_level, highest_level, epoch, source init|migrate|epoch, signature, slot)`（PK wallet＋signature＋source，冪等）與 `gallery_players.highest_level`；投影：`PlayerInitialized` → Lv1（自 finalized 日）、`PlayerMigrated` → 自 `epoch_anchor` 起、`EpochSettled` → 自 `settled_at` 日起 `level_after`，並更新 highest（只增）。`levelAt(wallet, date)`＝生效日 ≤ date 的最新一筆，無 → 無可查歷史。PB 成就 `ensure`：達成日 active_level ≥ `PB_NFT_MIN_LEVEL = 3`，否則 409 `LEVEL_REQUIRED`／`LEVEL_HISTORY_UNKNOWN`（只保留私人 PB，不用匯入時等級、回填無歷史不授予）；通過者把 `capability {active_level, effective_from}` 寫入 metadata `properties`（簽章綁 metadata_hash，不信任 client）。`GET /me/personal-bests` 每組附 `nft_eligibility`；App PB 區塊以原因文字取代 Mint。鞋階 NFT 依 `highest_level`（V-02）、活動章依報名快照 Lv2（M-04）、首次章 Lv1（M-02）。
+
+**實作（2026-09-15，PG-V-04）**：`GET /gallery/players?board=active|lifetime`（active＝目前有效等級 → XP → 錢包；lifetime＝`highest_level` → 收藏數 → XP → 錢包；回 `board`、每列 `highest_level`）；`galleryRankOf(wallet, board)`。App `domain/maintenance.ts`（與 rules.mjs 同版：期索引／期末時間／點數／活躍日／維持、升階、回歸目標與差額；`migration_required`／`settlement_pending`）、`shoeSection`（目前裝備／曾經達成／尚未解鎖）、跑鞋資格依 `highestLevel`；Gear 儀表與收藏三區、藝廊雙榜（Style 21.1）。
+
+**實作（2026-09-15，PG-V-05 凍結治理／版本／攻擊測試）**：`IncidentFreeze` PDA `["freeze"]`（start／end／set_at／reason_hash；admin `set_incident_freeze(start, end, reason_hash)` init_if_needed；視窗 end > start、≤ 28 天、start ≥ now − 7 天（不回寫更早已結束週期）否則 6044；(0,0) 清除；emit `IncidentFreezeSet`）。`clock_in`／`settle_player_epochs` 增 `freeze: Option<Account>`（不存在傳 program id）；與凍結視窗重疊的週期結算不降不升（highest 不變、期內累計重置），`EpochSettled.frozen = true`；不接受玩家自報離線保級。版本：`maintenance_rules_version` 寫入 profile／事件，改參數需升級程式並提高版本、只向未來生效（既有玩家 `migrate_player` 保留等級自當日起新週期）。攻擊／邊界 LiteSVM：非 admin 拒絕、視窗三種非法、凍結期缺席不降／全勤不升、非重疊期照常、清除後恢復、傳錯 freeze 帳戶被 seeds 拒絕；先前：重送去重、6041 落後、bounded batch、v1 遷移 6042／6043。App：dashboard 讀 freeze 帳戶、打卡／結算指令帶 freeze PDA 或 program id、Gear 顯示凍結提示；chain-admin `set-freeze <start|0> <end|0> [reason]`（原文請公開於事故公告，鏈上存 sha256）。待：實機驗收、devnet 升級。
+
 ## 15. 首次成就 NFT 契約補充
 
 依 [首次里程碑與紀念 NFT](./commemorative-nfts.md) 第 4 章，新增 first_5k／first_10k／first_half／first_marathon／first_finish 類別。首次類 stable key 綁 wallet、category、environment、verification class；來源 revision 只在 eligibility 中更新，不改 receipt 唯一性。活動／年度類另帶 event／year，明確區別終身一次與每期一次。
@@ -1062,6 +1077,10 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 不沿用「每次破 PB 一個新 achievement ID」為首次章重分配 ID；重傳／更早資料回填／失效後重新達標沿用同 key。claim_achievement 必須驗證 key 與已核准 registry 對應，原子鑄造與 receipt；轉出資產不恢復資格。半馬／全馬初期只啟用 organizer 類別，device 類別須通過長距離品質驗收才開。
 
 長期紀念索引與保存政策需獨立同意，不延長原健康摘要 30 天；精確成績／日期不預設寫入公開 metadata。NFT 與來源更正狀態分開讀取，圖片失效只回退呈現，不重鑄。
+
+**實作（2026-09-15，PG-M-01／M-02）**：`backend/src/milestones/compute.ts` 純函式——門檻 5,000,000／10,000,000／21,097,500／42,195,000 mm 整數比較（不四捨五入）；裝置候選＝run、非 deleted／invalid、distance ≥ 門檻，資格＝saved 且 pb_eligible 且距離非 estimated 且非 manual（否則 needs_review／estimated／manual），半馬／全馬裝置版 `device_pending`；主辦方候選＝FINISHED（run／walk）→ first_finish，run 距離 ≥ 門檻 → 距離章，完成時間＝賽事 `starts_at ?? ends_at`，缺 → `missing_time` 待審；穩定 key `category|environment|verification_class`，每 key 取 achieved_at 最早（同時間依 sourceId）→ `eligible｜pending_review｜device_pending｜locked`；目錄固定 9 張（5 organizer＋4 device 戶外）＋候選其他環境附加。`MilestoneService.resolve` 讀取即重算；`GET /me/milestones`（items、`unlocked_by_source`＝同一來源解鎖清單、imported_since）。M-02：`achievements` 表 migration 0013 加 `kind(pb|milestone)`、`pb_id` 可空、`milestone_key`（wallet＋key 唯一）、`source_kind／source_id`；`achievement_id = sha256("neonshift-milestone|wallet|key")`（不含來源／revision／規則／年份）；`POST /me/milestones/mint-intent {key, public_consent}`（非 eligible → 409 `MILESTONE_NOT_ELIGIBLE`）沿用 registry／證明／ops 流程，category 碼 7 first_5k／8 first_10k／9 first_half／10 first_marathon／11 first_finish（Rust `CATEGORY_MAX = 11`、`claim_achievement` 範圍同步、向量 12 組）；metadata 預設只含 Series／Milestone／Verification／Environment／Rules／Threshold，公開同意才加 Distance／Achieved，image `milestones/<category>-<class>.svg`；PB 重算後 `reconcileMilestones`：失效 → revoke_pending（已鑄造保留 minted 事實）、重新達標 → 同 id 恢復（未鑄造重建 metadata 回 pending_registry；已鑄造回 minted 只更新來源）、更早回填／來源更正 → 未鑄造重建、已鑄造只更新 `source_*`（metadata 快照不動）；藝廊投影 `kind: milestone`、series genesis_distance｜first_finish、record current｜invalidated。
+
+**實作（2026-09-15，PG-M-04 活動留念章）**：migration 0014——`events.badges JSONB {check_in, finish}`（主辦方 `POST／PATCH /partner/events` 設定，公開投影回 `badges`）、`event_participants.level_at_registration`（報名時由 gallery_players 快照鞋階，無投影＝1；之後降級不沒收）、achievements kind 增 `event`（key `event|<event_id>|<check_in|finish>` 存於 milestone_key，`achievement_id = sha256("neonshift-event-badge|wallet|key")`）。`milestones/eventBadges.ts`：只列有發行的活動；狀態 cancelled（取消報名／活動取消）＞ level_locked（快照 < Lv2）＞ locked ＞ eligible；報到章來源＝參加者列（achieved_at＝賽事 starts_at）、完賽章來源＝該活動最新 FINISHED 結果 revision。`GET /me/event-badges`、`POST /me/event-badges/mint-intent {event_id, kind, public_consent}`（非 eligible → 409 `EVENT_BADGE_NOT_ELIGIBLE`）；category 12 event_check_in／13 event_finish（Rust `CATEGORY_MAX = 13`、向量 13 組）；metadata：Series Event Memory、Badge、Event（活動名為公開資訊）、Verification Official、Event date；公開同意才加 Time／Rank；image `milestones/event-<kind>.svg`（通用作品，不含主辦方商標）。同步：結果發布／更正（經 PB 重算 hook）與取消報名（`onParticipationChanged`）→ `reconcileEventBadges`（失效 revoke_pending、恢復同 id、已鑄造只更新來源）；PB `reconcile` 只處理 kind=pb。藝廊投影 `kind: event`、series event_check_in｜event_finish、`event {title, event_id}`、`achieved_on`＝活動日期（公開）。App：活動詳情 `EventBadges` 區塊（需報名／未達成／未達權限＋說明／可領取／等待核准／已領取／已撤銷；同意 → 領取預覽 → MWA）、藝廊 Events 篩選與活動章區。待：實機 NFC／報到／鑄造端到端驗收、devnet 程式升級。
 
 ## 16. GPS 運動模組契約（待實作）
 
@@ -1075,10 +1094,16 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 | WorkoutSummarySync | 沿用第 13 章運動摘要入口，以 wallet＋session ID 去重、revision 防覆寫；只同步同意的摘要與圈，原始座標不得進請求或日誌 |
 | WorkoutScreens | 開始／記錄／暫停／摘要；展示來源與品質，串接 PB／首次資格結果，不由 UI 自行授予 NFT |
 
-**實作（2026-09-14，PG-R-04／R-05）**：`GpsMetricsEngine`（`app/src/domain/gps/engine.ts`，`GPS_RULES_VERSION = 1`）純計算：`start／pause／resume／lap／finish` 以單調毫秒驅動；`addPoint` 依序拒絕非有限座標、seq 重複、時間倒序、精度 > 20 m、與前一接受點速度超上限（跑 12／走 4 m/s，門檻待實機校準）、暫停中；與前一接受點間隔 > 5 s 或恢復後從新點重建連續段（不補直線距離；缺口計數）；位移 < 3 m 視為抖動不累加（錨點不前進）；距離為接受點間 haversine 整數毫米。速度＝最近完整 5 秒連續窗的接受距離 ÷ 5（窗起點插值），不完整回 null，最高速度取其最大；平均速度／配速用全程 elapsed（含暫停）。Splits 依 `splitLengthMm`（1,000,000／1,609,344）在兩接受點間按距離比例插值時間、一次跨多界線逐一切、跨缺口標 `uncertain`、末段 `isPartial`，最快分段只比完整且非 uncertain 者；手動 Lap 與自訂距離自動圈為獨立序列（暫停禁按、零距離／零時間不新增）；跑道等效圈 `floor(distance / lapMm)` ＋餘數。`finish()` 回摘要與品質統計（accepted／rejected 分類／stationary／segments／gaps／coverageRatio／complete）。固定軌跡重播測試 `app/src/__tests__/gpsEngine.test.ts`。
+**實作（2026-09-14，PG-R-04／R-05）**：`GpsMetricsEngine`（`app/src/domain/gps/engine.ts`，`GPS_RULES_VERSION = 1`）純計算：`start／pause／resume／lap／finish` 以單調毫秒驅動；`addPoint` 依序拒絕非有限座標、seq 重複、時間倒序、精度 > 20 m、與前一接受點速度超上限（跑 12／走 4 m/s，門檻待實機校準）、暫停中；與前一接受點間隔 > 5 s 或恢復後從新點重建連續段（不補直線距離；缺口計數）；位移 < 3 m 視為抖動不累加（錨點不前進）；距離為接受點間 haversine 整數毫米。速度＝最近完整 5 秒連續窗的接受距離 ÷ 5（窗起點插值），不完整回 null，最高速度取其最大；平均速度／配速用全程 elapsed（含暫停）。Splits 依 `splitLengthMm`（1,000,000／1,609,344）在兩接受點間按距離比例插值時間、一次跨多界線逐一切、跨缺口標 `uncertain`、末段 `isPartial`，最快分段只比完整且非 uncertain 者；手動 Lap 與自訂距離自動圈為獨立序列（暫停禁按、零距離／零時間不新增）；跑道等效圈 `floor(distance / lapMm)` ＋餘數（PG-R-12：`trackEquivalent()` 供記錄中即時顯示與 `finish()` 共用；`trackLapMm` 由開始頁選定 400／200／自訂 100～2000 m 並經使用者核對後寫入 session meta，恢復重播沿用；上傳 extras `track_equivalent`；不含實體過線偵測）。`finish()` 回摘要與品質統計（accepted／rejected 分類／stationary／segments／gaps／coverageRatio／complete）。固定軌跡重播測試 `app/src/__tests__/gpsEngine.test.ts`。
 
 **實作（2026-09-14，PG-R-03／R-06）**：`WorkoutRecorder`（`app/src/services/workouts/WorkoutRecorder.ts`）狀態機 idle → recording ↔ paused → finishing → saved｜needs_review → idle；同時只允許一個 session；Indoor 拒絕啟動（不以 GPS 推算）。定位：`expo-location.startLocationUpdatesAsync`（BestForNavigation、1 s、前景服務通知；`FOREGROUND_SERVICE_LOCATION`，不申請背景定位）→ `expo-task-manager` 任務（`locationTask.ts`，啟動時定義）把原始點以 seq 交給 recorder；點先批次寫入 `LocalWorkoutStore`（每 session 目錄：`meta.json` 無座標；`points.log` 每行一批 `nacl.secretbox`，金鑰在 Keystore-backed SecureStore）再餵 `GpsMetricsEngine`；暫停／手動圈時間記在 meta。Finish：停止定位 → `engine.finish` → 摘要與狀態寫入本機（gaps／coverage < 0.9 或 interrupted → needs_review）→ `WorkoutSummarySync`（`POST /workouts/import`，origin gps、source_id `cc.neonshift.app/gps`、external_record_id = sessionId、distance_method gps、client_flags gps_gap／interrupted、extras 含 splits／laps／quality，無座標）；失敗保留本機、摘要頁可重試。恢復：啟動時 `markRecoverable` 把非本 process 的 recording／paused 標 recoverable＋interrupted；`recover(id, 'finish')` 以 seq 去重重播點與暫停／圈事件，用最後一點時間結束（不補負時間）並同步；`discard` 刪目錄（路線一併清除）；同 process 才允許續錄。單調時基目前以定位 timestamp（UTC）為準，跨 process 一律視為中斷（原生 elapsedRealtime 於 R-10 實機驗證時評估）。刪除 workout（`DELETE /me/workouts/{id}`）與本機 `store.delete` 分開，UI 刪除時兩者都做。畫面見 Style 23.2。
 
 同步契約須拒絕非有限數值、負距離／時長、圈界越界及不支援的 sport／版本；伺服器衍生欄位不可由客戶端覆寫。相同 revision 重試返回同結果，過期 revision 回傳衝突，刪除 tombstone 阻止離線舊資料重建。裝置摘要仍屬裝置來源，欄位合法不等於運動真實性已驗證。
 
 Indoor 不啟用 GPS 推算距離，僅接可信裝置／已標記來源；缺來源顯示缺值。背景服務與定位權限依 Android／Expo 實作時官方文件驗證，不假設鎖屏與 process 被殺時持續可用。測試以專章 7 的固定軌跡、圈界、跳點、暫停、恢復及實機證據作 PG-R-10 完成門檻。
+
+## 17. 運動目標與探索冊契約（新增待實作）
+
+依 [補充規格](./sport-experience-gameplay.md)。WorkoutSession 新增可空 intent 與 goal_snapshot（kind、target、unit、version）；舊資料不回填為健走。擬新增 QuestTemplate、QuestEnrollment（wallet、template_version、start/end UTC、timezone、goal）、QuestContribution（來源穩定 ID／revision）、QuestReceipt（wallet＋enrollment 唯一）與 CosmeticEntitlement。資格由後端依有效摘要計算，禁止接受 client 自報 completed；發放 receipt 與外觀權限同交易原子提交。重播同來源不重領，來源修正／刪除觸發重算及權限撤銷。走路與健走共用來源去重鍵。
+
+擬新增本人任務查詢／接受／領取 API，皆沿用 wallet authentication；接受與領取支援 idempotency key，活動序列與截止時間由服務端驗證。探索模組只讀既有摘要，不寫鏈上維持帳戶或 NFT registry；不收原始座標。具體 schema／API migration 由 PG-U-04 實作並驗證唯一性、併發與刪除事件。

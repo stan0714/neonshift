@@ -65,7 +65,8 @@ pub fn collectible_metadata(kind: u8) -> Option<(String, String)> {
 /// 錦標賽名次待 C-14（TournamentEntry）接入，目前一律不合格。
 pub fn eligible(profile: &PlayerProfile, kind: u8) -> bool {
     match kind {
-        COLLECTIBLE_SHOE_LV1..=COLLECTIBLE_SHOE_LV5 => profile.shoe_level >= kind,
+        // PG-V-02：鞋階 NFT 依歷史最高（降級後仍可補領）
+        COLLECTIBLE_SHOE_LV1..=COLLECTIBLE_SHOE_LV5 => profile.highest_level.max(profile.shoe_level) >= kind,
         COLLECTIBLE_FIRST_CLAIM => profile.xp > 0,
         COLLECTIBLE_STREAK_7 => profile.max_streak_days >= 7,
         _ => false,

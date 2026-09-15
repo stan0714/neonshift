@@ -1,5 +1,6 @@
 # neonshift.cc 靜態站
 
+- `nft/achievements/<category>-<class>.svg`（PB）、`nft/achievements/milestones/<category>-<class>.svg`（首次里程碑）：成就 NFT 作品，metadata 由 `api.neonshift.cc/v1/nft/achievements/<id>.json` 動態產生；同樣由 `build.mjs` 產生，不要手改。
 - `nft/<kind>.json`、`nft/img/<kind>.svg`：成就 NFT metadata（Metaplex JSON 標準）與圖片，由 `node tools/nft-assets/build.mjs` 產生，**不要手改**。
   kind：1～5 跑鞋（Origin／Pulse／Phase／Surge／Zenith）、101 首次打卡、102 連續 7 天、111～113 錦標賽名次。
   鏈上 `claim_collectible` 的 URI 為 `https://neonshift.cc/nft/<kind>.json`（程式常數 `COLLECTIBLE_BASE_URI`），部署後不得搬移。

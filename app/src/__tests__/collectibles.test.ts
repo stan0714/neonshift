@@ -22,7 +22,7 @@ jest.mock('@/services/chain/ChainClient', () => ({
 }));
 
 const wallet = new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
-const profile = (p: Partial<PlayerProfile>): PlayerProfile => ({ wallet, coreLevel: 1, shoeLevel: 1, xp: BigInt(0), lastTaskDate: 0, streakDays: 0, maxStreakDays: 0, claimedToday: BigInt(0), todayDate: 0, ...p });
+const profile = (p: Partial<PlayerProfile>): PlayerProfile => ({ wallet, coreLevel: 1, shoeLevel: 1, xp: BigInt(0), lastTaskDate: 0, streakDays: 0, maxStreakDays: 0, claimedToday: BigInt(0), todayDate: 0, migrated: true, highestLevel: 1, epochAnchor: 0, lastSettledEpoch: 0, epochPoints: 0, epochBitmap: 0, maintenanceRulesVersion: 1, ...p });
 
 beforeEach(() => {
   jest.clearAllMocks();

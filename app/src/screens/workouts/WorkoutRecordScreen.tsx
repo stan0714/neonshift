@@ -80,6 +80,16 @@ export function WorkoutRecordScreen() {
           </Text>
         </View>
       </View>
+      {s.trackEquivalent ? (
+        <View style={styles.track} testID="record-track">
+          <Text variant="title" numeric testID="record-track-laps">
+            {t('rec.trackLive', { laps: s.trackEquivalent.laps, rem: Math.round(s.trackEquivalent.remainderMm / 1000) })}
+          </Text>
+          <Text variant="caption" tone="muted">
+            {t('rec.trackLiveHint', { len: s.trackEquivalent.lapMm / 1000 })}
+          </Text>
+        </View>
+      ) : null}
       {lapNote ? (
         <Text variant="bodySmall" tone="cyan" style={styles.center}>
           {lapNote}
@@ -117,6 +127,7 @@ export function WorkoutRecordScreen() {
 }
 
 const styles = StyleSheet.create({
+  track: { alignItems: 'center', marginTop: space.s },
   statusRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.s },
   hero: { alignItems: 'center', marginTop: space.xl * 2 },
   big: { fontSize: 88, lineHeight: 96, fontWeight: '700', color: color.textPrimary, fontVariant: ['tabular-nums'] },

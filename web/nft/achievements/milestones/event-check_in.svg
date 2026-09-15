@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 520" width="520" height="520">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#050711"/><stop offset="1" stop-color="#0B1020"/></linearGradient><radialGradient id="halo"><stop offset="0" stop-color="#24C8FF" stop-opacity="0.26"/><stop offset="1" stop-color="#24C8FF" stop-opacity="0"/></radialGradient><linearGradient id="vm" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9B6CFF"/><stop offset="1" stop-color="#30EBC8"/></linearGradient></defs>
+<rect width="520" height="520" rx="48" fill="url(#bg)"/>
+<rect x="14" y="14" width="492" height="492" rx="40" fill="none" stroke="#24C8FF" stroke-opacity="0.35" stroke-width="2"/>
+<circle cx="260" cy="236" r="200" fill="url(#halo)"/>
+<circle cx="260" cy="230" r="150" fill="none" stroke="#24C8FF" stroke-opacity="0.5" stroke-width="6"/><path d="M175 235 L235 295 L350 175" fill="none" stroke="#24C8FF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="260" y="352" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="44" font-weight="800" letter-spacing="2" fill="#F4F8FF">CHECKED IN</text>
+<text x="260" y="452" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="3" fill="#F4F8FF">EVENT MEMORY · CHECK-IN</text>
+<text x="260" y="486" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="16" letter-spacing="3" fill="#30EBC8">OFFICIAL RESULT</text>
+</svg>

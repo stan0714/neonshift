@@ -1,7 +1,7 @@
 import { randomUUID } from 'expo-crypto';
 import * as Location from 'expo-location';
 
-import { GpsMetricsEngine, type Lap, type RawPoint, type Summary } from '@/domain/gps/engine';
+import { GpsMetricsEngine, type Lap, type RawPoint, type Summary, type TrackEquivalent } from '@/domain/gps/engine';
 import { apiClient, type WorkoutImportInput } from '@/services/api/ApiClient';
 import { LocalWorkoutStore, type SessionMeta } from './LocalWorkoutStore';
 import { resetLocationSeq, setLocationSink, WORKOUT_LOCATION_TASK } from './locationTask';
@@ -26,6 +26,8 @@ export type RecorderSnapshot = {
   accepted: number;
   splits: Lap[];
   laps: Lap[];
+  /** PG-R-12：跑道等效圈（依距離估算）；未啟用 → null */
+  trackEquivalent: TrackEquivalent | null;
   interrupted: boolean;
 };
 
@@ -37,6 +39,9 @@ const defaultSync = async (input: WorkoutImportInput) => {
   const first = r.results[0];
   return { sessionId: first && first.outcome !== 'invalid' ? first.session.session_id : null };
 };
+
+/** meta → 引擎設定（舊 meta 無 trackLapMm → null） */
+const engineConfigOf = (meta: SessionMeta) => ({ autoLapMm: meta.autoLapMm, trackLapMm: meta.trackLapMm ?? null, splitLengthMm: meta.splitLengthMm });
 
 export class WorkoutRecorder {
   private readonly store: LocalWorkoutStore;
@@ -86,6 +91,7 @@ export class WorkoutRecorder {
       accepted: this.meta?.acceptedCount ?? 0,
       splits: e ? [...e.splits] : [],
       laps: e ? [...e.laps] : [],
+      trackEquivalent: e?.trackEquivalent() ?? null,
       interrupted: this.meta?.interrupted ?? false,
     };
   }
@@ -101,13 +107,13 @@ export class WorkoutRecorder {
     return r.granted;
   }
 
-  async start(opts: { sport: 'run' | 'walk'; environment: 'outdoor' | 'indoor'; autoLapMm?: number | null; splitLengthMm?: number }): Promise<SessionMeta> {
+  async start(opts: { sport: 'run' | 'walk'; environment: 'outdoor' | 'indoor'; autoLapMm?: number | null; trackLapMm?: number | null; splitLengthMm?: number }): Promise<SessionMeta> {
     if (this.state !== 'idle') throw new Error('a session is already active');
     if (opts.environment === 'indoor') throw new Error('indoor sessions do not use GPS'); // Indoor 不啟用 GPS 推算距離
     const t = this.now();
     const sessionId = randomUUID();
-    this.meta = await this.store.create({ sessionId, sport: opts.sport, environment: opts.environment, autoLapMm: opts.autoLapMm ?? null, splitLengthMm: opts.splitLengthMm ?? 1_000_000, status: 'recording', startedAtUtc: t, startedMonoMs: t, processId: this.processId });
-    this.engine = new GpsMetricsEngine(opts.sport, { autoLapMm: this.meta.autoLapMm, splitLengthMm: this.meta.splitLengthMm });
+    this.meta = await this.store.create({ sessionId, sport: opts.sport, environment: opts.environment, autoLapMm: opts.autoLapMm ?? null, trackLapMm: opts.trackLapMm ?? null, splitLengthMm: opts.splitLengthMm ?? 1_000_000, status: 'recording', startedAtUtc: t, startedMonoMs: t, processId: this.processId });
+    this.engine = new GpsMetricsEngine(opts.sport, engineConfigOf(this.meta));
     this.engine.start(t);
     this.state = 'recording';
     this.lastPointAt = 0;
@@ -260,7 +266,7 @@ export class WorkoutRecorder {
       return { meta: null };
     }
     const points = await this.store.readPoints(sessionId);
-    const engine = new GpsMetricsEngine(meta.sport, { autoLapMm: meta.autoLapMm, splitLengthMm: meta.splitLengthMm });
+    const engine = new GpsMetricsEngine(meta.sport, engineConfigOf(meta));
     engine.start(meta.startedMonoMs);
     // 重播：依 seq 順序，暫停／手動圈依記錄時間插入
     const events: { t: number; kind: 'pause' | 'resume' | 'lap' }[] = [];

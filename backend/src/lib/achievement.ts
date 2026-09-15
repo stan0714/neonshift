@@ -7,8 +7,11 @@ export const ACHIEVEMENT_LEN = 194;
 export const ACHIEVEMENT_VERSION = 1;
 export const ACHIEVEMENT_MAX_TTL_SECONDS = 900;
 
-export const CATEGORY_CODE = { fastest_1k: 1, fastest_5k: 2, fastest_10k: 3, fastest_half: 4, fastest_marathon: 5, longest_run: 6 } as const;
+/** 1..=6 PB（PG-R-08）；7..=11 首次里程碑（PG-M-02）；與 Rust CATEGORY_* 一致 */
+export const CATEGORY_CODE = { fastest_1k: 1, fastest_5k: 2, fastest_10k: 3, fastest_half: 4, fastest_marathon: 5, longest_run: 6, first_5k: 7, first_10k: 8, first_half: 9, first_marathon: 10, first_finish: 11, event_check_in: 12, event_finish: 13 } as const;
 export const CLASS_CODE = { organizer: 1, device: 2 } as const;
+/** 12..=13 活動留念章（PG-M-04） */
+export const CATEGORY_MAX = 13;
 
 const OFF = { domain: 0, version: 24, programId: 25, clusterId: 57, wallet: 58, achievementId: 90, category: 122, cls: 123, sourceRevision: 124, rulesVersion: 128, metadataHash: 130, issuedAt: 162, expiry: 170, nonce: 178 } as const;
 
@@ -61,7 +64,7 @@ export function decodeAchievement(bytes: Buffer): AchievementProof {
   const version = bytes.readUInt8(OFF.version);
   if (version !== ACHIEVEMENT_VERSION) throw new AchievementFormatError(`不支援的版本 ${version}`);
   const category = bytes.readUInt8(OFF.category);
-  if (category < 1 || category > 6) throw new AchievementFormatError(`category ${category} 無效`);
+  if (category < 1 || category > CATEGORY_MAX) throw new AchievementFormatError(`category ${category} 無效`);
   const verificationClass = bytes.readUInt8(OFF.cls);
   if (verificationClass !== 1 && verificationClass !== 2) throw new AchievementFormatError(`verification_class ${verificationClass} 無效`);
   return {

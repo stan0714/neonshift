@@ -599,6 +599,25 @@ OPS_TOKEN=… npm --prefix tools/chain-admin run sync-achievements -- dev   # �
 
 保留：活動結束／取消後 `EVENT_RETENTION_DAYS`（預設 180，Q-13 定案前）由保留清理刪除名單、報到、核銷、成績版本與匯入原檔列，只留活動、規則、稽核與宣傳彙總；`DELETE /player/data` 立即同步移除該錢包的活動個人層資料。稽核：`GET /partner/events/$EV/audit`。
 
+### 7.10 跑鞋維持週期上線（PG-V-02）
+
+程式升級後既有 `PlayerProfile`（71 bytes）需補欄位；App 會在玩家下次打卡自動前置 `migrate_player`，上線時也可由 admin 一次補齊並批次結算：
+
+```bash
+npm --prefix tools/chain-admin run admin -- migrate-players dev --dry-run   # 列出舊版帳戶
+npm --prefix tools/chain-admin run admin -- migrate-players dev             # admin 付 rent 差額（每帳戶 ≈ 0.0001 SOL）
+npm --prefix tools/chain-admin run admin -- settle-players dev              # 對所有帳戶送 settle_player_epochs(64)（已追平者 no-op）
+```
+
+規則參數見 `docs/economics/maintenance-sim.md`；改門檻需升級程式並提高 `MAINTENANCE_RULES_VERSION`，只向未來生效。
+
+平台事故時（PG-V-05）：先公開事故公告，再由 admin 寫入全域凍結（凍結期內週期不降不升；視窗最長 28 天、不得早於 7 天前）：
+
+```bash
+npm --prefix tools/chain-admin run admin -- set-freeze dev 2026-09-20T00:00:00Z 2026-09-27T00:00:00Z "RPC outage 2026-09-20"
+npm --prefix tools/chain-admin run admin -- set-freeze dev 0 0   # 清除
+```
+
 ## 8. 測試包（Release APK）產出
 
 ### 8.1 產生 keystore（只做一次）

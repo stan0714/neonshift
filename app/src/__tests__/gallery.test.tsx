@@ -44,6 +44,19 @@ describe('GalleryScreen', () => {
     await act(async () => {}); // 讓 load() 的 finally（setLoading）在 act 內完成，避免影響下一個 render
   });
 
+  test('PG-V-04：切換歷史成就榜 → 以 board=lifetime 重新載入、Chip 顯示歷史最高', async () => {
+    api.galleryPlayers.mockResolvedValueOnce({ generated_at: '2026-09-14T00:00:00Z', board: 'active', total: 1, next_cursor: null, players: [player(B, 1, { shoe_level: 2, highest_level: 5 })], you: null });
+    await render(<GalleryScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId(`gallery-row-${B}`)).toBeTruthy());
+    expect(api.galleryPlayers).toHaveBeenLastCalledWith(null, 50, 'active');
+    expect(screen.getByText('LV. 2')).toBeTruthy();
+    api.galleryPlayers.mockResolvedValueOnce({ generated_at: '2026-09-14T00:00:00Z', board: 'lifetime', total: 1, next_cursor: null, players: [player(B, 1, { shoe_level: 2, highest_level: 5 })], you: null });
+    await fireEvent.press(screen.getByTestId('gallery-board-lifetime'));
+    await waitFor(() => expect(api.galleryPlayers).toHaveBeenLastCalledWith(null, 50, 'lifetime'));
+    await waitFor(() => expect(screen.getByText('LV. 5')).toBeTruthy());
+    await act(async () => {});
+  });
+
   test('搜尋地址前綴', async () => {
     api.galleryPlayers.mockResolvedValue({ generated_at: '2026-09-14T00:00:00Z', total: 1, next_cursor: null, players: [player(B, 1)], you: null });
     api.gallerySearch.mockResolvedValue({ players: [player(B, 1)] });
@@ -96,6 +109,48 @@ describe('GalleryPlayerScreen', () => {
     await fireEvent.press(screen.getByTestId('gallery-filter-shoes'));
     expect(screen.queryByTestId('gallery-pb-a1')).toBeNull();
     expect(screen.getByTestId('gallery-collectible-1')).toBeTruthy();
+    await act(async () => {});
+  });
+
+  test('PG-M-03：首次里程碑卡與 PB 分開列（Genesis Distance／First Finish、未公開文案）；Firsts 篩選只留首次；無首次時 Firsts 顯示空狀態', async () => {
+    const ach = (o: Record<string, unknown>) => ({ achievement_id: 'a1', asset: 'AssetA', series: 'pb_speed', category: 'fastest_5k', verification_class: 'device', environment: 'outdoor', record: 'current', public: true, value: '25:00', achieved_on: '2026-09-05', image: '', name: 'x', minted_at: '2026-09-06T00:00:00Z', minted_signature: 's', metadata_uri: '/v1/nft/achievements/a1.json', ...o });
+    api.galleryPlayer.mockResolvedValue({ player: player(B, 1), is_you: false, collectibles: [], achievements: [ach({}), ach({ achievement_id: 'm1', asset: 'AssetM', kind: 'milestone', series: 'genesis_distance', category: 'first_10k', public: false, value: null }), ach({ achievement_id: 'm2', asset: 'AssetF', kind: 'milestone', series: 'first_finish', category: 'first_finish', verification_class: 'organizer', public: true, value: '42.195 km' })] });
+    await render(<GalleryPlayerScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('gallery-first-m1')).toBeTruthy());
+    expect(screen.getByTestId('gallery-first-m1').props.accessibilityLabel).toBe('First 10K · Current best');
+    expect(screen.getByText('Genesis Distance · Device recorded')).toBeTruthy();
+    expect(screen.getByText('First Finish · Official result')).toBeTruthy();
+    expect(screen.getByText('Distance and date private')).toBeTruthy();
+    expect(screen.getByTestId('gallery-pb-a1')).toBeTruthy();
+    expect(screen.queryByTestId('gallery-pb-m1')).toBeNull(); // 不混入 PB 區
+    await fireEvent.press(screen.getByTestId('gallery-filter-first'));
+    expect(screen.queryByTestId('gallery-pb-a1')).toBeNull();
+    expect(screen.getByTestId('gallery-first-m2')).toBeTruthy();
+    api.galleryPlayer.mockResolvedValue({ player: player(B, 1), is_you: false, collectibles: [], achievements: [ach({})] });
+    await render(<GalleryPlayerScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('gallery-pb-a1')).toBeTruthy());
+    expect(screen.queryByTestId('gallery-no-first')).toBeNull(); // All 且無首次 → 不顯示區塊
+    await fireEvent.press(screen.getByTestId('gallery-filter-first'));
+    expect(screen.getByTestId('gallery-no-first')).toBeTruthy();
+    await act(async () => {});
+  });
+
+  test('PG-M-04：活動紀念章卡（活動名、活動日期公開、時間未公開文案）；Events 篩選只留活動章；無活動章顯示空狀態', async () => {
+    const ach = (o: Record<string, unknown>) => ({ achievement_id: 'a1', asset: 'AssetA', series: 'pb_speed', category: 'fastest_5k', verification_class: 'device', environment: 'outdoor', record: 'current', public: true, value: '25:00', achieved_on: '2026-09-05', image: '', name: 'x', minted_at: '2026-09-06T00:00:00Z', minted_signature: 's', metadata_uri: '/v1/nft/achievements/a1.json', ...o });
+    api.galleryPlayer.mockResolvedValue({ player: player(B, 1), is_you: false, collectibles: [], achievements: [ach({}), ach({ achievement_id: 'e1', asset: 'AssetE', kind: 'event', series: 'event_finish', category: 'event_finish', verification_class: 'organizer', public: false, value: null, achieved_on: '2026-10-03', event: { title: 'River 10K', event_id: 'ev1' } })] });
+    await render(<GalleryPlayerScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('gallery-event-e1')).toBeTruthy());
+    expect(screen.getByTestId('gallery-event-e1').props.accessibilityLabel).toBe('River 10K · Current best');
+    expect(screen.getByText('Event finisher · Official result')).toBeTruthy();
+    expect(screen.getByText('2026-10-03')).toBeTruthy(); // 活動日期公開
+    await fireEvent.press(screen.getByTestId('gallery-filter-events'));
+    expect(screen.queryByTestId('gallery-pb-a1')).toBeNull();
+    expect(screen.getByTestId('gallery-event-e1')).toBeTruthy();
+    api.galleryPlayer.mockResolvedValue({ player: player(B, 1), is_you: false, collectibles: [], achievements: [ach({})] });
+    await render(<GalleryPlayerScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('gallery-pb-a1')).toBeTruthy());
+    await fireEvent.press(screen.getByTestId('gallery-filter-events'));
+    expect(screen.getByTestId('gallery-events-empty')).toBeTruthy();
     await act(async () => {});
   });
 

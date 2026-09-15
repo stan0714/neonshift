@@ -188,6 +188,50 @@ for (const c of pbCategories) for (const cls of ["organizer", "device"]) {
 }
 writeFileSync(resolve(OUT, "achievements", "index.json"), JSON.stringify({ base: `${BASE}/achievements`, files: pbFiles, note: "metadata served by api.neonshift.cc/v1/nft/achievements/<id>.json" }, null, 2) + "\n");
 console.log(`wrote ${pbFiles.length} achievement artworks`);
+
+// PG-M-03：Genesis Distance 與 First Finish（commemorative-nfts 1；Style 22）。四枚一致 1:1 框架、距離字標可辨識、不依顏色辨識、不畫路線。
+const FONT = "Inter, Roboto, Helvetica, Arial, sans-serif";
+const msFrame = (body, { label, series, cls, tint }) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 520" width="520" height="520">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color.canvas}"/><stop offset="1" stop-color="${color.surface}"/></linearGradient><radialGradient id="halo"><stop offset="0" stop-color="${tint}" stop-opacity="0.26"/><stop offset="1" stop-color="${tint}" stop-opacity="0"/></radialGradient><linearGradient id="vm" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${color.violet}"/><stop offset="1" stop-color="${color.mint}"/></linearGradient></defs>
+<rect width="520" height="520" rx="48" fill="url(#bg)"/>
+<rect x="14" y="14" width="492" height="492" rx="40" fill="none" stroke="${tint}" stroke-opacity="0.35" stroke-width="2"/>
+<circle cx="260" cy="236" r="200" fill="url(#halo)"/>
+${body}
+<text x="260" y="352" text-anchor="middle" font-family="${FONT}" font-size="${label.length > 4 ? 44 : 64}" font-weight="800" letter-spacing="2" fill="${color.textPrimary}">${label}</text>
+<text x="260" y="452" text-anchor="middle" font-family="${FONT}" font-size="${series.length > 28 ? 17 : 22}" font-weight="700" letter-spacing="${series.length > 28 ? 2 : 3}" fill="${color.textPrimary}">${series}</text>
+<text x="260" y="486" text-anchor="middle" font-family="${FONT}" font-size="16" letter-spacing="3" fill="${cls === "organizer" ? color.mint : color.textMuted}">${cls === "organizer" ? "OFFICIAL RESULT" : "DEVICE RECORDED"}</text>
+</svg>`;
+const milestoneArt = {
+  // 首次 5K · First Spark／初光：青綠起跑門＋ 5 個光點
+  first_5k: (cls) => msFrame(`<path d="M120 300 L120 130 Q260 60 400 130 L400 300" fill="none" stroke="${color.mint}" stroke-width="10" stroke-linecap="round"/><line x1="100" y1="300" x2="420" y2="300" stroke="${color.mint}" stroke-opacity="0.6" stroke-width="4"/>${[0, 1, 2, 3, 4].map((i) => `<circle cx="${160 + i * 50}" cy="${222 - Math.sin((i / 4) * Math.PI) * 60}" r="${9 + (i === 2 ? 4 : 0)}" fill="${color.mint}" fill-opacity="${0.55 + i * 0.1}"/>`).join("")}`, { label: "5K", series: "GENESIS DISTANCE · FIRST 5K", cls, tint: color.mint }),
+  // 首次 10K · Double Horizon／雙境：冰藍雙層地平線
+  first_10k: (cls) => msFrame(`<path d="M60 250 Q260 150 460 250" fill="none" stroke="${color.cyan}" stroke-width="10" stroke-linecap="round"/><path d="M90 296 Q260 210 430 296" fill="none" stroke="${color.cyan}" stroke-opacity="0.55" stroke-width="6" stroke-linecap="round"/><circle cx="260" cy="150" r="26" fill="${color.cyan}" fill-opacity="0.9"/><circle cx="260" cy="150" r="44" fill="none" stroke="${color.cyan}" stroke-opacity="0.4" stroke-width="3"/>`, { label: "10K", series: "GENESIS DISTANCE · FIRST 10K", cls, tint: color.cyan }),
+  // 首次半馬 · Halfway to Infinity／半程無界：紫色半環光帶
+  first_half: (cls) => msFrame(`<path d="M80 280 A180 180 0 0 1 440 280" fill="none" stroke="${color.violet}" stroke-width="16" stroke-linecap="round"/><path d="M120 280 A140 140 0 0 1 400 280" fill="none" stroke="${color.violet}" stroke-opacity="0.45" stroke-width="8" stroke-linecap="round"/><line x1="60" y1="280" x2="460" y2="280" stroke="${color.violet}" stroke-opacity="0.5" stroke-width="3" stroke-dasharray="10 12"/>`, { label: "21.0975K", series: "GENESIS DISTANCE · FIRST HALF MARATHON", cls, tint: color.violet }),
+  // 首次全馬 · Marathon Genesis／全程起源：紫綠完整環＋終點拱門
+  first_marathon: (cls) => msFrame(`<circle cx="260" cy="230" r="170" fill="none" stroke="url(#vm)" stroke-width="16"/><circle cx="260" cy="230" r="135" fill="none" stroke="${color.mint}" stroke-opacity="0.3" stroke-width="4"/><path d="M190 300 L190 210 Q260 150 330 210 L330 300" fill="none" stroke="${color.textPrimary}" stroke-width="8" stroke-linecap="round"/><line x1="170" y1="300" x2="350" y2="300" stroke="${color.textPrimary}" stroke-width="6" stroke-linecap="round"/>`, { label: "42.195K", series: "GENESIS DISTANCE · FIRST MARATHON", cls, tint: color.violet }),
+  // 首次完賽 · First Finish：終點帶與方格帶（抽象，不用主辦方商標）
+  first_finish: (cls) => msFrame(`${[0, 1, 2, 3, 4, 5, 6, 7].map((i) => `<rect x="${80 + i * 45}" y="${i % 2 ? 196 : 226}" width="45" height="30" fill="${color.textPrimary}" fill-opacity="${i % 2 ? 0.9 : 0.35}"/>`).join("")}<line x1="70" y1="150" x2="70" y2="300" stroke="${color.mint}" stroke-width="8" stroke-linecap="round"/><line x1="450" y1="150" x2="450" y2="300" stroke="${color.mint}" stroke-width="8" stroke-linecap="round"/><path d="M70 150 Q260 100 450 150" fill="none" stroke="${color.mint}" stroke-width="6" stroke-linecap="round"/>`, { label: "FINISH", series: "FIRST FINISH · EVENT", cls, tint: color.mint }),
+};
+mkdirSync(resolve(OUT, "achievements", "milestones"), { recursive: true });
+const msFiles = [];
+for (const [key, fn] of Object.entries(milestoneArt)) for (const cls of key === "first_finish" ? ["organizer"] : ["organizer", "device"]) {
+  const file = `${key}-${cls}.svg`;
+  writeFileSync(resolve(OUT, "achievements", "milestones", file), fn(cls));
+  msFiles.push(file);
+}
+// PG-M-04：活動留念章（報到／完賽）通用作品：不含主辦方商標；活動名由 metadata 提供
+const eventArt = {
+  check_in: msFrame(`<circle cx="260" cy="230" r="150" fill="none" stroke="${color.cyan}" stroke-opacity="0.5" stroke-width="6"/><path d="M175 235 L235 295 L350 175" fill="none" stroke="${color.cyan}" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>`, { label: "CHECKED IN", series: "EVENT MEMORY · CHECK-IN", cls: "organizer", tint: color.cyan }),
+  finish: msFrame(`<line x1="150" y1="120" x2="150" y2="330" stroke="${color.mint}" stroke-width="10" stroke-linecap="round"/><path d="M150 130 L360 130 L330 190 L360 250 L150 250 Z" fill="${color.mint}" fill-opacity="0.85"/>${[0, 1, 2, 3].map((i) => `<rect x="${170 + i * 40}" y="${i % 2 ? 150 : 190}" width="40" height="40" fill="${color.canvas}" fill-opacity="0.6"/>`).join("")}`, { label: "FINISHER", series: "EVENT MEMORY · FINISH", cls: "organizer", tint: color.mint }),
+};
+for (const [kind, svg] of Object.entries(eventArt)) {
+  const file = `event-${kind}.svg`;
+  writeFileSync(resolve(OUT, "achievements", "milestones", file), svg);
+  msFiles.push(file);
+}
+writeFileSync(resolve(OUT, "achievements", "milestones", "index.json"), JSON.stringify({ base: `${BASE}/achievements/milestones`, files: msFiles }, null, 2) + "\n");
+console.log(`wrote ${msFiles.length} milestone artworks`);
 // PNG fallback（Style 16.2；部分錢包不渲染 SVG）：需要 rsvg-convert（brew install librsvg）
 import { execFileSync } from "node:child_process";
 let png = 0;

@@ -45,6 +45,23 @@ describe("galleryProjection", () => {
     expect([p.shoeLevel, p.xp, p.streakDays, p.maxStreakDays, p.lastTaskDate]).toEqual([2, 450n, 3, 5, 20_710]);
     await galleryProjection(ev("PlayerInitialized", 5, { wallet: w, shoe_level: 1 }), store, now); // 重放不重置
     expect((await store.getGalleryPlayer(w))?.xp).toBe(450n);
+    // PG-V-02：期末結算切換等級（其餘沿用）；較舊 slot 忽略
+    await galleryProjection(ev("EpochSettled", 25, { wallet: w, epoch: 3, points: 0, active_days: 0, level_before: 2, level_after: 1, highest_level: 2, rules_version: 1 }), store, now);
+    const q = (await store.getGalleryPlayer(w))!;
+    expect([q.shoeLevel, q.coreLevel, q.xp, q.streakDays, q.lastTaskDate]).toEqual([1, 1, 450n, 3, 20_710]);
+    await galleryProjection(ev("EpochSettled", 22, { wallet: w, epoch: 2, level_before: 2, level_after: 3, highest_level: 3 }), store, now);
+    expect((await store.getGalleryPlayer(w))?.shoeLevel).toBe(1);
+    // PG-V-03：歷史最高只增；歷史等級可查（init 當日 Lv1、結算日起 level_after）；重放冪等
+    expect((await store.getGalleryPlayer(w))?.highestLevel).toBe(3);
+    const settledDay = 20_720;
+    await galleryProjection(ev("EpochSettled", 40, { wallet: w, epoch: 4, level_before: 1, level_after: 2, highest_level: 3, settled_at: String(settledDay * 86_400 + 100) }), store, now);
+    await galleryProjection(ev("EpochSettled", 40, { wallet: w, epoch: 4, level_before: 1, level_after: 2, highest_level: 3, settled_at: String(settledDay * 86_400 + 100) }), store, now);
+    expect((await store.listLevelHistory(w, 10)).filter((h) => h.source === "epoch" && h.epoch === 4)).toHaveLength(1);
+    expect((await store.levelAt(w, settledDay))?.activeLevel).toBe(2);
+    expect((await store.levelAt(w, settledDay - 1))?.activeLevel).toBe(1); // 結算前一天仍為前一筆
+    await galleryProjection(ev("PlayerMigrated", 41, { wallet: w, epoch_anchor: 20_730, active_level: 4, highest_level: 4, rules_version: 1 }), store, now);
+    expect((await store.levelAt(w, 20_731))?.activeLevel).toBe(4);
+    expect((await store.getGalleryPlayer(w))?.highestLevel).toBe(4);
     await galleryProjection(ev("CollectibleClaimed", 30, { wallet: w, kind: 1, asset: "A1" }), store, now);
     await galleryProjection(ev("CollectibleClaimed", 30, { wallet: w, kind: 1, asset: "A1" }), store, now);
     await galleryProjection(ev("CollectibleClaimed", 31, { wallet: w, kind: 101, asset: "A2" }), store, now);
@@ -74,6 +91,15 @@ describe("gallery API", () => {
     body = (await app.inject({ method: "GET", url: "/v1/gallery/players?limit=2&cursor=2", headers: h })).json();
     expect(body.players.map((p: { wallet: string }) => p.wallet)).toEqual([a]);
     expect(body.next_cursor).toBeNull();
+    // PG-V-04：a 曾達 Lv5 後降回 Lv2 → 現役榜仍第 3；Lifetime 榜（歷史最高 → 收藏 → XP）第 1
+    await galleryProjection(ev("EpochSettled", 5, { wallet: a, epoch: 3, level_before: 5, level_after: 2, highest_level: 5, settled_at: "1700000000" }), store, now);
+    body = (await app.inject({ method: "GET", url: "/v1/gallery/players", headers: h })).json();
+    expect(body.board).toBe("active");
+    expect(body.players.map((p: { wallet: string; highest_level: number }) => [p.wallet, p.highest_level])).toEqual([[b, 3], [u.wallet, 2], [a, 5]]);
+    body = (await app.inject({ method: "GET", url: "/v1/gallery/players?board=lifetime", headers: h })).json();
+    expect(body.board).toBe("lifetime");
+    expect(body.players.map((p: { wallet: string; rank: number }) => [p.rank, p.wallet])).toEqual([[1, a], [2, b], [3, u.wallet]]);
+    expect(body.you).toEqual({ rank: 3 });
 
     res = await app.inject({ method: "GET", url: `/v1/gallery/players/${b}`, headers: h });
     body = res.json();
@@ -107,7 +133,7 @@ describe("gallery API", () => {
     for (const [pb, consent, asset] of [[pbs[0]!, true, assetA], [pbs[1]!, false, assetB]] as const) {
       const id = achievementIdOf(u.wallet, pb.pbId);
       const metadata = buildMetadata(pb, id, consent);
-      await store.upsertAchievement({ achievementId: id, wallet: u.wallet, pbId: pb.pbId, category: pb.category, verificationClass: "device", sourceRevision: 1, rulesMajor: 1, publicConsent: consent, metadata, metadataHash: metadataHashOf(metadata), status: "approved", registrySignature: "r", registryUpdatedAt: now, asset: null, mintedSignature: null, mintedAt: null }, now);
+      await store.upsertAchievement({ achievementId: id, wallet: u.wallet, kind: "pb", pbId: pb.pbId, milestoneKey: null, sourceKind: "workout", sourceId: pb.sourceId, category: pb.category, verificationClass: "device", sourceRevision: 1, rulesMajor: 1, publicConsent: consent, metadata, metadataHash: metadataHashOf(metadata), status: "approved", registrySignature: "r", registryUpdatedAt: now, asset: null, mintedSignature: null, mintedAt: null }, now);
       await galleryProjection(ev("AchievementClaimed", 10, { wallet: u.wallet, achievement_id: id, category: 2, verification_class: 2, source_revision: 1, asset }, `mint-${asset}`), store, now);
     }
     let body = (await app.inject({ method: "GET", url: `/v1/gallery/players/${u.wallet}`, headers: hv })).json();

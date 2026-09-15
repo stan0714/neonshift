@@ -7,6 +7,7 @@ import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../auth/routes.js";
 import type { AuthService } from "../auth/service.js";
 import type { PbRevision, Store } from "../store/types.js";
+import { pbNftEligibility } from "./achievements.js";
 import { buildChains, candidatesFromResult, candidatesFromWorkout, keyOf, type PbCandidate } from "./compute.js";
 
 export class PersonalBestService {
@@ -55,7 +56,16 @@ export async function pbRoutes(app: FastifyInstance, opts: { auth: AuthService; 
     return {
       rules_major: 1,
       imported_since: since?.toISOString() ?? null,
-      groups: [...groups.entries()].map(([key, list]) => ({ key, category: list[0]!.category, environment: list[0]!.environment, verification_class: list[0]!.verificationClass, timing_basis: list[0]!.timingBasis, current: list.find((x) => x.status === "current") ? pbView(list.find((x) => x.status === "current")!) : null, history: list.filter((x) => x.status !== "current").sort((a, b) => b.achievedAt.getTime() - a.achievedAt.getTime()).map(pbView) })),
+      groups: await Promise.all([...groups.entries()].map(async ([key, list]) => {
+        const current = list.find((x) => x.status === "current") ?? null;
+        return {
+          key, category: list[0]!.category, environment: list[0]!.environment, verification_class: list[0]!.verificationClass, timing_basis: list[0]!.timingBasis,
+          current: current ? pbView(current) : null,
+          // PG-V-03：NFT 資格（達成日 Active level ≥ 3；歷史缺失 → history_unknown）
+          nft_eligibility: current ? await pbNftEligibility(store, wallet, current.achievedAt) : null,
+          history: list.filter((x) => x.status !== "current").sort((a, b) => b.achievedAt.getTime() - a.achievedAt.getTime()).map(pbView),
+        };
+      })),
     };
   });
 }

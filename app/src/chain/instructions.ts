@@ -4,7 +4,7 @@ import { Buffer } from 'buffer';
 
 import { SYSVAR_INSTRUCTIONS_PUBKEY } from '@solana/web3.js';
 
-import { achievementAssetPda, achievementPda, assetPda, collectiblePda, configPda, discriminator, eligibilityPda, entryPda, MPL_CORE_PROGRAM_ID, playerPda, programId, tournamentPda, tournamentVaultPda } from './program';
+import { achievementAssetPda, achievementPda, assetPda, collectiblePda, configPda, discriminator, eligibilityPda, entryPda, freezePda, MPL_CORE_PROGRAM_ID, playerPda, programId, tournamentPda, tournamentVaultPda } from './program';
 import { associatedTokenAddress, TOKEN_PROGRAM_ID } from './txBuilder';
 
 /** `init_player`：玩家簽章付 rent；即初階跑鞋的贈與（SD 3.2） */
@@ -18,6 +18,34 @@ export function initPlayerInstruction(wallet: PublicKey): TransactionInstruction
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
     data: discriminator('init_player'),
+  });
+}
+
+/** PG-V-02 `migrate_player`：舊版 PlayerProfile 補維持欄位；payer 付 rent 差額（打卡交易前置） */
+export function migratePlayerInstruction(payer: PublicKey, wallet: PublicKey): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: programId(),
+    keys: [
+      { pubkey: payer, isSigner: true, isWritable: true },
+      { pubkey: playerPda(wallet), isSigner: false, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: discriminator('migrate_player'),
+  });
+}
+
+/** PG-V-02 `settle_player_epochs`：任何 payer 結算已過期週期（bounded；clock_in 落後 > 8 期時前置） */
+export function settlePlayerEpochsInstruction(payer: PublicKey, wallet: PublicKey, maxEpochs = 64, freezeExists = false): TransactionInstruction {
+  if (!Number.isInteger(maxEpochs) || maxEpochs < 1 || maxEpochs > 255) throw new RangeError(`maxEpochs 必須是 1..255：${maxEpochs}`);
+  return new TransactionInstruction({
+    programId: programId(),
+    keys: [
+      { pubkey: payer, isSigner: true, isWritable: false },
+      { pubkey: configPda(), isSigner: false, isWritable: false },
+      { pubkey: playerPda(wallet), isSigner: false, isWritable: true },
+      { pubkey: freezeExists ? freezePda() : programId(), isSigner: false, isWritable: false },
+    ],
+    data: Buffer.concat([discriminator('settle_player_epochs'), Buffer.from([maxEpochs])]),
   });
 }
 

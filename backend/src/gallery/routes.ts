@@ -7,7 +7,7 @@ import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../auth/routes.js";
 import type { AuthService } from "../auth/service.js";
 import { ApiError } from "../errors.js";
-import type { Achievement, PbRevision } from "../store/types.js";
+import type { GalleryBoard, Achievement, PbRevision } from "../store/types.js";
 import type { GalleryPlayer, Store } from "../store/types.js";
 
 const base58 = /^[1-9A-HJ-NP-Za-km-z]{1,44}$/;
@@ -23,6 +23,8 @@ const view = (p: GalleryPlayer, rank: number | null) => ({
   max_streak_days: p.maxStreakDays,
   last_task_date: p.lastTaskDate,
   collectible_count: p.collectibleCount,
+  /** PG-V-04：歷史最高（Lifetime 榜）；shoe_level＝目前有效等級（結算時間見 updated_at） */
+  highest_level: p.highestLevel,
   updated_at: p.updatedAt.toISOString(),
 });
 
@@ -30,12 +32,15 @@ export async function galleryRoutes(app: FastifyInstance, opts: { auth: AuthServ
   const { auth, store, now } = opts;
 
   app.get("/gallery/players", { preHandler: requireAuth(auth) }, async (req) => {
-    const q = req.query as { limit?: string; cursor?: string };
+    const q = req.query as { limit?: string; cursor?: string; board?: string };
     const limit = Math.min(GALLERY_PAGE, Math.max(1, Number(q.limit ?? GALLERY_PAGE) || GALLERY_PAGE));
     const offset = Math.max(0, Number(q.cursor ?? 0) || 0);
-    const [rows, total, you] = await Promise.all([store.listGalleryPlayers(limit, offset), store.countGalleryPlayers(), store.galleryRankOf(req.auth!.wallet)]);
+    // PG-V-04：現役榜（目前有效等級）與歷史成就榜（歷史最高）分開
+    const board: GalleryBoard = q.board === "lifetime" ? "lifetime" : "active";
+    const [rows, total, you] = await Promise.all([store.listGalleryPlayers(limit, offset, board), store.countGalleryPlayers(), store.galleryRankOf(req.auth!.wallet, board)]);
     return {
       generated_at: now().toISOString(),
+      board,
       total,
       next_cursor: offset + rows.length < total ? String(offset + rows.length) : null,
       players: rows.map((p, i) => view(p, offset + i + 1)),
@@ -91,21 +96,26 @@ export async function galleryRoutes(app: FastifyInstance, opts: { auth: AuthServ
 
 /** 公開投影：類別、系列、驗證等級、狀態；精確值只有 public_consent 時（來自 canonical metadata） */
 function publicAchievement(a: Achievement, pbs: PbRevision[]) {
-  const pb = pbs.find((p) => p.pbId === a.pbId);
-  const record: "current" | "historical" | "invalidated" = a.status === "revoked" || a.status === "revoke_pending" || !pb || pb.status === "invalidated" ? "invalidated" : pb.status === "current" ? "current" : "historical";
+  const pb = a.kind === "pb" ? pbs.find((p) => p.pbId === a.pbId) : null;
+  const invalid = a.status === "revoked" || a.status === "revoke_pending";
+  // PG-M-02 里程碑：有效即 current（沒有「被超越」的歷史概念）；來源失效 → invalidated
+  const record: "current" | "historical" | "invalidated" = a.kind === "milestone" || a.kind === "event" ? (invalid ? "invalidated" : "current") : invalid || !pb || pb.status === "invalidated" ? "invalidated" : pb.status === "current" ? "current" : "historical";
   const attrs = (a.metadata.attributes as { trait_type: string; value: string }[] | undefined) ?? [];
   const valueAttr = attrs.find((x) => x.trait_type === "Time" || x.trait_type === "Distance");
   return {
     achievement_id: a.achievementId,
     asset: a.asset,
-    series: a.category === "longest_run" ? "pb_distance" : "pb_speed",
+    kind: a.kind,
+    series: a.kind === "event" ? a.category : a.kind === "milestone" ? (a.category === "first_finish" ? "first_finish" : "genesis_distance") : a.category === "longest_run" ? "pb_distance" : "pb_speed",
+    event: a.kind === "event" ? { title: ((a.metadata.attributes as { trait_type: string; value: string }[] | undefined) ?? []).find((x) => x.trait_type === "Event")?.value ?? null, event_id: (a.metadata.properties as { event_id?: string } | undefined)?.event_id ?? null } : null,
     category: a.category,
     verification_class: a.verificationClass,
     environment: (attrs.find((x) => x.trait_type === "Environment")?.value as string | undefined) ?? "outdoor",
     record,
     public: a.publicConsent,
     value: a.publicConsent && valueAttr ? valueAttr.value : null,
-    achieved_on: a.publicConsent ? ((attrs.find((x) => x.trait_type === "Achieved")?.value as string | undefined) ?? null) : null,
+    // 活動章的活動日期為公開資訊；其餘精確日期只在公開同意時
+    achieved_on: a.kind === "event" ? ((attrs.find((x) => x.trait_type === "Event date")?.value as string | undefined) ?? null) : a.publicConsent ? ((attrs.find((x) => x.trait_type === "Achieved")?.value as string | undefined) ?? null) : null,
     image: a.metadata.image as string,
     name: a.metadata.name as string,
     minted_at: a.mintedAt?.toISOString() ?? null,

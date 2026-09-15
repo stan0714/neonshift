@@ -9,18 +9,23 @@ import { color, radius, space, Text } from '@/theme';
 /**
  * PB NFT 卡片（Style 20；activity-running-gallery 6.1／6.2）：Speed＝青藍計時環、Distance＝紫綠里程弧（抽象、不畫路線）；
  * 類別、來源、Current／Historical／Invalidated 都用文字；未公開的值顯示「數值未公開」。
+ * PG-M-03：首次里程碑（genesis_distance／first_finish）同一卡片，圖示 award／flag、文字不與 PB 混稱。
  */
+export const achievementLabel = (t: ReturnType<typeof useT>['t'], a: Pick<GalleryAchievement, 'series' | 'category' | 'event'>) =>
+  a.series === 'event_check_in' || a.series === 'event_finish' ? (a.event?.title ?? t('gal.series.' + a.series as TKey)) : a.series === 'genesis_distance' || a.series === 'first_finish' ? t(`ms.cat.${a.category}` as TKey) : t(`pb.cat.${a.category}` as TKey);
 export function PbCard({ a, onPress, testID }: { a: GalleryAchievement; onPress?: () => void; testID?: string }) {
   const { t } = useT();
   const speed = a.series === 'pb_speed';
+  const milestone = a.series === 'genesis_distance' || a.series === 'first_finish';
+  const event = a.series === 'event_check_in' || a.series === 'event_finish';
   const tint = a.verification_class === 'organizer' ? color.mint : speed ? color.cyan : color.violet;
-  const label = t(`pb.cat.${a.category}` as TKey);
+  const label = achievementLabel(t, a);
   return (
     <Pressable onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : undefined} accessibilityLabel={`${label} · ${t(`gal.record.${a.record}` as TKey)}`} testID={testID}>
       <Surface level="elevated" style={[styles.tile, a.record === 'invalidated' && styles.dim]}>
         <View style={[styles.art, { borderColor: tint }]}>
           <View style={[styles.ring, { borderColor: tint }, !speed && styles.arc]} />
-          <Feather name={speed ? 'zap' : 'map'} size={28} color={tint} />
+          <Feather name={event ? (a.series === 'event_finish' ? 'flag' : 'check-circle') : milestone ? (a.series === 'first_finish' ? 'flag' : 'award') : speed ? 'zap' : 'map'} size={28} color={tint} />
         </View>
         <Text variant="title" numberOfLines={1}>
           {label}
@@ -29,7 +34,7 @@ export function PbCard({ a, onPress, testID }: { a: GalleryAchievement; onPress?
           {t(`gal.series.${a.series}` as TKey)} · {t(`gal.source.${a.verification_class}` as TKey)}
         </Text>
         <Text variant="caption" tone={a.public ? 'secondary' : 'muted'} numeric numberOfLines={1}>
-          {a.public && a.value ? a.value : t('gal.private')}
+          {a.public && a.value ? a.value : event ? (a.achieved_on ?? t('gal.privateEvent')) : milestone && !a.public ? t('gal.privateMilestone') : t('gal.private')}
         </Text>
         <View style={styles.chipRow}>
           <Chip label={t(`gal.record.${a.record}` as TKey)} kind={a.record === 'current' ? 'synced' : a.record === 'historical' ? 'neutral' : 'devnet'} />

@@ -85,12 +85,48 @@ pub struct PlayerProfile {
     /// `claimed_today` 對應的日序
     pub today_date: u32,
     pub bump: u8,
+    // ---- PG-V-02 維持挑戰（shoe-gameplay 4、7）；舊帳戶以 `migrate_player` 補齊 ----
+    /// 歷史最高真正啟用過的鞋階（永不因降級下降；鞋階 NFT 與回歸目標依此）
+    pub highest_level: u8,
+    /// 週期 anchor（UTC 日序；init_player／migrate 當日）。期 k 區間 `[anchor+7k, anchor+7(k+1))`
+    pub epoch_anchor: u32,
+    /// 已結算期數（cursor）；目前開放期＝此值。受限交易前必須追到當前期
+    pub last_settled_epoch: u32,
+    /// 目前開放期累積維持點（步數 +100、睡眠 +50；每期重算，不是花費 XP）
+    pub epoch_points: u16,
+    /// 目前開放期 7-bit 活躍日 bitmap（bit i＝期內第 i 日）
+    pub epoch_bitmap: u8,
+    /// 維持規則版本（改門檻只向未來生效）
+    pub maintenance_rules_version: u16,
+}
+
+/// PG-V-05：全域 incident freeze（shoe-gameplay 4.3）。PDA `["freeze"]`；與此視窗重疊的週期結算不降級也不升級（只重置期內累計）。
+/// 由 admin 在截止前寫入、所有玩家一致讀取；不接受玩家自報離線保級。start == end == 0 表示無凍結。
+#[account]
+#[derive(InitSpace)]
+pub struct IncidentFreeze {
+    pub start: i64,
+    pub end: i64,
+    pub set_at: i64,
+    /// 公開事故說明的 hash（稽核用）
+    pub reason_hash: [u8; 32],
+    pub bump: u8,
+}
+
+impl IncidentFreeze {
+    pub const SEED: &'static [u8] = crate::constants::FREEZE_SEED;
+    /// 週期 [epoch_start, epoch_end) 秒是否與凍結視窗重疊
+    pub fn covers(&self, epoch_start: i64, epoch_end: i64) -> bool {
+        self.end > self.start && epoch_start < self.end && epoch_end > self.start
+    }
 }
 
 impl PlayerProfile {
     pub const SEED: &'static [u8] = crate::constants::PLAYER_SEED;
     pub const MIN_LEVEL: u8 = 1;
     pub const MAX_LEVEL: u8 = 5;
+    /// PG-V-02 前的資料長度（不含 discriminator）：wallet 32＋levels 2＋xp 8＋last_task_date 4＋streak 4＋claimed_today 8＋today_date 4＋bump 1
+    pub const V1_SPACE: usize = 63;
 }
 
 /// PDA seeds `["claim", wallet, task_date_le, task_type]`。帳戶存在即代表已領取（BR-03）。

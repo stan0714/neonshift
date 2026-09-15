@@ -43,11 +43,26 @@ describe("mint-intent → registry → proof → minted → 撤銷", () => {
   it("完整流程", async () => {
     const u = await login();
     await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [gps("w1", "2026-09-01", 5, 320_000)] } });
-    const pb = j(await app.inject({ method: "GET", url: "/v1/me/personal-bests", headers: u.h })).groups.find((g: { category: string }) => g.category === "fastest_5k").current;
-    // 未同意公開：metadata 無精確值；pending_registry、無證明；費用揭露
+    let group = j(await app.inject({ method: "GET", url: "/v1/me/personal-bests", headers: u.h })).groups.find((g: { category: string }) => g.category === "fastest_5k");
+    const pb = group.current;
+    // PG-V-03：無等級歷史 → history_unknown、只保留私人 PB；Lv2 → level_required；Lv3（達成日前生效）→ eligible
+    expect(group.nft_eligibility).toEqual({ status: "history_unknown", level: null, required: 3, effective_from: null });
+    expect(j(await app.inject({ method: "POST", url: "/v1/me/achievements/" + pb.pb_id + "/mint-intent", headers: u.h, payload: { public_consent: false } })).error.code).toBe("LEVEL_HISTORY_UNKNOWN");
+    const day = Math.floor(Date.parse("2026-09-01T00:00:00Z") / 86_400_000);
+    await store.insertLevelHistory({ wallet: u.wallet, effectiveFromDate: day - 30, activeLevel: 2, highestLevel: 2, epoch: 1, source: "epoch", signature: "s1", slot: 1 });
+    group = j(await app.inject({ method: "GET", url: "/v1/me/personal-bests", headers: u.h })).groups.find((g: { category: string }) => g.category === "fastest_5k");
+    expect(group.nft_eligibility).toMatchObject({ status: "level_required", level: 2, required: 3 });
+    expect(j(await app.inject({ method: "POST", url: "/v1/me/achievements/" + pb.pb_id + "/mint-intent", headers: u.h, payload: { public_consent: false } })).error.code).toBe("LEVEL_REQUIRED");
+    await store.insertLevelHistory({ wallet: u.wallet, effectiveFromDate: day + 5, activeLevel: 3, highestLevel: 3, epoch: 3, source: "epoch", signature: "s3", slot: 3 }); // 達成日之後才升 → 不算
+    expect(j(await app.inject({ method: "POST", url: "/v1/me/achievements/" + pb.pb_id + "/mint-intent", headers: u.h, payload: { public_consent: false } })).error.code).toBe("LEVEL_REQUIRED");
+    await store.insertLevelHistory({ wallet: u.wallet, effectiveFromDate: day - 7, activeLevel: 3, highestLevel: 3, epoch: 2, source: "epoch", signature: "s2", slot: 2 });
+    group = j(await app.inject({ method: "GET", url: "/v1/me/personal-bests", headers: u.h })).groups.find((g: { category: string }) => g.category === "fastest_5k");
+    expect(group.nft_eligibility).toEqual({ status: "eligible", level: 3, required: 3, effective_from: day - 7 });
+    // 未同意公開：metadata 無精確值；pending_registry、無證明；費用揭露；能力快照綁進 metadata
     let r = await app.inject({ method: "POST", url: "/v1/me/achievements/" + pb.pb_id + "/mint-intent", headers: u.h, payload: { public_consent: false } });
     expect(r.statusCode).toBe(200);
     let it = j(r);
+    expect(it.metadata_preview.properties.capability).toEqual({ active_level: 3, effective_from: day - 7 });
     expect(it.status).toBe("pending_registry");
     expect(it.proof).toBeNull();
     expect(it.fee_estimate_lamports).toBeGreaterThan(0);
@@ -103,6 +118,7 @@ describe("mint-intent → registry → proof → minted → 撤銷", () => {
     const svc = buildSignerService({ signer: LocalKeypairSigner.random(), token: "t".repeat(40) });
     await svc.ready();
     const u = await login();
+    await store.insertLevelHistory({ wallet: u.wallet, effectiveFromDate: 0, activeLevel: 3, highestLevel: 3, epoch: null, source: "migrate", signature: "m", slot: 1 });
     await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [gps("w1", "2026-09-01", 5, 320_000)] } });
     const pb = j(await app.inject({ method: "GET", url: "/v1/me/personal-bests", headers: u.h })).groups[0].current;
     const id = achievementIdOf(u.wallet, pb.pb_id);

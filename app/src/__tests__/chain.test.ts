@@ -31,7 +31,7 @@ describe('chain/program（IDL 與 PDA）', () => {
     expect(ix.keys.map((k) => [k.isSigner, k.isWritable])).toEqual([[true, true], [false, false], [false, true], [false, false]]);
     expect(ix.keys[0]!.pubkey.equals(wallet)).toBe(true);
     expect(ix.data).toEqual(discriminator('init_player'));
-    expect(PLAYER_PROFILE_SPACE).toBe(71);
+    expect(PLAYER_PROFILE_SPACE).toBe(85);
   });
 });
 
@@ -57,8 +57,30 @@ describe('chain/accounts（PlayerProfile 佈局，與 state.rs 一致）', () =>
     dv.setBigUint64(o, BigInt(12_000_000), true); // claimed_today
     o += 8;
     buf.writeUInt32LE(20710, o); // today_date
+    o += 4;
+    buf.writeUInt8(255, o++); // bump
+    // PG-V-02 欄位
+    buf.writeUInt8(4, o++); // highest_level
+    buf.writeUInt32LE(20700, o); // epoch_anchor
+    o += 4;
+    buf.writeUInt32LE(1, o); // last_settled_epoch
+    o += 4;
+    buf.writeUInt16LE(250, o); // epoch_points
+    o += 2;
+    buf.writeUInt8(0b101, o++); // epoch_bitmap
+    buf.writeUInt16LE(1, o); // rules_version
     const p = decodePlayerProfile(new Uint8Array(buf), PublicKey);
     expect(p.wallet.equals(wallet)).toBe(true);
     expect([p.coreLevel, p.shoeLevel, p.xp, p.lastTaskDate, p.streakDays, p.maxStreakDays, p.claimedToday, p.todayDate]).toEqual([2, 3, BigInt(1500), 20710, 4, 9, BigInt(12_000_000), 20710]);
+    expect([p.migrated, p.highestLevel, p.epochAnchor, p.lastSettledEpoch, p.epochPoints, p.epochBitmap, p.maintenanceRulesVersion]).toEqual([true, 4, 20700, 1, 250, 0b101, 1]);
+    // 舊版 71 bytes：migrated=false、highest＝max(levels)、其餘預設
+    const old = decodePlayerProfile(new Uint8Array(buf.subarray(0, 71)), PublicKey);
+    expect([old.migrated, old.highestLevel, old.epochAnchor, old.lastSettledEpoch]).toEqual([false, 3, 0, 0]);
+    // maintenanceNeeds：舊帳戶 → migrate；anchor 20700、today 20770 → 第 10 期、已結算 1 → 落後 9
+    const { maintenanceNeeds } = require('@/chain/accounts') as typeof import('@/chain/accounts');
+    expect(maintenanceNeeds(old, 20770)).toEqual({ migrate: true, pendingEpochs: 0, freezeExists: false });
+    expect(maintenanceNeeds(p, 20770, true)).toEqual({ migrate: false, pendingEpochs: 9, freezeExists: true });
+    expect(maintenanceNeeds(p, 20710)).toEqual({ migrate: false, pendingEpochs: 0, freezeExists: false });
+    expect(maintenanceNeeds(null, 20710)).toEqual({ migrate: false, pendingEpochs: 0, freezeExists: false });
   });
 });

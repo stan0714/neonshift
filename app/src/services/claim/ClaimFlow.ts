@@ -35,6 +35,8 @@ export type ClaimInput = {
   steps: StepsResult | null;
   sleep: SleepResult | null;
   chain: { mint: PublicKey; rewardVault: PublicKey };
+  /** PG-V-02：目前 profile 的維持狀態（由 dashboard 讀取）；缺省視為不需前置 */
+  maintenance?: { migrate: boolean; pendingEpochs: number; freezeExists?: boolean };
   client: { appVersion: string; deviceModel: string; osApi: number; sdkExtension: number };
   /** 測試注入 */
   deps?: Partial<{ liveMotion: typeof liveMotion; api: typeof apiClient; submitter: typeof claimSubmitter }>;
@@ -101,6 +103,7 @@ export async function runClaimFlow(input: ClaimInput, onPhase: (p: ClaimPhase) =
       player: input.player,
       attestation: { message_b64: att.attestation.message_b64, signature_b64: att.attestation.signature_b64, attestor_pubkey_bytes: bs58.decode(att.attestation.attestor_pubkey) },
       accts: input.chain,
+      maintenance: input.maintenance,
     });
     const outcome: SubmitOutcome = await submitter.submit(input.player, instructions, receipt, { taskDate: fields.taskDate, taskType: fields.taskType });
     switch (outcome.kind) {

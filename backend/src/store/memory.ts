@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { compareLeaderboard } from "./leaderboard.js";
-import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type { GalleryBoard, LevelHistoryEntry, AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -244,7 +244,7 @@ export class MemoryStore implements Store {
   }
 
   // ---- PG-E-03 ----
-  async registerParticipant(p: { eventId: string; wallet: string; acceptedRuleRevision: string; displayName: string | null; publicConsent: boolean }, now: Date) {
+  async registerParticipant(p: { eventId: string; wallet: string; acceptedRuleRevision: string; displayName: string | null; publicConsent: boolean; levelAtRegistration?: number | null }, now: Date) {
     const e = this.events.get(p.eventId);
     if (!e || e.state !== "published") return "not_open" as const;
     const k = `${p.eventId}:${p.wallet}`;
@@ -252,7 +252,7 @@ export class MemoryStore implements Store {
     if (cur && cur.status !== "cancelled") return "exists" as const;
     if (e.capacity !== 0 && e.registrationCount >= e.capacity) return "full" as const;
     e.registrationCount += 1;
-    const row: EventParticipant = { eventId: p.eventId, wallet: p.wallet, status: "registered", acceptedRuleRevision: p.acceptedRuleRevision, displayName: p.displayName, publicConsentAt: p.publicConsent ? now : null, registeredAt: now, cancelledAt: null, retentionDueAt: null };
+    const row: EventParticipant = { eventId: p.eventId, wallet: p.wallet, status: "registered", acceptedRuleRevision: p.acceptedRuleRevision, displayName: p.displayName, publicConsentAt: p.publicConsent ? now : null, registeredAt: now, cancelledAt: null, retentionDueAt: null, levelAtRegistration: p.levelAtRegistration ?? null };
     this.participants.set(k, row);
     return row;
   }
@@ -550,7 +550,7 @@ export class MemoryStore implements Store {
   async upsertAchievement(a: Omit<Achievement, "createdAt" | "updatedAt">, now: Date) {
     const cur = this.achievements.get(a.achievementId);
     if (cur) {
-      if (cur.status !== "minted" && !cur.metadataHash.equals(a.metadataHash)) Object.assign(cur, { metadata: a.metadata, metadataHash: a.metadataHash, publicConsent: a.publicConsent, sourceRevision: a.sourceRevision, status: "pending_registry", updatedAt: now });
+      if (cur.status !== "minted" && !cur.metadataHash.equals(a.metadataHash)) Object.assign(cur, { metadata: a.metadata, metadataHash: a.metadataHash, publicConsent: a.publicConsent, sourceKind: a.sourceKind, sourceId: a.sourceId, sourceRevision: a.sourceRevision, status: "pending_registry", updatedAt: now });
       return { ...cur };
     }
     const row: Achievement = { ...a, createdAt: now, updatedAt: now };
@@ -560,6 +560,12 @@ export class MemoryStore implements Store {
   async getAchievement(achievementId: string) {
     const x = this.achievements.get(achievementId);
     return x ? { ...x } : null;
+  }
+  async setAchievementSource(achievementId: string, source: { sourceKind: "workout" | "result"; sourceId: string; sourceRevision: number }, now: Date) {
+    const cur = this.achievements.get(achievementId);
+    if (!cur) return null;
+    Object.assign(cur, { ...source, updatedAt: now });
+    return { ...cur };
   }
   async getAchievementByPb(pbId: string) {
     const x = [...this.achievements.values()].find((a) => a.pbId === pbId);
@@ -592,8 +598,8 @@ export class MemoryStore implements Store {
   }
 
   // ---- PG-G-01 ----
-  private galleryRanked() {
-    return [...this.galleryPlayers.values()].filter((p) => !this.galleryHidden.has(p.wallet)).sort(compareGallery);
+  private galleryRanked(board: GalleryBoard = "active") {
+    return [...this.galleryPlayers.values()].filter((p) => !this.galleryHidden.has(p.wallet)).sort(board === "lifetime" ? compareLifetime : compareGallery);
   }
   async setGalleryHidden(wallet: string, hidden: boolean, _now: Date) {
     if (hidden) this.galleryHidden.add(wallet);
@@ -609,7 +615,25 @@ export class MemoryStore implements Store {
   async upsertGalleryPlayer(p: { wallet: string; shoeLevel: number; coreLevel: number; xp: bigint; streakDays: number; maxStreakDays: number; lastTaskDate: number | null; slot: number }, now: Date) {
     const cur = this.galleryPlayers.get(p.wallet);
     if (cur && cur.updatedSlot > p.slot) return;
-    this.galleryPlayers.set(p.wallet, { wallet: p.wallet, shoeLevel: p.shoeLevel, coreLevel: p.coreLevel, xp: p.xp, streakDays: p.streakDays, maxStreakDays: p.maxStreakDays, lastTaskDate: p.lastTaskDate, collectibleCount: cur?.collectibleCount ?? 0, updatedSlot: p.slot, updatedAt: now });
+    this.galleryPlayers.set(p.wallet, { wallet: p.wallet, shoeLevel: p.shoeLevel, coreLevel: p.coreLevel, xp: p.xp, streakDays: p.streakDays, maxStreakDays: p.maxStreakDays, lastTaskDate: p.lastTaskDate, collectibleCount: cur?.collectibleCount ?? 0, updatedSlot: p.slot, updatedAt: now, highestLevel: Math.max(cur?.highestLevel ?? 1, p.shoeLevel) });
+  }
+  private levelHistory: LevelHistoryEntry[] = [];
+  async setGalleryHighestLevel(wallet: string, highestLevel: number, _slot: number, now: Date) {
+    const cur = this.galleryPlayers.get(wallet);
+    if (!cur) return;
+    if (highestLevel > cur.highestLevel) Object.assign(cur, { highestLevel, updatedAt: now });
+  }
+  async insertLevelHistory(e: LevelHistoryEntry) {
+    if (this.levelHistory.some((x) => x.wallet === e.wallet && x.signature === e.signature && x.source === e.source)) return false;
+    this.levelHistory.push({ ...e });
+    return true;
+  }
+  async levelAt(wallet: string, taskDate: number) {
+    const list = this.levelHistory.filter((x) => x.wallet === wallet && x.effectiveFromDate <= taskDate).sort((a, b) => b.effectiveFromDate - a.effectiveFromDate || b.slot - a.slot);
+    return list[0] ? { ...list[0] } : null;
+  }
+  async listLevelHistory(wallet: string, limit: number) {
+    return this.levelHistory.filter((x) => x.wallet === wallet).sort((a, b) => b.effectiveFromDate - a.effectiveFromDate || b.slot - a.slot).slice(0, limit).map((x) => ({ ...x }));
   }
   async insertGalleryCollectible(c: GalleryCollectible) {
     const k = `${c.wallet}:${c.kind}`;
@@ -622,14 +646,14 @@ export class MemoryStore implements Store {
   async getGalleryPlayer(wallet: string) {
     return this.galleryPlayers.get(wallet) ?? null;
   }
-  async listGalleryPlayers(limit: number, offset: number) {
-    return this.galleryRanked().slice(offset, offset + limit);
+  async listGalleryPlayers(limit: number, offset: number, board: GalleryBoard = "active") {
+    return this.galleryRanked(board).slice(offset, offset + limit);
   }
   async countGalleryPlayers() {
     return this.galleryRanked().length;
   }
-  async galleryRankOf(wallet: string) {
-    const i = this.galleryRanked().findIndex((p) => p.wallet === wallet);
+  async galleryRankOf(wallet: string, board: GalleryBoard = "active") {
+    const i = this.galleryRanked(board).findIndex((p) => p.wallet === wallet);
     return i < 0 ? null : i + 1;
   }
   async searchGalleryPlayers(prefix: string, limit: number) {
@@ -757,6 +781,13 @@ function sortLeaderboard(rows: TournamentStepsRow[]) {
 }
 
 /** 藝廊排行：shoe_level DESC → xp DESC → wallet base58 位元組序（與 PostgreSQL 索引一致） */
+/** PG-V-04 Lifetime 榜：歷史最高 → 收藏數 → XP → 錢包 C 序 */
+function compareLifetime(a: GalleryPlayer, b: GalleryPlayer) {
+  if (a.highestLevel !== b.highestLevel) return b.highestLevel - a.highestLevel;
+  if (a.collectibleCount !== b.collectibleCount) return b.collectibleCount - a.collectibleCount;
+  if (a.xp !== b.xp) return a.xp > b.xp ? -1 : 1;
+  return a.wallet < b.wallet ? -1 : a.wallet > b.wallet ? 1 : 0;
+}
 function compareGallery(a: GalleryPlayer, b: GalleryPlayer) {
   if (a.shoeLevel !== b.shoeLevel) return b.shoeLevel - a.shoeLevel;
   if (a.xp !== b.xp) return a.xp < b.xp ? 1 : -1;

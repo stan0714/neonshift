@@ -325,8 +325,23 @@ pub fn clock_in_ix(player: &Pubkey, accts: &ClockInAccounts, args: AttestationAr
             token_program: spl_token::id(),
             system_program: system_program::ID,
             instructions_sysvar: solana_sdk_ids::sysvar::instructions::ID,
+            freeze: FREEZE_PRESENT.with(|f| if f.get() { Some(freeze_pda().0) } else { None }),
         }
         .to_account_metas(None),
+    )
+}
+
+// ---- PG-V-05：freeze PDA；測試以 thread-local 決定是否把 freeze 帳戶帶進 clock_in／settle ----
+thread_local! { pub static FREEZE_PRESENT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
+pub fn freeze_pda() -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[FREEZE_SEED], &neonshift_core::id())
+}
+pub fn set_freeze_ix(admin: &Pubkey, start: i64, end: i64, reason_hash: [u8; 32]) -> Instruction {
+    use anchor_lang::solana_program::system_program;
+    Instruction::new_with_bytes(
+        neonshift_core::id(),
+        &neonshift_core::instruction::SetIncidentFreeze { start, end, reason_hash }.data(),
+        neonshift_core::accounts::SetIncidentFreeze { admin: *admin, config: config_pda().0, freeze: freeze_pda().0, system_program: system_program::ID }.to_account_metas(None),
     )
 }
 
@@ -360,3 +375,32 @@ pub fn ready_player(env: &mut Env, init: &Initialized) -> Player {
 }
 
 pub const T0: i64 = 1_789_000_000; // 2026-09-14 前後
+
+// ---------------- PG-V-02 維持挑戰工具 ----------------
+
+pub fn settle_epochs_ix(payer: &Pubkey, wallet: &Pubkey, max_epochs: u8) -> Instruction {
+    Instruction::new_with_bytes(
+        neonshift_core::id(),
+        &neonshift_core::instruction::SettlePlayerEpochs { max_epochs }.data(),
+        neonshift_core::accounts::SettlePlayerEpochs { payer: *payer, config: config_pda().0, profile: player_pda(wallet).0, freeze: FREEZE_PRESENT.with(|f| if f.get() { Some(freeze_pda().0) } else { None }) }.to_account_metas(None),
+    )
+}
+
+pub fn migrate_player_ix(payer: &Pubkey, wallet: &Pubkey) -> Instruction {
+    use anchor_lang::solana_program::system_program;
+    Instruction::new_with_bytes(
+        neonshift_core::id(),
+        &neonshift_core::instruction::MigratePlayer {}.data(),
+        neonshift_core::accounts::MigratePlayer { payer: *payer, profile: player_pda(wallet).0, system_program: system_program::ID }.to_account_metas(None),
+    )
+}
+
+/// 把玩家 profile 改寫成 PG-V-02 前的 63-byte 舊版佈局（模擬既有帳戶），供 migrate_player 測試
+pub fn downgrade_profile_to_v1(svm: &mut LiteSVM, wallet: &Pubkey) {
+    let key = player_pda(wallet).0;
+    let mut acc = svm.get_account(&key).unwrap();
+    let old_len = 8 + neonshift_core::PlayerProfile::V1_SPACE;
+    acc.data.truncate(old_len);
+    acc.lamports = svm.minimum_balance_for_rent_exemption(old_len);
+    svm.set_account(key, acc).unwrap();
+}

@@ -4,6 +4,7 @@ import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { Button, InlineState, Screen, Surface } from '@/components';
 import { useT, type TKey } from '@/i18n';
+import { achievementLabel } from '@/screens/gallery/PbCard';
 import type { RootParamList } from '@/navigation/types';
 import { ApiError, apiClient, type GalleryAchievementDetail } from '@/services/api/ApiClient';
 import { color, space, Text } from '@/theme';
@@ -39,7 +40,7 @@ export function AchievementDetailScreen() {
           </View>
           {data.record === 'invalidated' ? <InlineState kind="warning" title={t('gal.record.invalidated')} body={t('nftd.invalidatedBody')} testID="achievement-invalidated" /> : null}
           <Surface style={styles.card}>
-            <Row label={t('nftd.series')} value={`${t(`gal.series.${data.series}` as TKey)} · ${t(`pb.cat.${data.category}` as TKey)}`} />
+            <Row label={t('nftd.series')} value={`${t(`gal.series.${data.series}` as TKey)} · ${achievementLabel(t, data)}`} />
             <Row label={t('nftd.source')} value={t(`gal.source.${data.verification_class}` as TKey)} />
             <Row label={t('nftd.status')} value={t(`gal.record.${data.record}` as TKey)} />
             <Row label={t('nftd.achiever')} value={shortAddress(data.original_achiever)} onPress={() => navigation.navigate('GalleryPlayer', { wallet: data.original_achiever })} testID="achievement-achiever" />

@@ -17,7 +17,7 @@ jest.mock('@/services/chain/CollectibleService', () => ({ collectibleService: { 
 jest.mock('expo-haptics', () => ({ notificationAsync: jest.fn(), NotificationFeedbackType: { Success: 'success' } }));
 
 const wallet = new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
-const profile = (p: Partial<PlayerProfile>): PlayerProfile => ({ wallet, coreLevel: 2, shoeLevel: 2, xp: BigInt(600), lastTaskDate: 0, streakDays: 1, maxStreakDays: 1, claimedToday: BigInt(0), todayDate: 0, ...p });
+const profile = (p: Partial<PlayerProfile>): PlayerProfile => ({ wallet, coreLevel: 2, shoeLevel: 2, xp: BigInt(600), lastTaskDate: 0, streakDays: 1, maxStreakDays: 1, claimedToday: BigInt(0), todayDate: 0, migrated: true, highestLevel: 2, epochAnchor: 0, lastSettledEpoch: 0, epochPoints: 0, epochBitmap: 0, maintenanceRulesVersion: 1, ...p });
 const config = { clusterId: 1, attestorPubkey: new Uint8Array(32), mint: wallet, rewardVault: wallet, dailyCap: BigInt(0), baseStepsReward: BigInt(0), baseSleepReward: BigInt(0), coreMultiplierBps: [10_000, 11_000, 12_500, 14_000, 16_000], shoeXpThresholds: [0, 450, 1500, 3600, 7500].map(BigInt), paused: false };
 
 const Wrapper = ({ children }: PropsWithChildren) => (
@@ -48,6 +48,36 @@ describe('PG-A-14 Gear', () => {
     expect(screen.getByLabelText('First Clock-In, claimable')).toBeTruthy();
     expect(screen.getByLabelText('7-Day Streak, locked')).toBeTruthy();
     expect(screen.getByText(/only pay devnet rent/)).toBeTruthy();
+    await waitFor(() => expect(mockFetchClaimed).toHaveBeenCalled());
+  });
+
+  test('PG-V-04：Active／Highest 標籤、本期維持區塊（點數／活躍日／回歸提示）、收藏三區與 History 標籤；歷史最高鞋款可補領', async () => {
+    useDashboardStore.setState({ profile: profile({ coreLevel: 2, shoeLevel: 2, highestLevel: 4, xp: BigInt(4000), epochAnchor: Math.floor(Date.now() / 86_400_000) - 3, lastSettledEpoch: 0, epochPoints: 300, epochBitmap: 0b11 }), config, syncChain: jest.fn(async () => {}) } as never);
+    await render(<GearScreen />, { wrapper: Wrapper });
+    expect(screen.getByText('Active LV.2')).toBeTruthy();
+    expect(screen.getByText('Highest LV.4')).toBeTruthy();
+    expect(screen.getByTestId('gear-maintenance-active')).toBeTruthy();
+    expect(screen.getByText('300 / 700')).toBeTruthy();
+    expect(screen.getByText('2 / 5')).toBeTruthy();
+    expect(screen.getByTestId('gear-maint-keep').props.children).toBe('Lv2 maintenance met for this period.');
+    expect(screen.getByTestId('gear-maint-restore').props.children).toBe('Restore Lv4: 400 more points and 3 more active days (about 3 double-mission days). Your achievement stays in your collection.');
+    expect(screen.getByTestId('gear-shoes-equipped')).toBeTruthy();
+    expect(screen.getByTestId('gear-shoes-achieved')).toBeTruthy();
+    expect(screen.getByTestId('gear-shoes-locked')).toBeTruthy();
+    expect(screen.getByTestId('collectible-history-4')).toBeTruthy(); // Lv4 曾經達成
+    expect(screen.getByLabelText('Shoe · Surge, claimable')).toBeTruthy(); // 依歷史最高可補領
+    expect(screen.getByLabelText('Shoe · Zenith, locked')).toBeTruthy();
+    await waitFor(() => expect(mockFetchClaimed).toHaveBeenCalled());
+  });
+
+  test('PG-V-04：未遷移帳戶顯示遷移說明；落後結算顯示待結算', async () => {
+    useDashboardStore.setState({ profile: profile({ migrated: false }), config, syncChain: jest.fn(async () => {}) } as never);
+    await render(<GearScreen />, { wrapper: Wrapper });
+    expect(screen.getByTestId('gear-maintenance-migration_required')).toBeTruthy();
+    useDashboardStore.setState({ profile: profile({ epochAnchor: Math.floor(Date.now() / 86_400_000) - 20, lastSettledEpoch: 0 }), config, syncChain: jest.fn(async () => {}) } as never);
+    await render(<GearScreen />, { wrapper: Wrapper });
+    expect(screen.getByTestId('gear-maintenance-settlement_pending')).toBeTruthy();
+    expect(screen.getByText(/2 period\(s\) not yet settled/)).toBeTruthy();
     await waitFor(() => expect(mockFetchClaimed).toHaveBeenCalled());
   });
 

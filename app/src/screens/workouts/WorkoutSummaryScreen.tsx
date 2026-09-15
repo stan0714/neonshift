@@ -94,9 +94,14 @@ export function WorkoutSummaryScreen() {
           <>
             {s.laps.length ? s.laps.map((l) => <LapRow key={`${l.kind}${l.index}`} l={l} />) : <Text variant="bodySmall" tone="secondary">{t('sum.noLaps')}</Text>}
             {s.trackEquivalent ? (
-              <Text variant="caption" tone="muted" style={styles.mt}>
-                {t('sum.trackEq', { laps: s.trackEquivalent.laps, len: s.trackEquivalent.lapMm / 1000, rem: Math.round(s.trackEquivalent.remainderMm / 1000) })}
-              </Text>
+              <View style={styles.mt} testID="sum-track">
+                <Text variant="bodySmall" numeric>
+                  {t('sum.trackEq', { laps: s.trackEquivalent.laps, len: s.trackEquivalent.lapMm / 1000, rem: Math.round(s.trackEquivalent.remainderMm / 1000) })}
+                </Text>
+                <Text variant="caption" tone="muted">
+                  {t('sum.trackEqHint')}
+                </Text>
+              </View>
             ) : null}
           </>
         ) : (

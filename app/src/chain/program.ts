@@ -48,8 +48,12 @@ export function discriminator(instruction: string): Buffer {
   return Buffer.from(ix.discriminator);
 }
 
-/** PlayerProfile 帳戶大小（8 + InitSpace）：wallet 32 + core 1 + shoe 1 + xp 8 + last 4 + streak 2 + max_streak 2 + claimed 8 + today 4 + bump 1 */
-export const PLAYER_PROFILE_SPACE = 8 + 63;
+/** PlayerProfile 帳戶大小（8 + InitSpace）：wallet 32 + core 1 + shoe 1 + xp 8 + last 4 + streak 2 + max_streak 2 + claimed 8 + today 4 + bump 1 ＋ PG-V-02 highest 1 + anchor 4 + settled 4 + points 2 + bitmap 1 + rules 2 */
+export const PLAYER_PROFILE_SPACE = 8 + 63 + 14;
+/** PG-V-05：全域 incident freeze PDA `["freeze"]`（不存在時指令傳 program id 表示 None） */
+export const freezePda = () => PublicKey.findProgramAddressSync([Buffer.from('freeze')], programId())[0];
+/** PG-V-02 前的舊版長度（migrate_player 前） */
+export const PLAYER_PROFILE_V1_SPACE = 8 + 63;
 // PG-R-08：成就 NFT（每個 achievement_id 一枚）
 export const eligibilityPda = (wallet: PublicKey, achievementId: Uint8Array) => PublicKey.findProgramAddressSync([Buffer.from('eligibility'), wallet.toBytes(), Buffer.from(achievementId)], programId())[0];
 export const achievementPda = (wallet: PublicKey, achievementId: Uint8Array) => PublicKey.findProgramAddressSync([Buffer.from('achievement'), wallet.toBytes(), Buffer.from(achievementId)], programId())[0];
