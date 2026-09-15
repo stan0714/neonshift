@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.52（PG-U-04 完成） |
+| 文件版本 | v0.53（PG-U-05 後端部分） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -567,6 +567,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.53 | 2026-09-15 | PG-U-05 後端撤銷／多裝置測試（WIP，實機待驗收） |
 | v0.52 | 2026-09-15 | PG-U-04 完成（WIP）：探索冊任務、領取與外觀 |
 | v0.51 | 2026-09-15 | PG-U-03 完成（WIP）：模式篩選、週回顧、同類比較、分享預覽 |
 | v0.50 | 2026-09-15 | PG-U-02 完成（WIP）：操作鎖、讀屏、語音／震動提示 |
@@ -740,6 +741,6 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-U-02 | 操作鎖、大字／讀屏、可選語音與震動 | sport-experience-gameplay 3；Style 24 | FR-19.2 | 3.0 | WIP | 2026-09-15：記錄頁操作鎖（鎖定後控制列只剩長按 1.2 s 解鎖、鎖定時放行系統返回）、讀屏標籤（狀態、數字含單位、按鈕用途）、主數字 maxFontSizeMultiplier 1.6、定位失效不展示舊速度＋缺口提示；`WorkoutCues`（每公里／自訂圈語音 expo-speech／震動，預設關閉、手動圈不播、背景／通話不搶播不補播）與開始頁開關；Jest 220。待：實機（TalkBack、通話中斷、大字） |
 | PG-U-03 | 模式篩選、週回顧、同類比较及分享預覽 | sport-experience-gameplay 4 | FR-19.3、BR-59 | 3.0 | WIP | 2026-09-15：`domain/review.ts`（走路＋健走合看 walking、本地週一週回顧標時區且與鏈上 UTC 週期分開、同類比較同 sport／環境／來源等級且 < 3 筆不比、分享文字預設無日期／精確時間／錢包／座標）；Workouts 清單篩選＋週回顧卡；摘要頁同類回顧卡與分享預覽（模式／配速／日期開關）；Jest 225。待：實機分享面板 |
 | PG-U-04 | 任務模板、接受／領取、去重與探索冊外觀 | sport-experience-gameplay 5；SD 17 | FR-19.4、BR-56、57 | 5.0 | WIP | 2026-09-15：migration 0017（模板／enrollment／contribution／receipt／外觀權限）、`QuestService`（接受快照與週界、10 分鐘／待審／GPS 版本門檻、同日去重、拆分不累加、48h 晚到、撤銷／恢復、錢包刪除）、`/me/quests` 三端點；App 探索冊畫面與 Home 入口；vitest 200（quests 6）、PG 整合 18、Jest 230。GPS 活動獎勵由 `QUEST_GPS_MIN_RULES_VERSION` 開關（R-10 定案後設定） |
-| PG-U-05 | 刪除／更正撤銷、多裝置重試及實機體驗驗收 | sport-experience-gameplay 7 | FR-19.5、BR-58 | 3.0 | TODO | 待指派 |
+| PG-U-05 | 刪除／更正撤銷、多裝置重試及實機體驗驗收 | sport-experience-gameplay 7 | FR-19.5、BR-58 | 3.0 | WIP | 2026-09-15（後端部分）：刪除／更正撤銷與同 receipt 恢復、同來源重送與第二裝置同 external_record_id 不重複、revision 更正沿用貢獻（vitest quests 7）；離線保存與重試沿用 R-03；歷史收藏與鞋階權限分開（外觀非 NFT）。待：實機體驗驗收（開始到保存成功率、誤觸率、任務參與率） |
 
 新增 5 項，初估 17.0 人天（未含緩衝），需負責人確認；尚無交付日期，不加入原四週承諾。U-01 依賴 R-01／R-03／R-06，U-02／03 接 U-01；U-04 在 R-10 品質規則定案後才可開放獎勵，U-05 驗收全流程後發布。三模式與目標可先交付，探索獎勵由獨立功能開關控制。小隊／跑走交替／走路 NFT 不在本次估算內，另行拆項。

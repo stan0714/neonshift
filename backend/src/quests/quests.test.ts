@@ -141,6 +141,36 @@ describe("探索冊 API", () => {
     void e; void ev;
   });
 
+  it("PG-U-05 多裝置／重送／更正：同來源重送（same）與另一裝置匯入同 external_record_id 不重複計；revision 更正沿用貢獻並更新 revision；更正成 < 10 分鐘 → 撤銷；改回 → 恢復", async () => {
+    const u = await loginU();
+    const e = j(await app.inject({ method: "POST", url: "/v1/me/quests/accept", headers: u.h, payload: { template_id: "three_days", timezone: "Asia/Taipei", idempotency_key: "idem-key-m" } })).enrollment;
+    clock = new Date("2026-09-18T04:00:00Z");
+    await Promise.all(users.map((x) => x.refresh()));
+    await imp(u.h, [hc("m1", "2026-09-16T10:00:00Z", 30), hc("m2", "2026-09-17T10:00:00Z", 30), hc("m3", "2026-09-18T01:00:00Z", 30)]);
+    let q = j(await app.inject({ method: "GET", url: "/v1/me/quests", headers: u.h }));
+    expect(q.enrollments[0].status).toBe("completed");
+    await app.inject({ method: "POST", url: `/v1/me/quests/${e.enrollment_id}/claim`, headers: u.h });
+    // 重送（same）與第二台裝置（同 source_id＋external_record_id）→ 不重複、不撤銷
+    await imp(u.h, [hc("m1", "2026-09-16T10:00:00Z", 30), hc("m2", "2026-09-17T10:00:00Z", 30)]);
+    q = j(await app.inject({ method: "GET", url: "/v1/me/quests", headers: u.h }));
+    expect([q.enrollments[0].status, q.enrollments[0].contributions.length]).toEqual(["claimed", 3]);
+    // 更正 m3（revision 2，仍 ≥ 10 分）→ 貢獻沿用同來源、revision 更新
+    await imp(u.h, [hc("m3", "2026-09-18T01:00:00Z", 25, { source_revision: 2 })]);
+    q = j(await app.inject({ method: "GET", url: "/v1/me/quests", headers: u.h }));
+    expect(q.enrollments[0].contributions.find((c: { local_day: string }) => c.local_day === "2026-09-18").source.revision).toBe(2);
+    expect(q.enrollments[0].status).toBe("claimed");
+    // 更正 m3 成 8 分鐘（revision 3）→ 失去第三天 → 撤銷；改回 30 分（revision 4）→ 恢復同 receipt
+    await imp(u.h, [hc("m3", "2026-09-18T01:00:00Z", 8, { source_revision: 3 })]);
+    q = j(await app.inject({ method: "GET", url: "/v1/me/quests", headers: u.h }));
+    expect([q.enrollments[0].status, q.cosmetics[0].status]).toEqual(["revoked", "revoked"]);
+    await imp(u.h, [hc("m3", "2026-09-18T01:00:00Z", 30, { source_revision: 4 })]);
+    q = j(await app.inject({ method: "GET", url: "/v1/me/quests", headers: u.h }));
+    expect(q.enrollments[0].status).toBe("completed");
+    const c = j(await app.inject({ method: "POST", url: `/v1/me/quests/${e.enrollment_id}/claim`, headers: u.h }));
+    expect([c.already, c.enrollment.status]).toEqual([true, "claimed"]);
+    expect(j(await app.inject({ method: "GET", url: "/v1/me/quests", headers: u.h })).cosmetics).toHaveLength(1);
+  });
+
   it("GPS 來源：未設定 QUEST_GPS_MIN_RULES_VERSION 不計；設定後版本 ≥ 門檻才計（R-10 品質規則定案前不發獎）", async () => {
     const gps = (id: string, start: string, minutes: number) => ({ sport: "run", environment: "outdoor", origin: "gps", source_id: "cc.neonshift.app/gps", external_record_id: id, started_at: start, ended_at: new Date(Date.parse(start) + minutes * 60_000).toISOString(), distance_mm: String(minutes * 200_000), distance_method: "gps", extras: {} });
     let u = await loginU();
