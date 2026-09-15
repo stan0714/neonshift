@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#30EBC8"/>
+      <stop offset="0.55" stop-color="#24C8FF"/>
+      <stop offset="1" stop-color="#9B6CFF"/>
+    </linearGradient>
+    <mask id="cut">
+      <rect width="100" height="100" fill="#fff"/>
+      <!-- Forward Shift：負空間箭頭沿 45° 指向右上（Style 3.3） -->
+      <polygon points="74.5,26.5 72.6,43.6 68.3,39.5 53.0,54.7 46.3,48.0 61.5,32.7 57.4,28.4" fill="#000"/>
+    </mask>
+  </defs>
+  <g mask="url(#cut)" fill="url(#brand)">
+    <polygon points="10,90 22,10 40,10 28,90"/>
+    <polygon points="22,10 42,10 78,90 58,90"/>
+    <polygon points="60,90 72,10 90,10 78,90"/>
+  </g>
+</svg>
