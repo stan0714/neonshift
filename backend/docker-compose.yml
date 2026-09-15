@@ -1,0 +1,24 @@
+# 本地開發用 PostgreSQL。對應 PG-I-05。
+#
+#   docker compose up -d
+#   docker compose exec -T db psql -U neonshift -d neonshift < migrations/0001_init.sql
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: neonshift-db
+    environment:
+      POSTGRES_USER: neonshift
+      POSTGRES_PASSWORD: neonshift_dev
+      POSTGRES_DB: neonshift
+    ports:
+      - "5432:5432"
+    volumes:
+      - neonshift-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neonshift -d neonshift"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  neonshift-pgdata:

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 520" width="520" height="520">
+<defs><radialGradient id="halo"><stop offset="0" stop-color="#FF4FD8" stop-opacity="0.22"/><stop offset="1" stop-color="#FF4FD8" stop-opacity="0"/></radialGradient></defs>
+<rect width="520" height="520" rx="48" fill="#050711"/>
+<circle cx="260" cy="230" r="200" fill="url(#halo)"/>
+<circle cx="260" cy="230" r="118" fill="#0B1020" stroke="#FF4FD8" stroke-width="3"/>
+<circle cx="260" cy="230" r="140" fill="none" stroke="#FF4FD8" stroke-opacity="0.35" stroke-dasharray="4 12"/>
+<g transform="translate(260 230)" fill="none" stroke="#FF4FD8" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"><circle cx="0" cy="-22" r="42"/><path d="M-26 12 L-40 72 L0 52 L40 72 L26 12"/></g>
+<text x="260" y="440" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="26" font-weight="700" letter-spacing="2" fill="#F4F8FF">ARENA #3</text>
+<text x="260" y="478" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="18" letter-spacing="3" fill="#718099">NEONSHIFT BADGE</text>
+</svg>

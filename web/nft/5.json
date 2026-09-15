@@ -1,0 +1,42 @@
+{
+  "name": "NeonShift Shoe · Zenith",
+  "symbol": "NSHOE",
+  "description": "Level 5 NeonShift gear, earned with 7,500 XP of verified movement. Pearl armor · floating sole pods. A free achievement collectible — no purchase, no monetary value.",
+  "image": "https://neonshift.cc/nft/img/5.png",
+  "external_url": "https://neonshift.cc",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Shoe"
+    },
+    {
+      "trait_type": "Level",
+      "value": 5
+    },
+    {
+      "trait_type": "Stage",
+      "value": "Zenith"
+    },
+    {
+      "trait_type": "XP threshold",
+      "value": 7500
+    },
+    {
+      "trait_type": "Detail",
+      "value": "Pearl armor · floating sole pods"
+    }
+  ],
+  "properties": {
+    "category": "image",
+    "files": [
+      {
+        "uri": "https://neonshift.cc/nft/img/5.png",
+        "type": "image/png"
+      },
+      {
+        "uri": "https://neonshift.cc/nft/img/5.svg",
+        "type": "image/svg+xml"
+      }
+    ]
+  }
+}

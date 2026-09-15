@@ -1,0 +1,4048 @@
+{
+  "address": "6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA",
+  "metadata": {
+    "name": "neonshift_core",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "NeonShift 鏈上程式：Config、PlayerProfile、clock_in、跑鞋與錦標賽（SD 3）"
+  },
+  "instructions": [
+    {
+      "name": "begin_settlement",
+      "docs": [
+        "開始結算（admin）：承諾有效人數與最終 rolling hash，預算退款／獎金／餘數"
+      ],
+      "discriminator": [
+        124,
+        223,
+        80,
+        249,
+        19,
+        59,
+        26,
+        92
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "tournament",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  117,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament.week_id",
+                "account": "Tournament"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_count",
+          "type": "u32"
+        },
+        {
+          "name": "results_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "cancel_tournament",
+      "docs": [
+        "取消賽事（admin 隨時；或任何人於 ends_at + 7 天後仍未 Settled 時）：挹注與沒收質押歸庫"
+      ],
+      "discriminator": [
+        249,
+        227,
+        133,
+        5,
+        9,
+        142,
+        29,
+        122
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "docs": [
+            "admin 隨時可取消；其他人只能在 ends_at + SETTLEMENT_DEADLINE 後"
+          ],
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "tournament",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  117,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament.week_id",
+                "account": "Tournament"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "tournament"
+          ]
+        },
+        {
+          "name": "treasury_vault",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_achievement",
+      "docs": [
+        "PG-R-08：領取 PB 成就 NFT（attestor 簽章證明＋registry）"
+      ],
+      "discriminator": [
+        107,
+        181,
+        102,
+        247,
+        207,
+        212,
+        251,
+        24
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "eligibility"
+        },
+        {
+          "name": "receipt",
+          "writable": true
+        },
+        {
+          "name": "asset",
+          "writable": true
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "AchievementArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "claim_collectible",
+      "docs": [
+        "領取成就收藏 NFT（免費；玩家付 rent）；kind 見 constants"
+      ],
+      "discriminator": [
+        127,
+        67,
+        63,
+        63,
+        53,
+        245,
+        108,
+        125
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "profile",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "receipt",
+          "writable": true
+        },
+        {
+          "name": "asset",
+          "writable": true
+        },
+        {
+          "name": "mpl_core_program",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "kind",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "claim_prize",
+      "docs": [
+        "領取退款＋獎金（玩家；不受 pause 影響）"
+      ],
+      "discriminator": [
+        157,
+        233,
+        139,
+        121,
+        246,
+        62,
+        234,
+        235
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "tournament",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  117,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament.week_id",
+                "account": "Tournament"
+              }
+            ]
+          }
+        },
+        {
+          "name": "entry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  110,
+                  116,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "tournament"
+          ]
+        },
+        {
+          "name": "player_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "clock_in",
+      "docs": [
+        "每日打卡（SD 3.3 16 步）；前一道指令必須是 Ed25519 program 驗簽"
+      ],
+      "discriminator": [
+        206,
+        150,
+        221,
+        145,
+        122,
+        124,
+        77,
+        89
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "profile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "receipt",
+          "writable": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "reward_vault",
+          "writable": true
+        },
+        {
+          "name": "player_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "AttestationArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "create_tournament",
+      "docs": [
+        "建立週末錦標賽（admin）：金額、分組比例、挹注上限與時間窗寫入後不可變"
+      ],
+      "discriminator": [
+        158,
+        137,
+        233,
+        231,
+        73,
+        132,
+        191,
+        68
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "tournament",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  117,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "params.week_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "vault",
+          "docs": [
+            "專用 vault：由 Tournament PDA 持有，BR-22"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "CreateTournamentParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "forfeit_entry",
+      "docs": [
+        "沒收質押（admin）：ends_at 後、begin_settlement 前；需非零 evidence_hash 與相符 rules_version"
+      ],
+      "discriminator": [
+        239,
+        75,
+        200,
+        177,
+        252,
+        65,
+        60,
+        43
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "tournament",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  117,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament.week_id",
+                "account": "Tournament"
+              }
+            ]
+          },
+          "relations": [
+            "entry"
+          ]
+        },
+        {
+          "name": "entry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  110,
+                  116,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament"
+              },
+              {
+                "kind": "account",
+                "path": "entry.wallet",
+                "account": "TournamentEntry"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "evidence_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "rules_version",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "init_player",
+      "docs": [
+        "建立 PlayerProfile PDA（玩家簽章、付 rent；每錢包一次）"
+      ],
+      "discriminator": [
+        114,
+        27,
+        219,
+        144,
+        50,
+        15,
+        228,
+        66
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "docs": [
+            "確認程式已初始化；不 mut"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "profile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_config",
+      "docs": [
+        "建立 Config PDA（僅可執行一次；只有 upgrade authority 可呼叫）"
+      ],
+      "discriminator": [
+        208,
+        127,
+        21,
+        1,
+        194,
+        190,
+        196,
+        70
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "程式的 upgrade authority；同時支付 rent"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "reward_vault",
+          "docs": [
+            "獎勵金庫：mint 相符且由 Config PDA 持有，之後由程式簽章轉出"
+          ]
+        },
+        {
+          "name": "treasury_vault",
+          "docs": [
+            "國庫：mint 相符即可，owner 由治理決定"
+          ]
+        },
+        {
+          "name": "program",
+          "docs": [
+            "本程式帳戶（upgradeable loader）"
+          ],
+          "address": "6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA"
+        },
+        {
+          "name": "program_data"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "InitializeConfigParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "join_tournament",
+      "docs": [
+        "玩家質押報名（受 pause 影響）"
+      ],
+      "discriminator": [
+        77,
+        21,
+        212,
+        206,
+        77,
+        82,
+        124,
+        31
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "tournament",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  117,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament.week_id",
+                "account": "Tournament"
+              }
+            ]
+          }
+        },
+        {
+          "name": "entry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  110,
+                  116,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "tournament"
+          ]
+        },
+        {
+          "name": "player_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "lock_tournament",
+      "docs": [
+        "報名截止（admin）：固定分組、國庫挹注、對帳 vault；人數不足轉 Cancelled"
+      ],
+      "discriminator": [
+        5,
+        29,
+        4,
+        209,
+        20,
+        10,
+        7,
+        126
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "tournament",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  117,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament.week_id",
+                "account": "Tournament"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "tournament"
+          ]
+        },
+        {
+          "name": "treasury_vault",
+          "docs": [
+            "國庫（owner = admin，token.sh）：挹注由 admin 以 owner 身分簽章轉出"
+          ],
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "open_tournament",
+      "docs": [
+        "Draft → Registration（admin）"
+      ],
+      "discriminator": [
+        143,
+        133,
+        154,
+        168,
+        205,
+        196,
+        233,
+        121
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "tournament",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  117,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament.week_id",
+                "account": "Tournament"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "refund_all",
+      "docs": [
+        "賽事 Cancelled 後取回全額質押（玩家；不受 pause 影響）"
+      ],
+      "discriminator": [
+        174,
+        87,
+        222,
+        126,
+        23,
+        59,
+        189,
+        155
+      ],
+      "accounts": [
+        {
+          "name": "player",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "tournament",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  117,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament.week_id",
+                "account": "Tournament"
+              }
+            ]
+          }
+        },
+        {
+          "name": "entry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  110,
+                  116,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament"
+              },
+              {
+                "kind": "account",
+                "path": "player"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "tournament"
+          ]
+        },
+        {
+          "name": "player_token_account",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "rotate_attestor",
+      "docs": [
+        "輪替 attestor 公鑰（admin），寬限期 0～600 秒"
+      ],
+      "discriminator": [
+        210,
+        240,
+        181,
+        158,
+        51,
+        168,
+        80,
+        134
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_attestor",
+          "type": "pubkey"
+        },
+        {
+          "name": "grace_seconds",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "set_achievement_eligibility",
+      "docs": [
+        "PG-R-08：成就資格 registry（admin）"
+      ],
+      "discriminator": [
+        41,
+        245,
+        130,
+        182,
+        133,
+        44,
+        11,
+        253
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "eligibility",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "SetEligibilityParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "set_paused",
+      "docs": [
+        "緊急停用／恢復（admin）。pause 範圍見 instructions/admin.rs"
+      ],
+      "discriminator": [
+        91,
+        60,
+        125,
+        192,
+        176,
+        225,
+        166,
+        218
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "settle_tournament",
+      "docs": [
+        "完成結算（admin）：筆數與 hash 相符、資金守恆、餘數歸庫"
+      ],
+      "discriminator": [
+        106,
+        1,
+        252,
+        206,
+        251,
+        192,
+        194,
+        84
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "tournament",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  117,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament.week_id",
+                "account": "Tournament"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "tournament"
+          ]
+        },
+        {
+          "name": "treasury_vault",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "start_tournament",
+      "docs": [
+        "Locked → Running（任意 payer，到 starts_at 後）"
+      ],
+      "discriminator": [
+        164,
+        168,
+        208,
+        157,
+        43,
+        10,
+        220,
+        241
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": [
+            "任意 payer（SD 3.2）；不需為 admin"
+          ],
+          "signer": true
+        },
+        {
+          "name": "tournament",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  117,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament.week_id",
+                "account": "Tournament"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "submit_results_batch",
+      "docs": [
+        "提交連續排名批次（admin）；entry 依序放在 remaining_accounts"
+      ],
+      "discriminator": [
+        132,
+        98,
+        218,
+        79,
+        81,
+        176,
+        43,
+        230
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "tournament",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  111,
+                  117,
+                  114,
+                  110,
+                  97,
+                  109,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "tournament.week_id",
+                "account": "Tournament"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "items",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "ResultItem"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "update_config",
+      "docs": [
+        "更新 Config（admin）；影響獎勵金額的欄位受 BR-24 限制"
+      ],
+      "discriminator": [
+        29,
+        158,
+        252,
+        191,
+        10,
+        83,
+        219,
+        99
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "UpdateConfigParams"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "AchievementEligibility",
+      "discriminator": [
+        197,
+        180,
+        118,
+        61,
+        156,
+        130,
+        70,
+        37
+      ]
+    },
+    {
+      "name": "AchievementReceipt",
+      "discriminator": [
+        149,
+        5,
+        79,
+        178,
+        116,
+        231,
+        43,
+        248
+      ]
+    },
+    {
+      "name": "CollectibleReceipt",
+      "discriminator": [
+        175,
+        13,
+        201,
+        253,
+        144,
+        184,
+        29,
+        118
+      ]
+    },
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "PlayerProfile",
+      "discriminator": [
+        82,
+        226,
+        99,
+        87,
+        164,
+        130,
+        181,
+        80
+      ]
+    },
+    {
+      "name": "Tournament",
+      "discriminator": [
+        175,
+        139,
+        119,
+        242,
+        115,
+        194,
+        57,
+        92
+      ]
+    },
+    {
+      "name": "TournamentEntry",
+      "discriminator": [
+        36,
+        203,
+        172,
+        114,
+        100,
+        189,
+        217,
+        158
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "AchievementClaimed",
+      "discriminator": [
+        14,
+        49,
+        71,
+        199,
+        214,
+        248,
+        116,
+        232
+      ]
+    },
+    {
+      "name": "AchievementEligibilitySet",
+      "discriminator": [
+        200,
+        47,
+        220,
+        67,
+        248,
+        144,
+        78,
+        115
+      ]
+    },
+    {
+      "name": "AttestorRotated",
+      "discriminator": [
+        44,
+        86,
+        231,
+        16,
+        98,
+        189,
+        12,
+        63
+      ]
+    },
+    {
+      "name": "ClockedIn",
+      "discriminator": [
+        126,
+        191,
+        159,
+        12,
+        150,
+        198,
+        98,
+        132
+      ]
+    },
+    {
+      "name": "CollectibleClaimed",
+      "discriminator": [
+        172,
+        197,
+        231,
+        159,
+        240,
+        64,
+        141,
+        251
+      ]
+    },
+    {
+      "name": "ConfigInitialized",
+      "discriminator": [
+        181,
+        49,
+        200,
+        156,
+        19,
+        167,
+        178,
+        91
+      ]
+    },
+    {
+      "name": "ConfigUpdated",
+      "discriminator": [
+        40,
+        241,
+        230,
+        122,
+        11,
+        19,
+        198,
+        194
+      ]
+    },
+    {
+      "name": "EntryForfeited",
+      "discriminator": [
+        220,
+        97,
+        45,
+        7,
+        195,
+        166,
+        38,
+        68
+      ]
+    },
+    {
+      "name": "PauseChanged",
+      "discriminator": [
+        238,
+        188,
+        213,
+        78,
+        134,
+        209,
+        178,
+        218
+      ]
+    },
+    {
+      "name": "PlayerInitialized",
+      "discriminator": [
+        214,
+        37,
+        153,
+        142,
+        63,
+        109,
+        206,
+        15
+      ]
+    },
+    {
+      "name": "PrizeClaimed",
+      "discriminator": [
+        213,
+        150,
+        192,
+        76,
+        199,
+        33,
+        212,
+        38
+      ]
+    },
+    {
+      "name": "Refunded",
+      "discriminator": [
+        35,
+        103,
+        149,
+        246,
+        196,
+        123,
+        221,
+        99
+      ]
+    },
+    {
+      "name": "ResultsBatchSubmitted",
+      "discriminator": [
+        117,
+        244,
+        40,
+        89,
+        71,
+        239,
+        60,
+        179
+      ]
+    },
+    {
+      "name": "SettlementBegan",
+      "discriminator": [
+        197,
+        131,
+        198,
+        160,
+        8,
+        26,
+        156,
+        150
+      ]
+    },
+    {
+      "name": "TournamentCancelled",
+      "discriminator": [
+        118,
+        92,
+        146,
+        131,
+        165,
+        72,
+        81,
+        120
+      ]
+    },
+    {
+      "name": "TournamentCancelledLate",
+      "discriminator": [
+        0,
+        225,
+        11,
+        169,
+        246,
+        187,
+        54,
+        114
+      ]
+    },
+    {
+      "name": "TournamentCreated",
+      "discriminator": [
+        102,
+        32,
+        240,
+        45,
+        52,
+        64,
+        97,
+        0
+      ]
+    },
+    {
+      "name": "TournamentJoined",
+      "discriminator": [
+        218,
+        233,
+        210,
+        2,
+        29,
+        16,
+        131,
+        7
+      ]
+    },
+    {
+      "name": "TournamentLocked",
+      "discriminator": [
+        146,
+        198,
+        210,
+        188,
+        130,
+        176,
+        173,
+        195
+      ]
+    },
+    {
+      "name": "TournamentOpened",
+      "discriminator": [
+        128,
+        181,
+        93,
+        175,
+        43,
+        25,
+        219,
+        13
+      ]
+    },
+    {
+      "name": "TournamentSettled",
+      "discriminator": [
+        205,
+        249,
+        139,
+        94,
+        146,
+        110,
+        167,
+        235
+      ]
+    },
+    {
+      "name": "TournamentStarted",
+      "discriminator": [
+        200,
+        157,
+        174,
+        194,
+        174,
+        219,
+        107,
+        44
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "ProgramPaused",
+      "msg": "Config 停用中"
+    },
+    {
+      "code": 6001,
+      "name": "MissingEd25519Instruction",
+      "msg": "前置 ed25519 指令缺失或格式錯誤"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidAttestorKey",
+      "msg": "attestor 公鑰不符且不在寬限期"
+    },
+    {
+      "code": 6003,
+      "name": "AttestationMismatch",
+      "msg": "canonical bytes 不一致"
+    },
+    {
+      "code": 6004,
+      "name": "WrongProgramOrCluster",
+      "msg": "program id 或 cluster 不符"
+    },
+    {
+      "code": 6005,
+      "name": "WalletMismatch",
+      "msg": "簽章者非 attestation 指定錢包"
+    },
+    {
+      "code": 6006,
+      "name": "AttestationNotYetValid",
+      "msg": "attestation 未到 not_before"
+    },
+    {
+      "code": 6007,
+      "name": "AttestationExpired",
+      "msg": "attestation 已過期"
+    },
+    {
+      "code": 6008,
+      "name": "AttestationTtlTooLong",
+      "msg": "attestation 有效期超過 600 秒"
+    },
+    {
+      "code": 6009,
+      "name": "AlreadyClaimed",
+      "msg": "此任務已領取"
+    },
+    {
+      "code": 6010,
+      "name": "DailyCapReached",
+      "msg": "今日額度已用盡"
+    },
+    {
+      "code": 6011,
+      "name": "MathOverflow",
+      "msg": "定點數運算溢位"
+    },
+    {
+      "code": 6012,
+      "name": "Reserved6012",
+      "msg": "保留：原 ShoeAlreadyMinted，2026-09-14 取消 NFT 鑄造後不再使用"
+    },
+    {
+      "code": 6013,
+      "name": "MaxCoreLevel",
+      "msg": "已達最高 Core 等級"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidTournamentState",
+      "msg": "賽事狀態不允許此操作"
+    },
+    {
+      "code": 6015,
+      "name": "AlreadyJoined",
+      "msg": "已報名"
+    },
+    {
+      "code": 6016,
+      "name": "InsufficientEntrants",
+      "msg": "有效參賽人數不足"
+    },
+    {
+      "code": 6017,
+      "name": "ConservationViolation",
+      "msg": "資金守恆檢查失敗"
+    },
+    {
+      "code": 6018,
+      "name": "MissingEvidence",
+      "msg": "沒收未附證據摘要"
+    },
+    {
+      "code": 6019,
+      "name": "InvalidTaskDate",
+      "msg": "task_date 不是鏈上目前 UTC 日序"
+    },
+    {
+      "code": 6020,
+      "name": "InvalidCoreLevel",
+      "msg": "Core 等級超出 Config 範圍"
+    },
+    {
+      "code": 6021,
+      "name": "InvalidTokenAccount",
+      "msg": "mint、owner、vault PDA 或 token program 不符"
+    },
+    {
+      "code": 6022,
+      "name": "InvalidResultBatch",
+      "msg": "排名批次非連續、重複或與 manifest 不符"
+    },
+    {
+      "code": 6023,
+      "name": "InvalidConfigParam",
+      "msg": "Config 參數超出允許範圍"
+    },
+    {
+      "code": 6024,
+      "name": "NotUpgradeAuthority",
+      "msg": "簽章者不是程式的 upgrade authority"
+    },
+    {
+      "code": 6025,
+      "name": "RewardParamsChangeRequiresPause",
+      "msg": "影響獎勵金額的參數必須先 pause 並等待 600 秒後才能更新（BR-24）"
+    },
+    {
+      "code": 6026,
+      "name": "Unauthorized",
+      "msg": "簽章者不是 Config.admin"
+    },
+    {
+      "code": 6027,
+      "name": "InvalidAttestationWindow",
+      "msg": "attestation 時間欄位不自洽（issued_at <= not_before <= expiry）"
+    },
+    {
+      "code": 6028,
+      "name": "InvalidTaskType",
+      "msg": "task_type 不是 1（steps）或 2（sleep）"
+    },
+    {
+      "code": 6029,
+      "name": "CollectibleNotEligible",
+      "msg": "尚未達成此成就的資格"
+    },
+    {
+      "code": 6030,
+      "name": "InvalidCollectibleKind",
+      "msg": "未知的成就種類"
+    },
+    {
+      "code": 6031,
+      "name": "InvalidTournamentParam",
+      "msg": "賽事參數超出允許範圍"
+    },
+    {
+      "code": 6032,
+      "name": "TournamentTimingViolation",
+      "msg": "尚未到達或已超過此操作的時間窗"
+    },
+    {
+      "code": 6033,
+      "name": "EntryAlreadySettled",
+      "msg": "此 entry 已領取或已退款"
+    },
+    {
+      "code": 6034,
+      "name": "EntryForfeited",
+      "msg": "此 entry 已被沒收"
+    },
+    {
+      "code": 6035,
+      "name": "ResultsHashMismatch",
+      "msg": "最終 rolling hash 與 begin_settlement 承諾不符"
+    },
+    {
+      "code": 6036,
+      "name": "RulesVersionMismatch",
+      "msg": "rules_version 與賽事不符"
+    },
+    {
+      "code": 6037,
+      "name": "AchievementProofMismatch",
+      "msg": "成就證明與指令參數不符"
+    },
+    {
+      "code": 6038,
+      "name": "AchievementNotApproved",
+      "msg": "成就資格未核准或已撤銷"
+    },
+    {
+      "code": 6039,
+      "name": "AchievementRegistryMismatch",
+      "msg": "成就資格 revision／metadata 與證明不符"
+    },
+    {
+      "code": 6040,
+      "name": "AchievementProofExpired",
+      "msg": "成就證明已過期或尚未生效"
+    }
+  ],
+  "types": [
+    {
+      "name": "AchievementArgs",
+      "docs": [
+        "claim 參數：與 194-byte canonical bytes 一一對應"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "program_id",
+            "type": "pubkey"
+          },
+          {
+            "name": "cluster_id",
+            "type": "u8"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "achievement_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "category",
+            "type": "u8"
+          },
+          {
+            "name": "verification_class",
+            "type": "u8"
+          },
+          {
+            "name": "source_revision",
+            "type": "u32"
+          },
+          {
+            "name": "rules_version",
+            "type": "u16"
+          },
+          {
+            "name": "metadata_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "issued_at",
+            "type": "i64"
+          },
+          {
+            "name": "expiry",
+            "type": "i64"
+          },
+          {
+            "name": "nonce",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "AchievementClaimed",
+      "docs": [
+        "PG-R-08：成就 NFT 已鑄造（indexer 以此標記 minted 並更新藝廊）"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "achievement_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "category",
+            "type": "u8"
+          },
+          {
+            "name": "verification_class",
+            "type": "u8"
+          },
+          {
+            "name": "source_revision",
+            "type": "u32"
+          },
+          {
+            "name": "asset",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AchievementEligibility",
+      "docs": [
+        "成就資格 registry（PG-R-08，activity-running-gallery 7）：由 admin 寫入／更新；",
+        "鑄造必查最新狀態、source_revision 與 metadata_hash 需與簽章證明一致。撤銷交易 finalized 才算鏈上已撤銷。"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "achievement_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "category",
+            "type": "u8"
+          },
+          {
+            "name": "verification_class",
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "source_revision",
+            "type": "u32"
+          },
+          {
+            "name": "metadata_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "updated_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AchievementEligibilitySet",
+      "docs": [
+        "PG-R-08：資格 registry 更新（approved／revoked）"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "achievement_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "source_revision",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AchievementReceipt",
+      "docs": [
+        "成就 NFT 領取憑證：每個 achievement_id 一枚（BR-39）。"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "achievement_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "category",
+            "type": "u8"
+          },
+          {
+            "name": "verification_class",
+            "type": "u8"
+          },
+          {
+            "name": "source_revision",
+            "type": "u32"
+          },
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "claimed_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AttestationArgs",
+      "docs": [
+        "clock_in 參數：與 canonical bytes 一一對應的欄位（不含金額，SD 3.5）。"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "type": "u8"
+          },
+          {
+            "name": "program_id",
+            "type": "pubkey"
+          },
+          {
+            "name": "cluster_id",
+            "type": "u8"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "task_date",
+            "type": "u32"
+          },
+          {
+            "name": "task_type",
+            "type": "u8"
+          },
+          {
+            "name": "rules_version",
+            "type": "u16"
+          },
+          {
+            "name": "evidence_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "issued_at",
+            "type": "i64"
+          },
+          {
+            "name": "not_before",
+            "type": "i64"
+          },
+          {
+            "name": "expiry",
+            "type": "i64"
+          },
+          {
+            "name": "nonce",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "AttestorRotated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "new_attestor",
+            "type": "pubkey"
+          },
+          {
+            "name": "prev_attestor",
+            "type": "pubkey"
+          },
+          {
+            "name": "prev_valid_until",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClockedIn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "task_date",
+            "type": "u32"
+          },
+          {
+            "name": "task_type",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "實發金額（已受每日上限收斂）"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "xp",
+            "type": "u64"
+          },
+          {
+            "name": "shoe_level",
+            "type": "u8"
+          },
+          {
+            "name": "core_level",
+            "type": "u8"
+          },
+          {
+            "name": "streak_days",
+            "type": "u16"
+          },
+          {
+            "name": "max_streak_days",
+            "docs": [
+              "歷史最高連續天數（藝廊投影用，PG-G-01）"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "nonce",
+            "type": {
+              "array": [
+                "u8",
+                16
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "CollectibleClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "kind",
+            "type": "u8"
+          },
+          {
+            "name": "asset",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CollectibleReceipt",
+      "docs": [
+        "成就收藏 NFT 領取紀錄（FR-04.6）。PDA seeds `[\"collectible\", wallet, kind]`，存在即代表已領取。"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "kind",
+            "type": "u8"
+          },
+          {
+            "name": "asset",
+            "docs": [
+              "Metaplex Core asset 位址"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "claimed_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Config",
+      "docs": [
+        "PDA seeds `[\"config\"]`"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "docs": [
+              "多簽位址；update_config／rotate_attestor 等管理指令的簽章者"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "cluster_id",
+            "docs": [
+              "canonical attestation 的環境識別；devnet = 1"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "attestor_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "attestor_valid_from",
+            "docs": [
+              "輪替生效時間，支援新舊並行"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "prev_attestor_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "prev_attestor_valid_until",
+            "type": "i64"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint_decimals",
+            "docs": [
+              "初始化時要求等於 mint 的 6 decimals"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "reward_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "daily_cap",
+            "type": "u64"
+          },
+          {
+            "name": "base_steps_reward",
+            "type": "u64"
+          },
+          {
+            "name": "base_sleep_reward",
+            "type": "u64"
+          },
+          {
+            "name": "streak_enabled",
+            "docs": [
+              "FR-03.6 功能開關，MVP 預設 false"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "streak_bonus_bps",
+            "docs": [
+              "啟用後加成，預設 11000；停用時一律使用 10000"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "burn_bps",
+            "docs": [
+              "保留：升級改為免費（2026-09-14）後不使用"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "core_multiplier_bps",
+            "docs": [
+              "Core 1～5 倍率"
+            ],
+            "type": {
+              "array": [
+                "u16",
+                5
+              ]
+            }
+          },
+          {
+            "name": "core_upgrade_costs",
+            "docs": [
+              "保留：升級改為免費（2026-09-14）後不使用"
+            ],
+            "type": {
+              "array": [
+                "u64",
+                4
+              ]
+            }
+          },
+          {
+            "name": "shoe_xp_thresholds",
+            "docs": [
+              "跑鞋 Lv1～5 的累積 XP 門檻"
+            ],
+            "type": {
+              "array": [
+                "u64",
+                5
+              ]
+            }
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "paused_at",
+            "docs": [
+              "最近一次 pause 的時間；BR-24 以此判斷有效 attestation 是否已全部過期"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "cluster_id",
+            "type": "u8"
+          },
+          {
+            "name": "attestor_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "daily_cap",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_params_changed",
+            "docs": [
+              "是否變更了影響獎勵金額的參數（BR-24 受控欄位）"
+            ],
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CreateTournamentParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "week_id",
+            "type": "u32"
+          },
+          {
+            "name": "stake_amount",
+            "type": "u64"
+          },
+          {
+            "name": "treasury_injection_cap",
+            "type": "u64"
+          },
+          {
+            "name": "min_entrants",
+            "type": "u32"
+          },
+          {
+            "name": "registration_ends_at",
+            "type": "i64"
+          },
+          {
+            "name": "starts_at",
+            "type": "i64"
+          },
+          {
+            "name": "ends_at",
+            "type": "i64"
+          },
+          {
+            "name": "rules_version",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EntryForfeited",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tournament",
+            "type": "pubkey"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "evidence_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "rules_version",
+            "type": "u16"
+          },
+          {
+            "name": "forfeited_count",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InitializeConfigParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "cluster_id",
+            "type": "u8"
+          },
+          {
+            "name": "attestor_pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "daily_cap",
+            "type": "u64"
+          },
+          {
+            "name": "base_steps_reward",
+            "type": "u64"
+          },
+          {
+            "name": "base_sleep_reward",
+            "type": "u64"
+          },
+          {
+            "name": "streak_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "streak_bonus_bps",
+            "type": "u16"
+          },
+          {
+            "name": "burn_bps",
+            "type": "u16"
+          },
+          {
+            "name": "core_multiplier_bps",
+            "type": {
+              "array": [
+                "u16",
+                5
+              ]
+            }
+          },
+          {
+            "name": "core_upgrade_costs",
+            "type": {
+              "array": [
+                "u64",
+                4
+              ]
+            }
+          },
+          {
+            "name": "shoe_xp_thresholds",
+            "type": {
+              "array": [
+                "u64",
+                5
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "PauseChanged",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PlayerInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "profile",
+            "type": "pubkey"
+          },
+          {
+            "name": "shoe_level",
+            "docs": [
+              "隨 profile 直接贈與的初階跑鞋等級（1）"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PlayerProfile",
+      "docs": [
+        "PDA seeds `[\"player\", wallet]`"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "core_level",
+            "docs": [
+              "1～5，只能透過付費升級改變，控制獎勵倍率（BR-23）"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "shoe_level",
+            "docs": [
+              "1～5，由 XP 門檻自動提升，只影響外觀（BR-23）"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "xp",
+            "type": "u64"
+          },
+          {
+            "name": "last_task_date",
+            "docs": [
+              "最近完成任務的 UTC 日序"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "streak_days",
+            "type": "u16"
+          },
+          {
+            "name": "max_streak_days",
+            "docs": [
+              "歷史最高連續天數（連續 7 天徽章資格；斷日不下降）"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "claimed_today",
+            "docs": [
+              "當日已領取量，`task_date` 變更時歸零"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "today_date",
+            "docs": [
+              "`claimed_today` 對應的日序"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrizeClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tournament",
+            "type": "pubkey"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "rank",
+            "type": "u32"
+          },
+          {
+            "name": "group",
+            "type": "u8"
+          },
+          {
+            "name": "refund",
+            "type": "u64"
+          },
+          {
+            "name": "prize",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Refunded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tournament",
+            "type": "pubkey"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ResultItem",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "final_steps",
+            "type": "u64"
+          },
+          {
+            "name": "first_reached_at",
+            "docs": [
+              "BR-20 同分決勝依據；只納入 hash 供稽核，不另存"
+            ],
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ResultsBatchSubmitted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tournament",
+            "type": "pubkey"
+          },
+          {
+            "name": "from_rank",
+            "type": "u32"
+          },
+          {
+            "name": "to_rank",
+            "type": "u32"
+          },
+          {
+            "name": "rolling_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "SetEligibilityParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "achievement_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "category",
+            "type": "u8"
+          },
+          {
+            "name": "verification_class",
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "source_revision",
+            "type": "u32"
+          },
+          {
+            "name": "metadata_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "SettlementBegan",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tournament",
+            "type": "pubkey"
+          },
+          {
+            "name": "expected_count",
+            "type": "u32"
+          },
+          {
+            "name": "results_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "distributable_pool",
+            "type": "u64"
+          },
+          {
+            "name": "total_refund",
+            "type": "u64"
+          },
+          {
+            "name": "total_prize",
+            "type": "u64"
+          },
+          {
+            "name": "treasury_remainder",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tournament",
+      "docs": [
+        "週末錦標賽（SD 3.1）。PDA seeds `[\"tournament\", week_id_le]`。",
+        "金額、分組比例、國庫挹注上限與時間窗於 `create_tournament` 寫入後不可變（BRD 8.4）。"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "week_id",
+            "docs": [
+              "ISO week-based year × 100 + ISO week，例如 202641"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "0 Draft、1 Registration、2 Locked、3 Running、4 Settling、5 Settled、6 Cancelled"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "vault",
+            "docs": [
+              "本賽事專用 tSKR token account，owner = Tournament PDA"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "stake_amount",
+            "type": "u64"
+          },
+          {
+            "name": "total_staked",
+            "type": "u64"
+          },
+          {
+            "name": "treasury_injection_cap",
+            "docs": [
+              "建立時固定的國庫挹注上限"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "treasury_injection",
+            "docs": [
+              "lock 時實際轉入 vault 的國庫挹注（≤ cap 且 ≤ 國庫餘額）"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "entrant_count",
+            "type": "u32"
+          },
+          {
+            "name": "valid_entrant_count",
+            "docs": [
+              "報名截止時固定；join 已逐筆驗證格式與資金，故等於 entrant_count"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "forfeited_count",
+            "type": "u32"
+          },
+          {
+            "name": "group_a_size",
+            "type": "u32"
+          },
+          {
+            "name": "group_b_size",
+            "type": "u32"
+          },
+          {
+            "name": "distributable_pool",
+            "type": "u64"
+          },
+          {
+            "name": "distributed",
+            "type": "u64"
+          },
+          {
+            "name": "total_refund",
+            "type": "u64"
+          },
+          {
+            "name": "total_prize",
+            "type": "u64"
+          },
+          {
+            "name": "treasury_remainder",
+            "type": "u64"
+          },
+          {
+            "name": "results_submitted",
+            "type": "u32"
+          },
+          {
+            "name": "results_hash",
+            "docs": [
+              "begin_settlement 承諾的最終 rolling hash"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "results_rolling_hash",
+            "docs": [
+              "鏈上逐筆更新的 rolling hash（初始 32 bytes zero）"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "min_entrants",
+            "type": "u32"
+          },
+          {
+            "name": "registration_ends_at",
+            "type": "i64"
+          },
+          {
+            "name": "starts_at",
+            "type": "i64"
+          },
+          {
+            "name": "ends_at",
+            "type": "i64"
+          },
+          {
+            "name": "rules_version",
+            "type": "u16"
+          },
+          {
+            "name": "prize_a_bps",
+            "docs": [
+              "可分配獎金池 A／B 組占比、未得獎者退款比例（bps；建立時寫入）"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "prize_b_bps",
+            "type": "u16"
+          },
+          {
+            "name": "loser_refund_bps",
+            "type": "u16"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tournament",
+            "type": "pubkey"
+          },
+          {
+            "name": "entrant_count",
+            "type": "u32"
+          },
+          {
+            "name": "min_entrants",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentCancelledLate",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tournament",
+            "type": "pubkey"
+          },
+          {
+            "name": "by",
+            "type": "pubkey"
+          },
+          {
+            "name": "returned_to_treasury",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tournament",
+            "type": "pubkey"
+          },
+          {
+            "name": "week_id",
+            "type": "u32"
+          },
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "stake_amount",
+            "type": "u64"
+          },
+          {
+            "name": "treasury_injection_cap",
+            "type": "u64"
+          },
+          {
+            "name": "min_entrants",
+            "type": "u32"
+          },
+          {
+            "name": "registration_ends_at",
+            "type": "i64"
+          },
+          {
+            "name": "starts_at",
+            "type": "i64"
+          },
+          {
+            "name": "ends_at",
+            "type": "i64"
+          },
+          {
+            "name": "rules_version",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentEntry",
+      "docs": [
+        "報名紀錄（SD 3.1）。PDA seeds `[\"entry\", tournament, wallet]`。"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tournament",
+            "type": "pubkey"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "stake",
+            "type": "u64"
+          },
+          {
+            "name": "final_steps",
+            "type": "u64"
+          },
+          {
+            "name": "rank",
+            "docs": [
+              "0 表示未排名"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "group",
+            "docs": [
+              "0 無、1 A 組、2 B 組"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "forfeited",
+            "type": "bool"
+          },
+          {
+            "name": "settled",
+            "type": "bool"
+          },
+          {
+            "name": "evidence_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "joined_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentJoined",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tournament",
+            "type": "pubkey"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "stake",
+            "type": "u64"
+          },
+          {
+            "name": "entrant_count",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentLocked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tournament",
+            "type": "pubkey"
+          },
+          {
+            "name": "valid_entrant_count",
+            "type": "u32"
+          },
+          {
+            "name": "group_a_size",
+            "type": "u32"
+          },
+          {
+            "name": "group_b_size",
+            "type": "u32"
+          },
+          {
+            "name": "total_staked",
+            "type": "u64"
+          },
+          {
+            "name": "treasury_injection",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentOpened",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tournament",
+            "type": "pubkey"
+          },
+          {
+            "name": "week_id",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentSettled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tournament",
+            "type": "pubkey"
+          },
+          {
+            "name": "results_submitted",
+            "type": "u32"
+          },
+          {
+            "name": "treasury_remainder",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentStarted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tournament",
+            "type": "pubkey"
+          },
+          {
+            "name": "at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UpdateConfigParams",
+      "docs": [
+        "全部欄位可選；`None` 表示不變。"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "daily_cap",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "base_steps_reward",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "base_sleep_reward",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "streak_enabled",
+            "type": {
+              "option": "bool"
+            }
+          },
+          {
+            "name": "streak_bonus_bps",
+            "type": {
+              "option": "u16"
+            }
+          },
+          {
+            "name": "core_multiplier_bps",
+            "type": {
+              "option": {
+                "array": [
+                  "u16",
+                  5
+                ]
+              }
+            }
+          },
+          {
+            "name": "burn_bps",
+            "type": {
+              "option": "u16"
+            }
+          },
+          {
+            "name": "core_upgrade_costs",
+            "type": {
+              "option": {
+                "array": [
+                  "u64",
+                  4
+                ]
+              }
+            }
+          },
+          {
+            "name": "shoe_xp_thresholds",
+            "type": {
+              "option": {
+                "array": [
+                  "u64",
+                  5
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "ASSET_SEED",
+      "docs": [
+        "成就 NFT asset PDA seeds `[\"asset\", wallet, kind]`：位址可由 App 直接推導，不需額外 keypair 簽章"
+      ],
+      "type": "bytes",
+      "value": "[97, 115, 115, 101, 116]"
+    },
+    {
+      "name": "CLAIM_SEED",
+      "type": "bytes",
+      "value": "[99, 108, 97, 105, 109]"
+    },
+    {
+      "name": "COLLECTIBLE_SEED",
+      "type": "bytes",
+      "value": "[99, 111, 108, 108, 101, 99, 116, 105, 98, 108, 101]"
+    },
+    {
+      "name": "CONFIG_SEED",
+      "type": "bytes",
+      "value": "[99, 111, 110, 102, 105, 103]"
+    },
+    {
+      "name": "ENTRY_SEED",
+      "type": "bytes",
+      "value": "[101, 110, 116, 114, 121]"
+    },
+    {
+      "name": "PLAYER_SEED",
+      "type": "bytes",
+      "value": "[112, 108, 97, 121, 101, 114]"
+    },
+    {
+      "name": "TOURNAMENT_SEED",
+      "type": "bytes",
+      "value": "[116, 111, 117, 114, 110, 97, 109, 101, 110, 116]"
+    },
+    {
+      "name": "TSKR_DECIMALS",
+      "docs": [
+        "tSKR 固定 6 decimals（BR-22）"
+      ],
+      "type": "u8",
+      "value": "6"
+    }
+  ]
+}

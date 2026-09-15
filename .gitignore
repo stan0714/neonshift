@@ -1,0 +1,31 @@
+# Rust
+target/
+**/target/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Expo / Android
+app/.expo/
+app/android/app/build/
+app/android/.gradle/
+*.keystore
+keystore.properties
+
+# 環境與金鑰
+.env
+.env.*
+!.env.example
+*.pem
+secrets/
+
+# 系統
+.DS_Store
+
+# Office 暫存鎖檔
+~$*
+
+# 部署用金鑰不進 repo（deploy/README.md）
+**/*-keypair.json

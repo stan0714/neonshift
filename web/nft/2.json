@@ -1,0 +1,42 @@
+{
+  "name": "NeonShift Shoe · Pulse",
+  "symbol": "NSHOE",
+  "description": "Level 2 NeonShift gear, earned with 450 XP of verified movement. Twin rails · reinforced heel. A free achievement collectible — no purchase, no monetary value.",
+  "image": "https://neonshift.cc/nft/img/2.png",
+  "external_url": "https://neonshift.cc",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Shoe"
+    },
+    {
+      "trait_type": "Level",
+      "value": 2
+    },
+    {
+      "trait_type": "Stage",
+      "value": "Pulse"
+    },
+    {
+      "trait_type": "XP threshold",
+      "value": 450
+    },
+    {
+      "trait_type": "Detail",
+      "value": "Twin rails · reinforced heel"
+    }
+  ],
+  "properties": {
+    "category": "image",
+    "files": [
+      {
+        "uri": "https://neonshift.cc/nft/img/2.png",
+        "type": "image/png"
+      },
+      {
+        "uri": "https://neonshift.cc/nft/img/2.svg",
+        "type": "image/svg+xml"
+      }
+    ]
+  }
+}

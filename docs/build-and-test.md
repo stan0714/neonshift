@@ -2,14 +2,14 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.1 |
+| 文件版本 | v0.2（校正至 SA／SD v0.4：Node 24、brew prefix、env 腳本） |
 | 建立日期 | 2026-09-09 |
 | 適用平台 | macOS（Apple Silicon）開發機 → Android 裝置 |
 | 目標裝置 | Solana Mobile Seeker；備援為任一 Android 14 以上實機 |
-| 對應文件 | [BRD v0.4](./brd-detailed.md)、[SA v0.1](./sa.md)、[SD v0.1](./sd.md) |
+| 對應文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md)、[PG](./pg.md) |
 | 網路 | Solana devnet |
 
-> **目前狀態**：本 repo 尚無程式碼，只有文件。第 2 章起為專案初始化步驟，第一次執行時請從第 1 章依序做完；之後的日常迭代直接跳到第 5 章。
+> **目前狀態**：`backend/`、`programs/attestation-core` 已建立；`app/` 由第 2 章步驟建立。第一次執行時請從第 1 章依序做完；之後的日常迭代直接跳到第 5 章。
 
 ---
 
@@ -39,10 +39,17 @@
 
 ```bash
 java -version                      # 需要 JDK 17
-node -v                            # 需要 20 以上
+node -v                            # 需要 24 LTS（SD 2.2；Node 20 已於 2026-03-24 EOL，不得使用）
 echo "${ANDROID_HOME:-未設定}"
 ls -d "$HOME/Library/Android/sdk" 2>/dev/null || echo "缺少 Android SDK"
 uname -m                           # arm64
+brew --prefix                      # Apple Silicon 為 /opt/homebrew；Rosetta 安裝的 brew 為 /usr/local
+```
+
+或直接執行 repo 內的檢查腳本，會逐項列出版本與缺項：
+
+```bash
+source scripts/env.sh && scripts/env-check.sh
 ```
 
 ### 1.2 安裝缺少的元件
@@ -50,11 +57,13 @@ uname -m                           # arm64
 ```bash
 # JDK 17（若尚未安裝）
 brew install openjdk@17
-sudo ln -sfn /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk \
+sudo ln -sfn "$(brew --prefix)/opt/openjdk@17/libexec/openjdk.jdk" \
   /Library/Java/JavaVirtualMachines/openjdk-17.jdk
 
-# Node.js
-brew install node
+# Node.js 24 LTS（擇一：nvm 或 Homebrew）
+nvm install 24 && nvm use 24      # repo 根目錄有 .nvmrc，之後 `nvm use` 即可
+# 或
+brew install node                 # Homebrew 的 node formula 目前即為 24.x
 
 # Android Studio（內含 SDK 與 platform-tools）
 brew install --cask android-studio
@@ -72,11 +81,15 @@ avm install latest && avm use latest
 
 ### 1.3 設定環境變數
 
+建議做法：每次開工先 `source scripts/env.sh`。它只影響目前 shell，會依 `brew --prefix` 自動找 JDK 17 與 Node 24，並設定 `ANDROID_HOME`、Solana、Anchor 路徑；不會改動 `~/.zshrc`。
+
+若偏好寫進 shell 設定檔：
+
 ```bash
 cat >> ~/.zshrc <<'EOF'
 
 # --- Android / NeonShift ---
-export JAVA_HOME="/opt/homebrew/opt/openjdk@17"
+export JAVA_HOME="$(brew --prefix)/opt/openjdk@17"
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export PATH="$PATH:$ANDROID_HOME/platform-tools"
 export PATH="$PATH:$ANDROID_HOME/emulator"
@@ -86,18 +99,20 @@ EOF
 source ~/.zshrc
 ```
 
+注意 `~/.zshrc` 若有 `nvm use 18` 之類的預設，會蓋掉 Node 24；改為 `nvm use 24` 或移除。
+
 ### 1.4 驗證
 
 ```bash
+scripts/env-check.sh   # 一次列出下列全部
 java -version          # openjdk 17.x
-node -v                # v20+
+node -v                # v24.x
 adb version            # Android Debug Bridge 版本資訊
-sdkmanager --list | head -20
 solana --version
 anchor --version
 ```
 
-四項都有輸出才往下走。
+`env-check.sh` 的必要項目（node、java、Android SDK 的 API 34／35、platform-tools、build-tools 35）全部 ✔ 才能做 App；solana／anchor 只在做鏈上程式時需要。`sdkmanager` 在舊版 cmdline-tools 搭配 JDK 11 以上會報 `NoClassDefFoundError: javax/xml/bind`，請由 Android Studio 更新 Command-line Tools 至 latest。
 
 ---
 
@@ -108,10 +123,12 @@ anchor --version
 ### 2.1 建立 Expo 專案
 
 ```bash
-cd ~/Documents/GitHub/neonshift
+cd <repo 根目錄>
 npx create-expo-app@latest app --template blank-typescript
 cd app
 ```
+
+實際建立時使用 Expo SDK 57（React Native 0.86、React 19.2、TypeScript 6）。`package.json` 只保留 Android 相關 script（`start` 帶 `--dev-client`、`android`、`android:release`、`typecheck`、`lint`、`test`），移除 `ios`／`web`。
 
 專案結構建議如下，與 SD 第 2 章的分層對應。
 
@@ -163,31 +180,42 @@ npm install lottie-react-native
     "version": "0.1.0",
     "scheme": "neonshift",
     "userInterfaceStyle": "dark",
+    "backgroundColor": "#050711",
     "platforms": ["android"],
     "android": {
-      "package": "xyz.neonshift.app",
+      "package": "cc.neonshift.app",   // 反向網域 neonshift.cc（SD 8）
       "versionCode": 1,
-      "minSdkVersion": 34,
-      "compileSdkVersion": 35,
-      "targetSdkVersion": 35,
       "permissions": [
         "android.permission.ACTIVITY_RECOGNITION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.health.READ_STEPS",
         "android.permission.health.READ_SLEEP",
         "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"
+      ],
+      // FR-07.3 只用粗粒度定位；expo-location 預設會加 FINE，明確擋掉
+      "blockedPermissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION"
       ]
     },
     "plugins": [
       "expo-dev-client",
       "expo-secure-store",
-      "react-native-health-connect"
+      "react-native-health-connect",
+      // SDK 57 起 android.minSdkVersion 等欄位不再由 app.json 直接套用，改用 expo-build-properties
+      ["expo-build-properties", { "android": {
+        "minSdkVersion": 34, "compileSdkVersion": 36, "targetSdkVersion": 36, "buildToolsVersion": "36.0.0"
+      } }],
+      // Style 8.1：canvas 背景、置中 mark、無 spinner
+      ["expo-splash-screen", { "backgroundColor": "#050711", "image": "./assets/splash-icon.png", "imageWidth": 160, "resizeMode": "contain" }]
     ]
   }
 }
 ```
 
 `"platforms": ["android"]` 明確排除 iOS，對應 BRD 決策 D-04。
+
+compileSdk／targetSdk 採 36 而非原規劃的 35：React Native 0.86 與 Expo SDK 57 的原生模組以 API 36 編譯，強降 35 會讓部分相依無法解析；minSdk 維持 34（Health Connect 內建於系統的最低版本，BRD NFR 相容性）。完整可用版本以 `app/app.json` 為準。
 
 ### 2.4 生成原生目錄
 
@@ -228,6 +256,8 @@ Android 14 起 Health Connect 已內建於系統，不需另外安裝 App。但�
 
 因為 minSdk 為 34，**不需要**舊版的 `androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE` intent filter，也不需要 `<queries>` 宣告 Health Connect 套件。
 
+`react-native-health-connect` 的 config plugin 在 prebuild 時會自動加入上述 `activity-alias`（同時也會加舊版 rationale filter，無害）；prebuild 後以 `grep -n activity-alias android/app/src/main/AndroidManifest.xml` 確認即可，不需手改。
+
 ### 3.2 本地後端連線（僅 debug）
 
 實機要連開發機的後端時，在 `android/app/src/debug/` 建立 `AndroidManifest.xml`：
@@ -240,13 +270,15 @@ Android 14 起 Health Connect 已內建於系統，不需另外安裝 App。但�
 
 放在 `debug/` 目錄，release 版不受影響。
 
+Expo SDK 57 的 prebuild 模板已內建這份 debug manifest（含 `usesCleartextTraffic="true"`），不需手動建立；確認 `android/app/src/debug/AndroidManifest.xml` 存在即可。
+
 ### 3.3 確認 Gradle 設定
 
 ```bash
-grep -n "minSdkVersion\|targetSdkVersion\|compileSdkVersion" android/build.gradle
+grep -n "SdkVersion" android/gradle.properties
 ```
 
-三者應為 34 / 35 / 35。
+應為 `android.minSdkVersion=34`、`android.compileSdkVersion=36`、`android.targetSdkVersion=36`（由 expo-build-properties 寫入；SDK 57 不再放在 `build.gradle` 的 `ext`）。
 
 ---
 
@@ -353,30 +385,54 @@ npx expo run:android --device
 
 ```bash
 # 查看目前已授予的權限
-adb shell dumpsys package xyz.neonshift.app | grep -A 40 "runtime permissions"
+adb shell dumpsys package cc.neonshift.app | grep -A 40 "runtime permissions"
 
 # 開啟本 App 的 Health Connect 權限頁
 adb shell am start -a android.health.connect.action.MANAGE_HEALTH_PERMISSIONS \
-  --es android.intent.extra.PACKAGE_NAME xyz.neonshift.app
+  --es android.intent.extra.PACKAGE_NAME cc.neonshift.app
 ```
+
+### 6.1.1 運動匯入（PG-R-02）與裝置矩陣
+
+Home →「Workouts ›」→「Import from Health Connect」會另外請求 `READ_EXERCISE`（必要）、`READ_DISTANCE`／`READ_ACTIVE_CALORIES_BURNED`／`READ_TOTAL_CALORIES_BURNED`（可選；缺時欄位為 null 並標 partial_permissions）。只讀 ExerciseSession 為 RUNNING／RUNNING_TREADMILL／WALKING 的紀錄，距離／步數／熱量以**同一 dataOrigin、同時段** aggregate 取得，不跨來源拼湊；手機與手錶同場各成一筆，後端標「可能重複」。
+
+產生測試資料（沒有手錶時）：在 Health Connect 相容 App（例如 Google Fit／Samsung Health）記錄一段跑步，或用 `adb shell` 無法直接寫入 ExerciseSession——需以有寫入權限的 App 寫入。撤銷後重測：
+
+```bash
+adb shell pm revoke cc.neonshift.app android.permission.health.READ_EXERCISE
+```
+
+**裝置矩陣（實測後填寫，未測不宣稱支援）**
+
+| 裝置／App | HC 版本 | Session | Distance | Active kcal | 延遲 | 備註 |
+|---|---|---|---|---|---|---|
+| Seeker 手機內建計步（無 session） | — | 無 | — | — | — | 只有步數，沒有 ExerciseSession，不會出現在運動紀錄 |
+| （待測：Google Fit 寫入） | | | | | | |
+| （待測：手錶伴隨 App） | | | | | | |
 
 ### 6.2 重測 onboarding 流程
 
 驗收 FR-02.5 的權限拒絕引導時，把權限撤掉重來：
 
 ```bash
-adb shell pm revoke xyz.neonshift.app android.permission.health.READ_STEPS
-adb shell pm revoke xyz.neonshift.app android.permission.health.READ_SLEEP
-adb shell pm revoke xyz.neonshift.app android.permission.ACTIVITY_RECOGNITION
-adb shell pm revoke xyz.neonshift.app android.permission.ACCESS_COARSE_LOCATION
+adb shell pm revoke cc.neonshift.app android.permission.health.READ_STEPS
+adb shell pm revoke cc.neonshift.app android.permission.health.READ_SLEEP
+adb shell pm revoke cc.neonshift.app android.permission.ACTIVITY_RECOGNITION
+adb shell pm revoke cc.neonshift.app android.permission.ACCESS_COARSE_LOCATION
 
 # 或完整重置 App 狀態（含 SecureStore 與快取）
-adb shell pm clear xyz.neonshift.app
+adb shell pm clear cc.neonshift.app
 ```
 
 ### 6.3 產生測試用步數資料
 
 真實步數要靠走路，但驗證讀取邏輯時可以用其他健身 App 寫入 Health Connect，再確認本 App 的來源歸因（BR-07、BR-08）能正確排除非裝置來源。
+
+**開發診斷頁**：debug build 內建 `Health Connect (dev)` 畫面（`src/screens/dev/HealthDiagnosticsScreen.tsx`，只在 `__DEV__` 註冊），可逐項呼叫 getStatus／權限／readSteps／readSleep 並顯示原始回傳。開啟方式：`EXPO_PUBLIC_DEV_ROUTE=DevHealth npx expo start --dev-client`，冷啟動後會直接疊在 Landing 之上。`EXPO_PUBLIC_DEV_ROUTE=Main` 則在錢包已連線但尚未建立鏈上 profile（程式未部署）時直接進入 tabs 檢查版面。
+
+**Metro 注意**：修改 `src/` 後若實機仍載入舊畫面，重啟 `npx expo start --clear`（本機 watchman 監看偶爾失效）。原生模組（`modules/`）改動一律要重新 `assembleDebug`。
+
+**2026-09-14 Seeker 實測**：`availability=available`、API 36、SDK extension 22；framework 尚無 `getCurrentDeviceDataSource`（`spnQuerySupported=false`），因此只接受歷史 `android` 來源；權限對話框正確顯示 App 名稱與隱私政策連結；當日無任何 StepsRecord／SleepSessionRecord（`dataOrigins: []`），需實際走動或以其他 App 寫入後再驗證四種來源分類。SensorModule 靜置實測：取樣 49.5 Hz、兩視窗各約 495 點、step counter 可用、step_delta 0；診斷頁 `Sensors` 區可重跑 20 秒 live motion check（步行時 `dominant_freq_hz` 應落在 1.5～2.5、`step_delta` ≥ 10）。
 
 **注意**：以第三方 App 寫入的資料**應該**被本 App 拒絕。若沒有被拒絕，代表 FR-07.1 有問題，這正是要測的重點。
 
@@ -422,36 +478,126 @@ devnet airdrop 有速率限制，失敗時稍等再試或改用 faucet 網頁。
 
 ### 7.4 建立 tSKR 測試代幣
 
+tSKR 為 **6 decimals**（SD 1.2／PG-I-08；早期版本誤寫 9），總供給 1,000,000、獎勵金庫預撥 200,000（BRD 8.5 假設）。一律用腳本，避免手動步驟漏掉 vault owner：
+
 ```bash
-# 建立 mint（9 位小數）
-spl-token create-token --decimals 9 --url devnet
-# 記下輸出的 MINT 位址
-
-export TSKR_MINT=<上一步的 mint 位址>
-
-# 建立金庫 token account 並鑄造固定供給
-spl-token create-account $TSKR_MINT --url devnet
-spl-token mint $TSKR_MINT 1000000 --url devnet
-
-# 撤銷 mint authority（對應 BR-22）
-spl-token authorize $TSKR_MINT mint --disable --url devnet
-
-# 驗證
-spl-token display $TSKR_MINT --url devnet
+scripts/chain/keys.sh dev          # 產生 admin／program／attestor 金鑰（~/.config/neonshift/dev）
+scripts/chain/build.sh dev         # 以 dev program id 建置
+scripts/chain/deploy.sh dev        # anchor deploy 到 devnet
+scripts/chain/token.sh dev         # mint(6)、reward vault（owner = Config PDA）、treasury vault → 回填 deploy/dev.env
+npm --prefix tools/chain-admin run admin -- init-config dev   # initialize_config
+scripts/chain/token.sh dev fund    # 鑄造固定供給、撥款金庫、撤銷 mint authority（不可逆）
 ```
 
-`spl-token display` 的輸出中 mint authority 應為空，這是 BR-22 的驗收證據，記得截圖存檔給 Pitch 用。
+`token.sh <env> fund` 最後會印出 `spl-token display`，其中 mint authority 應為空，這是 BR-22 的驗收證據，記得截圖存檔給 Pitch 用。demo 環境把 `dev` 換成 `demo`，兩者金鑰、program id、mint 完全分離（SD 8）。
 
 ### 7.5 部署鏈上程式
 
+7.4 的腳本已涵蓋；手動等價指令：
+
 ```bash
 cd programs
-anchor build
+anchor build --arch v0          # 一律加 --arch v0，見下方說明
 anchor deploy --provider.cluster devnet
-# 記下 Program Id，填入 App 與後端設定
+# 記下 Program Id，填入 deploy/<env>.env；App 與後端由同一份檔案取得
 ```
 
+**工具鏈注意事項**（本機實測 Anchor 1.2.0 + solana-cli 3.1.10）：
+
+- Anchor 1.2 的 `anchor build` 預設 `--arch v3`，產出的 SBPF v3 ELF 無法被 LiteSVM 0.10 載入（`InvalidAccountData`），devnet 對 v3 的支援也未普及。所有建置一律 `anchor build --arch v0`。
+- 鏈上測試用 LiteSVM 在程序內執行：`cargo test -p neonshift-core`。**不要**用 `anchor test`，它會嘗試啟動 `surfpool` 本機 validator。
+- 程式 keypair 在 `programs/target/deploy/neonshift_core-keypair.json`（gitignore）。第一次 clone 後若 `declare_id!` 與本機 keypair 不同，執行 `anchor keys sync` 或依 PG-I-07 取得對應環境的 keypair；dev／demo 各自一把，不共用。
+- `claim_collectible` 測試需要 Metaplex Core 程式：`programs/neonshift-core/tests/fixtures/mpl_core.so` 是 devnet dump（`solana program dump CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d <path> --url https://api.devnet.solana.com`，約 856 KB，已入庫）。Core 升版時重新 dump 並核對 `src/mpl_core.rs` 的指令佈局。
+- App 文案：一律走 `app/src/i18n`（`useT()` 於元件、`t()` 於 store／service），新增文案同時補 `en.ts` 與 `zh-TW.ts`；`i18n.test.tsx` 會擋 key 不一致。語言由 expo-localization 跟隨系統，Profile 可切換。
+- App Jest（RNTL 14＋React 19）：`fireEvent.*` 是 async（內部包 `act`），**一律 `await`**；不 await 會產生「overlapping act() calls」，之後的 state 更新會卡住、測試看似通過或詭異失敗。按下會 navigate 的 Pressable 之測試放在檔案最後或以 `await act(async () => {})` 收尾。
+- 本機 Docker 不可用時，`scripts/test-db-remote.sh`（可加 vitest 參數）會在 l1 重建 `neonshift_test`、套 migrations 與約束測試，經 SSH tunnel 跑 backend 全部測試（含 PostgresStore 整合）。
+- 統一入口 `scripts/test-all.sh` 會依序跑 Rust／向量／DB／後端／App／鏈上六個區段。
+
+### 7.6 週末錦標賽操作（PG-C-11～C-16／B-14／B-15）
+
+全部以 admin keypair 執行（`tools/chain-admin`）；後端需開 `INDEXER_ENABLED=true`（B-16）與 `OPS_TOKEN`。
+
+```bash
+cd tools/chain-admin
+# 週五：建立並開放報名（weekId = ISO 年×100+週；時間為 unix 秒，預設報名 +1 天／開賽 +2 天／結束 +4 天）
+npm run admin -- tournament create dev 202638 --stake 50 --injection-cap 1000 --min 10 --reg-end <unix> --start <unix> --end <unix>
+npm run admin -- tournament open dev 202638
+# 報名截止後：固定分組、國庫挹注（admin 需持有 TREASURY_VAULT 的 owner 權限）、對帳 vault；人數不足自動 Cancelled
+npm run admin -- tournament lock dev 202638
+# 到 starts_at 後（任何人可呼叫）
+npm run admin -- tournament start dev 202638
+# ends_at 後：沒收（evidence 32 bytes hex，由後端風險判定產出）→ 取 manifest → 承諾 → 分批提交 → 結算
+npm run admin -- tournament forfeit dev 202638 <wallet> <evidenceHashHex>
+curl -H "Authorization: Bearer $OPS_TOKEN" https://api.neonshift.cc/v1/tournament/202638/manifest > /tmp/m.json
+npm run admin -- tournament begin dev 202638 --manifest /tmp/m.json
+npm run admin -- tournament submit dev 202638 --manifest /tmp/m.json --batch 8   # 可中斷續傳（依鏈上 results_submitted）
+npm run admin -- tournament settle dev 202638
+npm run admin -- tournament show dev 202638
+# 異常：admin 隨時可取消（挹注與沒收質押歸庫，玩家 refund_all）；ends_at + 7 天未結算則任何人可取消
+npm run admin -- tournament cancel dev 202638
+```
+
+manifest 的 `consistent=false`（後端名單人數 ≠ 鏈上 `valid − forfeited`）代表有沒收尚未上鏈或反之，CLI 會拒絕 begin／submit。
+
 ---
+
+### 7.7 後端部署到 l1（api.neonshift.cc）
+
+後端跑在 `root@l1.neonshift.cc`，**port 6080**，健康檢查 `GET /healthz`；`https://api.neonshift.cc` 由另一台主機的 nginx 反代（範本 `deploy/l1/nginx-api.neonshift.cc.conf`）；靜態站 `web/` 部署在 Cloudflare Pages（`https://neonshift.cc`）。
+
+```bash
+deploy/l1/deploy.sh bootstrap        # 第一次（安裝 Node 24／PostgreSQL、系統帳號、/etc/neonshift/*.env 隨機 secret、systemd）
+deploy/l1/deploy.sh                  # 每次更新：rsync backend → npm ci → migration（schema_migrations 一次性）→ 重啟 signer／api → healthz
+curl -s https://api.neonshift.cc/healthz          # {"status":"ok","env":"dev","cluster_id":1}
+cd backend && npm run smoke -- https://api.neonshift.cc   # healthz／readyz／events／SIWS 登入／event-history／partner/me／logout（唯讀，不留資料）
+ssh root@l1.neonshift.cc 'journalctl -u neonshift-api -n 100 --no-pager'
+```
+
+attestor 私鑰只在 `neonshift-signer.service`（`127.0.0.1:6081`、獨立帳號）；API 透過 `ATTESTOR_SIGNER=http:http://127.0.0.1:6081` 簽章。鏈上 `Config.attestor_pubkey` 需與 `/etc/neonshift/keys/attestor.json` 一致（`init-config` 用同一把 `~/.config/neonshift/dev/attestor.json`）。
+
+### 7.8 合作活動操作（PG-E-01～E-09）
+
+目前沒有合作方網頁介面，全部以 API 操作（`API=https://api.neonshift.cc/v1`）。錢包登入用 App 的 SIWS；下列 `$OWNER`／`$PUB`／`$EDITOR` 為對應角色的 access token（可用 `POST /auth/nonce` → 錢包簽 → `POST /auth/verify` 取得；發布／取消／權限變更需 30 分鐘內登入）。
+
+```bash
+# 1. ops 建組織並指定第一位 owner（OPS_TOKEN 在 l1 /etc/neonshift/api.env）
+curl -s -X POST $API/partner/orgs -H "Authorization: Bearer $OPS_TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"Taipei Run Club","slug":"taipei-run","owner_wallet":"<owner wallet>"}'
+# 2. owner 建活動草稿 → 規則版本 → 發布
+curl -s -X POST $API/partner/events -H "Authorization: Bearer $OWNER" -H 'content-type: application/json' \
+  -d '{"org_id":"<org_id>","slug":"river-5k","title":"River 5K","timezone":"Asia/Taipei","starts_at":"2026-10-03T00:00:00Z","ends_at":"2026-10-03T04:00:00Z","capacity":100}'
+curl -s -X POST $API/partner/events/$EV/rule-revisions -H "Authorization: Bearer $OWNER" -H 'content-type: application/json' -d '{"rules":{"distance_m":5000}}'
+curl -s -X POST $API/partner/events/$EV/publish -H "Authorization: Bearer $OWNER" -H 'content-type: application/json' -d '{"revision_id":"<revision_id>"}'
+# 3. 站點、角色、品項
+curl -s -X POST $API/partner/events/$EV/checkpoints -H "Authorization: Bearer $OWNER" -H 'content-type: application/json' -d '{"name":"Gate","purpose":"check_in"}'
+curl -s -X POST $API/partner/events/$EV/roles -H "Authorization: Bearer $OWNER" -H 'content-type: application/json' -d '{"wallet":"<staff wallet>","role":"staff","checkpoint_id":"<gate id>"}'
+curl -s -X POST $API/partner/events/$EV/benefits -H "Authorization: Bearer $OWNER" -H 'content-type: application/json' -d '{"kind":"physical","name":"Towel","stock_total":200}'
+# 4. NFC 標籤內容（寫入 NDEF URI）：POST …/tags 回傳的 url，例如 https://neonshift.cc/e/river-5k?tag=<ref>
+# 5. 活動日：staff 用 App「Staff tools」報到／交付；對帳
+curl -s $API/partner/events/$EV/check-ins  -H "Authorization: Bearer $OWNER"
+curl -s $API/partner/events/$EV/redemptions -H "Authorization: Bearer $OWNER"
+# 6. 成績：result_editor 上傳 CSV（schema v1，wallet 為 participant_ref）→ 看逐列錯誤 → publisher 發布；更正再傳一版並附 reason
+curl -s -X POST $API/partner/events/$EV/result-imports -H "Authorization: Bearer $EDITOR" -H 'content-type: application/json' \
+  -d "$(python3 -c 'import json,sys;print(json.dumps({"csv":open("results.csv").read()}))')"
+curl -s -X POST $API/partner/events/$EV/result-imports/$IMP/publish -H "Authorization: Bearer $PUB" -H 'content-type: application/json' -d '{}'
+# 7. 宣傳轉換（JSON 或 CSV）
+curl -s "$API/partner/events/$EV/campaign-summary?format=csv" -H "Authorization: Bearer $OWNER"
+```
+
+### 7.9 PB 成就 NFT registry 同步（PG-R-08）
+
+玩家在 App 按「Mint NFT」後成就進入 `pending_registry`；admin 需把資格寫上鏈後玩家才能取得證明鑄造。撤銷（成績更正／刪除）同樣走這條。
+
+```bash
+# 需 dev program 已升級到含 claim_achievement 的版本（程式 600 KB，升級需 admin 先有 ≈ 3.1 SOL 供 buffer）
+OPS_TOKEN=$(ssh root@l1.neonshift.cc 'grep ^OPS_TOKEN= /etc/neonshift/api.env | cut -d= -f2') \
+  npm --prefix tools/chain-admin run sync-achievements -- dev --dry-run   # 先看 pending
+OPS_TOKEN=… npm --prefix tools/chain-admin run sync-achievements -- dev   # 逐筆 set_achievement_eligibility 並回報
+```
+
+升級程式：`scripts/chain/build.sh dev && solana program extend 6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA 100000 --url devnet -k ~/.config/neonshift/dev/admin.json && scripts/chain/deploy.sh dev`（先 extend program-data 到新大小）。
+
+保留：活動結束／取消後 `EVENT_RETENTION_DAYS`（預設 180，Q-13 定案前）由保留清理刪除名單、報到、核銷、成績版本與匯入原檔列，只留活動、規則、稽核與宣傳彙總；`DELETE /player/data` 立即同步移除該錢包的活動個人層資料。稽核：`GET /partner/events/$EV/audit`。
 
 ## 8. 測試包（Release APK）產出
 
@@ -476,7 +622,7 @@ echo "android/keystore.properties" >> ../../.gitignore
 
 ### 8.2 設定簽章
 
-建立 `app/android/keystore.properties`（不提交）：
+【2026-09-14 已內建】`app/android/app/build.gradle` 會自動讀取 `app/android/keystore.properties`（存在即以 release 金鑰簽章，否則退回 debug 簽章）；`scripts/app/build.sh <env> release` 在檔案不存在時直接拒絕，並以 `apksigner` 驗證產物不是 debug 簽章。只需建立 `app/android/keystore.properties`（不提交；`storeFile` 相對於 `app/android/app/`）：
 
 ```properties
 storeFile=neonshift-release.keystore
@@ -576,7 +722,7 @@ adb install -r app-release.apk        # -r 覆蓋安裝
 debug 版與 release 版簽章不同，切換時要先移除：
 
 ```bash
-adb uninstall xyz.neonshift.app
+adb uninstall cc.neonshift.app
 adb install app-release.apk
 ```
 
@@ -609,13 +755,13 @@ Android 自 2026-09-30 起在巴西、印尼、新加坡、泰國要求已驗證
 
 ```bash
 # 只看本 App
-adb logcat --pid=$(adb shell pidof -s xyz.neonshift.app)
+adb logcat --pid=$(adb shell pidof -s cc.neonshift.app)
 
 # 只看 React Native 與錯誤
 adb logcat *:S ReactNative:V ReactNativeJS:V AndroidRuntime:E
 
 # 清空後重新觀察
-adb logcat -c && adb logcat --pid=$(adb shell pidof -s xyz.neonshift.app)
+adb logcat -c && adb logcat --pid=$(adb shell pidof -s cc.neonshift.app)
 
 # 存檔給隊友看
 adb logcat -d > /tmp/neonshift-$(date +%H%M%S).log
@@ -625,17 +771,17 @@ adb logcat -d > /tmp/neonshift-$(date +%H%M%S).log
 
 ```bash
 adb shell pm list packages | grep neonshift
-adb shell dumpsys package xyz.neonshift.app | head -40
-adb shell am force-stop xyz.neonshift.app
-adb shell pm clear xyz.neonshift.app          # 完整重置
+adb shell dumpsys package cc.neonshift.app | head -40
+adb shell am force-stop cc.neonshift.app
+adb shell pm clear cc.neonshift.app          # 完整重置
 ```
 
 ### 10.3 冷啟動時間量測（對應 BRD KPI ≤ 3 秒 P95）
 
 ```bash
 for i in $(seq 1 30); do
-  adb shell am force-stop xyz.neonshift.app
-  adb shell am start-activity -W -n xyz.neonshift.app/.MainActivity \
+  adb shell am force-stop cc.neonshift.app
+  adb shell am start-activity -W -n cc.neonshift.app/.MainActivity \
     | grep TotalTime
   sleep 2
 done
@@ -711,7 +857,7 @@ adb reverse --remove-all
 | `adb devices` 顯示 `unauthorized` | 未接受授權對話框 | 裝置上勾選一律允許；或 `adb kill-server && adb start-server` |
 | App 開啟後停在白畫面 | Metro 沒連上 | `adb reverse tcp:8081 tcp:8081` 後重開 App |
 | `Unable to load script` | 同上 | 同上，並確認 `npx expo start --dev-client` 在跑 |
-| `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | debug 與 release 簽章不同 | `adb uninstall xyz.neonshift.app` 後重裝 |
+| `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | debug 與 release 簽章不同 | `adb uninstall cc.neonshift.app` 後重裝 |
 | `INSTALL_FAILED_VERSION_DOWNGRADE` | versionCode 沒遞增 | 提高 versionCode 重新建置 |
 | Health Connect 權限請求後直接關閉 | 缺 `ViewPermissionUsageActivity` | 依 3.1 補上 activity-alias |
 | 讀到步數但全被拒絕 | 來源歸因判斷有誤 | 檢查是否硬編碼 `android`，需同時支援動態 SPN（BR-08） |
@@ -733,7 +879,7 @@ adb reverse --remove-all
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-PKG="xyz.neonshift.app"
+PKG="cc.neonshift.app"
 
 adb devices -l | grep -q "device$" || { echo "找不到裝置"; exit 1; }
 adb reverse tcp:8081 tcp:8081
@@ -770,7 +916,7 @@ echo "==> 安裝到實機：adb install -r $APK"
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-PKG="xyz.neonshift.app"
+PKG="cc.neonshift.app"
 
 adb shell pm clear "$PKG"
 for p in health.READ_STEPS health.READ_SLEEP health.READ_HEALTH_DATA_IN_BACKGROUND \

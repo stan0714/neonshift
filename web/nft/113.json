@@ -1,0 +1,34 @@
+{
+  "name": "NeonShift Badge · Arena #3",
+  "symbol": "NSBADGE",
+  "description": "Weekend step marathon third place. A free achievement collectible — no purchase, no monetary value.",
+  "image": "https://neonshift.cc/nft/img/113.png",
+  "external_url": "https://neonshift.cc",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Badge"
+    },
+    {
+      "trait_type": "Achievement",
+      "value": "Arena Rank 3"
+    },
+    {
+      "trait_type": "Kind",
+      "value": 113
+    }
+  ],
+  "properties": {
+    "category": "image",
+    "files": [
+      {
+        "uri": "https://neonshift.cc/nft/img/113.png",
+        "type": "image/png"
+      },
+      {
+        "uri": "https://neonshift.cc/nft/img/113.svg",
+        "type": "image/svg+xml"
+      }
+    ]
+  }
+}

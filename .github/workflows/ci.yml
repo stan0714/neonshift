@@ -1,0 +1,133 @@
+# PG-I-04：lint／typecheck、三層單元測試、debug APK 產出（SD 7）
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  attestation-core:
+    name: attestation-core（Rust）＋跨語言向量
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: programs
+      - run: cargo test --quiet
+        working-directory: programs/attestation-core
+      - name: 向量檔必須與 gen_vectors 輸出一致
+        run: |
+          cargo run --quiet --bin gen_vectors > /tmp/vectors.json
+          python3 ../../scripts/verify-vectors.py /tmp/vectors.json
+          diff -q /tmp/vectors.json ../../backend/src/lib/attestation-vectors.json
+        working-directory: programs/attestation-core
+
+  neonshift-core:
+    name: neonshift-core（Anchor＋LiteSVM）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: programs
+      - name: 安裝 Solana CLI 與 Anchor（Runbook 1.2）
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v3.1.10/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          cargo install --git https://github.com/coral-xyz/anchor --tag v1.2.0 anchor-cli --locked
+      - name: anchor build --arch v0（見 programs/Anchor.toml）
+        run: anchor build --arch v0
+        working-directory: programs
+      - run: cargo test -p neonshift-core
+        working-directory: programs
+
+  backend:
+    name: backend（TypeScript）＋schema 約束
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: neonshift
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npm run typecheck
+        working-directory: backend
+      - name: migration 與約束測試
+        env:
+          PGPASSWORD: test
+        run: |
+          for f in backend/migrations/[0-9]*.sql; do psql -h localhost -U postgres -d neonshift -v ON_ERROR_STOP=1 -q -f "$f"; done
+          out=$(psql -h localhost -U postgres -d neonshift -v ON_ERROR_STOP=1 -q -f backend/migrations/test_constraints.sql 2>&1)
+          echo "$out" | grep -E 'PASS|FAIL' || true
+          ! echo "$out" | grep -q FAIL
+      - run: npm test
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test@localhost:5432/neonshift
+
+  app:
+    name: app（React Native）typecheck＋jest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+        working-directory: app
+      - run: npm run typecheck
+        working-directory: app
+      - run: npx jest --ci
+        working-directory: app
+
+  android-debug-apk:
+    name: Android debug APK
+    runs-on: ubuntu-latest
+    needs: [app]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+        working-directory: app
+      - run: ./gradlew :app:assembleDebug --no-daemon
+        working-directory: app/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: neonshift-debug-apk
+          path: app/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14

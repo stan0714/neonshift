@@ -1,0 +1,19 @@
+[package]
+name = "attestation-core"
+version = "0.1.0"
+edition = "2021"
+description = "NeonShift attestation canonical bytes. Shared by the Anchor program and test vector generation."
+license = "MIT"
+
+# 刻意不引入任何相依套件。
+# 這個 crate 定義鏈上與後端必須逐 byte 一致的格式，
+# 相依越少，兩邊出現版本歧異的機會越低。
+[dependencies]
+
+[lib]
+name = "attestation_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gen_vectors"
+path = "src/bin/gen_vectors.rs"

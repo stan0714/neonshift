@@ -1,0 +1,2 @@
+# App Links 落地：未安裝 App 時 /e/<slug> 顯示活動導引頁（App 安裝後由 Android 直接開啟）
+/e/*  /e/  200

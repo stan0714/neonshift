@@ -2,11 +2,11 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.1 |
+| 文件版本 | v0.2（Logo／Splash／Loading 視覺稿） |
 | 建立日期 | 2026-09-09 |
-| 對應需求 | [BRD v0.4](./brd-detailed.md) |
+| 對應需求 | [BRD v0.6](./brd-detailed.md) |
 | 目標平台 | Android only；Solana Mobile Seeker 為主要裝置 |
-| 首版介面語言 | English；本文件以繁中說明 |
+| 首版介面語言 | English ＋ 繁體中文（2026-09-14 專案負責人指示；Profile 可切換系統／English／繁體中文）；本文件以繁中說明 |
 | 設計關鍵字 | Cyber fitness、neon telemetry、digital gear、trusted motion |
 
 ---
@@ -50,7 +50,7 @@ Connect Wallet
    ↓
 Health Permission → Activity Permission
    ↓
-Mint Shoe Confirmation
+Starter Shoe Claim
    ↓
 Dashboard
    ├── Gear
@@ -106,6 +106,22 @@ NeonShift 是「夜間城市中的個人運動終端」，不是駭客終端機�
 - App icon：深色圓角方底，中央青綠至紫色 mark，不放細字。
 - Wordmark：`NEONSHIFT` 全大寫；字距略寬，不使用極端 glitch 效果。
 - Loading 與小尺寸場合只使用 mark，不使用完整標語。
+
+### 3.3 NeonShift 專屬識別視覺稿（2026-09-14）
+
+採用「Forward Shift」概念：傾斜幾何 N 的負空間形成向前上方箭頭，連結日常運動、成長與活動參與。抽象識別可延伸至跑團宣傳、NFC 卡片與成績憑證，不侷限於鞋款圖像。品牌仍使用既有 mint → cyan → violet 漸層，深藍黑底與白色字標。
+
+| 視覺稿 | 檔案 | 使用方式 |
+|---|---|---|
+| 品牌識別 | [neonshift-identity-v1.png](../assets/brand/neonshift-identity-v1.png) | 主識別、App icon 與單色概念；以右上扁平 icon 的輪廓作向量定稿參考 |
+| Native Splash | [neonshift-splash-v1.png](../assets/brand/neonshift-splash-v1.png) | 純深色底、置中 mark／字標、留白；實作尺寸與系統遮罩以 8.1 為準 |
+| Bootstrap Loading | [neonshift-loading-v1.png](../assets/brand/neonshift-loading-v1.png) | 延伸 mark、細軌道與分步狀態；圖中為有快取時的示意狀態 |
+
+這三張 PNG 為設計視覺稿，尚非 Android adaptive icon、向量母版或已串接的功能頁。不同稿件的光暈與箭頭呈現有生成差異，正式輸出須共用同一份向量輪廓；正式 UI 不沿用識別展示稿的強烈文字 glow。字標留白至少為 mark 寬度 1/4，小圖示只放 mark，不放字標；NFC 單色印刷版需重新做線條及實際尺寸辨識測試。
+
+Splash 不顯示進度、不刻意等待；Loading 使用 8.3 的 1.6 秒微幅呼吸，不要求軌道持續旋轉，Reduce Motion 時靜止。文字及三個步驟需由真實初始化任務驅動；`Use offline data` 只有存在快取且符合 8.2 時才顯示，超過 10 秒必須提供重試。文字為可讀取的原生 UI，不把整張 PNG 當作互動畫面。
+
+產圖方式與完整 prompts 保存於 [品牌資產說明](../assets/brand/README.md)。本版為第一版設計提案，UI-Q01 的最終品牌確認仍待 review。
 
 ---
 
@@ -461,7 +477,7 @@ Landing 是首次使用者的產品價值頁，不是 loading page。它不應�
 ### 9.4 Landing 動效
 
 - Hero 跑鞋進場：320ms fade + 12dp rise。
-- 能量平台：2.4 秒低強度循環旋轉；Reduce Motion 時改靜態。
+- 跑鞋 Hero：分層鞋面、鞋帶／孔眼、網布細節、鞋底刻紋與 N 光條；以 4.4 秒完整週期輕微懸浮（約 2.6% 圖寬）及 −2° 至 0° 擺動。橢圓能量平台保持水平透視，陰影隨懸浮淡入淡出，不整片旋轉。Reduce Motion、App 背景或頁面失焦時停用循環；使用 native driver 的 transform／opacity，避免逐幀 React 更新。
 - Headline、body、CTA 依序以 60ms stagger 出現，總進場不超過 600ms。
 - 不自動播放有聲內容，不使用連續 glitch 或快速閃光。
 
@@ -498,12 +514,13 @@ Landing 後採單一步驟頁面，不使用一次塞滿五頁的 carousel。
 - 獨立說明其用於動作特徵摘要與提高作弊成本。
 - 不宣稱可完全證明真人步行。
 
-### 10.4 Shoe Mint Confirmation
+### 10.4 Starter Shoe Claim（2026-09-14 由 Mint 改為免費贈與）
 
-- 顯示 NFT 名稱、network、owner 短地址、預估 network fee 和結果。
-- Primary：`Mint starter shoe`。
+- 不鑄造 NFT、不收費：初階跑鞋隨鏈上 PlayerProfile 建立直接贈與（FR-04.1）。
+- 顯示跑鞋名稱、network、owner 短地址、預估 network fee（僅帳戶 rent＋交易費，devnet SOL）和結果；不出現「Mint」字樣。
+- Primary：`Claim starter shoe`。
 - Secondary：`Back`。
-- 成功後播放一次 800ms reveal；失敗保留重試，不重複建立資產。
+- 成功後播放一次 800ms reveal；失敗保留重試，重試不會建立第二個 profile。
 
 ---
 
@@ -545,13 +562,19 @@ Landing 後採單一步驟頁面，不使用一次塞滿五頁的 carousel。
 
 ## 12. Gear Page 規劃
 
-- 上半部：大型跑鞋、Level、XP ring、rarity／visual stage。
-- 中段：Core level、current multiplier、next multiplier。
-- 下段：升級成本、增量收益、BRD 8.3 定義的回本天數。
-- Primary CTA：`Upgrade core · 60 tSKR`。
-- 餘額不足：disabled CTA + `Need 18 more tSKR`。
-- 確認 sheet 必須顯示 burn、treasury 分配、最終 multiplier 和不可逆提示。
-- 升級完成只播放一次 reveal，並提供 transaction link。
+（2026-09-14 改為免費升級：無升級 CTA、無費用與燒毀資訊）
+
+- 上半部：大型跑鞋、Level、XP ring、visual stage。
+- 中段：current multiplier、next multiplier、距下一階所需 XP。
+- 下段 **My collection**：成就 NFT 網格，三種狀態——`Claimed`（實圖）、`Claimable`（mint border＋`Claim` 按鈕，免費、只付 devnet rent 的說明）、`Locked`（灰階＋解鎖條件，例如 `Reach Lv.3`、`7-day streak`）。每種成就最多一枚。
+- 升級在打卡交易內自動發生，達門檻時只播放一次 reveal 並提供 transaction link；領取 NFT 成功播放一次 reveal。
+
+### 12.1 Gallery（FR-13，2026-09-14 新增）
+
+- 入口：Home 次要入口與 Arena 排行榜；不新增 tab。
+- 列表：排名、短地址（或標籤）、Lv. badge、XP、收藏數；可搜尋錢包地址；顯示 `Updated <time>`。
+- 玩家頁：頂部大跑鞋（依對方等級）、Lv／XP／streak／最近打卡日，下方 NFT 網格（只顯示已領取）；不顯示任何健康數值；自己的頁面標示 `You`。
+- 空狀態：`No collectibles yet` 與該玩家距下一階的說明；載入失敗依 14 章。
 
 ---
 
@@ -629,13 +652,15 @@ Landing 後採單一步驟頁面，不使用一次塞滿五頁的 carousel。
 
 | Level | 主色 | 視覺變化 |
 |---|---|---|
-| 1 | Graphite + cyan | 單線光條 |
-| 2 | Cyan | 雙線光條、平台亮起 |
-| 3 | Violet | 鞋底能量紋、資料核心 |
-| 4 | Violet + magenta | 外框粒子、結構升級 |
-| 5 | Mint + iridescent | 完整全息外觀、有限 hero glow |
+| 1 Origin／原點 | Graphite + silver | 0 XP；石墨網布、灰銀單軌、基本輪廓 |
+| 2 Pulse／脈動 | Cyan + mint | 450 XP；雙光軌、加固後跟 |
+| 3 Phase／相位 | Violet + cyan | 1,500 XP；側面外骨骼、分段鞋底 |
+| 4 Surge／湧能 | Magenta + violet | 3,600 XP；後跟鰭片、可視能量艙 |
+| 5 Zenith／極境 | Mint + iridescent | 7,500 XP；珍珠裝甲、懸浮鞋底模組 |
 
 輸出要求：透明背景 WebP 為主、PNG fallback；同階資產 bounding box 必須一致，避免升級時跳動。裝飾動畫優先使用 Lottie 或預製序列，並提供靜態 fallback。
+
+目前已提供五階 SVG 與唯讀 Demo 圖鑑；每階除了色彩亦有可辨識結構，不需播放動畫才能辨認。XP 條件及 Core 差異見 BRD 17；Demo 數值不可冒充玩家資產。優化順序及替換契約見 SD 12、PG 14：向量 → 精修靜態素材 → 進化動效 → 實機評估後選配 3D。Lv5 維持有限光暈，不增加高頻閃爍。
 
 ### 16.3 Marketing image vs. product UI
 
@@ -710,7 +735,7 @@ export const theme = {
 3. Landing（含 wallet unavailable 與 Demo Preview）。
 4. Wallet Connection。
 5. Health Access／Activity Recognition。
-6. Shoe Mint Confirmation／Success／Failure。
+6. Starter Shoe Claim／Success／Failure。
 7. Dashboard 全任務狀態。
 8. Clock In Confirmation／Verifying／Confirmed／Failed。
 9. Gear／Upgrade Confirmation／Result。
@@ -746,5 +771,55 @@ export const theme = {
 
 - `MOVE-TO-EARN` 與官方代幣視覺，避免與 tSKR／devnet 定位衝突。
 - 同一畫面過多浮動面板、發光邊框與小字圖表。
-- 中英混雜的產品 UI；首版依 BRD 使用英文，繁中僅作未來 locale。
+- 中英混雜的產品 UI；每個畫面依使用者語言完整呈現英文或繁體中文（`app/src/i18n`，兩份字典 key 一致），不得在畫面內硬寫單一語言字串。品牌名、DEVNET／LV. 標籤、tSKR、錢包地址與交易簽章維持原文。
 - 無 label 的 bottom-nav icon，以及缺少交易／測試網聲明的升級按鈕。
+
+## 20. 活動旅程與 PB NFT 藝廊擴充
+
+完整流程、欄位與線框見 [活動／跑步／藝廊設計](./activity-running-gallery.md) 第 1、6 章。沿用深藍黑、青綠／紫色與四 Tab；Home 加 Running／Gallery 次入口，Gear 保留 My collection，Arena 串活動成績收藏，Profile 提供跑步歷程／PB 櫃。
+
+- 跑步摘要：公里、elapsed pace、步數、active kcal 四項主數據；每項顯示來源與 Estimated／Partial 標記。缺值用 —，暫停／移動時間分列。
+- PB 卡片：Speed 用青藍切線計時環，Distance 用紫綠里程弧，Event 用活動拱門；不以真實 GPS 路線製作公開作品。類別、來源、Current／Historical／Invalidated 必須有文字。
+- 藝廊以二欄 1:1 卡片為起點；窄螢幕／放大文字可改單欄。篩選 All／Shoes／Events／Personal best，不新增主 Tab。詳情分開原達成者與現持有人。
+- 鑄造確認先預覽作品與所有公開欄位，列出不收 tSKR、實際網路費及 rent；不以「免費」掩蓋費用。可領取／待確認／已鑄造／資料待審／已修正各有明確狀態。
+- 裝置紀錄不顯示官方認證圖章；鏈下活動徽章不標 NFT。結果修正不重播慶祝、不自動補鑄。Reduce Motion 保留靜態作品與數值，禁止熱量競賽及刺激性連續閃爍。
+
+### 20.1 實作對照（PG-R-09，2026-09-15）
+
+- Gallery 玩家頁：篩選列（All／Shoes／Events／Personal best，選中 mint 底）；「Personal bests」區二欄 1:1 `PbCard`：作品區（Speed 青藍環＋zap；Distance 紫綠弧＋map；官方 mint 色描邊）、類別標題、「系列 · 來源」caption、值或「Value kept private」、狀態 Chip（Current best＝synced／Historical best＝neutral／Invalidated＝devnet 警示，並降透明度）。本人顯示「View PB cabinet」連結（→ Workouts）與退出藝廊提示。
+- NFT 詳情 `AchievementDetail`：卡片置中 60% 寬，列表：Series、Verification、Record status、Original achiever（連結玩家頁）、Current holder（說明以 Explorer 為準）、Minted、Network、Asset；「Open in Explorer」secondary Button；Invalidated 時 warning InlineState 說明鏈上仍留歷史。
+- Profile：Gallery 區 Switch「Show me in the public gallery」＋說明退出只停止展示；「Running history & PB cabinet」按鈕。
+- 作品檔：`web/nft/achievements/<category>-<class>.svg`（見 tools/nft-assets）。
+
+## 21. 現役鞋階、維持挑戰與歷史收藏
+
+依 [跑鞋遊戲性設計](./shoe-gameplay.md) 第 6 章。Gear 主 Hero 只展示 Active level；上方清楚分列「Active LV.3」「Highest LV.5」。XP 進度與本期維持點／活躍日為不同區塊，顯示完整期末時間與本地倒數。
+
+目前裝備／曾經達成／尚未解鎖三區不能混用。已達成鞋款保留完整作品與 History 標籤，不用失效／銷毀效果；恢復時可播放低強度重新啟用動畫，不顯示再次獲得 NFT。能力卡標示所需 Active level，若是歷史已獲資格則保留 Claim 入口。
+
+降階顯示現在鞋階、歷史保留與下期恢復條件，不以資產損失或羞辱文案催促。48／24 小時提醒需使用者可關閉。現役排行與歷史成就榜分開，標示結算時間。永久收藏、退款及個資操作不因等級變灰或停用。
+
+## 22. Genesis Distance 與紀念系列
+
+作品概念、狀態及詳細流程見 [首次里程碑與紀念 NFT](./commemorative-nfts.md)。四枚以一致 1:1 框架設計：5K 青綠起跑門、10K 冰藍雙地平線、半馬紫色半環、全馬紫綠完整環與終點拱門。使用清楚距離字標／圖形，不只依顏色辨識；不使用未授權主辦方商標。
+
+My collection 新增 Milestones；摘要可同時呈現首次、活動與 PB 卡片，文字不得混稱。首次卡顯示資料涵蓋範圍與 Organizer／Device；已達成用完整作品，不因鞋階降低變成灰色未解鎖。長距離同時解鎖多章採逐枚領取，不宣稱一次簽章可批次鑄造。
+
+紀念情境以首次完賽、活動留念、回歸及週年為主；不把回歸推論為康復／傷病，不引導高熱量或超量運動。圖案抽象化，不展示原始路線；公開預覽明列成就門檻本身亦會透露運動紀錄。
+
+## 23. 走路／跑步記錄與分圈
+
+延續既有深色、霓虹青綠／紫與數字字體設計，詳 [GPS 運動畫面規格](./walk-run-tracking.md)。開始頁分別選 Walking／Running 與戶外／室內；記錄頁走路主顯示 km/h、跑步主顯示 min/km，時間／距離為次要資訊。GPS 品質與暫停狀態需文字加圖示，不能只靠顏色。
+
+Lap／Pause 至少 48dp；Finish 置於暫停頁並確認。摘要分 Splits／Laps，未滿末段標 Partial，最高值標「最高速度（5 秒平均）」。跑道圈顯示「依距離估算」與剩餘公尺。缺值顯示 —，不使用 0 偽裝測量結果。記錄中降低動畫與裝飾，減少閱讀負擔；公開分享排除 GPS 路線。
+
+### 23.2 開始／記錄／摘要（PG-R-03／R-06 實作，2026-09-14）
+
+- **開始頁** `WorkoutStart`：Segmented（48dp、選中 mint 底／`onMint` 字）選 Run／Walk、Outdoor (GPS)／Indoor、自動圈 Off／400 m／1 km、分段 1 km／1 mile。Indoor 顯示 info InlineState 導向匯入並停用「Start recording」（disabledReason）。定位拒絕 → warning InlineState（說明路線只留手機、可改匯入）＋「Open settings」。
+- **記錄頁** `WorkoutRecord`（無 header、返回鍵鎖定）：頂列 GPS Chip（good＝synced／low accuracy＝devnet 警示／searching、off＝offline）與狀態 Chip（Recording＝level／Paused＝devnet）；主數字 88px tabular（跑步 min/km、走路 km/h，不足 5 秒窗顯示 —）；次列 displayM 時間／公里；底部兩顆 64dp 圓角控制鍵：記錄中「Lap」（surface 描邊）＋「Pause」（mint）；暫停中「Finish」（danger 描邊，Alert 確認）＋「Resume」（mint）。記錄中無動畫。
+- **摘要頁** `WorkoutSummary`（無返回）：displayL 距離、四格 elevated 統計（Elapsed、Avg pace／speed、Top speed (5 s avg)、Active kcal — 無裝置值為 —）；needs_review 以 warning InlineState 說明不具 PB 資格；同步狀態列（已同步 success／未同步＋「Sync now」）；Tabs Splits／Laps／Quality：列＝序號、距離、時間、配速＋ Chip（Partial＝neutral、Across a gap＝devnet、Fastest＝synced）；跑道等效以 caption 標「依距離估算」；Quality 為 Chips（接受／拒絕／缺口／涵蓋率）。路線不顯示（地圖供應商未定）。
+- **恢復**：Workouts 清單頂部 warning InlineState「Unfinished workout」＋ Save（secondary）／Discard（danger）。
+
+### 23.1 運動紀錄清單（PG-R-01 實作，2026-09-14）
+
+Home 「Workouts ›」進入 `WorkoutsScreen`：每筆一張 Surface — 標題「Run／Walk（· Indoor）」＋品質 Chip（Measured＝synced／Estimated、Partial＝neutral／Needs review＝devnet 警示色／Invalid＝offline），日期，四格指標（km、time、pace、kcal）以 `elevated` 底色成列；kcal 只有 Total 時顯示「350 kcal (total)」，缺值一律「—」。來源列「Source: Health Connect · <package>」＋步數；待審核原因與「可能重複」以 warning 文字列在指標下方，不合併、不相加。PB eligible 以 level Chip 標示（由後端判定，UI 不自行授予）。刪除為 caption danger 連結，需 Alert 確認並說明只移除 NeonShift 摘要。頂部「Import from Health Connect」secondary Button；原生模組未提供時以 info InlineState 說明，不假裝已匯入。

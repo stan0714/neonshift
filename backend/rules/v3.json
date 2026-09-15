@@ -1,0 +1,23 @@
+{
+  "rules_version": 3,
+  "description": "初始規則（SD 4.4 示意；門檻 60 為保守值，第三週依 BRD 4.1 資料集校準）",
+  "goals": { "steps": 8000, "sleep_minutes": 420 },
+  "hard_reject": [
+    { "id": "SRC_UNATTRIBUTED", "task": "steps" },
+    { "id": "SRC_MANUAL", "task": "steps" },
+    { "id": "SLEEP_RANGE", "task": "sleep", "min_minutes": 180, "max_minutes": 720 },
+    { "id": "NO_SENSOR", "task": "steps" },
+    { "id": "LIVE_MOTION_INCOMPLETE", "task": "steps", "min_step_delta": 10 }
+  ],
+  "clamp": [
+    { "id": "RATE_EXCEEDED", "max_steps_per_minute": 250 },
+    { "id": "DAILY_CAP", "max_steps_per_day": 40000 }
+  ],
+  "score": [
+    { "id": "freq_variance_low", "task": "steps", "weight": 35, "max_freq_variance": 0.08, "min_step_delta": 10 },
+    { "id": "no_displacement_high_steps", "task": "steps", "weight": 20, "max_displacement_m": 200, "min_steps": 15000 },
+    { "id": "stride_implausible", "task": "steps", "weight": 25, "min_stride_m": 0.3, "max_stride_m": 1.5 },
+    { "id": "sleep_overlap_stepping", "task": "sleep", "weight": 20, "min_overlap_minutes": 60 }
+  ],
+  "threshold": 60
+}
