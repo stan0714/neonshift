@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.32（維持儀表） |
+| 文件版本 | v0.33（事故凍結） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -967,6 +967,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.33 | 2026-09-15 | PG-V-05：IncidentFreeze PDA、set_incident_freeze、凍結期不升不降、6044 |
 | v0.32 | 2026-09-15 | PG-V-04：藝廊 board=lifetime、App 維持儀表與收藏分區 |
 | v0.31 | 2026-09-15 | PG-V-03：level_history 投影、PB NFT Lv3 達成日門檻與能力快照 |
 | v0.30 | 2026-09-15 | PG-V-02：PlayerProfile 維持欄位、settle_player_epochs／migrate_player、clock_in 期末結算、EpochSettled |
@@ -1065,7 +1066,9 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 
 **實作（2026-09-15，PG-V-03 能力快照）**：migration 0015 `level_history(wallet, effective_from_date, active_level, highest_level, epoch, source init|migrate|epoch, signature, slot)`（PK wallet＋signature＋source，冪等）與 `gallery_players.highest_level`；投影：`PlayerInitialized` → Lv1（自 finalized 日）、`PlayerMigrated` → 自 `epoch_anchor` 起、`EpochSettled` → 自 `settled_at` 日起 `level_after`，並更新 highest（只增）。`levelAt(wallet, date)`＝生效日 ≤ date 的最新一筆，無 → 無可查歷史。PB 成就 `ensure`：達成日 active_level ≥ `PB_NFT_MIN_LEVEL = 3`，否則 409 `LEVEL_REQUIRED`／`LEVEL_HISTORY_UNKNOWN`（只保留私人 PB，不用匯入時等級、回填無歷史不授予）；通過者把 `capability {active_level, effective_from}` 寫入 metadata `properties`（簽章綁 metadata_hash，不信任 client）。`GET /me/personal-bests` 每組附 `nft_eligibility`；App PB 區塊以原因文字取代 Mint。鞋階 NFT 依 `highest_level`（V-02）、活動章依報名快照 Lv2（M-04）、首次章 Lv1（M-02）。
 
-**實作（2026-09-15，PG-V-04）**：`GET /gallery/players?board=active|lifetime`（active＝目前有效等級 → XP → 錢包；lifetime＝`highest_level` → 收藏數 → XP → 錢包；回 `board`、每列 `highest_level`）；`galleryRankOf(wallet, board)`。App `domain/maintenance.ts`（與 rules.mjs 同版：期索引／期末時間／點數／活躍日／維持、升階、回歸目標與差額；`migration_required`／`settlement_pending`）、`shoeSection`（目前裝備／曾經達成／尚未解鎖）、跑鞋資格依 `highestLevel`；Gear 儀表與收藏三區、藝廊雙榜（Style 21.1）。待：V-05 凍結治理與實機。
+**實作（2026-09-15，PG-V-04）**：`GET /gallery/players?board=active|lifetime`（active＝目前有效等級 → XP → 錢包；lifetime＝`highest_level` → 收藏數 → XP → 錢包；回 `board`、每列 `highest_level`）；`galleryRankOf(wallet, board)`。App `domain/maintenance.ts`（與 rules.mjs 同版：期索引／期末時間／點數／活躍日／維持、升階、回歸目標與差額；`migration_required`／`settlement_pending`）、`shoeSection`（目前裝備／曾經達成／尚未解鎖）、跑鞋資格依 `highestLevel`；Gear 儀表與收藏三區、藝廊雙榜（Style 21.1）。
+
+**實作（2026-09-15，PG-V-05 凍結治理／版本／攻擊測試）**：`IncidentFreeze` PDA `["freeze"]`（start／end／set_at／reason_hash；admin `set_incident_freeze(start, end, reason_hash)` init_if_needed；視窗 end > start、≤ 28 天、start ≥ now − 7 天（不回寫更早已結束週期）否則 6044；(0,0) 清除；emit `IncidentFreezeSet`）。`clock_in`／`settle_player_epochs` 增 `freeze: Option<Account>`（不存在傳 program id）；與凍結視窗重疊的週期結算不降不升（highest 不變、期內累計重置），`EpochSettled.frozen = true`；不接受玩家自報離線保級。版本：`maintenance_rules_version` 寫入 profile／事件，改參數需升級程式並提高版本、只向未來生效（既有玩家 `migrate_player` 保留等級自當日起新週期）。攻擊／邊界 LiteSVM：非 admin 拒絕、視窗三種非法、凍結期缺席不降／全勤不升、非重疊期照常、清除後恢復、傳錯 freeze 帳戶被 seeds 拒絕；先前：重送去重、6041 落後、bounded batch、v1 遷移 6042／6043。App：dashboard 讀 freeze 帳戶、打卡／結算指令帶 freeze PDA 或 program id、Gear 顯示凍結提示；chain-admin `set-freeze <start|0> <end|0> [reason]`（原文請公開於事故公告，鏈上存 sha256）。待：實機驗收、devnet 升級。
 
 ## 15. 首次成就 NFT 契約補充
 

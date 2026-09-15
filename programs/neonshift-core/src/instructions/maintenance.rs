@@ -7,12 +7,13 @@ use anchor_lang::Discriminator;
 
 use crate::constants::*;
 use crate::error::ErrorCode;
-use crate::events::{EpochSettled, PlayerMigrated};
+use crate::events::{EpochSettled, IncidentFreezeSet, PlayerMigrated};
 use crate::maintenance::{epoch_index, settle_one, xp_cap_level};
-use crate::state::{Config, PlayerProfile};
+use crate::state::{Config, IncidentFreeze, PlayerProfile};
 
 /// 追到目前期：逐期結算（缺席期 points 0），最多 `max` 期；回傳結算期數。呼叫端決定是否要求追平。
-pub fn settle_pending(profile: &mut PlayerProfile, config: &Config, wallet: Pubkey, now: i64, max: u32) -> Result<u32> {
+/// `freeze`：PG-V-05 全域凍結；與該期重疊 → 不降不升（只重置期內累計），事件標 `frozen`。
+pub fn settle_pending(profile: &mut PlayerProfile, config: &Config, freeze: Option<&IncidentFreeze>, wallet: Pubkey, now: i64, max: u32) -> Result<u32> {
     let today = u32::try_from(now.div_euclid(SECONDS_PER_DAY)).map_err(|_| ErrorCode::InvalidTaskDate)?;
     let current = epoch_index(profile.epoch_anchor, today);
     let mut settled = 0u32;
@@ -21,7 +22,14 @@ pub fn settle_pending(profile: &mut PlayerProfile, config: &Config, wallet: Pubk
         let points = profile.epoch_points;
         let active_days = profile.epoch_bitmap.count_ones() as u8;
         let before = profile.core_level;
-        let (after, highest) = settle_one(before, profile.highest_level, xp_cap_level(profile.xp, &config.shoe_xp_thresholds), points, active_days);
+        let epoch_start = (profile.epoch_anchor as i64 + epoch as i64 * EPOCH_DAYS as i64) * SECONDS_PER_DAY;
+        let epoch_end = epoch_start + EPOCH_DAYS as i64 * SECONDS_PER_DAY;
+        let frozen = freeze.map(|f| f.covers(epoch_start, epoch_end)).unwrap_or(false);
+        let (after, highest) = if frozen {
+            (before, profile.highest_level)
+        } else {
+            settle_one(before, profile.highest_level, xp_cap_level(profile.xp, &config.shoe_xp_thresholds), points, active_days)
+        };
         profile.core_level = after;
         profile.shoe_level = after;
         profile.highest_level = highest;
@@ -29,7 +37,7 @@ pub fn settle_pending(profile: &mut PlayerProfile, config: &Config, wallet: Pubk
         profile.epoch_bitmap = 0;
         profile.last_settled_epoch = epoch.checked_add(1).ok_or(ErrorCode::MathOverflow)?;
         settled += 1;
-        emit!(EpochSettled { wallet, epoch, points, active_days, level_before: before, level_after: after, highest_level: highest, rules_version: profile.maintenance_rules_version, settled_at: now });
+        emit!(EpochSettled { wallet, epoch, points, active_days, level_before: before, level_after: after, highest_level: highest, rules_version: profile.maintenance_rules_version, settled_at: now, frozen });
     }
     Ok(settled)
 }
@@ -49,13 +57,45 @@ pub struct SettlePlayerEpochs<'info> {
 
     #[account(mut, seeds = [PLAYER_SEED, profile.wallet.as_ref()], bump = profile.bump)]
     pub profile: Account<'info, PlayerProfile>,
+
+    /// PG-V-05：全域凍結（未設定時傳 program id 表示 None）
+    #[account(seeds = [FREEZE_SEED], bump = freeze.bump)]
+    pub freeze: Option<Account<'info, IncidentFreeze>>,
 }
 
 pub fn handle_settle_player_epochs(ctx: Context<SettlePlayerEpochs>, max_epochs: u8) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let max = (max_epochs.min(MAX_BATCH_SETTLE_EPOCHS).max(1)) as u32;
     let wallet = ctx.accounts.profile.wallet;
-    settle_pending(&mut ctx.accounts.profile, &ctx.accounts.config, wallet, now, max)?;
+    let freeze = ctx.accounts.freeze.as_deref();
+    settle_pending(&mut ctx.accounts.profile, &ctx.accounts.config, freeze, wallet, now, max)?;
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct SetIncidentFreeze<'info> {
+    #[account(mut)]
+    pub admin: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump, has_one = admin @ ErrorCode::Unauthorized)]
+    pub config: Account<'info, Config>,
+    #[account(init_if_needed, payer = admin, space = 8 + IncidentFreeze::INIT_SPACE, seeds = [FREEZE_SEED], bump)]
+    pub freeze: Account<'info, IncidentFreeze>,
+    pub system_program: Program<'info, System>,
+}
+
+/// 視窗檢查：end > start、最長 28 天、start ≥ now − 7 天（不回寫更早已結束的週期）；(0, 0) 清除
+pub fn handle_set_incident_freeze(ctx: Context<SetIncidentFreeze>, start: i64, end: i64, reason_hash: [u8; 32]) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    if !(start == 0 && end == 0) {
+        require!(end > start && end - start <= MAX_FREEZE_SECONDS && start >= now - MAX_FREEZE_BACKDATE_SECONDS, ErrorCode::InvalidFreezeWindow);
+    }
+    let f = &mut ctx.accounts.freeze;
+    f.start = start;
+    f.end = end;
+    f.set_at = now;
+    f.reason_hash = reason_hash;
+    f.bump = ctx.bumps.freeze;
+    emit!(IncidentFreezeSet { admin: ctx.accounts.admin.key(), start, end, reason_hash, set_at: now });
     Ok(())
 }
 

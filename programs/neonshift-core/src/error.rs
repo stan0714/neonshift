@@ -92,4 +92,6 @@ pub enum ErrorCode {
     AlreadyMigrated, // 6042
     #[msg("PlayerProfile 帳戶無效（owner／discriminator／seeds）")]
     InvalidProfileAccount, // 6043
+    #[msg("凍結視窗無效：end 須大於 start、最長 28 天、start 不得早於 7 天前")]
+    InvalidFreezeWindow, // 6044
 }

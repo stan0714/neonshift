@@ -611,6 +611,13 @@ npm --prefix tools/chain-admin run admin -- settle-players dev              # �
 
 規則參數見 `docs/economics/maintenance-sim.md`；改門檻需升級程式並提高 `MAINTENANCE_RULES_VERSION`，只向未來生效。
 
+平台事故時（PG-V-05）：先公開事故公告，再由 admin 寫入全域凍結（凍結期內週期不降不升；視窗最長 28 天、不得早於 7 天前）：
+
+```bash
+npm --prefix tools/chain-admin run admin -- set-freeze dev 2026-09-20T00:00:00Z 2026-09-27T00:00:00Z "RPC outage 2026-09-20"
+npm --prefix tools/chain-admin run admin -- set-freeze dev 0 0   # 清除
+```
+
 ## 8. 測試包（Release APK）產出
 
 ### 8.1 產生 keystore（只做一次）

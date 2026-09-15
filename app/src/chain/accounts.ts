@@ -22,16 +22,24 @@ export type PlayerProfile = {
   maintenanceRulesVersion: number;
 };
 
+/** PG-V-05：incident freeze（start == end == 0 為無凍結） */
+export type IncidentFreeze = { start: number; end: number; setAt: number; reasonHash: Uint8Array };
+export function decodeIncidentFreeze(data: Uint8Array): IncidentFreeze {
+  const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  return { start: Number(dv.getBigInt64(8, true)), end: Number(dv.getBigInt64(16, true)), setAt: Number(dv.getBigInt64(24, true)), reasonHash: data.slice(32, 64) };
+}
+export const freezeActive = (f: IncidentFreeze | null, nowSec: number) => !!f && f.end > f.start && nowSec >= f.start && nowSec < f.end;
+
 /** PG-V-02：與 programs/.../maintenance.rs 一致的期索引 */
 export const EPOCH_DAYS = 7;
 export const epochIndexOf = (anchor: number, taskDate: number) => Math.floor(Math.max(0, taskDate - anchor) / EPOCH_DAYS);
 /** clock_in 可順帶結算的期數上限（MAX_INLINE_SETTLE_EPOCHS）；超過須先 settle_player_epochs */
 export const MAX_INLINE_SETTLE_EPOCHS = 8;
 /** 需要先做的維持動作：遷移／補結算（期數） */
-export function maintenanceNeeds(profile: PlayerProfile | null, todayTaskDate: number): { migrate: boolean; pendingEpochs: number } {
-  if (!profile) return { migrate: false, pendingEpochs: 0 };
-  if (!profile.migrated) return { migrate: true, pendingEpochs: 0 };
-  return { migrate: false, pendingEpochs: Math.max(0, epochIndexOf(profile.epochAnchor, todayTaskDate) - profile.lastSettledEpoch) };
+export function maintenanceNeeds(profile: PlayerProfile | null, todayTaskDate: number, freezeExists = false): { migrate: boolean; pendingEpochs: number; freezeExists: boolean } {
+  if (!profile) return { migrate: false, pendingEpochs: 0, freezeExists };
+  if (!profile.migrated) return { migrate: true, pendingEpochs: 0, freezeExists };
+  return { migrate: false, pendingEpochs: Math.max(0, epochIndexOf(profile.epochAnchor, todayTaskDate) - profile.lastSettledEpoch), freezeExists };
 }
 
 export type ChainConfig = {

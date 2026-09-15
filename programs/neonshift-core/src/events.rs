@@ -76,6 +76,18 @@ pub struct EpochSettled {
     pub rules_version: u16,
     /// 結算所用鏈上時間
     pub settled_at: i64,
+    /// PG-V-05：該期落在 incident freeze 內（不升不降）
+    pub frozen: bool,
+}
+
+/// PG-V-05：全域 incident freeze 設定（start == end == 0 為清除）
+#[event]
+pub struct IncidentFreezeSet {
+    pub admin: Pubkey,
+    pub start: i64,
+    pub end: i64,
+    pub reason_hash: [u8; 32],
+    pub set_at: i64,
 }
 
 /// PG-V-02：舊帳戶遷移

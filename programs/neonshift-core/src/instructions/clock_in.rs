@@ -17,7 +17,7 @@ use crate::events::ClockedIn;
 use crate::instructions::maintenance::{is_settled, settle_pending};
 use crate::maintenance::day_offset;
 use crate::reward::{capped_reward, effective_streak_days, raw_reward, xp_for};
-use crate::state::{ClaimReceipt, Config, PlayerProfile};
+use crate::state::{ClaimReceipt, Config, IncidentFreeze, PlayerProfile};
 
 #[derive(Accounts)]
 #[instruction(args: AttestationArgs)]
@@ -65,6 +65,10 @@ pub struct ClockIn<'info> {
     /// CHECK: 必須是 instructions sysvar，供步驟 2 讀取前一道指令
     #[account(address = solana_sdk_ids::sysvar::instructions::ID @ ErrorCode::MissingEd25519Instruction)]
     pub instructions_sysvar: UncheckedAccount<'info>,
+
+    /// PG-V-05：全域 incident freeze（未設定時傳 program id 表示 None）
+    #[account(seeds = [FREEZE_SEED], bump = freeze.bump)]
+    pub freeze: Option<Account<'info, IncidentFreeze>>,
 }
 
 pub fn handle_clock_in(ctx: Context<ClockIn>, args: AttestationArgs) -> Result<()> {
@@ -86,7 +90,8 @@ pub fn handle_clock_in(ctx: Context<ClockIn>, args: AttestationArgs) -> Result<(
     require!(att.task_date == current_task_date, ErrorCode::InvalidTaskDate);
 
     // 8b. PG-V-02：先結算已過期週期（最多 MAX_INLINE_SETTLE_EPOCHS 期），仍未追平 → 6041；獎勵用結算後的 Active level
-    settle_pending(&mut ctx.accounts.profile, config, player_key, now, MAX_INLINE_SETTLE_EPOCHS)?;
+    let freeze = ctx.accounts.freeze.as_deref();
+    settle_pending(&mut ctx.accounts.profile, config, freeze, player_key, now, MAX_INLINE_SETTLE_EPOCHS)?;
     require!(is_settled(&ctx.accounts.profile, now)?, ErrorCode::SettlementRequired);
 
     // 9. token 帳戶檢查已由 Anchor 約束完成（見 struct）

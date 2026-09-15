@@ -78,9 +78,9 @@ describe('chain/accounts（PlayerProfile 佈局，與 state.rs 一致）', () =>
     expect([old.migrated, old.highestLevel, old.epochAnchor, old.lastSettledEpoch]).toEqual([false, 3, 0, 0]);
     // maintenanceNeeds：舊帳戶 → migrate；anchor 20700、today 20770 → 第 10 期、已結算 1 → 落後 9
     const { maintenanceNeeds } = require('@/chain/accounts') as typeof import('@/chain/accounts');
-    expect(maintenanceNeeds(old, 20770)).toEqual({ migrate: true, pendingEpochs: 0 });
-    expect(maintenanceNeeds(p, 20770)).toEqual({ migrate: false, pendingEpochs: 9 });
-    expect(maintenanceNeeds(p, 20710)).toEqual({ migrate: false, pendingEpochs: 0 });
-    expect(maintenanceNeeds(null, 20710)).toEqual({ migrate: false, pendingEpochs: 0 });
+    expect(maintenanceNeeds(old, 20770)).toEqual({ migrate: true, pendingEpochs: 0, freezeExists: false });
+    expect(maintenanceNeeds(p, 20770, true)).toEqual({ migrate: false, pendingEpochs: 9, freezeExists: true });
+    expect(maintenanceNeeds(p, 20710)).toEqual({ migrate: false, pendingEpochs: 0, freezeExists: false });
+    expect(maintenanceNeeds(null, 20710)).toEqual({ migrate: false, pendingEpochs: 0, freezeExists: false });
   });
 });

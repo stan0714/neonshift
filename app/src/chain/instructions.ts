@@ -4,7 +4,7 @@ import { Buffer } from 'buffer';
 
 import { SYSVAR_INSTRUCTIONS_PUBKEY } from '@solana/web3.js';
 
-import { achievementAssetPda, achievementPda, assetPda, collectiblePda, configPda, discriminator, eligibilityPda, entryPda, MPL_CORE_PROGRAM_ID, playerPda, programId, tournamentPda, tournamentVaultPda } from './program';
+import { achievementAssetPda, achievementPda, assetPda, collectiblePda, configPda, discriminator, eligibilityPda, entryPda, freezePda, MPL_CORE_PROGRAM_ID, playerPda, programId, tournamentPda, tournamentVaultPda } from './program';
 import { associatedTokenAddress, TOKEN_PROGRAM_ID } from './txBuilder';
 
 /** `init_player`：玩家簽章付 rent；即初階跑鞋的贈與（SD 3.2） */
@@ -35,7 +35,7 @@ export function migratePlayerInstruction(payer: PublicKey, wallet: PublicKey): T
 }
 
 /** PG-V-02 `settle_player_epochs`：任何 payer 結算已過期週期（bounded；clock_in 落後 > 8 期時前置） */
-export function settlePlayerEpochsInstruction(payer: PublicKey, wallet: PublicKey, maxEpochs = 64): TransactionInstruction {
+export function settlePlayerEpochsInstruction(payer: PublicKey, wallet: PublicKey, maxEpochs = 64, freezeExists = false): TransactionInstruction {
   if (!Number.isInteger(maxEpochs) || maxEpochs < 1 || maxEpochs > 255) throw new RangeError(`maxEpochs 必須是 1..255：${maxEpochs}`);
   return new TransactionInstruction({
     programId: programId(),
@@ -43,6 +43,7 @@ export function settlePlayerEpochsInstruction(payer: PublicKey, wallet: PublicKe
       { pubkey: payer, isSigner: true, isWritable: false },
       { pubkey: configPda(), isSigner: false, isWritable: false },
       { pubkey: playerPda(wallet), isSigner: false, isWritable: true },
+      { pubkey: freezeExists ? freezePda() : programId(), isSigner: false, isWritable: false },
     ],
     data: Buffer.concat([discriminator('settle_player_epochs'), Buffer.from([maxEpochs])]),
   });

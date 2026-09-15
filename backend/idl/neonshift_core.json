@@ -540,6 +540,28 @@
         {
           "name": "instructions_sysvar",
           "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "freeze",
+          "docs": [
+            "PG-V-05：全域 incident freeze（未設定時傳 program id 表示 None）"
+          ],
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  114,
+                  101,
+                  101,
+                  122,
+                  101
+                ]
+              }
+            ]
+          }
         }
       ],
       "args": [
@@ -1491,6 +1513,92 @@
       ]
     },
     {
+      "name": "set_incident_freeze",
+      "docs": [
+        "PG-V-05：admin 設定／清除全域 incident freeze（截止前寫入；凍結期不降不升）"
+      ],
+      "discriminator": [
+        4,
+        120,
+        71,
+        137,
+        77,
+        181,
+        191,
+        208
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "freeze",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  114,
+                  101,
+                  101,
+                  122,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "start",
+          "type": "i64"
+        },
+        {
+          "name": "end",
+          "type": "i64"
+        },
+        {
+          "name": "reason_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "set_paused",
       "docs": [
         "緊急停用／恢復（admin）。pause 範圍見 instructions/admin.rs"
@@ -1601,6 +1709,28 @@
                 "kind": "account",
                 "path": "profile.wallet",
                 "account": "PlayerProfile"
+              }
+            ]
+          }
+        },
+        {
+          "name": "freeze",
+          "docs": [
+            "PG-V-05：全域凍結（未設定時傳 program id 表示 None）"
+          ],
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  114,
+                  101,
+                  101,
+                  122,
+                  101
+                ]
               }
             ]
           }
@@ -1949,6 +2079,19 @@
       ]
     },
     {
+      "name": "IncidentFreeze",
+      "discriminator": [
+        214,
+        255,
+        225,
+        10,
+        226,
+        205,
+        209,
+        240
+      ]
+    },
+    {
       "name": "PlayerProfile",
       "discriminator": [
         82,
@@ -2104,6 +2247,19 @@
         115,
         190,
         255
+      ]
+    },
+    {
+      "name": "IncidentFreezeSet",
+      "discriminator": [
+        22,
+        120,
+        163,
+        199,
+        194,
+        24,
+        7,
+        134
       ]
     },
     {
@@ -2522,6 +2678,11 @@
       "code": 6043,
       "name": "InvalidProfileAccount",
       "msg": "PlayerProfile 帳戶無效（owner／discriminator／seeds）"
+    },
+    {
+      "code": 6044,
+      "name": "InvalidFreezeWindow",
+      "msg": "凍結視窗無效：end 須大於 start、最長 28 天、start 不得早於 7 天前"
     }
   ],
   "types": [
@@ -3322,6 +3483,89 @@
             "docs": [
               "結算所用鏈上時間"
             ],
+            "type": "i64"
+          },
+          {
+            "name": "frozen",
+            "docs": [
+              "PG-V-05：該期落在 incident freeze 內（不升不降）"
+            ],
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "IncidentFreeze",
+      "docs": [
+        "PG-V-05：全域 incident freeze（shoe-gameplay 4.3）。PDA `[\"freeze\"]`；與此視窗重疊的週期結算不降級也不升級（只重置期內累計）。",
+        "由 admin 在截止前寫入、所有玩家一致讀取；不接受玩家自報離線保級。start == end == 0 表示無凍結。"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "start",
+            "type": "i64"
+          },
+          {
+            "name": "end",
+            "type": "i64"
+          },
+          {
+            "name": "set_at",
+            "type": "i64"
+          },
+          {
+            "name": "reason_hash",
+            "docs": [
+              "公開事故說明的 hash（稽核用）"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "IncidentFreezeSet",
+      "docs": [
+        "PG-V-05：全域 incident freeze 設定（start == end == 0 為清除）"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "start",
+            "type": "i64"
+          },
+          {
+            "name": "end",
+            "type": "i64"
+          },
+          {
+            "name": "reason_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "set_at",
             "type": "i64"
           }
         ]

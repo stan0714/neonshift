@@ -258,6 +258,7 @@ export const zhTW: Record<keyof typeof en, string> = {
   'gear.maint.next': '升到 Lv{n}：還需 {morePoints} 點、{moreDays} 個活躍日（約 {doubleDays} 天雙任務），期末結算生效。',
   'gear.maint.nextMet': '本期成績已可支撐 Lv{n}，期末結算後生效。',
   'gear.maint.nextXp': '升到 Lv{n} 還需累積更多 XP。',
+  'gear.maint.frozen': '平台事故凍結中（至 {until}）：本期不會降級也不會升級，累計點數於期末重置。',
   'gear.maint.footnote': '步數 +100、睡眠 +50，每天最多一個活躍日；未達標只調整裝備等級，不扣 XP、代幣或 NFT。',
   'gear.collectionNote': '成就 NFT 免費領取，只需支付 devnet 租金。每種一枚，永遠在你的錢包裡。',
   'gear.alreadyInWallet': '已在你的錢包中',

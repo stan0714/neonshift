@@ -269,6 +269,7 @@ export const en = {
   'gear.maint.next': 'Reach Lv{n}: {morePoints} more points and {moreDays} more active days (about {doubleDays} double-mission days); applies at period end.',
   'gear.maint.nextMet': 'This period already supports Lv{n}; applies at period end.',
   'gear.maint.nextXp': 'Lv{n} needs more total XP first.',
+  'gear.maint.frozen': 'Platform incident freeze (until {until}): this period will neither demote nor promote; points reset at period end.',
   'gear.maint.footnote': 'Steps +100, sleep +50, at most one active day per day. Missing a target only changes your gear level — no XP, tokens or NFTs are taken.',
   'gear.collectionNote': 'Achievement NFTs are free to claim — you only pay devnet rent. One of each, forever in your wallet.',
   'gear.alreadyInWallet': 'Already in your wallet',

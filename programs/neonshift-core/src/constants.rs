@@ -110,6 +110,10 @@ pub const MAINTENANCE_POINTS_SLEEP: u16 = 50;
 pub const MAX_INLINE_SETTLE_EPOCHS: u32 = 8;
 /// `settle_player_epochs` 單次最多結算期數
 pub const MAX_BATCH_SETTLE_EPOCHS: u8 = 64;
+/// PG-V-05：incident freeze PDA seed；視窗最長 4 期；start 不得早於 now − 7 天（不回寫更早已結束的週期）
+pub const FREEZE_SEED: &[u8] = b"freeze";
+pub const MAX_FREEZE_SECONDS: i64 = 28 * SECONDS_PER_DAY;
+pub const MAX_FREEZE_BACKDATE_SECONDS: i64 = 7 * SECONDS_PER_DAY;
 
 // ---- PG-R-08：成就（PB）NFT ----
 /// eligibility registry PDA seeds `["eligibility", wallet, achievement_id]`

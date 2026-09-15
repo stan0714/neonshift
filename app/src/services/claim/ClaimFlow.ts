@@ -36,7 +36,7 @@ export type ClaimInput = {
   sleep: SleepResult | null;
   chain: { mint: PublicKey; rewardVault: PublicKey };
   /** PG-V-02：目前 profile 的維持狀態（由 dashboard 讀取）；缺省視為不需前置 */
-  maintenance?: { migrate: boolean; pendingEpochs: number };
+  maintenance?: { migrate: boolean; pendingEpochs: number; freezeExists?: boolean };
   client: { appVersion: string; deviceModel: string; osApi: number; sdkExtension: number };
   /** 測試注入 */
   deps?: Partial<{ liveMotion: typeof liveMotion; api: typeof apiClient; submitter: typeof claimSubmitter }>;

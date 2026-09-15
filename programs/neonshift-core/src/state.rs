@@ -100,6 +100,27 @@ pub struct PlayerProfile {
     pub maintenance_rules_version: u16,
 }
 
+/// PG-V-05：全域 incident freeze（shoe-gameplay 4.3）。PDA `["freeze"]`；與此視窗重疊的週期結算不降級也不升級（只重置期內累計）。
+/// 由 admin 在截止前寫入、所有玩家一致讀取；不接受玩家自報離線保級。start == end == 0 表示無凍結。
+#[account]
+#[derive(InitSpace)]
+pub struct IncidentFreeze {
+    pub start: i64,
+    pub end: i64,
+    pub set_at: i64,
+    /// 公開事故說明的 hash（稽核用）
+    pub reason_hash: [u8; 32],
+    pub bump: u8,
+}
+
+impl IncidentFreeze {
+    pub const SEED: &'static [u8] = crate::constants::FREEZE_SEED;
+    /// 週期 [epoch_start, epoch_end) 秒是否與凍結視窗重疊
+    pub fn covers(&self, epoch_start: i64, epoch_end: i64) -> bool {
+        self.end > self.start && epoch_start < self.end && epoch_end > self.start
+    }
+}
+
 impl PlayerProfile {
     pub const SEED: &'static [u8] = crate::constants::PLAYER_SEED;
     pub const MIN_LEVEL: u8 = 1;

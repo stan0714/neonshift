@@ -78,6 +78,7 @@ describe('PG-A-09 TxBuilder', () => {
       'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
       '11111111111111111111111111111111',
       SYSVAR_INSTRUCTIONS_PUBKEY.toBase58(),
+      PID, // PG-V-05：無 freeze 帳戶 → program id（Anchor Option）
     ]);
     expect(ci.keys[0]).toMatchObject({ isSigner: true, isWritable: true });
     expect(receipt.equals(claimPda(wallet, fields.taskDate, fields.taskType))).toBe(true);
@@ -113,5 +114,10 @@ describe('PG-A-09 TxBuilder', () => {
     expect(settle[0]!.data).toEqual(Buffer.concat([discriminator('settle_player_epochs'), Buffer.from([64])]));
     expect(settle[0]!.keys[1]!.pubkey.toBase58()).toBe(PublicKey.findProgramAddressSync([Buffer.from('config')], new PublicKey(PID))[0].toBase58());
     expect(buildClaimInstructions({ ...base, maintenance: { migrate: false, pendingEpochs: 8 } }).instructions).toHaveLength(3);
+    // PG-V-05：freeze 帳戶存在 → clock_in／settle 最後一個帳戶為 freeze PDA
+    const fz = buildClaimInstructions({ ...base, maintenance: { migrate: false, pendingEpochs: 9, freezeExists: true } }).instructions;
+    const freezePda = PublicKey.findProgramAddressSync([Buffer.from('freeze')], new PublicKey(PID))[0].toBase58();
+    expect(fz[0]!.keys[3]!.pubkey.toBase58()).toBe(freezePda);
+    expect(fz[3]!.keys[10]!.pubkey.toBase58()).toBe(freezePda);
   });
 });

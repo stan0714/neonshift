@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.47（PG-V-04 完成） |
+| 文件版本 | v0.48（PG-V-05 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -567,6 +567,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.48 | 2026-09-15 | PG-V-05 完成（WIP）：事故凍結治理與攻擊測試 |
 | v0.47 | 2026-09-15 | PG-V-04 完成（WIP）：維持儀表、收藏分區、雙榜 |
 | v0.46 | 2026-09-15 | PG-V-03 完成（WIP）：歷史等級與 PB 能力快照 |
 | v0.45 | 2026-09-15 | PG-V-02 完成（WIP）：鏈上維持週期、結算與遷移 |
@@ -708,7 +709,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-V-02 | Active／Highest／週期帳戶、結算及 migration | shoe-gameplay 7；SD 14 | BR-41～43 | 5.0 | WIP | 2026-09-15：PlayerProfile ＋6 欄位（71→85）、`maintenance.rs` 純規則（與 rules.mjs 同版）、`settle_player_epochs`（任何 payer、≤ 64 期、冪等）、`migrate_player`（保留等級、當日起新週期）、clock_in 順帶結算 ≤ 8 期／6041、獎勵用結算後等級、期內點數／bitmap、`EpochSettled`／`PlayerMigrated` 事件、鞋階 NFT 依 highest；App 解碼／前置指令；indexer 投影；chain-admin migrate／settle；Rust 100 測試、Jest 211、vitest 193。待：devnet 升級＋migrate-players、實機 |
 | PG-V-03 | 倍率與歷史鑄造／活動／PB 能力快照 | shoe-gameplay 5、7 | FR-16.4、BR-44 | 3.0 | WIP | 2026-09-15：migration 0015 `level_history`＋`gallery_players.highest_level`；投影 init／migrate／epoch；PB NFT 需達成日 Lv3（`LEVEL_REQUIRED`／`LEVEL_HISTORY_UNKNOWN`，回填無歷史只留私人 PB）、能力快照寫入 metadata（簽章綁定）；`/me/personal-bests.nft_eligibility`；App 顯示原因；鞋階依 highest、活動章 Lv2 快照、首次章 Lv1；vitest、PG 整合 17、Jest 211。待：實機 |
 | PG-V-04 | Gear 維持儀表、歷史收藏、現役／歷史榜 | shoe-gameplay 6；Style 21 | FR-16.1～3 | 3.0 | WIP | 2026-09-15：App `domain/maintenance.ts`＋4 測試；Gear Active／Highest Chip、本期維持區塊（倒數、點數／活躍日、維持／升階／回歸差額、未遷移／待結算狀態）、收藏三區與 History 標籤（鞋階資格依歷史最高）；藝廊「現役排行／歷史成就」雙榜（後端 `board=lifetime`）；Jest 218、vitest 193。待：實機、48／24 小時提醒（通知權限未實作） |
-| PG-V-05 | 凍結治理、版本遷移、結算／撤銷攻擊與實機驗收 | shoe-gameplay 4、8 | FR-16.5、BR-45 | 3.0 | TODO | 待指派 |
+| PG-V-05 | 凍結治理、版本遷移、結算／撤銷攻擊與實機驗收 | shoe-gameplay 4、8 | FR-16.5、BR-45 | 3.0 | WIP | 2026-09-15：`IncidentFreeze` PDA＋`set_incident_freeze`（admin、視窗檢查 6044、(0,0) 清除、事件）；結算凍結期不升不降、`EpochSettled.frozen`；規則版本寫入 profile／事件、遷移保留等級；LiteSVM 攻擊／邊界（非 admin、非法視窗、重疊／非重疊期、清除後恢復、錯誤 freeze 帳戶、重送、6041、6042／6043）Rust 101；App freeze 帳戶讀取／指令帶入／Gear 提示；chain-admin `set-freeze`。待：實機驗收、devnet 升級（含 migrate-players） |
 
 ### 18.4 依賴、批次及排程狀態
 

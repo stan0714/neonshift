@@ -67,7 +67,7 @@ export function HomeScreen() {
       steps: d.health?.steps ?? null,
       sleep: d.health?.sleep ?? null,
       chain: { mint: d.config.mint, rewardVault: d.config.rewardVault },
-      maintenance: maintenanceNeeds(d.profile, d.taskDate),
+      maintenance: maintenanceNeeds(d.profile, d.taskDate, d.freeze !== null),
       client: { appVersion: '0.1.0', deviceModel: 'Android', osApi: 34, sdkExtension: 0 },
     });
     d.dispatch(type, { kind: 'submit' });

@@ -6,7 +6,7 @@ import { PublicKey, SystemProgram, SYSVAR_INSTRUCTIONS_PUBKEY, TransactionInstru
 import { Buffer } from 'buffer';
 
 import { ATTESTATION_LEN, decodeAttestation, encodeAttestationArgs, type AttestationFields } from './attestation';
-import { claimPda, configPda, discriminator, playerPda, programId } from './program';
+import { claimPda, configPda, discriminator, freezePda, playerPda, programId } from './program';
 import { MAX_INLINE_SETTLE_EPOCHS } from './accounts';
 import { migratePlayerInstruction, settlePlayerEpochsInstruction } from './instructions';
 
@@ -64,7 +64,8 @@ export function createAtaIdempotentInstruction(payer: PublicKey, mint: PublicKey
 export type ClockInAccounts = { mint: PublicKey; rewardVault: PublicKey };
 
 /** clock_in 指令（帳戶順序與 programs/neonshift-core ClockIn struct 一致） */
-export function clockInInstruction(player: PublicKey, fields: AttestationFields, accts: ClockInAccounts): TransactionInstruction {
+/** `freeze`：PG-V-05 全域凍結帳戶存在時傳 PDA，否則 program id（Anchor Option 帳戶慣例） */
+export function clockInInstruction(player: PublicKey, fields: AttestationFields, accts: ClockInAccounts, freezeExists = false): TransactionInstruction {
   const data = Buffer.concat([discriminator('clock_in'), Buffer.from(encodeAttestationArgs(fields))]);
   return new TransactionInstruction({
     programId: programId(),
@@ -79,6 +80,7 @@ export function clockInInstruction(player: PublicKey, fields: AttestationFields,
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       { pubkey: SYSVAR_INSTRUCTIONS_PUBKEY, isSigner: false, isWritable: false },
+      { pubkey: freezeExists ? freezePda() : programId(), isSigner: false, isWritable: false },
     ],
     data,
   });
@@ -89,7 +91,7 @@ export type ClaimTxInput = {
   attestation: { message_b64: string; signature_b64: string; attestor_pubkey_bytes: Uint8Array };
   accts: ClockInAccounts;
   /** PG-V-02：依目前 profile 決定前置指令（舊帳戶遷移；落後超過 8 期先批次結算） */
-  maintenance?: { migrate: boolean; pendingEpochs: number };
+  maintenance?: { migrate: boolean; pendingEpochs: number; freezeExists?: boolean };
 };
 
 /**
@@ -104,12 +106,12 @@ export function buildClaimInstructions(input: ClaimTxInput): { instructions: Tra
   if (!fields.programId.equals(programId())) throw new Error('attestation program id does not match this build');
   const prefix: TransactionInstruction[] = [];
   if (input.maintenance?.migrate) prefix.push(migratePlayerInstruction(input.player, input.player));
-  else if ((input.maintenance?.pendingEpochs ?? 0) > MAX_INLINE_SETTLE_EPOCHS) prefix.push(settlePlayerEpochsInstruction(input.player, input.player, 64));
+  else if ((input.maintenance?.pendingEpochs ?? 0) > MAX_INLINE_SETTLE_EPOCHS) prefix.push(settlePlayerEpochsInstruction(input.player, input.player, 64, input.maintenance?.freezeExists ?? false));
   const instructions = [
     ...prefix,
     createAtaIdempotentInstruction(input.player, input.accts.mint, input.player),
     ed25519Instruction(message, signature, input.attestation.attestor_pubkey_bytes),
-    clockInInstruction(input.player, fields, input.accts),
+    clockInInstruction(input.player, fields, input.accts, input.maintenance?.freezeExists ?? false),
   ];
   return { instructions, fields, receipt: claimPda(input.player, fields.taskDate, fields.taskType) };
 }

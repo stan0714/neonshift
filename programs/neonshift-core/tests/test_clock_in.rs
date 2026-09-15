@@ -508,3 +508,65 @@ fn receipt_pda_must_match_args() {
     let res = send(&mut w.env.svm, &ixs, &player, &[]);
     assert_eq!(custom_error(&res), Some(6021), "{res:?}");
 }
+
+// ---------------------------------------------------------------- PG-V-05 incident freeze
+
+#[test]
+fn incident_freeze_blocks_demotion_and_promotion_only_for_overlapping_epochs_and_window_is_validated() {
+    let mut w = world_with(|p| p.shoe_xp_thresholds = [0, 100, 150, 250, 400]);
+    // 第 0 期 3 日雙任務 → 第 1 期打卡結算升 Lv3
+    for _ in 0..3 {
+        w.clock_in(w.args(TASK_STEPS)).unwrap();
+        w.clock_in(w.args(TASK_SLEEP)).unwrap();
+        advance_time(&mut w.env.svm, SECONDS_PER_DAY);
+    }
+    advance_time(&mut w.env.svm, 4 * SECONDS_PER_DAY);
+    w.clock_in(w.args(TASK_STEPS)).unwrap();
+    assert_eq!(w.profile().core_level, 3);
+    // admin 於第 1 期內設定凍結：涵蓋第 1、2 期（14 天）；非 admin 拒絕；視窗檢查 6044
+    let admin = w.init.admin.insecure_clone();
+    w.env.svm.airdrop(&admin.pubkey(), 1_000_000_000).unwrap();
+    let t = now(&w.env.svm);
+    let intruder = new_player(&mut w.env.svm);
+    let res = send(&mut w.env.svm, &[set_freeze_ix(&intruder.pubkey(), t, t + 14 * SECONDS_PER_DAY, [1; 32])], &intruder, &[]);
+    assert!(res.is_err());
+    assert_eq!(custom_error(&send(&mut w.env.svm, &[set_freeze_ix(&admin.pubkey(), t, t - 1, [1; 32])], &admin, &[])), Some(6044));
+    assert_eq!(custom_error(&send(&mut w.env.svm, &[set_freeze_ix(&admin.pubkey(), t, t + 29 * SECONDS_PER_DAY, [1; 32])], &admin, &[])), Some(6044));
+    assert_eq!(custom_error(&send(&mut w.env.svm, &[set_freeze_ix(&admin.pubkey(), t - 8 * SECONDS_PER_DAY, t, [1; 32])], &admin, &[])), Some(6044));
+    let epoch1_start = (w.profile().epoch_anchor as i64 + 7) * SECONDS_PER_DAY;
+    send(&mut w.env.svm, &[set_freeze_ix(&admin.pubkey(), epoch1_start, epoch1_start + 14 * SECONDS_PER_DAY, [7; 32])], &admin, &[]).unwrap();
+    FREEZE_PRESENT.with(|f| f.set(true));
+    // 缺席到第 4 期：第 1、2 期凍結（不降），第 3 期缺席 → 降 Lv2
+    advance_time(&mut w.env.svm, 3 * 7 * SECONDS_PER_DAY);
+    w.settle(64).unwrap();
+    let p = w.profile();
+    assert_eq!((p.last_settled_epoch, p.core_level, p.highest_level), (4, 2, 3));
+    // 凍結期也不升：清除凍結後重設一個涵蓋第 4 期的視窗，第 4 期全勤仍維持 Lv2
+    let t4 = now(&w.env.svm);
+    w.env.svm.expire_blockhash();
+    send(&mut w.env.svm, &[set_freeze_ix(&admin.pubkey(), t4, t4 + 7 * SECONDS_PER_DAY, [8; 32])], &admin, &[]).unwrap();
+    for _ in 0..7 {
+        w.clock_in(w.args(TASK_STEPS)).unwrap();
+        w.clock_in(w.args(TASK_SLEEP)).unwrap();
+        advance_time(&mut w.env.svm, SECONDS_PER_DAY);
+    }
+    w.clock_in(w.args(TASK_STEPS)).unwrap(); // 第 5 期打卡 → 結算第 4 期（凍結）
+    assert_eq!((w.profile().last_settled_epoch, w.profile().core_level), (5, 2));
+    // 清除（0,0）後第 5 期全勤（1050／7、XP 充足）→ 第 6 期結算跨階升 Lv5
+    w.env.svm.expire_blockhash();
+    send(&mut w.env.svm, &[set_freeze_ix(&admin.pubkey(), 0, 0, [0; 32])], &admin, &[]).unwrap();
+    for _ in 0..6 {
+        advance_time(&mut w.env.svm, SECONDS_PER_DAY);
+        w.clock_in(w.args(TASK_STEPS)).unwrap();
+        w.clock_in(w.args(TASK_SLEEP)).unwrap();
+    }
+    advance_time(&mut w.env.svm, SECONDS_PER_DAY);
+    w.clock_in(w.args(TASK_STEPS)).unwrap();
+    assert_eq!((w.profile().last_settled_epoch, w.profile().core_level, w.profile().highest_level), (6, 5, 5));
+    // 傳錯的 freeze 帳戶（非 PDA）→ seeds 約束拒絕
+    FREEZE_PRESENT.with(|f| f.set(false));
+    let mut ix = settle_epochs_ix(&admin.pubkey(), &w.wallet(), 64);
+    ix.accounts[3].pubkey = config_pda().0;
+    w.env.svm.expire_blockhash();
+    assert!(send(&mut w.env.svm, &[ix], &admin, &[]).is_err());
+}

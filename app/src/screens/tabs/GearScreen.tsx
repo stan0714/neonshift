@@ -8,6 +8,7 @@ import { Button, Chip, InlineState, Screen, Surface } from "@/components";
 import { ShoeHero } from "@/components/ShoeHero";
 import { Milestones } from "@/screens/workouts/Milestones";
 import { maintenanceView, nextSteps } from "@/domain/maintenance";
+import { freezeActive } from "@/chain/accounts";
 import { shoeSection } from "@/domain/collectibles";
 import { APP_CONFIG } from "@/config/app";
 import { SHOE_PROGRESSION, type ShoeLevel } from "@/config/shoeProgression";
@@ -218,6 +219,11 @@ export function GearScreen() {
               ) : null}
             </>
           )}
+          {freezeActive(d.freeze, Date.now() / 1000) ? (
+            <Text variant="bodySmall" tone="warning" style={styles.mtXs} testID="gear-maint-frozen">
+              {t("gear.maint.frozen", { until: new Date(d.freeze!.end * 1000).toLocaleString() })}
+            </Text>
+          ) : null}
           <Text variant="caption" tone="muted" style={styles.mtXs}>
             {t("gear.maint.footnote")}
           </Text>

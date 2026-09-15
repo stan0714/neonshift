@@ -54,6 +54,11 @@ pub mod neonshift_core {
         instructions::maintenance::handle_settle_player_epochs(ctx, max_epochs)
     }
 
+    /// PG-V-05：admin 設定／清除全域 incident freeze（截止前寫入；凍結期不降不升）
+    pub fn set_incident_freeze(ctx: Context<SetIncidentFreeze>, start: i64, end: i64, reason_hash: [u8; 32]) -> Result<()> {
+        instructions::maintenance::handle_set_incident_freeze(ctx, start, end, reason_hash)
+    }
+
     /// 每日打卡（SD 3.3 16 步）；前一道指令必須是 Ed25519 program 驗簽
     pub fn clock_in(ctx: Context<ClockIn>, args: AttestationArgs) -> Result<()> {
         instructions::clock_in::handle_clock_in(ctx, args)
