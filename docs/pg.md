@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.53（PG-U-05 後端部分） |
+| 文件版本 | v0.54（devnet 程式升級） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -567,6 +567,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.54 | 2026-09-15 | devnet 程式升級至含 claim_achievement／維持週期／凍結版本（slot 498753143，649 KB，extend +120,000 bytes；鏈上位元組與本機建置 sha256 一致；舊版 PlayerProfile 0 個、registry pending 0 筆；on-chain IDL 上傳仍失敗，以 repo IDL 為準） |
 | v0.53 | 2026-09-15 | PG-U-05 後端撤銷／多裝置測試（WIP，實機待驗收） |
 | v0.52 | 2026-09-15 | PG-U-04 完成（WIP）：探索冊任務、領取與外觀 |
 | v0.51 | 2026-09-15 | PG-U-03 完成（WIP）：模式篩選、週回顧、同類比較、分享預覽 |

@@ -595,6 +595,8 @@ OPS_TOKEN=$(ssh root@l1.neonshift.cc 'grep ^OPS_TOKEN= /etc/neonshift/api.env | 
 OPS_TOKEN=… npm --prefix tools/chain-admin run sync-achievements -- dev   # 逐筆 set_achievement_eligibility 並回報
 ```
 
+2026-09-15 已升級（slot 498753143，資料帳戶 660,824 bytes）。`api.neonshift.cc` 尚未通時，chain-admin 可用 SSH tunnel：`ssh -f -N -L 16080:127.0.0.1:6080 root@l1.neonshift.cc` 並以 `NEONSHIFT_API_URL=http://127.0.0.1:16080/v1` 覆寫（任何 env 檔鍵都可用 `NEONSHIFT_<KEY>` 覆寫）。
+
 升級程式：`scripts/chain/build.sh dev && solana program extend 6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA 100000 --url devnet -k ~/.config/neonshift/dev/admin.json && scripts/chain/deploy.sh dev`（先 extend program-data 到新大小）。
 
 保留：活動結束／取消後 `EVENT_RETENTION_DAYS`（預設 180，Q-13 定案前）由保留清理刪除名單、報到、核銷、成績版本與匯入原檔列，只留活動、規則、稽核與宣傳彙總；`DELETE /player/data` 立即同步移除該錢包的活動個人層資料。稽核：`GET /partner/events/$EV/audit`。
