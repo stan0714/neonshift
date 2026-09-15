@@ -93,8 +93,9 @@ export class WorkoutRecorder {
       sport: this.meta?.sport ?? 'run',
       elapsedMs: e && this.meta ? e.elapsedAt(t) + (e.status === 'finished' ? 0 : this.pausedTotal()) : 0,
       distanceMm: e?.distanceMm ?? 0,
-      currentSpeedMs: e?.currentSpeedMs() ?? null,
-      currentPaceSPerKm: e?.currentPaceSPerKm() ?? null,
+      // PG-U-02：定位失效（> 10 s 無點）不持續展示舊速度
+      currentSpeedMs: gps === 'searching' ? null : (e?.currentSpeedMs() ?? null),
+      currentPaceSPerKm: gps === 'searching' ? null : (e?.currentPaceSPerKm() ?? null),
       gps,
       accepted: this.meta?.acceptedCount ?? 0,
       splits: e ? [...e.splits] : [],

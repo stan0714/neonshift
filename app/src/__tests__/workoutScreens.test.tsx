@@ -94,6 +94,16 @@ test('記錄頁：健走顯示速度、時間／距離；目標進度 → 達標
   expect(screen.getByTestId('record-track-laps').props.children).toBe('Lap 0 + 357 m'); // 跑道模式：依距離估算
   expect(screen.getByText('400 m per lap · estimated by distance')).toBeTruthy();
   await waitFor(() => expect(screen.getByText('GPS · searching')).toBeTruthy(), { timeout: 3000 }); // 時鐘已推進 120 s、最後一點在 120 s 前（每秒刷新）
+  // PG-U-02：定位失效 → 不展示舊速度、顯示缺口提示；讀屏標籤含單位與狀態；操作鎖：鎖定後控制列只剩長按解鎖、不阻擋返回
+  expect(screen.getByTestId('record-primary').props.children).toBe('—');
+  expect(screen.getByTestId('record-gps-gap')).toBeTruthy();
+  expect(screen.getByTestId('record-status').props.accessibilityLabel).toBe('GPS · searching, Recording');
+  expect(screen.getByLabelText(/^Distance 0\.36 kilometers$/)).toBeTruthy();
+  await fireEvent.press(screen.getByTestId('record-lock'));
+  expect(screen.getByTestId('record-locked')).toBeTruthy();
+  expect(screen.queryByTestId('record-pause')).toBeNull();
+  await fireEvent(screen.getByTestId('record-locked'), 'longPress');
+  expect(screen.getByTestId('record-pause')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('record-lap'));
   await waitFor(() => expect(screen.getByText('Lap 1')).toBeTruthy());
   await fireEvent.press(screen.getByTestId('record-pause'));

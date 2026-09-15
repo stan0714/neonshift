@@ -118,6 +118,21 @@ export function WorkoutStartScreen() {
           {t('rec.autoLap')}
         </Text>
         <Segmented items={(['off', '400', '1000'] as const).map((v) => ({ value: v, label: t(`rec.autoLap.${v}` as TKey) }))} value={autoLap} onChange={setAutoLap} testID="start-autolap" />
+        <View style={styles.row}>
+          <Text variant="bodySmall" style={styles.rowLabel}>
+            {t('rec.cue.voice')}
+          </Text>
+          <Switch value={prefs.voice} onValueChange={(v) => void prefs.set({ voice: v })} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('rec.cue.voice')} testID="start-cue-voice" />
+        </View>
+        <View style={styles.row}>
+          <Text variant="bodySmall" style={styles.rowLabel}>
+            {t('rec.cue.haptic')}
+          </Text>
+          <Switch value={prefs.haptic} onValueChange={(v) => void prefs.set({ haptic: v })} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('rec.cue.haptic')} testID="start-cue-haptic" />
+        </View>
+        <Text variant="caption" tone="muted">
+          {t('rec.cue.hint')}
+        </Text>
         <Text variant="label" tone="muted" uppercase style={styles.mt}>
           {t('rec.units')}
         </Text>

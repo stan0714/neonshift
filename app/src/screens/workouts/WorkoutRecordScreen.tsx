@@ -6,7 +6,9 @@ import { Alert, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { Chip, Screen } from '@/components';
 import { formatDuration, formatPace } from '@/domain/workouts';
 import { useT, type TKey } from '@/i18n';
+import { workoutCues } from '@/services/workouts/WorkoutCues';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
+import { useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import { color, layout, radius, space, Text } from '@/theme';
 import { useRecorder } from './useRecorder';
 
@@ -30,11 +32,19 @@ export function WorkoutRecordScreen() {
     }
   }, [s.goalReached, goalNotified]);
 
+  // PG-U-02：操作鎖（明確長按解鎖；不阻擋系統返回——返回後記錄仍由前景服務持續，可自 Workouts 清單回來）
+  const [locked, setLocked] = useState(false);
   useEffect(() => {
-    // 記錄中不讓返回鍵離開（避免誤觸）；用 Finish 結束
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => s.state === 'recording' || s.state === 'paused');
+    // 記錄中未鎖定時攔返回鍵（避免誤觸）；鎖定時放行系統返回（緊急操作不可被阻擋）
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => !locked && (s.state === 'recording' || s.state === 'paused'));
     return () => sub.remove();
-  }, [s.state]);
+  }, [s.state, locked]);
+
+  // PG-U-02：每公里／自訂圈語音或震動提示（預設關閉；背景／通話不搶播）
+  const { locale } = useT();
+  const prefs = useWorkoutPrefs();
+  useEffect(() => { workoutCues.reset(workoutRecorder.snapshot()); }, []);
+  useEffect(() => { workoutCues.onSnapshot(s, { voice: prefs.voice, haptic: prefs.haptic, locale: locale === 'zh-TW' ? 'zh-TW' : 'en' }); }, [s, prefs.voice, prefs.haptic, locale]);
 
   const primary = s.sport === 'walk' ? (s.currentSpeedMs === null ? '—' : (s.currentSpeedMs * 3.6).toFixed(1)) : formatPace(s.currentPaceSPerKm).replace(' /km', '');
   const finish = () => {
@@ -60,12 +70,20 @@ export function WorkoutRecordScreen() {
 
   return (
     <Screen testID="workout-record-screen">
-      <View style={styles.statusRow}>
+      <View style={styles.statusRow} accessible accessibilityLabel={`${t(`rec.gps.${s.gps}` as TKey)}, ${s.state === 'paused' ? t('rec.paused') : t('rec.recording')}`} testID="record-status">
         <Chip label={t(`rec.gps.${s.gps}` as TKey)} kind={s.gps === 'ok' ? 'synced' : s.gps === 'poor' ? 'devnet' : 'offline'} />
         <Chip label={s.state === 'paused' ? t('rec.paused') : t('rec.recording')} kind={s.state === 'paused' ? 'devnet' : 'level'} />
+        <Pressable onPress={() => setLocked(true)} onLongPress={() => setLocked(false)} delayLongPress={1200} accessibilityRole="button" accessibilityLabel={locked ? t('rec.lock.unlockA11y') : t('rec.lock.lockA11y')} hitSlop={8} style={styles.lockBtn} testID={locked ? 'record-unlock' : 'record-lock'}>
+          <Text variant="label" tone={locked ? 'mint' : 'secondary'}>{locked ? t('rec.lock.locked') : t('rec.lock.lock')}</Text>
+        </Pressable>
       </View>
-      <View style={styles.hero}>
-        <Text style={styles.big} numeric testID="record-primary">
+      {s.gps === 'searching' && s.state === 'recording' ? (
+        <Text variant="caption" tone="warning" style={styles.center} testID="record-gps-gap">
+          {t('rec.gpsGap')}
+        </Text>
+      ) : null}
+      <View style={styles.hero} accessible accessibilityLabel={`${s.sport === 'walk' ? t('rec.speed') : t('rec.pace')} ${primary === '—' ? t('rec.a11y.none') : primary} ${s.sport === 'walk' ? t('rec.a11y.kmh') : t('rec.a11y.minPerKm')}`}>
+        <Text style={styles.big} numeric testID="record-primary" maxFontSizeMultiplier={1.6}>
           {primary}
         </Text>
         <Text variant="label" tone="muted" uppercase>
@@ -73,7 +91,7 @@ export function WorkoutRecordScreen() {
         </Text>
       </View>
       <View style={styles.secondary}>
-        <View style={styles.metric}>
+        <View style={styles.metric} accessible accessibilityLabel={`${t('rec.a11y.time')} ${formatDuration(String(s.elapsedMs))}`}>
           <Text variant="displayM" numeric testID="record-time">
             {formatDuration(String(s.elapsedMs))}
           </Text>
@@ -81,7 +99,7 @@ export function WorkoutRecordScreen() {
             {t('rec.time')}
           </Text>
         </View>
-        <View style={styles.metric}>
+        <View style={styles.metric} accessible accessibilityLabel={`${t('rec.a11y.distance')} ${(s.distanceMm / 1_000_000).toFixed(2)} ${t('rec.a11y.km')}`}>
           <Text variant="displayM" numeric testID="record-distance">
             {(s.distanceMm / 1_000_000).toFixed(2)}
           </Text>
@@ -111,7 +129,11 @@ export function WorkoutRecordScreen() {
         </Text>
       ) : null}
       <View style={styles.controls}>
-        {s.state === 'recording' ? (
+        {locked ? (
+          <Pressable onLongPress={() => setLocked(false)} delayLongPress={1200} accessibilityRole="button" accessibilityLabel={t('rec.lock.unlockA11y')} style={[styles.ctl, styles.ctlSecondary, styles.ctlWide]} testID="record-locked">
+            <Text variant="title">{t('rec.lock.holdToUnlock')}</Text>
+          </Pressable>
+        ) : s.state === 'recording' ? (
           <>
             <Pressable onPress={() => void workoutRecorder.lap().then((l) => l && setLapNote(t('rec.lapAdded', { n: l.index })))} accessibilityRole="button" accessibilityLabel={t('rec.lap')} style={[styles.ctl, styles.ctlSecondary]} testID="record-lap">
               <Text variant="title">{t('rec.lap')}</Text>
@@ -149,6 +171,8 @@ const styles = StyleSheet.create({
   secondary: { flexDirection: 'row', justifyContent: 'space-around', marginTop: space.xl },
   metric: { alignItems: 'center' },
   center: { textAlign: 'center', marginTop: space.m },
+  lockBtn: { marginLeft: 'auto', minHeight: 48, minWidth: 48, alignItems: 'center', justifyContent: 'center' },
+  ctlWide: { flex: 1 },
   controls: { flexDirection: 'row', gap: space.m, marginTop: 'auto', marginBottom: space.l },
   ctl: { flex: 1, minHeight: 64, borderRadius: radius.l, alignItems: 'center', justifyContent: 'center', minWidth: layout.minTouchTarget },
   ctlPrimary: { backgroundColor: color.mint },
