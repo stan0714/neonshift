@@ -18,7 +18,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: url });
-    await pool.query("DELETE FROM gallery_prefs; DELETE FROM achievements; UPDATE pb_revisions SET previous_pb_id = NULL; DELETE FROM pb_revisions; UPDATE workout_sessions SET possible_duplicate_of = NULL; DELETE FROM workout_sessions; DELETE FROM event_badge_issues; DELETE FROM event_redemptions; DELETE FROM event_benefits; DELETE FROM result_revisions; DELETE FROM result_imports; DELETE FROM event_checkins; DELETE FROM checkin_challenges; DELETE FROM nfc_tags; DELETE FROM checkpoints; DELETE FROM campaign_aggregates; DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; UPDATE events SET current_rule_revision = NULL; DELETE FROM event_rule_revisions; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
+    await pool.query("DELETE FROM gallery_prefs; DELETE FROM level_history; DELETE FROM achievements; UPDATE pb_revisions SET previous_pb_id = NULL; DELETE FROM pb_revisions; UPDATE workout_sessions SET possible_duplicate_of = NULL; DELETE FROM workout_sessions; DELETE FROM event_badge_issues; DELETE FROM event_redemptions; DELETE FROM event_benefits; DELETE FROM result_revisions; DELETE FROM result_imports; DELETE FROM event_checkins; DELETE FROM checkin_challenges; DELETE FROM nfc_tags; DELETE FROM checkpoints; DELETE FROM campaign_aggregates; DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; UPDATE events SET current_rule_revision = NULL; DELETE FROM event_rule_revisions; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
     stores = [
       { name: "postgres", store: new PostgresStore(pool) },
       { name: "memory", store: new MemoryStore() },
@@ -412,6 +412,25 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       await store.deletePlayerData(wallet, t0, null);
       expect((await store.listAchievements(wallet)).map((x) => x.achievementId), name).toEqual([id]); // 未鑄造里程碑刪除、已鑄造 PB 成就保留
       expect((await store.listPbRevisions(wallet)).length, name).toBe(1);
+    }
+  });
+  it("level_history（V-03）：插入冪等（wallet+signature+source）、levelAt 取生效日 ≤ 查詢日的最新一筆、highest 只增", async () => {
+    for (const { name, store } of stores) {
+      const t0 = new Date("2026-09-14T00:00:00Z");
+      const w = "LH" + name;
+      await store.upsertGalleryPlayer({ wallet: w, shoeLevel: 2, coreLevel: 2, xp: 500n, streakDays: 0, maxStreakDays: 0, lastTaskDate: null, slot: 1 }, t0);
+      expect(await store.insertLevelHistory({ wallet: w, effectiveFromDate: 20_700, activeLevel: 1, highestLevel: 1, epoch: null, source: "init", signature: "i", slot: 1 }), name).toBe(true);
+      expect(await store.insertLevelHistory({ wallet: w, effectiveFromDate: 20_700, activeLevel: 1, highestLevel: 1, epoch: null, source: "init", signature: "i", slot: 1 }), name).toBe(false);
+      await store.insertLevelHistory({ wallet: w, effectiveFromDate: 20_707, activeLevel: 3, highestLevel: 3, epoch: 1, source: "epoch", signature: "e1", slot: 5 });
+      await store.insertLevelHistory({ wallet: w, effectiveFromDate: 20_714, activeLevel: 2, highestLevel: 3, epoch: 2, source: "epoch", signature: "e2", slot: 9 });
+      expect((await store.levelAt(w, 20_699)), name).toBeNull();
+      expect((await store.levelAt(w, 20_706))?.activeLevel, name).toBe(1);
+      expect((await store.levelAt(w, 20_710))?.activeLevel, name).toBe(3);
+      expect((await store.levelAt(w, 20_800))?.activeLevel, name).toBe(2);
+      expect((await store.listLevelHistory(w, 10)).map((h) => h.signature), name).toEqual(["e2", "e1", "i"]);
+      await store.setGalleryHighestLevel(w, 3, 5, t0);
+      await store.setGalleryHighestLevel(w, 2, 6, t0);
+      expect((await store.getGalleryPlayer(w))?.highestLevel, name).toBe(3);
     }
   });
   it("gallery_prefs（R-09）：hidden 排除排行／計數／搜尋／名次，本人仍可 get；再顯示恢復；getAchievementByAsset", async () => {

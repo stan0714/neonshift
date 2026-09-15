@@ -90,7 +90,14 @@ describe('PersonalBests 鑄造流程', () => {
   const pb = (over: Record<string, unknown> = {}) => ({ pb_id: 'p1', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', rules_major: 1, value: '1500000', unit: 'ms', source: { kind: 'workout', id: 's1', revision: 1 }, achieved_at: '2026-09-05T00:00:00Z', status: 'current', is_baseline: true, previous_pb_id: null, invalidated_at: null, reason: null, ...over });
   test('同意對話 → intent pending → 提示；核准 → 費用確認 → 錢包簽送 → 已鑄造', async () => {
     useWalletStore.setState({ status: 'connected', session: { address: wallet.toBase58(), publicKey: wallet, walletUriBase: '', label: 'Phantom' }, error: null } as never);
-    api.personalBests.mockResolvedValue({ rules_major: 1, imported_since: '2026-09-01T00:00:00Z', groups: [{ key: 'k', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', current: pb(), history: [] }] });
+    // PG-V-03：等級不足／無歷史 → 不顯示 Mint，改顯示原因
+    api.personalBests.mockResolvedValueOnce({ rules_major: 1, imported_since: '2026-09-01T00:00:00Z', groups: [{ key: 'k', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', current: pb(), nft_eligibility: { status: 'level_required', level: 2, required: 3, effective_from: 20700 }, history: [] }, { key: 'k2', category: 'fastest_10k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', current: pb({ pb_id: 'p2', category: 'fastest_10k' }), nft_eligibility: { status: 'history_unknown', level: null, required: 3, effective_from: null }, history: [] }] });
+    await render(<PersonalBests />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('pb-nft-level_required-fastest_5k-device')).toBeTruthy());
+    expect(screen.getByText('PB NFTs need Lv3 gear at the time of the record (you were Lv2). Kept as a private PB.')).toBeTruthy();
+    expect(screen.getByTestId('pb-nft-history_unknown-fastest_10k-device')).toBeTruthy();
+    expect(screen.queryByTestId('pb-mint-fastest_5k-device')).toBeNull();
+    api.personalBests.mockResolvedValue({ rules_major: 1, imported_since: '2026-09-01T00:00:00Z', groups: [{ key: 'k', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', current: pb(), nft_eligibility: { status: 'eligible', level: 3, required: 3, effective_from: 20700 }, history: [] }] });
     const alerts: { title: string; buttons: { text: string; onPress?: () => void }[] }[] = [];
     jest.spyOn(Alert, 'alert').mockImplementation((title, _m, b) => { alerts.push({ title: String(title), buttons: (b ?? []) as never }); });
     const msg = message();

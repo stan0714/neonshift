@@ -125,6 +125,9 @@ export function PersonalBests({ reloadKey = 0 }: { reloadKey?: number }) {
                 if (a?.minted || a?.status === 'minted') return <Chip label={t('pb.minted')} kind="level" />;
                 if (a?.status === 'revoked' || a?.status === 'revoke_pending') return <Chip label={t('pb.revoked')} kind="offline" />;
                 if (a?.status === 'pending_registry') return <Chip label={t('pb.mintPending')} kind="devnet" />;
+                // PG-V-03：達成日 Active level < 3 或無等級歷史 → 只保留私人 PB，說明原因
+                const el = g.nft_eligibility;
+                if (el && el.status !== 'eligible') return <Text variant="caption" tone="muted" testID={`pb-nft-${el.status}-${g.category}-${g.verification_class}`}>{el.status === 'level_required' ? t('pb.nftLevelRequired', { need: el.required, had: el.level ?? 1 }) : t('pb.nftHistoryUnknown')}</Text>;
                 return <Button label={t('pb.mint')} variant="secondary" onPress={() => mint(g.current!.pb_id)} loading={busy === g.current!.pb_id} disabled={busy !== null} testID={`pb-mint-${g.category}-${g.verification_class}`} />;
               })() : null}
             </View>

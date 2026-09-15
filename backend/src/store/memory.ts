@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { compareLeaderboard } from "./leaderboard.js";
-import type { AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type { LevelHistoryEntry, AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -615,7 +615,25 @@ export class MemoryStore implements Store {
   async upsertGalleryPlayer(p: { wallet: string; shoeLevel: number; coreLevel: number; xp: bigint; streakDays: number; maxStreakDays: number; lastTaskDate: number | null; slot: number }, now: Date) {
     const cur = this.galleryPlayers.get(p.wallet);
     if (cur && cur.updatedSlot > p.slot) return;
-    this.galleryPlayers.set(p.wallet, { wallet: p.wallet, shoeLevel: p.shoeLevel, coreLevel: p.coreLevel, xp: p.xp, streakDays: p.streakDays, maxStreakDays: p.maxStreakDays, lastTaskDate: p.lastTaskDate, collectibleCount: cur?.collectibleCount ?? 0, updatedSlot: p.slot, updatedAt: now });
+    this.galleryPlayers.set(p.wallet, { wallet: p.wallet, shoeLevel: p.shoeLevel, coreLevel: p.coreLevel, xp: p.xp, streakDays: p.streakDays, maxStreakDays: p.maxStreakDays, lastTaskDate: p.lastTaskDate, collectibleCount: cur?.collectibleCount ?? 0, updatedSlot: p.slot, updatedAt: now, highestLevel: Math.max(cur?.highestLevel ?? 1, p.shoeLevel) });
+  }
+  private levelHistory: LevelHistoryEntry[] = [];
+  async setGalleryHighestLevel(wallet: string, highestLevel: number, _slot: number, now: Date) {
+    const cur = this.galleryPlayers.get(wallet);
+    if (!cur) return;
+    if (highestLevel > cur.highestLevel) Object.assign(cur, { highestLevel, updatedAt: now });
+  }
+  async insertLevelHistory(e: LevelHistoryEntry) {
+    if (this.levelHistory.some((x) => x.wallet === e.wallet && x.signature === e.signature && x.source === e.source)) return false;
+    this.levelHistory.push({ ...e });
+    return true;
+  }
+  async levelAt(wallet: string, taskDate: number) {
+    const list = this.levelHistory.filter((x) => x.wallet === wallet && x.effectiveFromDate <= taskDate).sort((a, b) => b.effectiveFromDate - a.effectiveFromDate || b.slot - a.slot);
+    return list[0] ? { ...list[0] } : null;
+  }
+  async listLevelHistory(wallet: string, limit: number) {
+    return this.levelHistory.filter((x) => x.wallet === wallet).sort((a, b) => b.effectiveFromDate - a.effectiveFromDate || b.slot - a.slot).slice(0, limit).map((x) => ({ ...x }));
   }
   async insertGalleryCollectible(c: GalleryCollectible) {
     const k = `${c.wallet}:${c.kind}`;

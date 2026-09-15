@@ -51,6 +51,17 @@ describe("galleryProjection", () => {
     expect([q.shoeLevel, q.coreLevel, q.xp, q.streakDays, q.lastTaskDate]).toEqual([1, 1, 450n, 3, 20_710]);
     await galleryProjection(ev("EpochSettled", 22, { wallet: w, epoch: 2, level_before: 2, level_after: 3, highest_level: 3 }), store, now);
     expect((await store.getGalleryPlayer(w))?.shoeLevel).toBe(1);
+    // PG-V-03：歷史最高只增；歷史等級可查（init 當日 Lv1、結算日起 level_after）；重放冪等
+    expect((await store.getGalleryPlayer(w))?.highestLevel).toBe(3);
+    const settledDay = 20_720;
+    await galleryProjection(ev("EpochSettled", 40, { wallet: w, epoch: 4, level_before: 1, level_after: 2, highest_level: 3, settled_at: String(settledDay * 86_400 + 100) }), store, now);
+    await galleryProjection(ev("EpochSettled", 40, { wallet: w, epoch: 4, level_before: 1, level_after: 2, highest_level: 3, settled_at: String(settledDay * 86_400 + 100) }), store, now);
+    expect((await store.listLevelHistory(w, 10)).filter((h) => h.source === "epoch" && h.epoch === 4)).toHaveLength(1);
+    expect((await store.levelAt(w, settledDay))?.activeLevel).toBe(2);
+    expect((await store.levelAt(w, settledDay - 1))?.activeLevel).toBe(1); // 結算前一天仍為前一筆
+    await galleryProjection(ev("PlayerMigrated", 41, { wallet: w, epoch_anchor: 20_730, active_level: 4, highest_level: 4, rules_version: 1 }), store, now);
+    expect((await store.levelAt(w, 20_731))?.activeLevel).toBe(4);
+    expect((await store.getGalleryPlayer(w))?.highestLevel).toBe(4);
     await galleryProjection(ev("CollectibleClaimed", 30, { wallet: w, kind: 1, asset: "A1" }), store, now);
     await galleryProjection(ev("CollectibleClaimed", 30, { wallet: w, kind: 1, asset: "A1" }), store, now);
     await galleryProjection(ev("CollectibleClaimed", 31, { wallet: w, kind: 101, asset: "A2" }), store, now);

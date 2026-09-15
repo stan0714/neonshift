@@ -25,6 +25,16 @@ import type { AttestorSigner } from "../signer/types.js";
 import type { Achievement, PbRevision, Store } from "../store/types.js";
 import type { PersonalBestService } from "./service.js";
 
+/** PG-V-03：PB NFT 需達成當日 Active level ≥ 3（shoe-gameplay 2、5）；無可查歷史 → 只保留私人 PB */
+export const PB_NFT_MIN_LEVEL = 3;
+export type PbNftEligibility = { status: "eligible" | "level_required" | "history_unknown"; level: number | null; required: number; effective_from: number | null };
+const dayOfDate = (d: Date) => Math.floor(d.getTime() / 86_400_000);
+export async function pbNftEligibility(store: Store, wallet: string, achievedAt: Date): Promise<PbNftEligibility> {
+  const h = await store.levelAt(wallet, dayOfDate(achievedAt));
+  if (!h) return { status: "history_unknown", level: null, required: PB_NFT_MIN_LEVEL, effective_from: null };
+  return { status: h.activeLevel >= PB_NFT_MIN_LEVEL ? "eligible" : "level_required", level: h.activeLevel, required: PB_NFT_MIN_LEVEL, effective_from: h.effectiveFromDate };
+}
+
 /** 估算玩家需付的 rent（receipt ≈ 119 bytes、Core asset ≈ 200 bytes）＋手續費；實際以鏈上為準 */
 export const MINT_FEE_ESTIMATE_LAMPORTS = 3_500_000;
 const IMAGE_BASE = "https://neonshift.cc/nft/achievements/";
@@ -43,7 +53,7 @@ const milestoneLabel: Record<string, { title: string; name: string }> = {
 const fmtMs = (ms: bigint) => { const s = Number(ms / 1000n); const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); const sec = s % 60; return h ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`; };
 
 /** canonical metadata（Metaplex JSON 標準子集）；未同意公開時不含精確數值與日期 */
-export function buildMetadata(pb: PbRevision, achievementId: string, publicConsent: boolean): Record<string, Json> {
+export function buildMetadata(pb: PbRevision, achievementId: string, publicConsent: boolean, capability: { active_level: number; effective_from: number } | null = null): Record<string, Json> {
   const cls = pb.verificationClass === "organizer" ? "Official" : "Device";
   const attrs: Json[] = [
     { trait_type: "Category", value: categoryLabel[pb.category] ?? pb.category },
@@ -63,7 +73,8 @@ export function buildMetadata(pb: PbRevision, achievementId: string, publicConse
     image: `${IMAGE_BASE}${pb.category}-${pb.verificationClass}.svg`,
     external_url: `https://neonshift.cc/nft/achievements/${achievementId}`,
     attributes: attrs,
-    properties: { category: "image", achievement_id: achievementId, public: publicConsent },
+    // PG-V-03：能力快照綁進 metadata commitment（簽章綁 metadata_hash），不信任 client 自報歷史等級
+    properties: { category: "image", achievement_id: achievementId, public: publicConsent, ...(capability ? { capability } : {}) },
   };
 }
 export const metadataHashOf = (m: Record<string, Json>) => createHash("sha256").update(canonicalize(m)).digest();
@@ -131,8 +142,12 @@ export class AchievementService {
     const pb = (await this.store.listPbRevisions(wallet)).find((p) => p.pbId === pbId);
     if (!pb) throw new ApiError(404, "NOT_FOUND", "personal best not found");
     if (pb.status === "invalidated") throw new ApiError(409, "ACHIEVEMENT_INVALIDATED", "this record was corrected or deleted");
+    // PG-V-03：達成時的有效等級 ≥ Lv3（用歷史，不用現在等級）；歷史缺失不自動授予
+    const cap = await pbNftEligibility(this.store, wallet, pb.achievedAt);
+    if (cap.status === "history_unknown") throw new ApiError(409, "LEVEL_HISTORY_UNKNOWN", "no level history for the day this record was achieved; the personal best stays private");
+    if (cap.status === "level_required") throw new ApiError(409, "LEVEL_REQUIRED", `personal best NFTs need Lv${PB_NFT_MIN_LEVEL} at the time of the record (you were Lv${cap.level})`);
     const achievementId = achievementIdOf(wallet, pbId);
-    const metadata = buildMetadata(pb, achievementId, publicConsent);
+    const metadata = buildMetadata(pb, achievementId, publicConsent, { active_level: cap.level!, effective_from: cap.effective_from! });
     const achievement = await this.store.upsertAchievement({ achievementId, wallet, kind: "pb", pbId, milestoneKey: null, sourceKind: pb.sourceKind, sourceId: pb.sourceId, category: pb.category, verificationClass: pb.verificationClass as "organizer" | "device", sourceRevision: pb.sourceRevision, rulesMajor: pb.rulesMajor, publicConsent, metadata, metadataHash: metadataHashOf(metadata), status: "pending_registry", registrySignature: null, registryUpdatedAt: null, asset: null, mintedSignature: null, mintedAt: null }, this.now());
     return { achievement, pb };
   }

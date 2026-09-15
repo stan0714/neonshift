@@ -191,7 +191,9 @@ export interface RetentionStore {
 
 // ---------------- PG-G-01：藝廊投影 ----------------
 
-export type GalleryPlayer = { wallet: string; shoeLevel: number; coreLevel: number; xp: bigint; streakDays: number; maxStreakDays: number; lastTaskDate: number | null; collectibleCount: number; updatedSlot: number; updatedAt: Date };
+export type GalleryPlayer = { wallet: string; shoeLevel: number; coreLevel: number; xp: bigint; streakDays: number; maxStreakDays: number; lastTaskDate: number | null; collectibleCount: number; updatedSlot: number; updatedAt: Date; /** PG-V-03 歷史最高（Lifetime） */ highestLevel: number };
+/** PG-V-03：歷史有效等級（由 finalized 事件投影） */
+export type LevelHistoryEntry = { wallet: string; effectiveFromDate: number; activeLevel: number; highestLevel: number; epoch: number | null; source: "init" | "migrate" | "epoch"; signature: string; slot: number };
 export type GalleryCollectible = { wallet: string; kind: number; asset: string; signature: string; slot: number; claimedAt: Date };
 
 export interface GalleryStore {
@@ -199,6 +201,13 @@ export interface GalleryStore {
   upsertGalleryPlayer(p: { wallet: string; shoeLevel: number; coreLevel: number; xp: bigint; streakDays: number; maxStreakDays: number; lastTaskDate: number | null; slot: number }, now: Date): Promise<void>;
   /** 冪等（wallet, kind）；成功新增時 collectible_count += 1 */
   insertGalleryCollectible(c: GalleryCollectible): Promise<boolean>;
+  /** PG-V-03：歷史最高只增不減（slot 較舊不覆寫） */
+  setGalleryHighestLevel(wallet: string, highestLevel: number, slot: number, now: Date): Promise<void>;
+  /** PG-V-03：歷史等級（冪等，同 wallet+signature+source 不重複） */
+  insertLevelHistory(e: LevelHistoryEntry): Promise<boolean>;
+  /** 指定 UTC 日序當日有效等級：取 effective_from ≤ date 的最新一筆；無 → null（無可查歷史） */
+  levelAt(wallet: string, taskDate: number): Promise<LevelHistoryEntry | null>;
+  listLevelHistory(wallet: string, limit: number): Promise<LevelHistoryEntry[]>;
   getGalleryPlayer(wallet: string): Promise<GalleryPlayer | null>;
   /** 排行：shoe_level DESC → xp DESC → wallet C 序；offset 分頁 */
   listGalleryPlayers(limit: number, offset: number): Promise<GalleryPlayer[]>;

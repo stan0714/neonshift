@@ -100,7 +100,7 @@ export type WorkoutSummary = {
 };
 export type PbCategory = 'fastest_1k' | 'fastest_5k' | 'fastest_10k' | 'fastest_half' | 'fastest_marathon' | 'longest_run';
 export type PbView = { pb_id: string; category: PbCategory; environment: string; verification_class: 'organizer' | 'device'; timing_basis: string; rules_major: number; value: string; unit: 'ms' | 'mm'; source: { kind: 'workout' | 'result'; id: string; revision: number }; achieved_at: string; status: 'current' | 'historical' | 'invalidated'; is_baseline: boolean; previous_pb_id: string | null; invalidated_at: string | null; reason: string | null };
-export type PbGroup = { key: string; category: PbCategory; environment: string; verification_class: 'organizer' | 'device'; timing_basis: string; current: PbView | null; history: PbView[] };
+export type PbGroup = { key: string; category: PbCategory; environment: string; verification_class: 'organizer' | 'device'; timing_basis: string; current: PbView | null; /** PG-V-03：NFT 資格（達成日 Active level ≥ 3；舊後端可能缺） */ nft_eligibility?: { status: 'eligible' | 'level_required' | 'history_unknown'; level: number | null; required: number; effective_from: number | null } | null; history: PbView[] };
 export type PersonalBests = { rules_major: number; imported_since: string | null; groups: PbGroup[] };
 /** PG-M-03：首次里程碑目錄（每穩定 key 一張） */
 export type MilestoneCategory = 'first_5k' | 'first_10k' | 'first_half' | 'first_marathon' | 'first_finish';

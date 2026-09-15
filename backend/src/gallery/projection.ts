@@ -7,14 +7,26 @@ import type { Projection } from "../indexer/indexer.js";
 
 const num = (v: unknown) => Number(v ?? 0);
 
+const dayOf = (d: Date) => Math.floor(d.getTime() / 86_400_000);
+
 export const galleryProjection: Projection = async (ev, store, now) => {
   const p = ev.payload;
   const wallet = p.wallet as string;
   switch (ev.name) {
     case "PlayerInitialized": {
+      // PG-V-03：歷史等級起點 Lv1（自投影確認日起；init 當日的鏈上日序未在事件內，以 finalized 時間近似）
+      await store.insertLevelHistory({ wallet, effectiveFromDate: dayOf(now), activeLevel: 1, highestLevel: 1, epoch: null, source: "init", signature: ev.signature, slot: ev.slot });
       const existing = await store.getGalleryPlayer(wallet);
       if (existing) return; // 已由較新的 ClockedIn 建立
       await store.upsertGalleryPlayer({ wallet, shoeLevel: num(p.shoe_level) || 1, coreLevel: 1, xp: 0n, streakDays: 0, maxStreakDays: 0, lastTaskDate: null, slot: ev.slot }, now);
+      return;
+    }
+    case "PlayerMigrated": {
+      // PG-V-02／V-03：遷移保留等級；自 epoch_anchor 當日起可查
+      const lvl = num(p.active_level) || 1;
+      const hi = Math.max(lvl, num(p.highest_level) || 1);
+      await store.insertLevelHistory({ wallet, effectiveFromDate: num(p.epoch_anchor), activeLevel: lvl, highestLevel: hi, epoch: null, source: "migrate", signature: ev.signature, slot: ev.slot });
+      await store.setGalleryHighestLevel(wallet, hi, ev.slot, now);
       return;
     }
     case "ClockedIn":
@@ -24,7 +36,12 @@ export const galleryProjection: Projection = async (ev, store, now) => {
       // PG-V-02：期末結算切換 Active level（shoe_level／core_level 同步）；其餘欄位沿用目前投影
       const cur = await store.getGalleryPlayer(wallet);
       const lvl = num(p.level_after) || 1;
+      const hi = Math.max(lvl, num(p.highest_level) || 1);
       await store.upsertGalleryPlayer({ wallet, shoeLevel: lvl, coreLevel: lvl, xp: cur?.xp ?? 0n, streakDays: cur?.streakDays ?? 0, maxStreakDays: cur?.maxStreakDays ?? 0, lastTaskDate: cur?.lastTaskDate ?? null, slot: ev.slot }, now);
+      await store.setGalleryHighestLevel(wallet, hi, ev.slot, now);
+      // PG-V-03：歷史等級自結算日起生效（settled_at 為鏈上時間）
+      const settledAt = Number(String(p.settled_at ?? "0"));
+      await store.insertLevelHistory({ wallet, effectiveFromDate: settledAt > 0 ? Math.floor(settledAt / 86_400) : dayOf(now), activeLevel: lvl, highestLevel: hi, epoch: num(p.epoch), source: "epoch", signature: `${ev.signature}:${num(p.epoch)}`, slot: ev.slot });
       return;
     }
     case "CollectibleClaimed":

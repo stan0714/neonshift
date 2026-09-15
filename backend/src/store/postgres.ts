@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBadges, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBadges, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, LevelHistoryEntry, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -882,7 +882,7 @@ export class PostgresStore implements Store {
 
   // ---- PG-G-01 ----
   private galleryRow(x: Row): GalleryPlayer {
-    return { wallet: x.wallet as string, shoeLevel: Number(x.shoe_level), coreLevel: Number(x.core_level), xp: BigInt(x.xp as string), streakDays: Number(x.streak_days), maxStreakDays: Number(x.max_streak_days), lastTaskDate: x.last_task_date === null ? null : Number(x.last_task_date), collectibleCount: Number(x.collectible_count), updatedSlot: Number(x.updated_slot), updatedAt: x.updated_at as Date };
+    return { wallet: x.wallet as string, shoeLevel: Number(x.shoe_level), coreLevel: Number(x.core_level), xp: BigInt(x.xp as string), streakDays: Number(x.streak_days), maxStreakDays: Number(x.max_streak_days), lastTaskDate: x.last_task_date === null ? null : Number(x.last_task_date), collectibleCount: Number(x.collectible_count), updatedSlot: Number(x.updated_slot), updatedAt: x.updated_at as Date, highestLevel: Number(x.highest_level ?? 1) };
   }
   private collectibleRow(x: Row): GalleryCollectible {
     return { wallet: x.wallet as string, kind: Number(x.kind), asset: x.asset as string, signature: x.signature as string, slot: Number(x.slot), claimedAt: x.claimed_at as Date };
@@ -892,10 +892,29 @@ export class PostgresStore implements Store {
       `INSERT INTO gallery_players (wallet, shoe_level, core_level, xp, streak_days, max_streak_days, last_task_date, first_seen_slot, updated_slot, updated_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9)
        ON CONFLICT (wallet) DO UPDATE SET shoe_level = EXCLUDED.shoe_level, core_level = EXCLUDED.core_level, xp = EXCLUDED.xp, streak_days = EXCLUDED.streak_days,
-         max_streak_days = EXCLUDED.max_streak_days, last_task_date = EXCLUDED.last_task_date, updated_slot = EXCLUDED.updated_slot, updated_at = EXCLUDED.updated_at
+         max_streak_days = EXCLUDED.max_streak_days, last_task_date = EXCLUDED.last_task_date, updated_slot = EXCLUDED.updated_slot, updated_at = EXCLUDED.updated_at,
+         highest_level = GREATEST(gallery_players.highest_level, EXCLUDED.shoe_level)
        WHERE gallery_players.updated_slot <= EXCLUDED.updated_slot`,
       [p.wallet, p.shoeLevel, p.coreLevel, p.xp.toString(), p.streakDays, p.maxStreakDays, p.lastTaskDate, p.slot, now],
     );
+  }
+  async setGalleryHighestLevel(wallet: string, highestLevel: number, _slot: number, now: Date) {
+    await this.pool.query(`UPDATE gallery_players SET highest_level = GREATEST(highest_level, $2), updated_at = $3 WHERE wallet = $1`, [wallet, highestLevel, now]);
+  }
+  private levelRow(x: Row): LevelHistoryEntry {
+    return { wallet: x.wallet as string, effectiveFromDate: Number(x.effective_from_date), activeLevel: Number(x.active_level), highestLevel: Number(x.highest_level), epoch: x.epoch === null ? null : Number(x.epoch), source: x.source as LevelHistoryEntry["source"], signature: x.signature as string, slot: Number(x.slot) };
+  }
+  async insertLevelHistory(e: LevelHistoryEntry) {
+    const r = await this.pool.query(`INSERT INTO level_history (wallet, effective_from_date, active_level, highest_level, epoch, source, signature, slot) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (wallet, signature, source) DO NOTHING`, [e.wallet, e.effectiveFromDate, e.activeLevel, e.highestLevel, e.epoch, e.source, e.signature, e.slot]);
+    return (r.rowCount ?? 0) > 0;
+  }
+  async levelAt(wallet: string, taskDate: number) {
+    const r = await this.pool.query(`SELECT * FROM level_history WHERE wallet = $1 AND effective_from_date <= $2 ORDER BY effective_from_date DESC, slot DESC LIMIT 1`, [wallet, taskDate]);
+    return r.rows[0] ? this.levelRow(r.rows[0] as Row) : null;
+  }
+  async listLevelHistory(wallet: string, limit: number) {
+    const r = await this.pool.query(`SELECT * FROM level_history WHERE wallet = $1 ORDER BY effective_from_date DESC, slot DESC LIMIT $2`, [wallet, limit]);
+    return (r.rows as Row[]).map((x) => this.levelRow(x));
   }
   async insertGalleryCollectible(c: GalleryCollectible) {
     const r = await this.pool.query(`INSERT INTO gallery_collectibles (wallet, kind, asset, signature, slot, claimed_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (wallet, kind) DO NOTHING`, [c.wallet, c.kind, c.asset, c.signature, c.slot, c.claimedAt]);

@@ -774,6 +774,8 @@ export const zhTW: Record<keyof typeof en, string> = {
   'pb.err.NETWORK_ERROR': '網路問題，尚未鑄造，請再試一次。',
   'pb.err.NOT_AVAILABLE': '這個版本無法鏈上鑄造。',
   'pb.err.generic': '鑄造失敗。{message}',
+  'pb.nftLevelRequired': 'PB NFT 需達成當時跑鞋 Lv{need}（當時 Lv{had}）；紀錄仍保留為私人 PB。',
+  'pb.nftHistoryUnknown': '這筆紀錄的達成日沒有等級歷史，只保留為私人 PB。',
   'ms.title': '首次里程碑',
   'ms.since': '依已匯入的紀錄判定「首次」（自 {date} 起），不代表人生首次。',
   'ms.noData': '尚無已匯入的跑步紀錄。',

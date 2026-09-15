@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.30（維持週期鏈上） |
+| 文件版本 | v0.31（能力快照） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -967,6 +967,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.31 | 2026-09-15 | PG-V-03：level_history 投影、PB NFT Lv3 達成日門檻與能力快照 |
 | v0.30 | 2026-09-15 | PG-V-02：PlayerProfile 維持欄位、settle_player_epochs／migrate_player、clock_in 期末結算、EpochSettled |
 | v0.29 | 2026-09-15 | PG-M-04：活動留念章（events.badges、報名鞋階快照、category 12–13、migration 0014） |
 | v0.28 | 2026-09-15 | PG-M-01／M-02：里程碑判定、穩定 key 併入 achievements、category 7–11、migration 0013 |
@@ -1059,7 +1060,9 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 
 新權限與維持參數尚未部署；此前 SD 3／12 內與本章衝突的永久 XP 升級規則僅記錄現有實作。上線須一次完成鏈上規則、客戶端、索引與遷移，不先以 UI 假裝已降級。具體 canonical 欄位、帳戶空間、batch 上限及費用待正式 PG 拆項後實作驗證。
 
-**實作（2026-09-15，PG-V-02 鏈上狀態／結算／migration）**：`PlayerProfile` 追加 `highest_level u8`、`epoch_anchor u32`（init_player／migrate 當日 UTC 日序）、`last_settled_epoch u32`（cursor＝目前開放期）、`epoch_points u16`、`epoch_bitmap u8`（7-bit 活躍日）、`maintenance_rules_version u16`（71 → 85 bytes；`V1_SPACE = 63`）。純規則 `maintenance.rs`（`epoch_index／day_offset／xp_cap_level／meets／settle_one`，與 `tools/maintenance-sim/rules.mjs` 同版參數：點數 [0,200,450,700,900]、活躍日 [0,2,3,5,6]、步數 100／睡眠 50）。`settle_pending`：逐期結算（缺席期 0 點）、每期 emit `EpochSettled{wallet, epoch, points, active_days, level_before, level_after, highest_level, rules_version, settled_at}`、清空期內累計、cursor +1；`clock_in` 步驟 8b 先順帶結算最多 `MAX_INLINE_SETTLE_EPOCHS = 8` 期，仍未追平 → 6041 `SettlementRequired`；獎勵用結算後 `core_level`；步驟 15 改為累計本期點數與 bitmap（不再由 XP 立即升級）；`ClockedIn` 追加 `epoch／epoch_points／epoch_bitmap／highest_level`。新指令：`settle_player_epochs(max_epochs ≤ 64)`（任何 payer、冪等、bounded）、`migrate_player`（任何 payer 付 rent 差額；驗 owner／discriminator／seeds、長度須為舊版，否則 6042 `AlreadyMigrated`／6043 `InvalidProfileAccount`；保留 levels／XP／streak，active＝max(core, shoe)＝highest，anchor＝當日、cursor 0；emit `PlayerMigrated`）。`claim_collectible` 鞋階 kind 改依 `highest_level`。LiteSVM：期末切換與倍率、缺席逐期降階／bounded／冪等／回歸、6041 後補結算、v1 佈局遷移；App `decodePlayerProfile`（舊 71 bytes → `migrated=false`）、`maintenanceNeeds`（遷移／落後期數）、打卡交易前置 `[migrate_player]` 或落後 > 8 期 `[settle_player_epochs(64)]`；indexer `EpochSettled` → 藝廊等級；chain-admin `migrate-players／settle-players`。**未部署 devnet**（程式需升級；上線步驟：升級 → `migrate-players` → App 更新）。待：V-03 能力快照、V-04 Gear／藝廊維持儀表、V-05 凍結治理。
+**實作（2026-09-15，PG-V-02 鏈上狀態／結算／migration）**：`PlayerProfile` 追加 `highest_level u8`、`epoch_anchor u32`（init_player／migrate 當日 UTC 日序）、`last_settled_epoch u32`（cursor＝目前開放期）、`epoch_points u16`、`epoch_bitmap u8`（7-bit 活躍日）、`maintenance_rules_version u16`（71 → 85 bytes；`V1_SPACE = 63`）。純規則 `maintenance.rs`（`epoch_index／day_offset／xp_cap_level／meets／settle_one`，與 `tools/maintenance-sim/rules.mjs` 同版參數：點數 [0,200,450,700,900]、活躍日 [0,2,3,5,6]、步數 100／睡眠 50）。`settle_pending`：逐期結算（缺席期 0 點）、每期 emit `EpochSettled{wallet, epoch, points, active_days, level_before, level_after, highest_level, rules_version, settled_at}`、清空期內累計、cursor +1；`clock_in` 步驟 8b 先順帶結算最多 `MAX_INLINE_SETTLE_EPOCHS = 8` 期，仍未追平 → 6041 `SettlementRequired`；獎勵用結算後 `core_level`；步驟 15 改為累計本期點數與 bitmap（不再由 XP 立即升級）；`ClockedIn` 追加 `epoch／epoch_points／epoch_bitmap／highest_level`。新指令：`settle_player_epochs(max_epochs ≤ 64)`（任何 payer、冪等、bounded）、`migrate_player`（任何 payer 付 rent 差額；驗 owner／discriminator／seeds、長度須為舊版，否則 6042 `AlreadyMigrated`／6043 `InvalidProfileAccount`；保留 levels／XP／streak，active＝max(core, shoe)＝highest，anchor＝當日、cursor 0；emit `PlayerMigrated`）。`claim_collectible` 鞋階 kind 改依 `highest_level`。LiteSVM：期末切換與倍率、缺席逐期降階／bounded／冪等／回歸、6041 後補結算、v1 佈局遷移；App `decodePlayerProfile`（舊 71 bytes → `migrated=false`）、`maintenanceNeeds`（遷移／落後期數）、打卡交易前置 `[migrate_player]` 或落後 > 8 期 `[settle_player_epochs(64)]`；indexer `EpochSettled` → 藝廊等級；chain-admin `migrate-players／settle-players`。**未部署 devnet**（程式需升級；上線步驟：升級 → `migrate-players` → App 更新）。
+
+**實作（2026-09-15，PG-V-03 能力快照）**：migration 0015 `level_history(wallet, effective_from_date, active_level, highest_level, epoch, source init|migrate|epoch, signature, slot)`（PK wallet＋signature＋source，冪等）與 `gallery_players.highest_level`；投影：`PlayerInitialized` → Lv1（自 finalized 日）、`PlayerMigrated` → 自 `epoch_anchor` 起、`EpochSettled` → 自 `settled_at` 日起 `level_after`，並更新 highest（只增）。`levelAt(wallet, date)`＝生效日 ≤ date 的最新一筆，無 → 無可查歷史。PB 成就 `ensure`：達成日 active_level ≥ `PB_NFT_MIN_LEVEL = 3`，否則 409 `LEVEL_REQUIRED`／`LEVEL_HISTORY_UNKNOWN`（只保留私人 PB，不用匯入時等級、回填無歷史不授予）；通過者把 `capability {active_level, effective_from}` 寫入 metadata `properties`（簽章綁 metadata_hash，不信任 client）。`GET /me/personal-bests` 每組附 `nft_eligibility`；App PB 區塊以原因文字取代 Mint。鞋階 NFT 依 `highest_level`（V-02）、活動章依報名快照 Lv2（M-04）、首次章 Lv1（M-02）。待：V-04 Gear／藝廊維持儀表與 Lifetime 榜、V-05 凍結治理。
 
 ## 15. 首次成就 NFT 契約補充
 

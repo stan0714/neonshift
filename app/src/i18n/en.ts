@@ -795,6 +795,8 @@ export const en = {
   'pb.err.NETWORK_ERROR': 'Network problem — nothing was minted. Try again.',
   'pb.err.NOT_AVAILABLE': 'Onchain minting is not available in this build.',
   'pb.err.generic': 'Minting failed. {message}',
+  'pb.nftLevelRequired': 'PB NFTs need Lv{need} gear at the time of the record (you were Lv{had}). Kept as a private PB.',
+  'pb.nftHistoryUnknown': 'No level history for the day of this record; kept as a private PB.',
   'ms.title': 'Milestones',
   'ms.since': '“First” is judged from records imported since {date} — not necessarily your first ever.',
   'ms.noData': 'No imported runs yet.',
