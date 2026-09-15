@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { compareLeaderboard } from "./leaderboard.js";
-import type { GalleryBoard, LevelHistoryEntry, AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type { CosmeticEntitlement, QuestContribution, QuestEnrollment, QuestReceipt, QuestTemplate, GalleryBoard, LevelHistoryEntry, AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -751,7 +751,62 @@ export class MemoryStore implements Store {
     const i = sortLeaderboard([...this.tournamentSteps.values()].filter((r) => r.weekId === weekId)).findIndex((r) => r.wallet === wallet);
     return i < 0 ? null : i + 1;
   }
+  // ---- PG-U-04：探索冊 ----
+  private questTemplates: QuestTemplate[] = [
+    { templateId: "three_days", version: 1, kind: "active_days", params: { days: 3 }, cosmeticId: "chapter_01_three_days", active: true },
+    { templateId: "timed_goal", version: 1, kind: "goal_time", params: { minutes: [10, 20, 30] }, cosmeticId: "chapter_01_timed_goal", active: true },
+  ];
+  private questEnrollments = new Map<string, QuestEnrollment>();
+  private questContributions = new Map<string, QuestContribution[]>();
+  private questReceipts = new Map<string, QuestReceipt>(); // by enrollmentId
+  private cosmetics: CosmeticEntitlement[] = [];
+  async listQuestTemplates() { return this.questTemplates.filter((t) => t.active).map((t) => ({ ...t })); }
+  async listQuestEnrollments(wallet: string) { return [...this.questEnrollments.values()].filter((e) => e.wallet === wallet).sort((a, b) => b.periodEnd.getTime() - a.periodEnd.getTime()).map((e) => ({ ...e })); }
+  async getQuestEnrollment(wallet: string, enrollmentId: string) { const e = this.questEnrollments.get(enrollmentId); return e && e.wallet === wallet ? { ...e } : null; }
+  async createQuestEnrollment(e: Omit<QuestEnrollment, "status" | "completedAt" | "updatedAt">, now: Date) {
+    const dup = [...this.questEnrollments.values()].find((x) => x.wallet === e.wallet && (x.idempotencyKey === e.idempotencyKey || (x.templateId === e.templateId && x.periodStart.getTime() === e.periodStart.getTime())));
+    if (dup) return { enrollment: { ...dup }, created: false };
+    const row: QuestEnrollment = { ...e, status: "active", completedAt: null, updatedAt: now };
+    this.questEnrollments.set(row.enrollmentId, row);
+    return { enrollment: { ...row }, created: true };
+  }
+  async replaceQuestContributions(enrollmentId: string, list: QuestContribution[]) { this.questContributions.set(enrollmentId, list.map((c) => ({ ...c }))); }
+  async listQuestContributions(enrollmentId: string) { return (this.questContributions.get(enrollmentId) ?? []).map((c) => ({ ...c })); }
+  async setQuestEnrollmentStatus(enrollmentId: string, status: QuestEnrollment["status"], completedAt: Date | null, now: Date) {
+    const e = this.questEnrollments.get(enrollmentId);
+    if (!e) return null;
+    Object.assign(e, { status, completedAt, updatedAt: now });
+    return { ...e };
+  }
+  async issueQuestReceipt(r: Omit<QuestReceipt, "revokedAt" | "revokeReason">, now: Date) {
+    const cur = this.questReceipts.get(r.enrollmentId);
+    if (cur) return { receipt: { ...cur }, created: false };
+    const receipt: QuestReceipt = { ...r, revokedAt: null, revokeReason: null };
+    this.questReceipts.set(r.enrollmentId, receipt);
+    this.cosmetics.push({ wallet: r.wallet, cosmeticId: r.cosmeticId, receiptId: r.receiptId, status: "active", grantedAt: now, updatedAt: now });
+    await this.setQuestEnrollmentStatus(r.enrollmentId, "claimed", this.questEnrollments.get(r.enrollmentId)?.completedAt ?? now, now);
+    return { receipt: { ...receipt }, created: true };
+  }
+  async getQuestReceipt(enrollmentId: string) { const r = this.questReceipts.get(enrollmentId); return r ? { ...r } : null; }
+  async revokeQuestReceipt(enrollmentId: string, reason: string, now: Date) {
+    const r = this.questReceipts.get(enrollmentId);
+    if (r && !r.revokedAt) Object.assign(r, { revokedAt: now, revokeReason: reason });
+    for (const c of this.cosmetics) if (r && c.receiptId === r.receiptId) Object.assign(c, { status: "revoked", updatedAt: now });
+    await this.setQuestEnrollmentStatus(enrollmentId, "revoked", null, now);
+  }
+  async restoreQuestReceipt(enrollmentId: string, now: Date) {
+    const r = this.questReceipts.get(enrollmentId);
+    if (!r) return;
+    Object.assign(r, { revokedAt: null, revokeReason: null });
+    for (const c of this.cosmetics) if (c.receiptId === r.receiptId) Object.assign(c, { status: "active", updatedAt: now });
+    await this.setQuestEnrollmentStatus(enrollmentId, "claimed", this.questEnrollments.get(enrollmentId)?.completedAt ?? now, now);
+  }
+  async listCosmetics(wallet: string) { return this.cosmetics.filter((c) => c.wallet === wallet).map((c) => ({ ...c })); }
+
   async deletePlayerData(wallet: string, now: Date, deferUntil: Date | null): Promise<DeletionResult> {
+    // PG-U-04：探索冊資料隨錢包刪除
+    for (const [id, e] of this.questEnrollments) if (e.wallet === wallet) { this.questEnrollments.delete(id); this.questContributions.delete(id); this.questReceipts.delete(id); }
+    this.cosmetics = this.cosmetics.filter((c) => c.wallet !== wallet);
     const sessions = await this.revokeWallet(wallet, now);
     const p = this.players.get(wallet);
     if (p) {

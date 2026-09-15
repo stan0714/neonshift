@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { color, motion } from '@/theme';
 import { ActivityHistoryScreen } from '@/screens/ActivityHistoryScreen';
+import { ExploreScreen } from '@/screens/ExploreScreen';
 import { AchievementDetailScreen } from '@/screens/gallery/AchievementDetailScreen';
 import { WorkoutsScreen } from '@/screens/WorkoutsScreen';
 import { WorkoutRecordScreen } from '@/screens/workouts/WorkoutRecordScreen';
@@ -59,6 +60,7 @@ export function RootNavigator() {
         <Stack.Screen name="DemoPreview" component={DemoPreviewScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
         <Stack.Screen name="Main" component={MainTabs} />
+        <Stack.Screen name="Explore" component={ExploreScreen} options={{ headerShown: true, title: t('nav.explore'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen
           name="ActivityHistory"
           component={ActivityHistoryScreen}

@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.34（三模式與目標） |
+| 文件版本 | v0.35（探索冊） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -967,6 +967,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.35 | 2026-09-15 | PG-U-04：探索冊 schema（migration 0017）、任務判定與領取／撤銷、API |
 | v0.34 | 2026-09-15 | PG-U-01：workout intent／goal_snapshot（migration 0016）、三模式與目標流程 |
 | v0.33 | 2026-09-15 | PG-V-05：IncidentFreeze PDA、set_incident_freeze、凍結期不升不降、6044 |
 | v0.32 | 2026-09-15 | PG-V-04：藝廊 board=lifetime、App 維持儀表與收藏分區 |
@@ -1109,4 +1110,6 @@ Indoor 不啟用 GPS 推算距離，僅接可信裝置／已標記來源；缺�
 
 擬新增本人任務查詢／接受／領取 API，皆沿用 wallet authentication；接受與領取支援 idempotency key，活動序列與截止時間由服務端驗證。探索模組只讀既有摘要，不寫鏈上維持帳戶或 NFT registry；不收原始座標。具體 schema／API migration 由 PG-U-04 實作並驗證唯一性、併發與刪除事件。
 
-**實作（2026-09-15，PG-U-01）**：migration 0016 `workout_sessions.intent`（NULL｜casual｜brisk｜run，CHECK）與 `goal_snapshot JSONB`；匯入 schema `intent`（walk → casual｜brisk、run → run，不符拒絕；缺省 null，跑步以 `intentOf` 推導 run、走路不自動判定健走）與 `goal {kind free|time|distance, target, unit s|mm, version}`（單位／正值檢查）；`/me/workouts` 回 `intent`、`goal`。App：`workoutPrefsStore`（最近模式與目標，SecureStore）；開始頁三模式 Segmented（走路／健走／跑步＋提示）與目標（自由／10／20／30 分鐘／1／3／5 km，達標只提醒不自動停止）；session meta 記 `intent`／`goal`（開始後固定）；`RecorderSnapshot.goalReached`（時間含暫停 elapsed、距離用接受距離）；記錄頁目標列＋達標一次震動提醒；摘要頁模式標籤與「目標已達成／未達成（已保存實際）」；歷程列表模式標籤（舊資料「走路（未指定模式）」）；Home 固定「開始運動」入口帶最近模式；同步 payload 含 intent／goal。待：U-02 操作鎖／讀屏／語音震動、U-03 週回顧與分享、U-04 探索冊。
+**實作（2026-09-15，PG-U-01）**：migration 0016 `workout_sessions.intent`（NULL｜casual｜brisk｜run，CHECK）與 `goal_snapshot JSONB`；匯入 schema `intent`（walk → casual｜brisk、run → run，不符拒絕；缺省 null，跑步以 `intentOf` 推導 run、走路不自動判定健走）與 `goal {kind free|time|distance, target, unit s|mm, version}`（單位／正值檢查）；`/me/workouts` 回 `intent`、`goal`。App：`workoutPrefsStore`（最近模式與目標，SecureStore）；開始頁三模式 Segmented（走路／健走／跑步＋提示）與目標（自由／10／20／30 分鐘／1／3／5 km，達標只提醒不自動停止）；session meta 記 `intent`／`goal`（開始後固定）；`RecorderSnapshot.goalReached`（時間含暫停 elapsed、距離用接受距離）；記錄頁目標列＋達標一次震動提醒；摘要頁模式標籤與「目標已達成／未達成（已保存實際）」；歷程列表模式標籤（舊資料「走路（未指定模式）」）；Home 固定「開始運動」入口帶最近模式；同步 payload 含 intent／goal。
+
+**實作（2026-09-15，PG-U-04 探索冊）**：migration 0017 `quest_templates`（版本化；首版 `three_days` active_days{days:3}、`timed_goal` goal_time{minutes:[10,20,30]}，各對應外觀 `chapter_01_*`）、`quest_enrollments`（接受時快照模板版本／目標／時區／`period_start`／`period_end`＝本地週一 00:00 起 7 天；`(wallet, idempotency_key)` 與 `(wallet, template_id, period_start)` 唯一；status active→completed→claimed｜expired｜revoked）、`quest_contributions`（PK enrollment＋來源穩定 ID）、`quest_receipts`（enrollment 唯一；撤銷只標 `revoked_at/reason` 保留最小紀錄）、`cosmetic_entitlements`（帳號綁定外觀；無代幣、無維持點、無能力加成；不寫鏈上）。`quests/service.ts`：有效活動＝saved 且非 needs_review／estimated、run｜walk、`started_at ≥ accepted_at`、`ended_at < period_end`、`imported_at ≤ period_end + 48h`、非暫停時長 ≥ 10 分；GPS 來源需 `rules_version ≥ QUEST_GPS_MIN_RULES_VERSION`（未設定＝不計，R-10 定案後開放）；active_days 同日多筆算一天（enrollment 時區）；goal_time 需單筆 `goal_snapshot` 與接受分鐘一致且非暫停時長 ≥ 目標（拆分不累加）；`reevaluate` 於匯入／刪除（`onWorkoutsChanged` hook）與讀取時執行：完成→completed、失去證據→撤銷 receipt＋外觀、再符合→同 receipt 恢復、超過 48h 未完成→expired；接受時同模板週期重疊（含改時區）回既有。API：`GET /me/quests`（templates、enrollments＋progress／contributions、cosmetics、rules）、`POST /me/quests/accept {template_id, goal, timezone(IANA), idempotency_key}`、`POST /me/quests/{id}/claim`（冪等；未完成 409 `QUEST_NOT_COMPLETED`）。錢包刪除一併清除。App：`ExploreScreen`（探索冊格子點亮／未開啟、本週任務進度與狀態、選任務／分鐘、開啟一格、GPS 未開放註記、規則說明；Home 入口）。待：U-05 更正／多裝置／實機驗收。

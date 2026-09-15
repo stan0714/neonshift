@@ -24,6 +24,7 @@ export type RootParamList = {
   Onboarding: NavigatorScreenParams<OnboardingParamList>;
   Main: NavigatorScreenParams<TabParamList>;
   ActivityHistory: undefined;
+  Explore: undefined;
   /** 運動紀錄（PG-R-01，FR-14.1）：匯入的跑步／健走摘要 */
   Workouts: undefined;
   /** GPS 記錄（PG-R-03／R-06，FR-18）：開始 → 記錄 → 摘要 */

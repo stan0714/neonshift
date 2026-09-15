@@ -15,6 +15,7 @@ import { AchievementService, achievementRoutes } from "./pb/achievements.js";
 import { EventBadgeService } from "./milestones/eventBadges.js";
 import { MilestoneService, milestoneRoutes } from "./milestones/service.js";
 import { PersonalBestService, pbRoutes } from "./pb/service.js";
+import { QuestService, questRoutes } from "./quests/service.js";
 import { workoutRoutes } from "./workouts/routes.js";
 import { tournamentRoutes } from "./tournament/routes.js";
 import { TournamentService } from "./tournament/service.js";
@@ -174,7 +175,9 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch, ch
     const achievements = new AchievementService(dataStore, config, attestorSigner, now ?? (() => new Date()), milestones, eventBadges);
     pbs.onRecomputed = async (w, rows) => { await achievements.reconcile(w, rows); await achievements.reconcileMilestones(w); await achievements.reconcileEventBadges(w); }; // PG-M-02／M-04：來源變動同步里程碑／活動章
     await v1.register(partnerRoutes, { auth, store: dataStore, now: now ?? (() => new Date()), pbs, onParticipationChanged: (w) => achievements.reconcileEventBadges(w) });
-    await v1.register(workoutRoutes, { auth, store: dataStore, now: now ?? (() => new Date()), pbs });
+    const quests = new QuestService(dataStore, now ?? (() => new Date()), config.QUEST_GPS_MIN_RULES_VERSION ?? null); // PG-U-04
+    await v1.register(workoutRoutes, { auth, store: dataStore, now: now ?? (() => new Date()), pbs, onWorkoutsChanged: (w) => quests.reevaluate(w).then(() => undefined) });
+    await v1.register(questRoutes, { auth, store: dataStore, quests });
     await v1.register(pbRoutes, { auth, store: dataStore, pbs });
     await v1.register(achievementRoutes, { auth, store: dataStore, achievements, pbs, now: now ?? (() => new Date()), eventBadges });
     await v1.register(milestoneRoutes, { auth, milestones });

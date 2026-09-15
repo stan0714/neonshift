@@ -1,3 +1,4 @@
+import { useNftRevealStore } from './nftRevealStore';
 /** My collection 狀態（PG-A-14）：已領取集合（鏈上 receipt 快取）、進行中的領取與最後結果。 */
 import type { PublicKey } from '@solana/web3.js';
 import { create } from 'zustand';
@@ -43,6 +44,7 @@ export const useCollectibleStore = create<State>((set, get) => ({
     set({ claiming: kind, outcome: null });
     try {
       const result = await collectibleService.claim(wallet, kind);
+      if (!result.alreadyClaimed) useNftRevealStore.getState().enqueue({ id: result.asset, collectible: kind });
       set((s) => ({ claimed: new Set([...s.claimed, kind]), outcome: { kind: 'success', result } }));
     } catch (e) {
       const code = e instanceof ClaimError ? e.code : 'FAILED';

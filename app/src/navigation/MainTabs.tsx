@@ -1,3 +1,4 @@
+import { NftReveal } from '@/components/NftReveal';
 import { Feather } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { StyleSheet, View } from "react-native";
@@ -80,6 +81,7 @@ export function MainTabs() {
         <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: t("nav.profile") }} />
       </Tab.Navigator>
       <EvolutionReveal />
+      <NftReveal />
     </>
   );
 }

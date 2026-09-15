@@ -1,5 +1,5 @@
 /**
- * 升級 reveal（PG-A-17，Style 12／15）：跑鞋等級由 XP 在鏈上自動提升，App 只在觀察到等級比上次看到的高時
+ * 升級 reveal（PG-A-17，Style 12／15）：跑鞋等級由 XP 在鏈上自動提升，App 只在觀察到等級與上次不同時
  * 播放一次 reveal（motion.celebration、success haptic），並記住已看到的等級，重啟或重新同步不重播。
  */
 import * as SecureStore from 'expo-secure-store';
@@ -47,7 +47,7 @@ export const useLevelRevealStore = create<State>((set, get) => ({
       await SecureStore.setItemAsync(KEY, String(level)).catch(() => {});
       return;
     }
-    if (level > lastSeen && !pending) set({ pending: { from: lastSeen, to: level } });
+    if (level !== lastSeen && !pending) set({ pending: { from: lastSeen, to: level } });
   },
 
   setLastTx: (signature) => set({ lastTxSignature: signature }),

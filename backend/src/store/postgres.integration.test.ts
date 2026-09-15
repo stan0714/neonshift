@@ -18,7 +18,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: url });
-    await pool.query("DELETE FROM gallery_prefs; DELETE FROM level_history; DELETE FROM achievements; UPDATE pb_revisions SET previous_pb_id = NULL; DELETE FROM pb_revisions; UPDATE workout_sessions SET possible_duplicate_of = NULL; DELETE FROM workout_sessions; DELETE FROM event_badge_issues; DELETE FROM event_redemptions; DELETE FROM event_benefits; DELETE FROM result_revisions; DELETE FROM result_imports; DELETE FROM event_checkins; DELETE FROM checkin_challenges; DELETE FROM nfc_tags; DELETE FROM checkpoints; DELETE FROM campaign_aggregates; DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; UPDATE events SET current_rule_revision = NULL; DELETE FROM event_rule_revisions; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
+    await pool.query("DELETE FROM gallery_prefs; DELETE FROM cosmetic_entitlements; DELETE FROM quest_receipts; DELETE FROM quest_enrollments; DELETE FROM level_history; DELETE FROM achievements; UPDATE pb_revisions SET previous_pb_id = NULL; DELETE FROM pb_revisions; UPDATE workout_sessions SET possible_duplicate_of = NULL; DELETE FROM workout_sessions; DELETE FROM event_badge_issues; DELETE FROM event_redemptions; DELETE FROM event_benefits; DELETE FROM result_revisions; DELETE FROM result_imports; DELETE FROM event_checkins; DELETE FROM checkin_challenges; DELETE FROM nfc_tags; DELETE FROM checkpoints; DELETE FROM campaign_aggregates; DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; UPDATE events SET current_rule_revision = NULL; DELETE FROM event_rule_revisions; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
     stores = [
       { name: "postgres", store: new PostgresStore(pool) },
       { name: "memory", store: new MemoryStore() },
@@ -432,6 +432,36 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       await store.setGalleryHighestLevel(w, 3, 5, t0);
       await store.setGalleryHighestLevel(w, 2, 6, t0);
       expect((await store.getGalleryPlayer(w))?.highestLevel, name).toBe(3);
+    }
+  });
+  it("quests（U-04）：模板、接受冪等（key／同模板同週期）、貢獻取代、發放同交易（receipt＋外觀＋claimed）、撤銷／恢復、錢包刪除", async () => {
+    for (const { name, store } of stores) {
+      const t0 = new Date("2026-09-16T03:00:00Z");
+      const w = "QW" + name;
+      const templates = await store.listQuestTemplates();
+      expect(templates.map((t) => t.templateId), name).toEqual(["three_days", "timed_goal"]);
+      const base = { enrollmentId: randomUUID(), wallet: w, templateId: "three_days", templateVersion: 1, goal: {}, timezone: "Asia/Taipei", periodStart: new Date("2026-09-13T16:00:00Z"), periodEnd: new Date("2026-09-20T16:00:00Z"), acceptedAt: t0, idempotencyKey: "idem-1" };
+      const a = await store.createQuestEnrollment(base, t0);
+      expect([a.created, a.enrollment.status], name).toEqual([true, "active"]);
+      expect((await store.createQuestEnrollment({ ...base, enrollmentId: randomUUID() }, t0)).created, name).toBe(false); // 同 key
+      expect((await store.createQuestEnrollment({ ...base, enrollmentId: randomUUID(), idempotencyKey: "idem-2" }, t0)).created, name).toBe(false); // 同模板同週期
+      const id = a.enrollment.enrollmentId;
+      await store.replaceQuestContributions(id, [{ enrollmentId: id, sourceKind: "workout", sourceId: "s1", sourceRevision: 1, localDay: "2026-09-16" }, { enrollmentId: id, sourceKind: "workout", sourceId: "s2", sourceRevision: 1, localDay: "2026-09-17" }]);
+      await store.replaceQuestContributions(id, [{ enrollmentId: id, sourceKind: "workout", sourceId: "s2", sourceRevision: 2, localDay: "2026-09-17" }]);
+      expect((await store.listQuestContributions(id)).map((c) => [c.sourceId, c.sourceRevision]), name).toEqual([["s2", 2]]);
+      expect((await store.setQuestEnrollmentStatus(id, "completed", t0, t0))?.status, name).toBe("completed");
+      const r = await store.issueQuestReceipt({ receiptId: randomUUID(), wallet: w, enrollmentId: id, cosmeticId: "chapter_01_three_days", issuedAt: t0 }, t0);
+      expect(r.created, name).toBe(true);
+      expect((await store.issueQuestReceipt({ receiptId: randomUUID(), wallet: w, enrollmentId: id, cosmeticId: "x", issuedAt: t0 }, t0)).created, name).toBe(false);
+      expect((await store.getQuestEnrollment(w, id))?.status, name).toBe("claimed");
+      expect((await store.listCosmetics(w)).map((c) => [c.cosmeticId, c.status]), name).toEqual([["chapter_01_three_days", "active"]]);
+      await store.revokeQuestReceipt(id, "source_removed_or_corrected", t0);
+      expect([(await store.getQuestReceipt(id))?.revokeReason, (await store.listCosmetics(w))[0]?.status, (await store.getQuestEnrollment(w, id))?.status], name).toEqual(["source_removed_or_corrected", "revoked", "revoked"]);
+      await store.restoreQuestReceipt(id, t0);
+      expect([(await store.getQuestReceipt(id))?.revokedAt, (await store.listCosmetics(w))[0]?.status, (await store.getQuestEnrollment(w, id))?.status], name).toEqual([null, "active", "claimed"]);
+      await store.upsertPlayer(w, t0);
+      await store.deletePlayerData(w, t0, null);
+      expect([(await store.listQuestEnrollments(w)).length, (await store.listCosmetics(w)).length, await store.getQuestReceipt(id)], name).toEqual([0, 0, null]);
     }
   });
   it("gallery_prefs（R-09）：hidden 排除排行／計數／搜尋／名次，本人仍可 get；再顯示恢復；getAchievementByAsset", async () => {

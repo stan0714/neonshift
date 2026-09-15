@@ -8,7 +8,7 @@ import { useDashboardStore } from '@/state/dashboardStore';
 import { useLevelRevealStore } from '@/state/levelRevealStore';
 import { ThemeProvider } from '@/theme';
 
-jest.mock('expo-haptics', () => ({ notificationAsync: jest.fn(), NotificationFeedbackType: { Success: 'success' } }));
+jest.mock('expo-haptics', () => ({ notificationAsync: jest.fn(), NotificationFeedbackType: { Success: 'success', Warning: 'warning' } }));
 const Wrapper = ({ children }: PropsWithChildren) => <ThemeProvider>{children}</ThemeProvider>;
 const profile = (shoeLevel: number) => ({ shoeLevel, coreLevel: shoeLevel, xp: BigInt(0), streakDays: 0, maxStreakDays: 0 });
 
@@ -19,6 +19,16 @@ beforeEach(async () => {
 });
 
 describe('levelRevealStore', () => {
+  test('降等確認後可再次升等，同等級同步不重播', async () => {
+    useLevelRevealStore.setState({ lastSeen: 4, loaded: true });
+    await useLevelRevealStore.getState().observe(2);
+    expect(useLevelRevealStore.getState().pending).toEqual({ from: 4, to: 2 });
+    await useLevelRevealStore.getState().acknowledge();
+    await useLevelRevealStore.getState().observe(2);
+    expect(useLevelRevealStore.getState().pending).toBeNull();
+    await useLevelRevealStore.getState().observe(3);
+    expect(useLevelRevealStore.getState().pending).toEqual({ from: 2, to: 3 });
+  });
   test('第一次觀察只記錄；升級才 pending；acknowledge 後持久化', async () => {
     const s = useLevelRevealStore.getState();
     await s.observe(2);

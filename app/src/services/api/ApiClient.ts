@@ -112,6 +112,10 @@ export type MilestoneCategory = 'first_5k' | 'first_10k' | 'first_half' | 'first
 export type MilestoneStatus = 'eligible' | 'pending_review' | 'device_pending' | 'locked';
 export type MilestoneSource = { source: { kind: 'workout' | 'result'; id: string; revision: number }; achieved_at: string | null; distance_mm: string; reason: string | null };
 export type MilestoneItem = { key: string; category: MilestoneCategory; environment: 'outdoor' | 'indoor' | 'unknown'; verification_class: 'organizer' | 'device'; rules_major: number; threshold_mm: string | null; status: MilestoneStatus; first: MilestoneSource | null; pending: MilestoneSource | null };
+/** PG-U-04 探索冊 */
+export type QuestTemplateView = { template_id: string; version: number; kind: 'active_days' | 'goal_time'; params: Record<string, unknown>; cosmetic_id: string };
+export type QuestEnrollmentView = { enrollment_id: string; template_id: string; template_version: number; goal: Record<string, unknown>; timezone: string; period_start: string; period_end: string; late_sync_until: string; accepted_at: string; status: 'active' | 'completed' | 'claimed' | 'expired' | 'revoked'; completed_at: string | null; progress: { current: number; target: number } | null; contributions: { source: { kind: string; id: string; revision: number }; local_day: string }[] };
+export type QuestsResponse = { templates: QuestTemplateView[]; enrollments: QuestEnrollmentView[]; cosmetics: { cosmetic_id: string; receipt_id: string; status: 'active' | 'revoked'; granted_at: string }[]; rules: { min_active_minutes: number; late_sync_hours: number; gps_rewards_enabled: boolean } };
 export type Milestones = { rules_major: number; imported_since: string | null; items: MilestoneItem[]; unlocked_by_source: { kind: 'workout' | 'result'; id: string; categories: MilestoneCategory[] }[] };
 /** PG-M-04：活動留念章（報到／完賽分開；報名時鞋階承諾） */
 export type EventBadgeKind = 'check_in' | 'finish';
@@ -297,6 +301,17 @@ export class ApiClient {
 
   mintIntent(pbId: string, publicConsent: boolean): Promise<MintIntent> {
     return this.request('POST', `/me/achievements/${encodeURIComponent(pbId)}/mint-intent`, { public_consent: publicConsent });
+  }
+
+  // PG-U-04：探索冊
+  quests(): Promise<QuestsResponse> {
+    return this.request('GET', '/me/quests');
+  }
+  acceptQuest(body: { template_id: string; goal: Record<string, unknown>; timezone: string; idempotency_key: string }): Promise<{ enrollment: QuestEnrollmentView; already: boolean }> {
+    return this.request('POST', '/me/quests/accept', body);
+  }
+  claimQuest(enrollmentId: string): Promise<{ receipt: { receipt_id: string; cosmetic_id: string; issued_at: string }; already: boolean; enrollment: QuestEnrollmentView }> {
+    return this.request('POST', `/me/quests/${encodeURIComponent(enrollmentId)}/claim`, {});
   }
 
   milestones(): Promise<Milestones> {

@@ -1,3 +1,4 @@
+import { useNftRevealStore } from '@/state/nftRevealStore';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
@@ -65,6 +66,7 @@ export function EventBadges({ eventId, badges, registration, reloadKey = 0 }: Pr
               void (async () => {
                 try {
                   const r = await achievementService.mint(session.publicKey, intent);
+                  if (r.kind === 'minted' && !r.alreadyMinted) useNftRevealStore.getState().enqueue({ id: r.asset, title: typeof intent.metadata_preview.name === 'string' ? intent.metadata_preview.name : undefined });
                   if (r.kind === 'minted') setNotice({ kind: 'success', title: t('pb.minted'), body: t('pb.mintedBody') });
                 } catch (e) {
                   const code = e instanceof ClaimError ? e.code : 'FAILED';

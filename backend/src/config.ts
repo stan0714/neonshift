@@ -25,6 +25,8 @@ export const configSchema = z.object({
   RETENTION_INTERVAL_MS: z.coerce.number().int().min(60_000).default(60 * 60 * 1000),
   /** 活動個人層資料保留天數（PG-E-09；BRD Q-13／DEC-06 定案前預設 180；活動結束或取消後起算） */
   EVENT_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(180),
+  /** PG-U-04 探索冊：GPS 來源活動需 ≥ 此 GPS 規則版本才計入任務（R-10 品質驗收定案後設定；未設定＝GPS 活動不計入，Health Connect 匯入不受影響） */
+  QUEST_GPS_MIN_RULES_VERSION: z.coerce.number().int().min(1).optional(),
   /** ChainIndexer（PG-B-16）：與 API 同 process 週期同步；正式環境建議單一 replica 開啟 */
   INDEXER_ENABLED: z.coerce.boolean().default(false),
   INDEXER_INTERVAL_MS: z.coerce.number().int().min(1_000).default(10_000),

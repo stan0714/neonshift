@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBadges, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryBoard, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, LevelHistoryEntry, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBadges, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, CosmeticEntitlement, QuestContribution, QuestEnrollment, QuestReceipt, QuestTemplate, GalleryBoard, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, LevelHistoryEntry, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -1073,6 +1073,72 @@ export class PostgresStore implements Store {
     );
     return r.rows[0] ? Number((r.rows[0] as { rank: string | number }).rank) : null;
   }
+  // ---- PG-U-04：探索冊 ----
+  private questTemplateRow(x: Row): QuestTemplate { return { templateId: x.template_id as string, version: Number(x.version), kind: x.kind as QuestTemplate["kind"], params: (x.params as Record<string, unknown>) ?? {}, cosmeticId: x.cosmetic_id as string, active: Boolean(x.active) }; }
+  private questEnrollmentRow(x: Row): QuestEnrollment { return { enrollmentId: x.enrollment_id as string, wallet: x.wallet as string, templateId: x.template_id as string, templateVersion: Number(x.template_version), goal: (x.goal as Record<string, unknown>) ?? {}, timezone: x.timezone as string, periodStart: x.period_start as Date, periodEnd: x.period_end as Date, acceptedAt: x.accepted_at as Date, status: x.status as QuestEnrollment["status"], idempotencyKey: x.idempotency_key as string, completedAt: (x.completed_at as Date | null) ?? null, updatedAt: x.updated_at as Date }; }
+  private questReceiptRow(x: Row): QuestReceipt { return { receiptId: x.receipt_id as string, wallet: x.wallet as string, enrollmentId: x.enrollment_id as string, cosmeticId: x.cosmetic_id as string, issuedAt: x.issued_at as Date, revokedAt: (x.revoked_at as Date | null) ?? null, revokeReason: (x.revoke_reason as string | null) ?? null }; }
+  async listQuestTemplates() { const r = await this.pool.query(`SELECT * FROM quest_templates WHERE active ORDER BY template_id, version`); return (r.rows as Row[]).map((x) => this.questTemplateRow(x)); }
+  async listQuestEnrollments(wallet: string) { const r = await this.pool.query(`SELECT * FROM quest_enrollments WHERE wallet = $1 ORDER BY period_end DESC, accepted_at DESC`, [wallet]); return (r.rows as Row[]).map((x) => this.questEnrollmentRow(x)); }
+  async getQuestEnrollment(wallet: string, enrollmentId: string) { const r = await this.pool.query(`SELECT * FROM quest_enrollments WHERE wallet = $1 AND enrollment_id = $2`, [wallet, enrollmentId]); return r.rows[0] ? this.questEnrollmentRow(r.rows[0] as Row) : null; }
+  async createQuestEnrollment(e: Omit<QuestEnrollment, "status" | "completedAt" | "updatedAt">, now: Date) {
+    const dup = await this.pool.query(`SELECT * FROM quest_enrollments WHERE wallet = $1 AND (idempotency_key = $2 OR (template_id = $3 AND period_start = $4)) LIMIT 1`, [e.wallet, e.idempotencyKey, e.templateId, e.periodStart]);
+    if (dup.rows[0]) return { enrollment: this.questEnrollmentRow(dup.rows[0] as Row), created: false };
+    const r = await this.pool.query(
+      `INSERT INTO quest_enrollments (enrollment_id, wallet, template_id, template_version, goal, timezone, period_start, period_end, accepted_at, status, idempotency_key, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$11)
+       ON CONFLICT DO NOTHING RETURNING *`,
+      [e.enrollmentId, e.wallet, e.templateId, e.templateVersion, JSON.stringify(e.goal), e.timezone, e.periodStart, e.periodEnd, e.acceptedAt, e.idempotencyKey, now],
+    );
+    if (r.rows[0]) return { enrollment: this.questEnrollmentRow(r.rows[0] as Row), created: true };
+    const again = await this.pool.query(`SELECT * FROM quest_enrollments WHERE wallet = $1 AND (idempotency_key = $2 OR (template_id = $3 AND period_start = $4)) LIMIT 1`, [e.wallet, e.idempotencyKey, e.templateId, e.periodStart]);
+    return { enrollment: this.questEnrollmentRow(again.rows[0] as Row), created: false };
+  }
+  async replaceQuestContributions(enrollmentId: string, list: QuestContribution[]) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`DELETE FROM quest_contributions WHERE enrollment_id = $1`, [enrollmentId]);
+      for (const c of list) await client.query(`INSERT INTO quest_contributions (enrollment_id, source_kind, source_id, source_revision, local_day) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`, [enrollmentId, c.sourceKind, c.sourceId, c.sourceRevision, c.localDay]);
+      await client.query("COMMIT");
+    } catch (e) { await client.query("ROLLBACK"); throw e; } finally { client.release(); }
+  }
+  async listQuestContributions(enrollmentId: string) { const r = await this.pool.query(`SELECT * FROM quest_contributions WHERE enrollment_id = $1 ORDER BY local_day`, [enrollmentId]); return (r.rows as Row[]).map((x) => ({ enrollmentId: x.enrollment_id as string, sourceKind: "workout" as const, sourceId: x.source_id as string, sourceRevision: Number(x.source_revision), localDay: x.local_day as string })); }
+  async setQuestEnrollmentStatus(enrollmentId: string, status: QuestEnrollment["status"], completedAt: Date | null, now: Date) { const r = await this.pool.query(`UPDATE quest_enrollments SET status = $2, completed_at = $3, updated_at = $4 WHERE enrollment_id = $1 RETURNING *`, [enrollmentId, status, completedAt, now]); return r.rows[0] ? this.questEnrollmentRow(r.rows[0] as Row) : null; }
+  async issueQuestReceipt(r: Omit<QuestReceipt, "revokedAt" | "revokeReason">, now: Date) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const cur = await client.query(`SELECT * FROM quest_receipts WHERE enrollment_id = $1 FOR UPDATE`, [r.enrollmentId]);
+      if (cur.rows[0]) { await client.query("COMMIT"); return { receipt: this.questReceiptRow(cur.rows[0] as Row), created: false }; }
+      const ins = await client.query(`INSERT INTO quest_receipts (receipt_id, wallet, enrollment_id, cosmetic_id, issued_at) VALUES ($1,$2,$3,$4,$5) RETURNING *`, [r.receiptId, r.wallet, r.enrollmentId, r.cosmeticId, r.issuedAt]);
+      await client.query(`INSERT INTO cosmetic_entitlements (wallet, cosmetic_id, receipt_id, status, granted_at, updated_at) VALUES ($1,$2,$3,'active',$4,$4)`, [r.wallet, r.cosmeticId, r.receiptId, now]);
+      await client.query(`UPDATE quest_enrollments SET status = 'claimed', completed_at = COALESCE(completed_at, $2), updated_at = $2 WHERE enrollment_id = $1`, [r.enrollmentId, now]);
+      await client.query("COMMIT");
+      return { receipt: this.questReceiptRow(ins.rows[0] as Row), created: true };
+    } catch (e) { await client.query("ROLLBACK"); throw e; } finally { client.release(); }
+  }
+  async getQuestReceipt(enrollmentId: string) { const r = await this.pool.query(`SELECT * FROM quest_receipts WHERE enrollment_id = $1`, [enrollmentId]); return r.rows[0] ? this.questReceiptRow(r.rows[0] as Row) : null; }
+  async revokeQuestReceipt(enrollmentId: string, reason: string, now: Date) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const r = await client.query(`UPDATE quest_receipts SET revoked_at = COALESCE(revoked_at, $2), revoke_reason = COALESCE(revoke_reason, $3) WHERE enrollment_id = $1 RETURNING receipt_id`, [enrollmentId, now, reason]);
+      if (r.rows[0]) await client.query(`UPDATE cosmetic_entitlements SET status = 'revoked', updated_at = $2 WHERE receipt_id = $1`, [(r.rows[0] as Row).receipt_id, now]);
+      await client.query(`UPDATE quest_enrollments SET status = 'revoked', updated_at = $2 WHERE enrollment_id = $1`, [enrollmentId, now]);
+      await client.query("COMMIT");
+    } catch (e) { await client.query("ROLLBACK"); throw e; } finally { client.release(); }
+  }
+  async restoreQuestReceipt(enrollmentId: string, now: Date) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const r = await client.query(`UPDATE quest_receipts SET revoked_at = NULL, revoke_reason = NULL WHERE enrollment_id = $1 RETURNING receipt_id`, [enrollmentId]);
+      if (r.rows[0]) await client.query(`UPDATE cosmetic_entitlements SET status = 'active', updated_at = $2 WHERE receipt_id = $1`, [(r.rows[0] as Row).receipt_id, now]);
+      await client.query(`UPDATE quest_enrollments SET status = 'claimed', completed_at = COALESCE(completed_at, $2), updated_at = $2 WHERE enrollment_id = $1`, [enrollmentId, now]);
+      await client.query("COMMIT");
+    } catch (e) { await client.query("ROLLBACK"); throw e; } finally { client.release(); }
+  }
+  async listCosmetics(wallet: string) { const r = await this.pool.query(`SELECT * FROM cosmetic_entitlements WHERE wallet = $1 ORDER BY granted_at DESC`, [wallet]); return (r.rows as Row[]).map((x) => ({ wallet: x.wallet as string, cosmeticId: x.cosmetic_id as string, receiptId: x.receipt_id as string, status: x.status as CosmeticEntitlement["status"], grantedAt: x.granted_at as Date, updatedAt: x.updated_at as Date })); }
+
   async deletePlayerData(wallet: string, now: Date, deferUntil: Date | null): Promise<DeletionResult> {
     const client = await this.pool.connect();
     try {
@@ -1093,6 +1159,10 @@ export class PostgresStore implements Store {
         await client.query(`DELETE FROM tournament_steps WHERE wallet = $1`, [wallet]);
         await client.query(`UPDATE workout_sessions SET possible_duplicate_of = NULL WHERE wallet = $1`, [wallet]);
         await client.query(`DELETE FROM workout_sessions WHERE wallet = $1`, [wallet]); // PG-R-01：運動摘要一併刪除
+        // PG-U-04：探索冊（權限 → receipt → enrollment；contributions 隨 enrollment 級聯）
+        await client.query(`DELETE FROM cosmetic_entitlements WHERE wallet = $1`, [wallet]);
+        await client.query(`DELETE FROM quest_receipts WHERE wallet = $1`, [wallet]);
+        await client.query(`DELETE FROM quest_enrollments WHERE wallet = $1`, [wallet]);
         await client.query(`DELETE FROM achievements WHERE wallet = $1 AND minted_signature IS NULL`, [wallet]); // PG-R-08：未鑄造刪除；已鑄造保留鏈上事實
         await client.query(`INSERT INTO gallery_prefs (wallet, hidden, updated_at) VALUES ($1, true, $2) ON CONFLICT (wallet) DO UPDATE SET hidden = true, updated_at = EXCLUDED.updated_at`, [wallet, now]); // PG-R-09：停止藝廊展示
         await client.query(`UPDATE pb_revisions SET previous_pb_id = NULL WHERE wallet = $1`, [wallet]);

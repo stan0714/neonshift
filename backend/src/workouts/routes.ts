@@ -40,7 +40,7 @@ export function workoutView(w: WorkoutSession) {
   };
 }
 
-export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthService; store: Store; now: () => Date; pbs?: PersonalBestService }) {
+export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthService; store: Store; now: () => Date; pbs?: PersonalBestService; /** PG-U-04：匯入／刪除後重算探索冊任務 */ onWorkoutsChanged?: (wallet: string) => Promise<void> }) {
   const { auth, store, now, pbs } = opts;
 
   app.post("/workouts/import", { preHandler: requireAuth(auth), config: { rateLimit: { max: app.config.RATE_LIMIT_SENSITIVE_PER_MINUTE, timeWindow: "1 minute" } } }, async (req, reply) => {
@@ -68,6 +68,7 @@ export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthServ
       results.push({ external_record_id: w.external_record_id, outcome: r.outcome, session: workoutView(r.session) });
     }
     if (pbs && results.some((r) => r.outcome === "created" || r.outcome === "superseded")) await pbs.recompute(wallet); // PG-R-07：匯入後重算 PB
+    if (opts.onWorkoutsChanged && results.some((r) => r.outcome === "created" || r.outcome === "superseded")) await opts.onWorkoutsChanged(wallet);
     return reply.status(created > 0 ? 201 : 200).send({ imported: created, results });
   });
 
@@ -91,6 +92,7 @@ export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthServ
     const ok = await store.deleteWorkout(req.auth!.wallet, id.data, now());
     if (!ok) throw new ApiError(404, "NOT_FOUND", "workout not found");
     if (pbs) await pbs.recompute(req.auth!.wallet); // 刪除 → 撤銷候選、重算（BR-40）
+    if (opts.onWorkoutsChanged) await opts.onWorkoutsChanged(req.auth!.wallet);
     return reply.status(204).send();
   });
 }

@@ -1,5 +1,4 @@
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useMemo } from "react";
 import { Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
@@ -55,10 +54,7 @@ export function GearScreen() {
     void refresh();
   }, [refresh]);
 
-  useEffect(() => {
-    if (c.outcome?.kind === "success" && !c.outcome.result.alreadyClaimed)
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [c.outcome]);
+
 
   const level = (d.profile?.coreLevel ?? d.profile?.shoeLevel ?? 1) as ShoeLevel; // PG-V-04：Hero 只展示 Active level
   const highest = Math.max(d.profile?.highestLevel ?? 1, level);

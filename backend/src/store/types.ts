@@ -26,7 +26,7 @@ export type Session = {
 
 export type Player = { wallet: string; firstSeenAt: Date; lastSeenAt: Date; deletedAt: Date | null };
 
-export interface Store extends ClaimStore, PlayerDataStore, TournamentStore, IndexerStore, RetentionStore, GalleryStore, PartnerStore {
+export interface Store extends QuestStore, ClaimStore, PlayerDataStore, TournamentStore, IndexerStore, RetentionStore, GalleryStore, PartnerStore {
   insertChallenge(c: Challenge): Promise<void>;
   /** 原子消耗：只有未使用且未過期才會成功，回傳被消耗的 challenge */
   consumeChallenge(nonceHash: Buffer, now: Date): Promise<Challenge | null>;
@@ -415,3 +415,29 @@ export type NfcTag = { tagId: string; eventId: string; checkpointId: string | nu
 
 /** levelAtRegistration：報名時鞋階快照（PG-M-04／shoe-gameplay：活動 NFT 依報名時承諾權限，之後降級不沒收）；舊列 null */
 export type EventParticipant = { eventId: string; wallet: string; status: "registered" | "cancelled" | "checked_in"; acceptedRuleRevision: string; displayName: string | null; publicConsentAt: Date | null; registeredAt: Date; cancelledAt: Date | null; retentionDueAt: Date | null; levelAtRegistration: number | null };
+
+// ---------------- PG-U-04：個人週任務與探索冊（SD 17） ----------------
+export type QuestTemplate = { templateId: string; version: number; kind: "active_days" | "goal_time"; params: Record<string, unknown>; cosmeticId: string; active: boolean };
+export type QuestEnrollment = { enrollmentId: string; wallet: string; templateId: string; templateVersion: number; goal: Record<string, unknown>; timezone: string; periodStart: Date; periodEnd: Date; acceptedAt: Date; status: "active" | "completed" | "claimed" | "expired" | "revoked"; idempotencyKey: string; completedAt: Date | null; updatedAt: Date };
+export type QuestContribution = { enrollmentId: string; sourceKind: "workout"; sourceId: string; sourceRevision: number; localDay: string };
+export type QuestReceipt = { receiptId: string; wallet: string; enrollmentId: string; cosmeticId: string; issuedAt: Date; revokedAt: Date | null; revokeReason: string | null };
+export type CosmeticEntitlement = { wallet: string; cosmeticId: string; receiptId: string; status: "active" | "revoked"; grantedAt: Date; updatedAt: Date };
+
+export interface QuestStore {
+  listQuestTemplates(): Promise<QuestTemplate[]>;
+  listQuestEnrollments(wallet: string): Promise<QuestEnrollment[]>;
+  getQuestEnrollment(wallet: string, enrollmentId: string): Promise<QuestEnrollment | null>;
+  /** 冪等：同 wallet＋idempotency_key 或同 wallet＋template＋period_start → 回既有（created=false） */
+  createQuestEnrollment(e: Omit<QuestEnrollment, "status" | "completedAt" | "updatedAt">, now: Date): Promise<{ enrollment: QuestEnrollment; created: boolean }>;
+  replaceQuestContributions(enrollmentId: string, list: QuestContribution[]): Promise<void>;
+  listQuestContributions(enrollmentId: string): Promise<QuestContribution[]>;
+  setQuestEnrollmentStatus(enrollmentId: string, status: QuestEnrollment["status"], completedAt: Date | null, now: Date): Promise<QuestEnrollment | null>;
+  /** 發放：receipt＋外觀權限＋enrollment=claimed 同交易；已發放回既有 */
+  issueQuestReceipt(r: Omit<QuestReceipt, "revokedAt" | "revokeReason">, now: Date): Promise<{ receipt: QuestReceipt; created: boolean }>;
+  getQuestReceipt(enrollmentId: string): Promise<QuestReceipt | null>;
+  /** 撤銷：receipt 標記（保留最小紀錄）、外觀權限 revoked、enrollment=revoked */
+  revokeQuestReceipt(enrollmentId: string, reason: string, now: Date): Promise<void>;
+  /** 撤銷後重新符合：同 receipt 恢復（清 revoked_at、外觀 active、enrollment=claimed），不重發 */
+  restoreQuestReceipt(enrollmentId: string, now: Date): Promise<void>;
+  listCosmetics(wallet: string): Promise<CosmeticEntitlement[]>;
+}
