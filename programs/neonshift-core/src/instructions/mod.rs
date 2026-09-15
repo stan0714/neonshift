@@ -4,6 +4,7 @@ pub mod claim_collectible;
 pub mod clock_in;
 pub mod init_player;
 pub mod initialize_config;
+pub mod maintenance;
 pub mod settlement;
 pub mod tournament;
 
@@ -13,5 +14,6 @@ pub use claim_collectible::*;
 pub use clock_in::*;
 pub use init_player::*;
 pub use initialize_config::*;
+pub use maintenance::*;
 pub use settlement::*;
 pub use tournament::*;

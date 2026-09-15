@@ -18,7 +18,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: url });
-    await pool.query("DELETE FROM gallery_prefs; DELETE FROM achievements; UPDATE pb_revisions SET previous_pb_id = NULL; DELETE FROM pb_revisions; UPDATE workout_sessions SET possible_duplicate_of = NULL; DELETE FROM workout_sessions; DELETE FROM event_badge_issues; DELETE FROM event_redemptions; DELETE FROM event_benefits; DELETE FROM result_revisions; DELETE FROM result_imports; DELETE FROM event_checkins; DELETE FROM checkin_challenges; DELETE FROM nfc_tags; DELETE FROM checkpoints; DELETE FROM campaign_aggregates; DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; UPDATE events SET current_rule_revision = NULL; DELETE FROM event_rule_revisions; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
+    await pool.query("DELETE FROM gallery_prefs; DELETE FROM level_history; DELETE FROM achievements; UPDATE pb_revisions SET previous_pb_id = NULL; DELETE FROM pb_revisions; UPDATE workout_sessions SET possible_duplicate_of = NULL; DELETE FROM workout_sessions; DELETE FROM event_badge_issues; DELETE FROM event_redemptions; DELETE FROM event_benefits; DELETE FROM result_revisions; DELETE FROM result_imports; DELETE FROM event_checkins; DELETE FROM checkin_challenges; DELETE FROM nfc_tags; DELETE FROM checkpoints; DELETE FROM campaign_aggregates; DELETE FROM event_audit_logs; DELETE FROM event_roles; DELETE FROM event_participants; UPDATE events SET current_rule_revision = NULL; DELETE FROM event_rule_revisions; DELETE FROM events; DELETE FROM partner_memberships; DELETE FROM partner_organizations; DELETE FROM gallery_collectibles; DELETE FROM gallery_players; DELETE FROM chain_cursor; DELETE FROM chain_events; DELETE FROM tournament_steps; DELETE FROM claim_results; DELETE FROM attestations; DELETE FROM health_snapshots; DELETE FROM auth_sessions; DELETE FROM auth_challenges; DELETE FROM players;");
     stores = [
       { name: "postgres", store: new PostgresStore(pool) },
       { name: "memory", store: new MemoryStore() },
@@ -230,11 +230,12 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       expect((await store.getMembership(orgId, owner))?.revokedAt, name).toBeNull();
 
       const eventId = randomUUID();
-      const e = await store.createEvent({ eventId, orgId, slug: "ev-" + name, title: "T", description: "", timezone: "UTC", registrationOpensAt: null, registrationClosesAt: null, startsAt: null, endsAt: null, capacity: 10, tournamentAddress: null, createdBy: owner }, now);
+      const e = await store.createEvent({ eventId, orgId, slug: "ev-" + name, title: "T", description: "", timezone: "UTC", registrationOpensAt: null, registrationClosesAt: null, startsAt: null, endsAt: null, capacity: 10, tournamentAddress: null, badges: { checkIn: true, finish: true }, createdBy: owner }, now);
       expect([e.state, e.revision], name).toEqual(["draft", 1]);
       expect(await store.updateEvent(eventId, 99, { title: "X" }, now), name).toBeNull(); // 版本不符
-      const u = await store.updateEvent(eventId, 1, { title: "River 5K", capacity: 50 }, now);
-      expect([u?.title, u?.capacity, u?.revision], name).toEqual(["River 5K", 50, 2]);
+      expect(e.badges, name).toEqual({ checkIn: true, finish: true }); // PG-M-04
+      const u = await store.updateEvent(eventId, 1, { title: "River 5K", capacity: 50, badges: { checkIn: false, finish: true } }, now);
+      expect([u?.title, u?.capacity, u?.revision, u?.badges], name).toEqual(["River 5K", 50, 2, { checkIn: false, finish: true }]);
       const rev = await store.addRuleRevision({ revisionId: randomUUID(), eventId, version: 1, rules: { distance_m: 5000 }, rulesHash: Buffer.alloc(32, 1), createdBy: owner }, now);
       expect(await store.transitionEvent(eventId, ["published"], "cancelled", {}, now), name).toBeNull(); // from 不符
       const pub = await store.transitionEvent(eventId, ["draft"], "published", { currentRuleRevision: rev.revisionId }, now);
@@ -260,12 +261,15 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       const owner = "O" + name;
       await store.createOrganization({ orgId, name: "Org2 " + name, slug: "org2-" + name, createdBy: owner }, now);
       const eventId = randomUUID();
-      await store.createEvent({ eventId, orgId, slug: "ev2-" + name, title: "T", description: "", timezone: "UTC", registrationOpensAt: null, registrationClosesAt: null, startsAt: now, endsAt: new Date("2026-10-03T04:00:00Z"), capacity: 2, tournamentAddress: null, createdBy: owner }, now);
+      await store.createEvent({ eventId, orgId, slug: "ev2-" + name, title: "T", description: "", timezone: "UTC", registrationOpensAt: null, registrationClosesAt: null, startsAt: now, endsAt: new Date("2026-10-03T04:00:00Z"), capacity: 2, tournamentAddress: null, badges: { checkIn: false, finish: false }, createdBy: owner }, now);
       const rev = await store.addRuleRevision({ revisionId: randomUUID(), eventId, version: 1, rules: {}, rulesHash: Buffer.alloc(32, 2), createdBy: owner }, now);
       await store.transitionEvent(eventId, ["draft"], "published", { currentRuleRevision: rev.revisionId }, now);
       const [a, b, c] = ["A" + name, "B" + name, "C" + name];
       // 報名：容量 2、重複 exists、第三人 full；取消釋放
-      expect(typeof (await store.registerParticipant({ eventId, wallet: a, acceptedRuleRevision: rev.revisionId, displayName: "Alice", publicConsent: true }, now)), name).toBe("object");
+      const reg = await store.registerParticipant({ eventId, wallet: a, acceptedRuleRevision: rev.revisionId, displayName: "Alice", publicConsent: true, levelAtRegistration: 2 }, now);
+      expect(typeof reg, name).toBe("object");
+      expect((reg as { levelAtRegistration: number | null }).levelAtRegistration, name).toBe(2); // PG-M-04 報名時鞋階快照
+      expect((await store.getParticipant(eventId, a))?.levelAtRegistration, name).toBe(2);
       expect(await store.registerParticipant({ eventId, wallet: a, acceptedRuleRevision: rev.revisionId, displayName: null, publicConsent: false }, now), name).toBe("exists");
       await store.registerParticipant({ eventId, wallet: b, acceptedRuleRevision: rev.revisionId, displayName: null, publicConsent: false }, now);
       expect(await store.registerParticipant({ eventId, wallet: c, acceptedRuleRevision: rev.revisionId, displayName: null, publicConsent: false }, now), name).toBe("full");
@@ -384,7 +388,7 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       const rows = await store.syncPbRevisions(wallet, [{ key: "run|longest_run|outdoor|device|elapsed|1", discipline: "run", category: "longest_run", environment: "outdoor", verificationClass: "device", timingBasis: "elapsed", rulesMajor: 1, value: 5_000_000n, sourceKind: "workout", sourceId: "s", sourceRevision: 1, achievedAt: t0, status: "current", isBaseline: true, previousSourceId: null }], t0);
       const pb = rows[0]!;
       const id = "a".repeat(64);
-      const base = { achievementId: id, wallet, pbId: pb.pbId, category: "longest_run", verificationClass: "device" as const, sourceRevision: 1, rulesMajor: 1, publicConsent: false, metadata: { name: "x" }, metadataHash: Buffer.alloc(32, 1), status: "pending_registry" as const, registrySignature: null, registryUpdatedAt: null, asset: null, mintedSignature: null, mintedAt: null };
+      const base = { achievementId: id, wallet, kind: "pb" as const, pbId: pb.pbId, milestoneKey: null, sourceKind: "workout" as const, sourceId: pb.sourceId, category: "longest_run", verificationClass: "device" as const, sourceRevision: 1, rulesMajor: 1, publicConsent: false, metadata: { name: "x" }, metadataHash: Buffer.alloc(32, 1), status: "pending_registry" as const, registrySignature: null, registryUpdatedAt: null, asset: null, mintedSignature: null, mintedAt: null };
       const a1 = await store.upsertAchievement(base, t0);
       expect(a1.status, name).toBe("pending_registry");
       await store.setAchievementStatus(id, "approved", { registrySignature: "sig1" }, t0);
@@ -398,6 +402,35 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       await store.deletePlayerData(wallet, t0, null);
       expect((await store.listAchievements(wallet)).length, name).toBe(1); // 已鑄造保留
       expect((await store.listPbRevisions(wallet)).length, name).toBe(1); // 其 PB 列保留
+      // PG-M-02：里程碑成就（pb_id 空、milestone_key 唯一）；setAchievementSource 只動來源；錢包刪除未鑄造者刪除、PB 刪除不受 NULL pb_id 影響
+      const mid = "b".repeat(64);
+      const ms = { ...base, achievementId: mid, kind: "milestone" as const, pbId: null, milestoneKey: "first_5k|outdoor|device", sourceKind: "workout" as const, sourceId: "w1", category: "first_5k", metadataHash: Buffer.alloc(32, 9) };
+      const m1 = await store.upsertAchievement(ms, t0);
+      expect([m1.kind, m1.pbId, m1.milestoneKey, m1.sourceId], name).toEqual(["milestone", null, "first_5k|outdoor|device", "w1"]);
+      const m2 = await store.setAchievementSource(mid, { sourceKind: "workout", sourceId: "w0", sourceRevision: 2 }, t0);
+      expect([m2?.sourceId, m2?.sourceRevision, m2?.status, m2?.metadataHash.equals(Buffer.alloc(32, 9))], name).toEqual(["w0", 2, "pending_registry", true]);
+      await store.deletePlayerData(wallet, t0, null);
+      expect((await store.listAchievements(wallet)).map((x) => x.achievementId), name).toEqual([id]); // 未鑄造里程碑刪除、已鑄造 PB 成就保留
+      expect((await store.listPbRevisions(wallet)).length, name).toBe(1);
+    }
+  });
+  it("level_history（V-03）：插入冪等（wallet+signature+source）、levelAt 取生效日 ≤ 查詢日的最新一筆、highest 只增", async () => {
+    for (const { name, store } of stores) {
+      const t0 = new Date("2026-09-14T00:00:00Z");
+      const w = "LH" + name;
+      await store.upsertGalleryPlayer({ wallet: w, shoeLevel: 2, coreLevel: 2, xp: 500n, streakDays: 0, maxStreakDays: 0, lastTaskDate: null, slot: 1 }, t0);
+      expect(await store.insertLevelHistory({ wallet: w, effectiveFromDate: 20_700, activeLevel: 1, highestLevel: 1, epoch: null, source: "init", signature: "i", slot: 1 }), name).toBe(true);
+      expect(await store.insertLevelHistory({ wallet: w, effectiveFromDate: 20_700, activeLevel: 1, highestLevel: 1, epoch: null, source: "init", signature: "i", slot: 1 }), name).toBe(false);
+      await store.insertLevelHistory({ wallet: w, effectiveFromDate: 20_707, activeLevel: 3, highestLevel: 3, epoch: 1, source: "epoch", signature: "e1", slot: 5 });
+      await store.insertLevelHistory({ wallet: w, effectiveFromDate: 20_714, activeLevel: 2, highestLevel: 3, epoch: 2, source: "epoch", signature: "e2", slot: 9 });
+      expect((await store.levelAt(w, 20_699)), name).toBeNull();
+      expect((await store.levelAt(w, 20_706))?.activeLevel, name).toBe(1);
+      expect((await store.levelAt(w, 20_710))?.activeLevel, name).toBe(3);
+      expect((await store.levelAt(w, 20_800))?.activeLevel, name).toBe(2);
+      expect((await store.listLevelHistory(w, 10)).map((h) => h.signature), name).toEqual(["e2", "e1", "i"]);
+      await store.setGalleryHighestLevel(w, 3, 5, t0);
+      await store.setGalleryHighestLevel(w, 2, 6, t0);
+      expect((await store.getGalleryPlayer(w))?.highestLevel, name).toBe(3);
     }
   });
   it("gallery_prefs（R-09）：hidden 排除排行／計數／搜尋／名次，本人仍可 get；再顯示恢復；getAchievementByAsset", async () => {

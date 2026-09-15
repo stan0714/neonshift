@@ -16,7 +16,7 @@ const MPL = "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d";
 function clockedInBytes(wallet: PublicKey, nonce: Buffer, over: Partial<{ xp: bigint; shoe: number; streak: number; maxStreak: number }> = {}) {
   const disc = (decoder as unknown as { byDisc: Map<string, { name: string }> }).byDisc;
   const discHex = [...disc.entries()].find(([, v]) => v.name === "ClockedIn")![0];
-  const b = Buffer.alloc(8 + 32 + 4 + 1 + 8 + 8 + 1 + 1 + 2 + 2 + 16);
+  const b = Buffer.alloc(8 + 32 + 4 + 1 + 8 + 8 + 1 + 1 + 2 + 2 + 16 + 4 + 2 + 1 + 1); // PG-V-02：＋epoch u32、epoch_points u16、epoch_bitmap u8、highest_level u8
   Buffer.from(discHex, "hex").copy(b, 0);
   wallet.toBuffer().copy(b, 8);
   let o = 40;
@@ -28,7 +28,11 @@ function clockedInBytes(wallet: PublicKey, nonce: Buffer, over: Partial<{ xp: bi
   b.writeUInt8(1, o++);
   b.writeUInt16LE(over.streak ?? 1, o); o += 2;
   b.writeUInt16LE(over.maxStreak ?? 1, o); o += 2;
-  nonce.copy(b, o);
+  nonce.copy(b, o); o += 16;
+  b.writeUInt32LE(0, o); o += 4; // epoch
+  b.writeUInt16LE(100, o); o += 2; // epoch_points
+  b.writeUInt8(1, o++); // epoch_bitmap
+  b.writeUInt8(over.shoe ?? 1, o++); // highest_level
   return b;
 }
 

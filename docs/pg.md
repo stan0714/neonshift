@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.39（PG-R-09 完成） |
+| 文件版本 | v0.48（PG-V-05 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -92,16 +92,17 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-I 基礎建設 | 8 | 0 | 6.5 | 環境、專案骨架、CI、部署 |
 | PG-C 鏈上程式 | 18 | 0 | 21.5 | 含 DEFER 項，保留原估算 |
 | PG-B 後端服務 | 19 | 0 | 19.5 | API、風險引擎、簽章、索引 |
-| PG-A 行動 App | 22 | 0 | 27.0 | 原生橋接、畫面、交易組裝 |
+| PG-A 行動 App | 23 | 0 | 28.5 | 原生橋接、畫面、交易組裝 |
 | PG-D 交付物 | 6 | 0 | 6.0 | APK、素材、影片、Pitch |
 | PG-G 藝廊 | 4 | 0 | 5.5 | 既有收藏與展示 |
 | PG-E 合作活動 | 10 | 0 | 24.0 | 活動工作流 |
 | PG-R 運動／PB | 12 | 0 | 38.0 | GPS、分圈、速度、PB；日期待排 |
 | PG-M 首次紀念 | 5 | 0 | 11.5 | 里程碑、紀念 NFT；日期待排 |
 | PG-V 維持遊戲 | 5 | 0 | 16.0 | 維持、降階、權限；日期待排 |
-| **合計** | **109** | **0** | **175.5** | 全部工作列估算，含 DEFER，未含緩衝 |
+| PG-U 運動體驗／探索 | 5 | 0 | 17.0 | 新增體驗與探索冊；日期待排 |
+| **合計** | **115** | **0** | **194.0** | 全部工作列估算，含 DEFER，未含緩衝 |
 
-2026-09-14 依工作列重算；新增 R／M／V 共 22 項、65.5 人天。WIP 不代表完成；既有任務狀態保持原值。第 1.2 指令的剩餘人天排除 DONE／DEFER，與本表全項目估算口徑不同。
+2026-09-15 依工作列重算；R／M／V 共 22 項、65.5 人天；本次 U 再增 5 項、17.0 人天。WIP 不代表完成；既有任務狀態保持原值。第 1.2 指令的剩餘人天排除 DONE／DEFER，與本表全項目估算口徑不同。
 
 **人力假設**：內部提交目標前共有 20 個週一至週五日曆日，尚未扣除國定假日、請假與會議。80.5 人天是無中斷的基準估算；加入 20% review、整合與返工緩衝後約為 96.6 人天，實務上需要約 5 人全職。若只有 4 人，名目容量僅 80 人天且沒有任何風險空間，必須在第一週依第 7.1 節完成範圍變更，而不能等到第三週才砍功能。這對應 BRD Q-01。
 
@@ -258,6 +259,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | DEC-01 | 全部 | 團隊人數、角色與至少 5 FTE 的容量安排（BRD Q-01） | 專案負責人 | 2026-09-10 | OPEN |
 | DEC-02 | PG-I-08、PG-D-02 | SKR integration track 是否接受 tSKR（BRD Q-08） | 專案負責人 | 2026-09-10 | OPEN |
 | DEC-03 | PG-D-06、SD 6.2 | 升級免費後 tSKR 消耗／產出比 ≈ 0（BRD 8.5 目標 ≥ 0.6）：獎金池抽成、退款比例、外觀消耗或改以 runway 為指標（docs/economics/README.md） | 專案負責人 | 2026-09-21 | OPEN |
+| DEC-04 | PG-V-01、PG-V-02 | 睡眠不可用者最高只能 Lv4（步數 700 < Lv5 900）：(a) 接受並明示、(b) 全體一致替代挑戰（跑步 session +50）、(c) Lv5 改 700／7 日（docs/economics/maintenance-sim.md） | 專案負責人 | 2026-09-22 | OPEN |
 
 DEC-02 若判定必須整合主網官方 SKR，PG-I-08 的 tSKR 路線、SA 5.4 與鏈上金庫設計都必須重估；不得在現有四週估算內直接替換。
 
@@ -565,6 +567,15 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.48 | 2026-09-15 | PG-V-05 完成（WIP）：事故凍結治理與攻擊測試 |
+| v0.47 | 2026-09-15 | PG-V-04 完成（WIP）：維持儀表、收藏分區、雙榜 |
+| v0.46 | 2026-09-15 | PG-V-03 完成（WIP）：歷史等級與 PB 能力快照 |
+| v0.45 | 2026-09-15 | PG-V-02 完成（WIP）：鏈上維持週期、結算與遷移 |
+| v0.44 | 2026-09-15 | PG-V-01 完成（WIP）：維持規則 v1 模擬與參數；新增 DEC-04 |
+| v0.43 | 2026-09-15 | PG-M-04 完成（WIP）：活動留念章（報到／完賽、Lv2 報名快照、藝廊 Events） |
+| v0.42 | 2026-09-15 | PG-M-03 完成（WIP）：紀念作品、Milestones 收藏與領取預覽、藝廊首次篩選 |
+| v0.41 | 2026-09-15 | PG-M-01／M-02 完成（WIP）：里程碑判定與穩定 key 鑄造 |
+| v0.40 | 2026-09-15 | PG-R-12 完成（WIP）：跑道模式與等效圈提示 |
 | v0.39 | 2026-09-15 | PG-R-09 完成（WIP）：藝廊 PB 卡、NFT 詳情、退出藝廊、作品 |
 | v0.38 | 2026-09-14 | PG-R-08 完成（WIP）：成就證明格式、registry、claim_achievement、簽發與 App 鑄造流程 |
 | v0.37 | 2026-09-14 | PG-R-07 完成（WIP）：PB 分組、版本鏈與更正重算 |
@@ -678,27 +689,27 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-R-09 | PB 櫃／藝廊／公開同意與保留刪除整合 | activity-running-gallery 6；Style 20 | FR-13.5、13.6 | 2.5 | WIP | 2026-09-15 完成：migration 0012 `gallery_prefs`（退出只停止展示；排行／計數／搜尋／名次排除、他人 404、本人可見；player 刪除自動隱藏）；玩家頁 `achievements` 公開投影（系列、類別、來源、Current／Historical／Invalidated、公開同意才有值）、`GET /gallery/achievements/{asset}` NFT 詳情（原達成者、鑄造日期、network、Explorer）、`/me/gallery-privacy`；12 張 PB 作品（Speed 計時環／Distance 里程弧，`web/nft/achievements/`）；App PbCard、Gallery 篩選 All／Shoes／Events／Personal best、PB 櫃連結、NFT 詳情頁、Profile 藝廊開關與「跑步歷程與 PB 櫃」入口；vitest 1＋PG 整合 1、Jest 4。待：Events 篩選（活動 NFT 未實作）、現持有人（需鏈上查詢） |
 | PG-R-10 | 距離／速度／圈數、NFT 重放與實機長時間驗收 | walk-run-tracking 7；activity-running-gallery 8 | FR-14、15、18 | 4.0 | TODO | 待指派 |
 | PG-R-11 | MET 熱量估算與模型／體重同意 | activity-running-gallery 4.1 | FR-14.3 | 2.0 | TODO | 待指派；模型定案後開發 |
-| PG-R-12 | 400m 跑道等效圈模式與提示 | walk-run-tracking 5 | FR-18.6 | 1.5 | TODO | 待指派；不含實體過線偵測 |
+| PG-R-12 | 400m 跑道等效圈模式與提示 | walk-run-tracking 5 | FR-18.6 | 1.5 | WIP | 2026-09-15：開始頁跑道模式 Off／400 m／200 m／自訂（100～2000 m 整數），需「我已核對圈長」開關才可開始；`trackLapMm` 寫入 session meta、恢復沿用；引擎 `trackEquivalent()` 記錄中即時「第 N 圈＋餘數」與摘要共用，皆標「依距離估算、非實體過線」；extras `track_equivalent` 上傳。不含實體過線偵測（需實機另開）；App 206 測試 |
 
 ### 18.2 PG-M 首次與紀念 NFT
 
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
-| PG-M-01 | 首 5K／10K／半馬／全馬、First Finish 資格判定 | commemorative-nfts 1、2 | FR-17.1、BR-46 | 2.0 | TODO | 待指派 |
-| PG-M-02 | 首次 stable key、registry／receipt、更正及終身防重領 | commemorative-nfts 4 | FR-17.3、BR-47 | 2.5 | TODO | 待指派 |
-| PG-M-03 | 四款紀念作品、Milestones 收藏／鑄造預覽 | commemorative-nfts 5；Style 22 | FR-17.4 | 3.0 | TODO | 待指派 |
-| PG-M-04 | 活動 First Finish／專屬紀念章權限與端到端驗收 | commemorative-nfts 2、3、6 | FR-17.2、BR-48 | 2.0 | TODO | 待指派 |
+| PG-M-01 | 首 5K／10K／半馬／全馬、First Finish 資格判定 | commemorative-nfts 1、2 | FR-17.1、BR-46 | 2.0 | WIP | 2026-09-15：`milestones/compute.ts`（整數毫米門檻、單次不累加、裝置 5K／10K 開放、半馬／全馬 device_pending、待審／估算／手動不合格、主辦方 FINISHED＋賽事時間、同筆全馬解鎖四章同一來源、首次＝最早）；`GET /me/milestones`；vitest 5（含 §6 邊界 4,999.999／5,000…42,194.999／42,195） |
+| PG-M-02 | 首次 stable key、registry／receipt、更正及終身防重領 | commemorative-nfts 4 | FR-17.3、BR-47 | 2.5 | WIP | 2026-09-15：migration 0013（achievements kind／milestone_key 唯一／source_*）；`achievement_id = sha256("neonshift-milestone\|wallet\|key")`；`POST /me/milestones/mint-intent`；Rust／TS category 7–11、向量 12 組、LiteSVM 通過；`reconcileMilestones`（失效撤銷、重新達標同 id 恢復、更早回填／更正不重發；已鑄造只更新來源）；藝廊投影 kind＝milestone；vitest 2＋PG 整合。待：devnet 程式升級後 sync-achievements |
+| PG-M-03 | 四款紀念作品、Milestones 收藏／鑄造預覽 | commemorative-nfts 5；Style 22 | FR-17.4 | 3.0 | WIP | 2026-09-15：9 張作品（`web/nft/achievements/milestones/`，四距離 × 官方／裝置＋First Finish）；App `Milestones` 區塊（Gear 收藏；狀態 7 種、涵蓋起點、逐枚領取提示、同意 → 領取預覽逐項列出公開內容＋費用 → MWA）；藝廊「首次」篩選、首次區與 PB 分列、卡片／詳情支援里程碑；ApiClient `milestones／milestoneMintIntent`；Jest 208／208。待：實機驗證、devnet 程式升級 |
+| PG-M-04 | 活動 First Finish／專屬紀念章權限與端到端驗收 | commemorative-nfts 2、3、6 | FR-17.2、BR-48 | 2.0 | WIP | 2026-09-15：migration 0014（events.badges、level_at_registration、achievements kind=event）；`eventBadges.ts`（報到章／完賽章分開、Lv2 報名快照承諾、取消／更正撤銷、同 id 恢復）；`/me/event-badges`＋mint-intent；category 12／13（Rust／TS／向量、LiteSVM 通過）；2 張通用作品；App 活動詳情 `EventBadges` 區塊與藝廊 Events 篩選；vitest 2、PG 整合、Jest 210／210。待：實機 NFC／報到／鑄造端到端驗收、主辦方 UI 設定 badges（目前僅 API） |
 | PG-M-05 | 回歸／週年章、歷史涵蓋及保留政策 | commemorative-nfts 2 | FR-17.2、BR-49 | 2.0 | TODO | 待指派；第二階段 |
 
 ### 18.3 PG-V 跑鞋維持制度
 
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
-| PG-V-01 | 90 天維持情境／經濟模擬與參數定案 | shoe-gameplay 3、4、8 | FR-16 | 2.0 | TODO | 待指派 |
-| PG-V-02 | Active／Highest／週期帳戶、結算及 migration | shoe-gameplay 7；SD 14 | BR-41～43 | 5.0 | TODO | 待指派 |
-| PG-V-03 | 倍率與歷史鑄造／活動／PB 能力快照 | shoe-gameplay 5、7 | FR-16.4、BR-44 | 3.0 | TODO | 待指派 |
-| PG-V-04 | Gear 維持儀表、歷史收藏、現役／歷史榜 | shoe-gameplay 6；Style 21 | FR-16.1～3 | 3.0 | TODO | 待指派 |
-| PG-V-05 | 凍結治理、版本遷移、結算／撤銷攻擊與實機驗收 | shoe-gameplay 4、8 | FR-16.5、BR-45 | 3.0 | TODO | 待指派 |
+| PG-V-01 | 90 天維持情境／經濟模擬與參數定案 | shoe-gameplay 3、4、8 | FR-16 | 2.0 | WIP | 2026-09-15：`tools/maintenance-sim/rules.mjs`（規則 v1 純函式：點數／活躍日／結算順序／缺席逐期）＋ 5 組邊界測試；`simulate.mjs` 六情境 98 天 → `docs/economics/maintenance-sim.csv`／`.md`（首次啟用 7／14／28／56 日、四期缺席 Lv5→Lv1、回歸 750→Lv4／900→Lv5 與規格一致；獎勵較舊規則 −3～18%）。**待決 DEC-04：睡眠不可用者最高 Lv4** |
+| PG-V-02 | Active／Highest／週期帳戶、結算及 migration | shoe-gameplay 7；SD 14 | BR-41～43 | 5.0 | WIP | 2026-09-15：PlayerProfile ＋6 欄位（71→85）、`maintenance.rs` 純規則（與 rules.mjs 同版）、`settle_player_epochs`（任何 payer、≤ 64 期、冪等）、`migrate_player`（保留等級、當日起新週期）、clock_in 順帶結算 ≤ 8 期／6041、獎勵用結算後等級、期內點數／bitmap、`EpochSettled`／`PlayerMigrated` 事件、鞋階 NFT 依 highest；App 解碼／前置指令；indexer 投影；chain-admin migrate／settle；Rust 100 測試、Jest 211、vitest 193。待：devnet 升級＋migrate-players、實機 |
+| PG-V-03 | 倍率與歷史鑄造／活動／PB 能力快照 | shoe-gameplay 5、7 | FR-16.4、BR-44 | 3.0 | WIP | 2026-09-15：migration 0015 `level_history`＋`gallery_players.highest_level`；投影 init／migrate／epoch；PB NFT 需達成日 Lv3（`LEVEL_REQUIRED`／`LEVEL_HISTORY_UNKNOWN`，回填無歷史只留私人 PB）、能力快照寫入 metadata（簽章綁定）；`/me/personal-bests.nft_eligibility`；App 顯示原因；鞋階依 highest、活動章 Lv2 快照、首次章 Lv1；vitest、PG 整合 17、Jest 211。待：實機 |
+| PG-V-04 | Gear 維持儀表、歷史收藏、現役／歷史榜 | shoe-gameplay 6；Style 21 | FR-16.1～3 | 3.0 | WIP | 2026-09-15：App `domain/maintenance.ts`＋4 測試；Gear Active／Highest Chip、本期維持區塊（倒數、點數／活躍日、維持／升階／回歸差額、未遷移／待結算狀態）、收藏三區與 History 標籤（鞋階資格依歷史最高）；藝廊「現役排行／歷史成就」雙榜（後端 `board=lifetime`）；Jest 218、vitest 193。待：實機、48／24 小時提醒（通知權限未實作） |
+| PG-V-05 | 凍結治理、版本遷移、結算／撤銷攻擊與實機驗收 | shoe-gameplay 4、8 | FR-16.5、BR-45 | 3.0 | WIP | 2026-09-15：`IncidentFreeze` PDA＋`set_incident_freeze`（admin、視窗檢查 6044、(0,0) 清除、事件）；結算凍結期不升不降、`EpochSettled.frozen`；規則版本寫入 profile／事件、遷移保留等級；LiteSVM 攻擊／邊界（非 admin、非法視窗、重疊／非重疊期、清除後恢復、錯誤 freeze 帳戶、重送、6041、6042／6043）Rust 101；App freeze 帳戶讀取／指令帶入／Gear 提示；chain-admin `set-freeze`。待：實機驗收、devnet 升級（含 migrate-players） |
 
 ### 18.4 依賴、批次及排程狀態
 
@@ -714,3 +725,17 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 追溯：RUN-01 沿用 PG-E；RUN-02→R-01／02；RUN-03→R-02／11；RUN-04→R-07；RUN-05→R-08；RUN-06→R-09；RUN-07→R-03～06／12；RUN-08→R-10。MEM-01～05→M-01～05，GAME-01～05→V-01～05。既有 PG-G／E 只算原功能，新增增量以上列為準。
 
 正式上線前須確認：每項負責人、團隊可用人天、批次開始／截止日、裝置清單、最高速度品質門檻與定位隱私政策。現在均未指派／未定日期，不虛構排程完成。上述設計規格的每條驗收需映射到 PR／測試證據，完成仍依 PG 12 通則。
+
+## 19. 運動體驗與探索遊戲增量（2026-09-15）
+
+規格：[運動體驗與探索遊戲](./sport-experience-gameplay.md)。以下僅估新增增量，不重算 PG-R 的 GPS 引擎、PG-V 的鏈上維持及 PG-M 的 NFT。既有 WIP 狀態保留；這次只更新文件。
+
+| 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
+|---|---|---|---|---|---|---|
+| PG-U-01 | 三模式、intent 相容、目標快照與開始／摘要流程 | sport-experience-gameplay 1、2、4 | FR-19.1、BR-55 | 3.0 | TODO | 待指派 |
+| PG-U-02 | 操作鎖、大字／讀屏、可選語音與震動 | sport-experience-gameplay 3；Style 24 | FR-19.2 | 3.0 | TODO | 待指派 |
+| PG-U-03 | 模式篩選、週回顧、同類比较及分享預覽 | sport-experience-gameplay 4 | FR-19.3、BR-59 | 3.0 | TODO | 待指派 |
+| PG-U-04 | 任務模板、接受／領取、去重與探索冊外觀 | sport-experience-gameplay 5；SD 17 | FR-19.4、BR-56、57 | 5.0 | TODO | 待指派 |
+| PG-U-05 | 刪除／更正撤銷、多裝置重試及實機體驗驗收 | sport-experience-gameplay 7 | FR-19.5、BR-58 | 3.0 | TODO | 待指派 |
+
+新增 5 項，初估 17.0 人天（未含緩衝），需負責人確認；尚無交付日期，不加入原四週承諾。U-01 依賴 R-01／R-03／R-06，U-02／03 接 U-01；U-04 在 R-10 品質規則定案後才可開放獎勵，U-05 驗收全流程後發布。三模式與目標可先交付，探索獎勵由獨立功能開關控制。小隊／跑走交替／走路 NFT 不在本次估算內，另行拆項。

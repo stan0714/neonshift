@@ -156,3 +156,16 @@ test('手動圈與 400 m 自動圈為獨立序列；手動圈不重設公里分�
   expect(s.trackEquivalent).toMatchObject({ laps: 5, lapMm: 400_000 });
   expect(s.trackEquivalent!.remainderMm / 1000).toBeCloseTo(350, -1);
 });
+
+test('PG-R-12 跑道等效圈：記錄中即時 floor＋餘數、與摘要一致；未啟用 → null；圈長非正數 → null', () => {
+  const e = new GpsMetricsEngine('run', { trackLapMm: 200_000 });
+  e.start(0);
+  expect(e.trackEquivalent()).toEqual({ laps: 0, remainderMm: 0, lapMm: 200_000 });
+  run(track({ speedMs: 4, seconds: 125 }), e); // ≈ 500 m
+  const live = e.trackEquivalent()!;
+  expect(live.laps).toBe(2);
+  expect(live.remainderMm / 1000).toBeCloseTo(100, -1);
+  expect(e.finish(125_000).trackEquivalent).toEqual(live);
+  expect(new GpsMetricsEngine('run').trackEquivalent()).toBeNull();
+  expect(new GpsMetricsEngine('run', { trackLapMm: 0 }).trackEquivalent()).toBeNull();
+});

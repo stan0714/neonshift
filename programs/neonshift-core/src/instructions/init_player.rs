@@ -43,6 +43,14 @@ pub fn handle_init_player(ctx: Context<InitPlayer>) -> Result<()> {
     profile.claimed_today = 0;
     profile.today_date = 0;
     profile.bump = ctx.bumps.profile;
+    // PG-V-02：週期 anchor＝建立當日 UTC 日序；歷史最高＝Lv1
+    let today = u32::try_from(Clock::get()?.unix_timestamp.div_euclid(SECONDS_PER_DAY)).map_err(|_| crate::error::ErrorCode::InvalidTaskDate)?;
+    profile.highest_level = PlayerProfile::MIN_LEVEL;
+    profile.epoch_anchor = today;
+    profile.last_settled_epoch = 0;
+    profile.epoch_points = 0;
+    profile.epoch_bitmap = 0;
+    profile.maintenance_rules_version = MAINTENANCE_RULES_VERSION;
 
     emit!(PlayerInitialized { wallet: profile.wallet, profile: profile.key(), shoe_level: profile.shoe_level });
     Ok(())

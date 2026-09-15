@@ -1,5 +1,5 @@
 /**
- * PB 成就 NFT 鑄造（PG-R-08，FR-15.2／BR-39）：後端 mint-intent（registry 已核准才有證明）→ [ed25519, claim_achievement] 以 MWA 簽送。
+ * PB 成就 NFT 鑄造（PG-R-08，FR-15.2／BR-39）與首次里程碑鑄造（PG-M-03，FR-17.4）：後端 mint-intent（registry 已核准才有證明）→ [ed25519, claim_achievement] 以 MWA 簽送。
  * 不花 tSKR，只付 rent（費用由後端揭露）；冪等：receipt PDA 存在即已鑄造，不重送。
  */
 import { PublicKey } from '@solana/web3.js';
@@ -21,6 +21,14 @@ export type MintOutcome = { kind: 'minted'; asset: string; signature: string | n
 export const achievementService = {
   intent(pbId: string, publicConsent: boolean) {
     return apiClient.mintIntent(pbId, publicConsent);
+  },
+  /** PG-M-03：首次里程碑以穩定 key 申請（同 key 終身一枚；證明與鑄造流程共用） */
+  milestoneIntent(key: string, publicConsent: boolean) {
+    return apiClient.milestoneMintIntent(key, publicConsent);
+  },
+  /** PG-M-04：活動留念章（報到／完賽；每玩家／活動／章別一次） */
+  eventBadgeIntent(eventId: string, kind: 'check_in' | 'finish', publicConsent: boolean) {
+    return apiClient.eventBadgeMintIntent(eventId, kind, publicConsent);
   },
 
   async mint(wallet: PublicKey, intent: MintIntent): Promise<MintOutcome> {

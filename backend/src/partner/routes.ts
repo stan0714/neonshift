@@ -36,6 +36,8 @@ const eventFields = {
   ends_at: iso.nullable(),
   capacity: z.number().int().min(0).max(100_000),
   tournament_address: base58.nullable(),
+  // PG-M-04：活動留念章（報到章／完賽章分開發行；不含主辦方商標）
+  badges: z.object({ check_in: z.boolean().default(false), finish: z.boolean().default(false) }).strict(),
 };
 const eventBody = z.object({
   slug,
@@ -48,6 +50,7 @@ const eventBody = z.object({
   ends_at: eventFields.ends_at.default(null),
   capacity: eventFields.capacity.default(0),
   tournament_address: eventFields.tournament_address.default(null),
+  badges: eventFields.badges.default({ check_in: false, finish: false }),
 });
 // PATCH：沒有 default，未給的欄位不動
 const eventPatch = z
@@ -61,6 +64,7 @@ const eventPatch = z
     ends_at: eventFields.ends_at.optional(),
     capacity: eventFields.capacity.optional(),
     tournament_address: eventFields.tournament_address.optional(),
+    badges: eventFields.badges.optional(),
     revision: z.number().int().min(1),
   })
   .strict();
@@ -88,6 +92,7 @@ export function publicEventView(e: EventRow, rule: EventRuleRevision | null) {
     registration_count: e.registrationCount,
     spots_left: e.capacity === 0 ? null : Math.max(0, e.capacity - e.registrationCount),
     tournament_address: e.tournamentAddress,
+    badges: { check_in: e.badges.checkIn, finish: e.badges.finish },
     rules: rule ? { version: rule.version, revision_id: rule.revisionId, rules: rule.rules, published_at: rule.publishedAt?.toISOString() ?? null } : null,
     cancel_reason: e.state === "cancelled" ? e.cancelReason : null,
   };
@@ -95,8 +100,8 @@ export function publicEventView(e: EventRow, rule: EventRuleRevision | null) {
 
 const partnerEventView = (e: EventRow) => ({ ...publicEventView(e, null), org_id: e.orgId, revision: e.revision, current_rule_revision: e.currentRuleRevision, created_by: e.createdBy, updated_at: e.updatedAt.toISOString() });
 
-export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthService; store: Store; now: () => Date; pbs?: PersonalBestService }) {
-  const { auth, store, now, pbs } = opts;
+export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthService; store: Store; now: () => Date; pbs?: PersonalBestService; /** PG-M-04：取消報名等參與狀態變動後同步活動章 */ onParticipationChanged?: (wallet: string) => Promise<void> }) {
+  const { auth, store, now, pbs, onParticipationChanged } = opts;
   const authz = new PartnerAuthz(store, now);
   const ops = (req: FastifyRequest) => {
     const token = app.config.OPS_TOKEN;
@@ -153,7 +158,9 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
     const t = now();
     if ((e.registrationOpensAt && t < e.registrationOpensAt) || (e.registrationClosesAt && t >= e.registrationClosesAt) || (e.endsAt && t >= e.endsAt)) throw new ApiError(409, "EVENT_NOT_OPEN", "registration is not open");
     if (b.accepted_rule_revision !== e.currentRuleRevision) throw new ApiError(409, "REVISION_CONFLICT", "rules changed; reload and accept the current rules");
-    const r = await store.registerParticipant({ eventId: e.eventId, wallet: req.auth!.wallet, acceptedRuleRevision: b.accepted_rule_revision, displayName: b.display_name, publicConsent: b.public_consent }, t);
+    // PG-M-04：報名時快照鞋階（活動 NFT 承諾權限，之後降級不沒收）；無藝廊投影 → Lv1
+    const levelAtRegistration = (await store.getGalleryPlayer(req.auth!.wallet))?.shoeLevel ?? 1;
+    const r = await store.registerParticipant({ eventId: e.eventId, wallet: req.auth!.wallet, acceptedRuleRevision: b.accepted_rule_revision, displayName: b.display_name, publicConsent: b.public_consent, levelAtRegistration }, t);
     if (r === "not_open") throw new ApiError(409, "EVENT_NOT_OPEN", "registration is not open");
     if (r === "full") throw new ApiError(409, "EVENT_FULL", "event is full");
     if (r === "exists") return reply.status(200).send({ registration: participantView((await store.getParticipant(e.eventId, req.auth!.wallet))!), already: true });
@@ -168,6 +175,7 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
     const p = await store.cancelRegistration(e.eventId, req.auth!.wallet, now());
     if (!p) throw new ApiError(404, "NOT_FOUND", "no active registration");
     await authz.audit(req, { eventId: e.eventId, orgId: e.orgId, action: "registration.cancel" });
+    if (onParticipationChanged) await onParticipationChanged(req.auth!.wallet);
     return reply.status(204).send();
   });
 
@@ -559,7 +567,7 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
     await authz.requireOrgOwner(b.org_id, req.auth!.wallet);
     if (await store.getEventBySlug(b.slug)) throw new ApiError(409, "SLUG_TAKEN", "event slug already exists");
     if (b.starts_at && b.ends_at && b.starts_at >= b.ends_at) throw new ApiError(422, "VALIDATION", "starts_at must be before ends_at");
-    const e = await store.createEvent({ eventId: randomUUID(), orgId: b.org_id, slug: b.slug, title: b.title, description: b.description, timezone: b.timezone, registrationOpensAt: b.registration_opens_at, registrationClosesAt: b.registration_closes_at, startsAt: b.starts_at, endsAt: b.ends_at, capacity: b.capacity, tournamentAddress: b.tournament_address, createdBy: req.auth!.wallet }, now());
+    const e = await store.createEvent({ eventId: randomUUID(), orgId: b.org_id, slug: b.slug, title: b.title, description: b.description, timezone: b.timezone, registrationOpensAt: b.registration_opens_at, registrationClosesAt: b.registration_closes_at, startsAt: b.starts_at, endsAt: b.ends_at, capacity: b.capacity, tournamentAddress: b.tournament_address, badges: { checkIn: b.badges.check_in, finish: b.badges.finish }, createdBy: req.auth!.wallet }, now());
     await authz.audit(req, { eventId: e.eventId, orgId: e.orgId, action: "event.create" });
     return reply.status(201).send(partnerEventView(e));
   });
@@ -577,7 +585,7 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
     if (access.event.state === "cancelled" || access.event.state === "completed") throw new ApiError(409, "EVENT_CANCELLED", `event is ${access.event.state}`);
     const b = parse(eventPatch, req.body);
     const { revision, ...rest } = b;
-    const patch = Object.fromEntries(Object.entries({ title: rest.title, description: rest.description, timezone: rest.timezone, registrationOpensAt: rest.registration_opens_at, registrationClosesAt: rest.registration_closes_at, startsAt: rest.starts_at, endsAt: rest.ends_at, capacity: rest.capacity, tournamentAddress: rest.tournament_address }).filter(([, v]) => v !== undefined));
+    const patch = Object.fromEntries(Object.entries({ title: rest.title, description: rest.description, timezone: rest.timezone, registrationOpensAt: rest.registration_opens_at, registrationClosesAt: rest.registration_closes_at, startsAt: rest.starts_at, endsAt: rest.ends_at, capacity: rest.capacity, tournamentAddress: rest.tournament_address, badges: rest.badges ? { checkIn: rest.badges.check_in, finish: rest.badges.finish } : undefined }).filter(([, v]) => v !== undefined));
     if ("capacity" in patch && (patch.capacity as number) !== 0 && (patch.capacity as number) < access.event.registrationCount) throw new ApiError(422, "VALIDATION", "capacity below current registrations");
     const updated = await store.updateEvent(id, revision, patch, now());
     if (!updated) throw new ApiError(409, "REVISION_CONFLICT", "event was modified by someone else; reload and retry");

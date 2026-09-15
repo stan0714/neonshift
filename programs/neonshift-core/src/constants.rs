@@ -94,6 +94,27 @@ pub mod tournament_status {
     pub const CANCELLED: u8 = 6;
 }
 
+// ---- PG-V-02：跑鞋維持挑戰（shoe-gameplay 3、4；tools/maintenance-sim/rules.mjs 同版參數）----
+/// 維持規則版本
+pub const MAINTENANCE_RULES_VERSION: u16 = 1;
+/// 每期任務日數
+pub const EPOCH_DAYS: u32 = 7;
+/// 每階每期維持點門檻（index＝level−1；Lv1 不要求）
+pub const MAINTENANCE_POINTS: [u16; 5] = [0, 200, 450, 700, 900];
+/// 每階每期至少活躍日
+pub const MAINTENANCE_ACTIVE_DAYS: [u8; 5] = [0, 2, 3, 5, 6];
+/// 維持點：步數／睡眠（與 XP 數字相同，但每期重算）
+pub const MAINTENANCE_POINTS_STEPS: u16 = 100;
+pub const MAINTENANCE_POINTS_SLEEP: u16 = 50;
+/// clock_in 內可順帶結算的最多期數；超過須先呼叫 `settle_player_epochs`（bounded，禁止無界迴圈）
+pub const MAX_INLINE_SETTLE_EPOCHS: u32 = 8;
+/// `settle_player_epochs` 單次最多結算期數
+pub const MAX_BATCH_SETTLE_EPOCHS: u8 = 64;
+/// PG-V-05：incident freeze PDA seed；視窗最長 4 期；start 不得早於 now − 7 天（不回寫更早已結束的週期）
+pub const FREEZE_SEED: &[u8] = b"freeze";
+pub const MAX_FREEZE_SECONDS: i64 = 28 * SECONDS_PER_DAY;
+pub const MAX_FREEZE_BACKDATE_SECONDS: i64 = 7 * SECONDS_PER_DAY;
+
 // ---- PG-R-08：成就（PB）NFT ----
 /// eligibility registry PDA seeds `["eligibility", wallet, achievement_id]`
 pub const ELIGIBILITY_SEED: &[u8] = b"eligibility";

@@ -6,6 +6,9 @@
  *   npm run admin -- rotate-attestor <env> <newPubkey> <graceSeconds>
  *   npm run admin -- tournament <sub> <env> <weekId> [...]   # 見 tournament.ts
  *   OPS_TOKEN=… npm run admin -- sync-achievements <env> [--dry-run]   # PG-R-08 registry
+ *   npm run admin -- migrate-players <env> [--dry-run]                 # PG-V-02 舊帳戶遷移
+ *   npm run admin -- settle-players <env> [--dry-run]                  # PG-V-02 批次結算
+ *   npm run admin -- set-freeze <env> <startISO|0> <endISO|0> [reason]  # PG-V-05 全域凍結
  */
 import { PublicKey } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
@@ -13,6 +16,7 @@ import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { createCtx, DEFAULT_CONFIG, programDataAddress } from "./client.js";
 import { loadKeypair, require_ } from "./env.js";
 import { syncAchievements } from "./achievements.js";
+import { migratePlayers, setFreeze, settlePlayers } from "./maintenance.js";
 import { tournamentCommand } from "./tournament.js";
 
 const argv = process.argv.slice(2);
@@ -21,7 +25,7 @@ const [cmd, envName, ...rest] = argv[0] === "tournament" ? ["tournament", argv[2
 
 async function main() {
   if (!cmd || !envName) {
-    console.error("用法：admin <init-config|status|set-paused|rotate-attestor|tournament|sync-achievements> <dev|demo> [...]");
+    console.error("用法：admin <init-config|status|set-paused|rotate-attestor|tournament|sync-achievements|migrate-players|settle-players|set-freeze> <dev|demo> [...]");
     process.exit(2);
   }
   const ctx = createCtx(envName);
@@ -86,6 +90,15 @@ async function main() {
       break;
     case "sync-achievements":
       await syncAchievements(ctx, rest.includes("--dry-run"));
+      break;
+    case "migrate-players":
+      await migratePlayers(ctx, rest.includes("--dry-run"));
+      break;
+    case "settle-players":
+      await settlePlayers(ctx, rest.includes("--dry-run"));
+      break;
+    case "set-freeze":
+      await setFreeze(ctx, rest[0]!, rest[1]!, rest.filter((x) => x !== "--dry-run").slice(2).join(" ") || "incident", rest.includes("--dry-run"));
       break;
     default:
       console.error(`未知指令 ${cmd}`);

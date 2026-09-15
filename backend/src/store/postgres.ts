@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBadges, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryBoard, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, LevelHistoryEntry, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -34,6 +34,9 @@ const toPlayer = (r: Row): Player => ({
 });
 
 /** PostgreSQL 實作（SD 4.5）。所有一次性語意都靠單一 UPDATE … WHERE 的原子性，不做讀後寫。 */
+/** events.badges JSONB → EventBadges（缺欄位視為未發行） */
+const badgesOf = (v: unknown): EventBadges => { const o = (v ?? {}) as { check_in?: unknown; finish?: unknown }; return { checkIn: o.check_in === true, finish: o.finish === true }; };
+
 export class PostgresStore implements Store {
   constructor(private readonly pool: pg.Pool) {}
 
@@ -193,6 +196,7 @@ export class PostgresStore implements Store {
       registrationOpensAt: (x.registration_opens_at as Date | null) ?? null, registrationClosesAt: (x.registration_closes_at as Date | null) ?? null, startsAt: (x.starts_at as Date | null) ?? null, endsAt: (x.ends_at as Date | null) ?? null,
       purgedAt: (x.purged_at as Date | null) ?? null,
       capacity: Number(x.capacity), registrationCount: Number(x.registration_count), currentRuleRevision: (x.current_rule_revision as string | null) ?? null, tournamentAddress: (x.tournament_address as string | null) ?? null,
+      badges: badgesOf(x.badges),
       revision: Number(x.revision), cancelReason: (x.cancel_reason as string | null) ?? null, createdBy: x.created_by as string, createdAt: x.created_at as Date, updatedAt: x.updated_at as Date, publishedAt: (x.published_at as Date | null) ?? null, cancelledAt: (x.cancelled_at as Date | null) ?? null,
     };
   }
@@ -230,9 +234,9 @@ export class PostgresStore implements Store {
   }
   async createEvent(e: Parameters<Store["createEvent"]>[0], now: Date) {
     const r = await this.pool.query(
-      `INSERT INTO events (event_id, org_id, slug, title, description, timezone, registration_opens_at, registration_closes_at, starts_at, ends_at, capacity, tournament_address, created_by, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14) RETURNING *`,
-      [e.eventId, e.orgId, e.slug, e.title, e.description, e.timezone, e.registrationOpensAt, e.registrationClosesAt, e.startsAt, e.endsAt, e.capacity, e.tournamentAddress, e.createdBy, now],
+      `INSERT INTO events (event_id, org_id, slug, title, description, timezone, registration_opens_at, registration_closes_at, starts_at, ends_at, capacity, tournament_address, badges, created_by, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15) RETURNING *`,
+      [e.eventId, e.orgId, e.slug, e.title, e.description, e.timezone, e.registrationOpensAt, e.registrationClosesAt, e.startsAt, e.endsAt, e.capacity, e.tournamentAddress, JSON.stringify({ check_in: e.badges.checkIn, finish: e.badges.finish }), e.createdBy, now],
     );
     return this.partnerEventRow(r.rows[0] as Row);
   }
@@ -245,12 +249,12 @@ export class PostgresStore implements Store {
     return r.rows[0] ? this.partnerEventRow(r.rows[0] as Row) : null;
   }
   async updateEvent(eventId: string, expectedRevision: number, patch: EventPatch, now: Date) {
-    const cols: Record<string, string> = { title: "title", description: "description", timezone: "timezone", registrationOpensAt: "registration_opens_at", registrationClosesAt: "registration_closes_at", startsAt: "starts_at", endsAt: "ends_at", capacity: "capacity", tournamentAddress: "tournament_address" };
+    const cols: Record<string, string> = { title: "title", description: "description", timezone: "timezone", registrationOpensAt: "registration_opens_at", registrationClosesAt: "registration_closes_at", startsAt: "starts_at", endsAt: "ends_at", capacity: "capacity", tournamentAddress: "tournament_address", badges: "badges" };
     const sets: string[] = [];
     const args: unknown[] = [eventId, expectedRevision, now];
     for (const [k, col] of Object.entries(cols)) {
       if (k in patch) {
-        args.push((patch as Record<string, unknown>)[k]);
+        args.push(k === "badges" ? JSON.stringify({ check_in: patch.badges!.checkIn, finish: patch.badges!.finish }) : (patch as Record<string, unknown>)[k]);
         sets.push(`${col} = $${args.length}`);
       }
     }
@@ -316,9 +320,9 @@ export class PostgresStore implements Store {
 
   // ---- PG-E-03 ----
   private participantRow(x: Row): EventParticipant {
-    return { eventId: x.event_id as string, wallet: x.wallet as string, status: x.status as EventParticipant["status"], acceptedRuleRevision: x.accepted_rule_revision as string, displayName: (x.display_name as string | null) ?? null, publicConsentAt: (x.public_consent_at as Date | null) ?? null, registeredAt: x.registered_at as Date, cancelledAt: (x.cancelled_at as Date | null) ?? null, retentionDueAt: (x.retention_due_at as Date | null) ?? null };
+    return { eventId: x.event_id as string, wallet: x.wallet as string, status: x.status as EventParticipant["status"], acceptedRuleRevision: x.accepted_rule_revision as string, displayName: (x.display_name as string | null) ?? null, publicConsentAt: (x.public_consent_at as Date | null) ?? null, registeredAt: x.registered_at as Date, cancelledAt: (x.cancelled_at as Date | null) ?? null, retentionDueAt: (x.retention_due_at as Date | null) ?? null, levelAtRegistration: x.level_at_registration === null || x.level_at_registration === undefined ? null : Number(x.level_at_registration) };
   }
-  async registerParticipant(p: { eventId: string; wallet: string; acceptedRuleRevision: string; displayName: string | null; publicConsent: boolean }, now: Date) {
+  async registerParticipant(p: { eventId: string; wallet: string; acceptedRuleRevision: string; displayName: string | null; publicConsent: boolean; levelAtRegistration?: number | null }, now: Date) {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -330,11 +334,11 @@ export class PostgresStore implements Store {
       if (Number(e.capacity) !== 0 && Number(e.registration_count) >= Number(e.capacity)) { await client.query("ROLLBACK"); return "full" as const; }
       await client.query(`UPDATE events SET registration_count = registration_count + 1 WHERE event_id = $1`, [p.eventId]);
       const r = await client.query(
-        `INSERT INTO event_participants (event_id, wallet, status, accepted_rule_revision, display_name, public_consent_at, registered_at, cancelled_at)
-         VALUES ($1,$2,'registered',$3,$4,$5,$6,NULL)
-         ON CONFLICT (event_id, wallet) DO UPDATE SET status = 'registered', accepted_rule_revision = EXCLUDED.accepted_rule_revision, display_name = EXCLUDED.display_name, public_consent_at = EXCLUDED.public_consent_at, registered_at = EXCLUDED.registered_at, cancelled_at = NULL
+        `INSERT INTO event_participants (event_id, wallet, status, accepted_rule_revision, display_name, public_consent_at, registered_at, cancelled_at, level_at_registration)
+         VALUES ($1,$2,'registered',$3,$4,$5,$6,NULL,$7)
+         ON CONFLICT (event_id, wallet) DO UPDATE SET status = 'registered', accepted_rule_revision = EXCLUDED.accepted_rule_revision, display_name = EXCLUDED.display_name, public_consent_at = EXCLUDED.public_consent_at, registered_at = EXCLUDED.registered_at, cancelled_at = NULL, level_at_registration = EXCLUDED.level_at_registration
          RETURNING *`,
-        [p.eventId, p.wallet, p.acceptedRuleRevision, p.displayName, p.publicConsent ? now : null, now],
+        [p.eventId, p.wallet, p.acceptedRuleRevision, p.displayName, p.publicConsent ? now : null, now, p.levelAtRegistration ?? null],
       );
       await client.query("COMMIT");
       return this.participantRow(r.rows[0] as Row);
@@ -823,19 +827,23 @@ export class PostgresStore implements Store {
   }
   // ---- PG-R-08 ----
   private achievementRow(x: Row): Achievement {
-    return { achievementId: x.achievement_id as string, wallet: x.wallet as string, pbId: x.pb_id as string, category: x.category as string, verificationClass: x.verification_class as Achievement["verificationClass"], sourceRevision: Number(x.source_revision), rulesMajor: Number(x.rules_major), publicConsent: Boolean(x.public_consent), metadata: x.metadata as Record<string, unknown>, metadataHash: x.metadata_hash as Buffer, status: x.status as Achievement["status"], registrySignature: (x.registry_signature as string | null) ?? null, registryUpdatedAt: (x.registry_updated_at as Date | null) ?? null, asset: (x.asset as string | null) ?? null, mintedSignature: (x.minted_signature as string | null) ?? null, mintedAt: (x.minted_at as Date | null) ?? null, createdAt: x.created_at as Date, updatedAt: x.updated_at as Date };
+    return { achievementId: x.achievement_id as string, wallet: x.wallet as string, kind: (x.kind as Achievement["kind"] | undefined) ?? "pb", pbId: (x.pb_id as string | null) ?? null, milestoneKey: (x.milestone_key as string | null) ?? null, sourceKind: (x.source_kind as Achievement["sourceKind"] | undefined) ?? null, sourceId: (x.source_id as string | null) ?? null, category: x.category as string, verificationClass: x.verification_class as Achievement["verificationClass"], sourceRevision: Number(x.source_revision), rulesMajor: Number(x.rules_major), publicConsent: Boolean(x.public_consent), metadata: x.metadata as Record<string, unknown>, metadataHash: x.metadata_hash as Buffer, status: x.status as Achievement["status"], registrySignature: (x.registry_signature as string | null) ?? null, registryUpdatedAt: (x.registry_updated_at as Date | null) ?? null, asset: (x.asset as string | null) ?? null, mintedSignature: (x.minted_signature as string | null) ?? null, mintedAt: (x.minted_at as Date | null) ?? null, createdAt: x.created_at as Date, updatedAt: x.updated_at as Date };
   }
   async upsertAchievement(a: Omit<Achievement, "createdAt" | "updatedAt">, now: Date) {
     const r = await this.pool.query(
-      `INSERT INTO achievements (achievement_id, wallet, pb_id, category, verification_class, source_revision, rules_major, public_consent, metadata, metadata_hash, status, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12)
-       ON CONFLICT (achievement_id) DO UPDATE SET metadata = EXCLUDED.metadata, metadata_hash = EXCLUDED.metadata_hash, public_consent = EXCLUDED.public_consent, source_revision = EXCLUDED.source_revision, status = 'pending_registry', updated_at = EXCLUDED.updated_at
+      `INSERT INTO achievements (achievement_id, wallet, kind, pb_id, milestone_key, source_kind, source_id, category, verification_class, source_revision, rules_major, public_consent, metadata, metadata_hash, status, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$16)
+       ON CONFLICT (achievement_id) DO UPDATE SET metadata = EXCLUDED.metadata, metadata_hash = EXCLUDED.metadata_hash, public_consent = EXCLUDED.public_consent, source_kind = EXCLUDED.source_kind, source_id = EXCLUDED.source_id, source_revision = EXCLUDED.source_revision, status = 'pending_registry', updated_at = EXCLUDED.updated_at
          WHERE achievements.status <> 'minted' AND achievements.metadata_hash <> EXCLUDED.metadata_hash
        RETURNING *`,
-      [a.achievementId, a.wallet, a.pbId, a.category, a.verificationClass, a.sourceRevision, a.rulesMajor, a.publicConsent, JSON.stringify(a.metadata), a.metadataHash, a.status, now],
+      [a.achievementId, a.wallet, a.kind, a.pbId, a.milestoneKey, a.sourceKind, a.sourceId, a.category, a.verificationClass, a.sourceRevision, a.rulesMajor, a.publicConsent, JSON.stringify(a.metadata), a.metadataHash, a.status, now],
     );
     if (r.rows[0]) return this.achievementRow(r.rows[0] as Row);
     return (await this.getAchievement(a.achievementId))!;
+  }
+  async setAchievementSource(achievementId: string, source: { sourceKind: "workout" | "result"; sourceId: string; sourceRevision: number }, now: Date) {
+    const r = await this.pool.query(`UPDATE achievements SET source_kind = $2, source_id = $3, source_revision = $4, updated_at = $5 WHERE achievement_id = $1 RETURNING *`, [achievementId, source.sourceKind, source.sourceId, source.sourceRevision, now]);
+    return r.rows[0] ? this.achievementRow(r.rows[0] as Row) : null;
   }
   async getAchievement(achievementId: string) {
     const r = await this.pool.query(`SELECT * FROM achievements WHERE achievement_id = $1`, [achievementId]);
@@ -874,7 +882,7 @@ export class PostgresStore implements Store {
 
   // ---- PG-G-01 ----
   private galleryRow(x: Row): GalleryPlayer {
-    return { wallet: x.wallet as string, shoeLevel: Number(x.shoe_level), coreLevel: Number(x.core_level), xp: BigInt(x.xp as string), streakDays: Number(x.streak_days), maxStreakDays: Number(x.max_streak_days), lastTaskDate: x.last_task_date === null ? null : Number(x.last_task_date), collectibleCount: Number(x.collectible_count), updatedSlot: Number(x.updated_slot), updatedAt: x.updated_at as Date };
+    return { wallet: x.wallet as string, shoeLevel: Number(x.shoe_level), coreLevel: Number(x.core_level), xp: BigInt(x.xp as string), streakDays: Number(x.streak_days), maxStreakDays: Number(x.max_streak_days), lastTaskDate: x.last_task_date === null ? null : Number(x.last_task_date), collectibleCount: Number(x.collectible_count), updatedSlot: Number(x.updated_slot), updatedAt: x.updated_at as Date, highestLevel: Number(x.highest_level ?? 1) };
   }
   private collectibleRow(x: Row): GalleryCollectible {
     return { wallet: x.wallet as string, kind: Number(x.kind), asset: x.asset as string, signature: x.signature as string, slot: Number(x.slot), claimedAt: x.claimed_at as Date };
@@ -884,10 +892,29 @@ export class PostgresStore implements Store {
       `INSERT INTO gallery_players (wallet, shoe_level, core_level, xp, streak_days, max_streak_days, last_task_date, first_seen_slot, updated_slot, updated_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9)
        ON CONFLICT (wallet) DO UPDATE SET shoe_level = EXCLUDED.shoe_level, core_level = EXCLUDED.core_level, xp = EXCLUDED.xp, streak_days = EXCLUDED.streak_days,
-         max_streak_days = EXCLUDED.max_streak_days, last_task_date = EXCLUDED.last_task_date, updated_slot = EXCLUDED.updated_slot, updated_at = EXCLUDED.updated_at
+         max_streak_days = EXCLUDED.max_streak_days, last_task_date = EXCLUDED.last_task_date, updated_slot = EXCLUDED.updated_slot, updated_at = EXCLUDED.updated_at,
+         highest_level = GREATEST(gallery_players.highest_level, EXCLUDED.shoe_level)
        WHERE gallery_players.updated_slot <= EXCLUDED.updated_slot`,
       [p.wallet, p.shoeLevel, p.coreLevel, p.xp.toString(), p.streakDays, p.maxStreakDays, p.lastTaskDate, p.slot, now],
     );
+  }
+  async setGalleryHighestLevel(wallet: string, highestLevel: number, _slot: number, now: Date) {
+    await this.pool.query(`UPDATE gallery_players SET highest_level = GREATEST(highest_level, $2), updated_at = $3 WHERE wallet = $1`, [wallet, highestLevel, now]);
+  }
+  private levelRow(x: Row): LevelHistoryEntry {
+    return { wallet: x.wallet as string, effectiveFromDate: Number(x.effective_from_date), activeLevel: Number(x.active_level), highestLevel: Number(x.highest_level), epoch: x.epoch === null ? null : Number(x.epoch), source: x.source as LevelHistoryEntry["source"], signature: x.signature as string, slot: Number(x.slot) };
+  }
+  async insertLevelHistory(e: LevelHistoryEntry) {
+    const r = await this.pool.query(`INSERT INTO level_history (wallet, effective_from_date, active_level, highest_level, epoch, source, signature, slot) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (wallet, signature, source) DO NOTHING`, [e.wallet, e.effectiveFromDate, e.activeLevel, e.highestLevel, e.epoch, e.source, e.signature, e.slot]);
+    return (r.rowCount ?? 0) > 0;
+  }
+  async levelAt(wallet: string, taskDate: number) {
+    const r = await this.pool.query(`SELECT * FROM level_history WHERE wallet = $1 AND effective_from_date <= $2 ORDER BY effective_from_date DESC, slot DESC LIMIT 1`, [wallet, taskDate]);
+    return r.rows[0] ? this.levelRow(r.rows[0] as Row) : null;
+  }
+  async listLevelHistory(wallet: string, limit: number) {
+    const r = await this.pool.query(`SELECT * FROM level_history WHERE wallet = $1 ORDER BY effective_from_date DESC, slot DESC LIMIT $2`, [wallet, limit]);
+    return (r.rows as Row[]).map((x) => this.levelRow(x));
   }
   async insertGalleryCollectible(c: GalleryCollectible) {
     const r = await this.pool.query(`INSERT INTO gallery_collectibles (wallet, kind, asset, signature, slot, claimed_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (wallet, kind) DO NOTHING`, [c.wallet, c.kind, c.asset, c.signature, c.slot, c.claimedAt]);
@@ -900,15 +927,18 @@ export class PostgresStore implements Store {
     return r.rows[0] ? this.galleryRow(r.rows[0] as Row) : null;
   }
   private static readonly GALLERY_VISIBLE = `NOT EXISTS (SELECT 1 FROM gallery_prefs gp WHERE gp.wallet = gallery_players.wallet AND gp.hidden)`;
-  async listGalleryPlayers(limit: number, offset: number) {
-    const r = await this.pool.query(`SELECT * FROM gallery_players WHERE ${PostgresStore.GALLERY_VISIBLE} ORDER BY shoe_level DESC, xp DESC, wallet COLLATE "C" ASC LIMIT $1 OFFSET $2`, [limit, offset]);
+  private static galleryOrder(board: GalleryBoard = "active") {
+    return board === "lifetime" ? `highest_level DESC, collectible_count DESC, xp DESC, wallet COLLATE "C" ASC` : `shoe_level DESC, xp DESC, wallet COLLATE "C" ASC`;
+  }
+  async listGalleryPlayers(limit: number, offset: number, board: GalleryBoard = "active") {
+    const r = await this.pool.query(`SELECT * FROM gallery_players WHERE ${PostgresStore.GALLERY_VISIBLE} ORDER BY ${PostgresStore.galleryOrder(board)} LIMIT $1 OFFSET $2`, [limit, offset]);
     return (r.rows as Row[]).map((x) => this.galleryRow(x));
   }
   async countGalleryPlayers() {
     return ((await this.pool.query(`SELECT count(*)::int AS n FROM gallery_players WHERE ${PostgresStore.GALLERY_VISIBLE}`)).rows[0] as { n: number }).n;
   }
-  async galleryRankOf(wallet: string) {
-    const r = await this.pool.query(`SELECT rank FROM (SELECT wallet, row_number() OVER (ORDER BY shoe_level DESC, xp DESC, wallet COLLATE "C" ASC) AS rank FROM gallery_players WHERE ${PostgresStore.GALLERY_VISIBLE}) t WHERE wallet = $1`, [wallet]);
+  async galleryRankOf(wallet: string, board: GalleryBoard = "active") {
+    const r = await this.pool.query(`SELECT rank FROM (SELECT wallet, row_number() OVER (ORDER BY ${PostgresStore.galleryOrder(board)}) AS rank FROM gallery_players WHERE ${PostgresStore.GALLERY_VISIBLE}) t WHERE wallet = $1`, [wallet]);
     return r.rows[0] ? Number((r.rows[0] as { rank: string | number }).rank) : null;
   }
   async searchGalleryPlayers(prefix: string, limit: number) {
@@ -1066,7 +1096,7 @@ export class PostgresStore implements Store {
         await client.query(`DELETE FROM achievements WHERE wallet = $1 AND minted_signature IS NULL`, [wallet]); // PG-R-08：未鑄造刪除；已鑄造保留鏈上事實
         await client.query(`INSERT INTO gallery_prefs (wallet, hidden, updated_at) VALUES ($1, true, $2) ON CONFLICT (wallet) DO UPDATE SET hidden = true, updated_at = EXCLUDED.updated_at`, [wallet, now]); // PG-R-09：停止藝廊展示
         await client.query(`UPDATE pb_revisions SET previous_pb_id = NULL WHERE wallet = $1`, [wallet]);
-        await client.query(`DELETE FROM pb_revisions WHERE wallet = $1 AND pb_id NOT IN (SELECT pb_id FROM achievements WHERE wallet = $1)`, [wallet]); // PG-R-07：PB 一併刪除（已鑄造成就的 PB 列保留）
+        await client.query(`DELETE FROM pb_revisions WHERE wallet = $1 AND pb_id NOT IN (SELECT pb_id FROM achievements WHERE wallet = $1 AND pb_id IS NOT NULL)`, [wallet]); // PG-R-07：PB 一併刪除（已鑄造成就的 PB 列保留）
       }
       await client.query("COMMIT");
       if (!deferUntil) await this.deleteWalletEventData(wallet, now); // BR-32：活動個人層資料一併刪除（各活動獨立交易）

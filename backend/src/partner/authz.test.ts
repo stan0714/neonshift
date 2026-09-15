@@ -17,7 +17,7 @@ async function world() {
   await store.upsertMembership({ orgId, wallet: "OWNER", role: "owner", grantedBy: "OWNER" }, now);
   await store.upsertMembership({ orgId, wallet: "MEMBER", role: "member", grantedBy: "OWNER" }, now);
   const eventId = randomUUID();
-  await store.createEvent({ eventId, orgId, slug: "river-5k", title: "River 5K", description: "", timezone: "Asia/Taipei", registrationOpensAt: null, registrationClosesAt: null, startsAt: null, endsAt: null, capacity: 100, tournamentAddress: null, createdBy: "OWNER" }, now);
+  await store.createEvent({ eventId, orgId, slug: "river-5k", title: "River 5K", description: "", timezone: "Asia/Taipei", registrationOpensAt: null, registrationClosesAt: null, startsAt: null, endsAt: null, capacity: 100, tournamentAddress: null, badges: { checkIn: false, finish: false }, createdBy: "OWNER" }, now);
   const cp1 = randomUUID(), cp2 = randomUUID();
   await store.upsertEventRole({ eventId, wallet: "STAFF1", role: "staff", checkpointId: cp1, grantedBy: "OWNER" }, now);
   await store.upsertEventRole({ eventId, wallet: "STAFFALL", role: "staff", checkpointId: null, grantedBy: "OWNER" }, now);

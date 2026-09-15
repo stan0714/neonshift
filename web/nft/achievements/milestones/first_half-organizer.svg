@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 520" width="520" height="520">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#050711"/><stop offset="1" stop-color="#0B1020"/></linearGradient><radialGradient id="halo"><stop offset="0" stop-color="#9B6CFF" stop-opacity="0.26"/><stop offset="1" stop-color="#9B6CFF" stop-opacity="0"/></radialGradient><linearGradient id="vm" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9B6CFF"/><stop offset="1" stop-color="#30EBC8"/></linearGradient></defs>
+<rect width="520" height="520" rx="48" fill="url(#bg)"/>
+<rect x="14" y="14" width="492" height="492" rx="40" fill="none" stroke="#9B6CFF" stroke-opacity="0.35" stroke-width="2"/>
+<circle cx="260" cy="236" r="200" fill="url(#halo)"/>
+<path d="M80 280 A180 180 0 0 1 440 280" fill="none" stroke="#9B6CFF" stroke-width="16" stroke-linecap="round"/><path d="M120 280 A140 140 0 0 1 400 280" fill="none" stroke="#9B6CFF" stroke-opacity="0.45" stroke-width="8" stroke-linecap="round"/><line x1="60" y1="280" x2="460" y2="280" stroke="#9B6CFF" stroke-opacity="0.5" stroke-width="3" stroke-dasharray="10 12"/>
+<text x="260" y="352" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="44" font-weight="800" letter-spacing="2" fill="#F4F8FF">21.0975K</text>
+<text x="260" y="452" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="17" font-weight="700" letter-spacing="2" fill="#F4F8FF">GENESIS DISTANCE · FIRST HALF MARATHON</text>
+<text x="260" y="486" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="16" letter-spacing="3" fill="#30EBC8">OFFICIAL RESULT</text>
+</svg>

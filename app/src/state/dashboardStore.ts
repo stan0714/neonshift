@@ -5,8 +5,8 @@
 import { PublicKey } from '@solana/web3.js';
 import { create } from 'zustand';
 
-import { decodeConfig, decodePlayerProfile, fetchAccount, type ChainConfig, type PlayerProfile } from '@/chain/accounts';
-import { claimPda, configPda, playerPda } from '@/chain/program';
+import { decodeConfig, decodeIncidentFreeze, decodePlayerProfile, fetchAccount, type ChainConfig, type IncidentFreeze, type PlayerProfile } from '@/chain/accounts';
+import { claimPda, configPda, freezePda, playerPda } from '@/chain/program';
 import { APP_CONFIG } from '@/config/app';
 import { progress, reduce, taskDateOf, type TaskStatus, type TaskType } from '@/domain/taskEngine';
 import { getConnection } from '@/services/chain/ChainClient';
@@ -24,6 +24,8 @@ type State = {
   healthSyncing: boolean;
   profile: PlayerProfile | null;
   config: ChainConfig | null;
+  /** PG-V-05：全域 incident freeze（帳戶不存在 → null） */
+  freeze: IncidentFreeze | null;
   /** tSKR 最小單位 */
   balance: bigint | null;
   chainSyncedAt: number | null;
@@ -45,6 +47,7 @@ export const useDashboardStore = create<State>((set, get) => ({
   health: null,
   healthSyncing: false,
   profile: null,
+  freeze: null,
   config: null,
   balance: null,
   chainSyncedAt: null,
@@ -89,9 +92,10 @@ export const useDashboardStore = create<State>((set, get) => ({
     const conn = getConnection();
     const { taskDate } = get();
     try {
-      const [config, profile] = await Promise.all([
+      const [config, profile, freeze] = await Promise.all([
         fetchAccount(conn, configPda(), (d) => decodeConfig(d, PublicKey)),
         fetchAccount(conn, playerPda(wallet), (d) => decodePlayerProfile(d, PublicKey)),
+        fetchAccount(conn, freezePda(), decodeIncidentFreeze).catch(() => null),
       ]);
       let balance: bigint | null = null;
       if (config) {
@@ -99,7 +103,7 @@ export const useDashboardStore = create<State>((set, get) => ({
         balance = bal ? BigInt(bal.value.amount) : 0n;
       }
       const [stepsReceipt, sleepReceipt] = await Promise.all([claimSubmitter.receiptExists(claimPda(wallet, taskDate, 1)), claimSubmitter.receiptExists(claimPda(wallet, taskDate, 2))]);
-      set({ config, profile, balance, chainSyncedAt: Date.now(), chainError: null });
+      set({ config, profile, freeze, balance, chainSyncedAt: Date.now(), chainError: null });
       if (stepsReceipt) get().dispatch('steps', { kind: 'receipt_exists' });
       if (sleepReceipt) get().dispatch('sleep', { kind: 'receipt_exists' });
     } catch (e) {
