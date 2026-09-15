@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.39（PG-R-09 完成） |
+| 文件版本 | v0.40（PG-R-12 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -565,6 +565,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.40 | 2026-09-15 | PG-R-12 完成（WIP）：跑道模式與等效圈提示 |
 | v0.39 | 2026-09-15 | PG-R-09 完成（WIP）：藝廊 PB 卡、NFT 詳情、退出藝廊、作品 |
 | v0.38 | 2026-09-14 | PG-R-08 完成（WIP）：成就證明格式、registry、claim_achievement、簽發與 App 鑄造流程 |
 | v0.37 | 2026-09-14 | PG-R-07 完成（WIP）：PB 分組、版本鏈與更正重算 |
@@ -678,7 +679,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-R-09 | PB 櫃／藝廊／公開同意與保留刪除整合 | activity-running-gallery 6；Style 20 | FR-13.5、13.6 | 2.5 | WIP | 2026-09-15 完成：migration 0012 `gallery_prefs`（退出只停止展示；排行／計數／搜尋／名次排除、他人 404、本人可見；player 刪除自動隱藏）；玩家頁 `achievements` 公開投影（系列、類別、來源、Current／Historical／Invalidated、公開同意才有值）、`GET /gallery/achievements/{asset}` NFT 詳情（原達成者、鑄造日期、network、Explorer）、`/me/gallery-privacy`；12 張 PB 作品（Speed 計時環／Distance 里程弧，`web/nft/achievements/`）；App PbCard、Gallery 篩選 All／Shoes／Events／Personal best、PB 櫃連結、NFT 詳情頁、Profile 藝廊開關與「跑步歷程與 PB 櫃」入口；vitest 1＋PG 整合 1、Jest 4。待：Events 篩選（活動 NFT 未實作）、現持有人（需鏈上查詢） |
 | PG-R-10 | 距離／速度／圈數、NFT 重放與實機長時間驗收 | walk-run-tracking 7；activity-running-gallery 8 | FR-14、15、18 | 4.0 | TODO | 待指派 |
 | PG-R-11 | MET 熱量估算與模型／體重同意 | activity-running-gallery 4.1 | FR-14.3 | 2.0 | TODO | 待指派；模型定案後開發 |
-| PG-R-12 | 400m 跑道等效圈模式與提示 | walk-run-tracking 5 | FR-18.6 | 1.5 | TODO | 待指派；不含實體過線偵測 |
+| PG-R-12 | 400m 跑道等效圈模式與提示 | walk-run-tracking 5 | FR-18.6 | 1.5 | WIP | 2026-09-15：開始頁跑道模式 Off／400 m／200 m／自訂（100～2000 m 整數），需「我已核對圈長」開關才可開始；`trackLapMm` 寫入 session meta、恢復沿用；引擎 `trackEquivalent()` 記錄中即時「第 N 圈＋餘數」與摘要共用，皆標「依距離估算、非實體過線」；extras `track_equivalent` 上傳。不含實體過線偵測（需實機另開）；App 206 測試 |
 
 ### 18.2 PG-M 首次與紀念 NFT
 

@@ -14,6 +14,9 @@
 export const GPS_RULES_VERSION = 1;
 export const SPLIT_KM_MM = 1_000_000;
 export const SPLIT_MILE_MM = 1_609_344;
+/** PG-R-12 跑道模式可接受的圈長範圍（公尺）：涵蓋 200 m 室內／400 m 標準與較長環道；超出視為輸入錯誤 */
+export const TRACK_LAP_MIN_M = 100;
+export const TRACK_LAP_MAX_M = 2000;
 
 export type Sport = 'run' | 'walk';
 export type GpsConfig = {
@@ -59,6 +62,9 @@ export type Lap = {
 
 type Accepted = { monotonicMs: number; lat: number; lon: number; cumMm: number; segment: number; elapsedMs: number };
 
+/** 跑道等效圈：`floor(distance / lapMm)` ＋ 餘數；依距離估算，非實體過線圈（PG-R-12） */
+export type TrackEquivalent = { laps: number; remainderMm: number; lapMm: number };
+
 export type Summary = {
   rulesVersion: number;
   distanceMm: number;
@@ -72,7 +78,7 @@ export type Summary = {
   splits: Lap[];
   laps: Lap[];
   fastestSplit: Lap | null;
-  trackEquivalent: { laps: number; remainderMm: number; lapMm: number } | null;
+  trackEquivalent: TrackEquivalent | null;
   quality: { accepted: number; rejected: Record<RejectReason, number>; stationary: number; segments: number; gaps: number; coverageRatio: number; complete: boolean };
 };
 
@@ -264,6 +270,13 @@ export class GpsMetricsEngine {
     return l;
   }
 
+  /** PG-R-12：目前累積距離的跑道等效圈（記錄中即時顯示與摘要共用）；未設 trackLapMm → null */
+  trackEquivalent(): TrackEquivalent | null {
+    const lapMm = this.config.trackLapMm;
+    if (!lapMm || lapMm <= 0) return null;
+    return { laps: Math.floor(this.cumMm / lapMm), remainderMm: this.cumMm % lapMm, lapMm };
+  }
+
   finish(monotonicMs: number): Summary {
     if (this.state === 'paused') this.resume(monotonicMs);
     if (this.state !== 'recording') throw new Error('not recording');
@@ -300,7 +313,7 @@ export class GpsMetricsEngine {
       splits,
       laps,
       fastestSplit,
-      trackEquivalent: this.config.trackLapMm ? { laps: Math.floor(this.cumMm / this.config.trackLapMm), remainderMm: this.cumMm % this.config.trackLapMm, lapMm: this.config.trackLapMm } : null,
+      trackEquivalent: this.trackEquivalent(),
       quality: { accepted: this.accepted, rejected: { ...this.rejected }, stationary: this.stationary, segments: this.segment, gaps: this.gaps, coverageRatio, complete: this.gaps === 0 && coverageRatio >= 0.9 },
     };
   }

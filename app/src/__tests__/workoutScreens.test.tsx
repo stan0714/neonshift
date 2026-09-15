@@ -49,9 +49,19 @@ test('開始頁：室內停用開始並導向匯入；權限拒絕顯示引導�
   await waitFor(() => expect(screen.getByTestId('start-permission')).toBeTruthy());
   await fireEvent.press(screen.getByTestId('start-autolap-400'));
   await fireEvent.press(screen.getByTestId('start-units-mi'));
+  // PG-R-12 跑道模式：需核對圈長才可開始；自訂值超範圍擋下
+  await fireEvent.press(screen.getByTestId('start-track-custom'));
+  await fireEvent.changeText(screen.getByTestId('start-track-custom-input'), '5000');
+  expect(screen.getByText('Lap length must be a whole number between 100 and 2,000 m.')).toBeTruthy();
+  expect(screen.getByTestId('start-track-confirm').props.disabled).toBe(true);
+  await fireEvent.press(screen.getByTestId('start-track-400'));
+  expect(screen.getByTestId('start-go').props.accessibilityState.disabled).toBe(true);
+  expect(screen.getByText(/not physical line crossings/)).toBeTruthy();
+  await fireEvent(screen.getByTestId('start-track-confirm'), 'valueChange', true);
+  expect(screen.getByTestId('start-go').props.accessibilityState.disabled).toBe(false);
   await fireEvent.press(screen.getByTestId('start-go'));
   await waitFor(() => expect(mockNav.navigate).toHaveBeenCalledWith('WorkoutRecord'));
-  expect(recorder.snapshot()).toMatchObject({ state: 'recording', sport: 'run' });
+  expect(recorder.snapshot()).toMatchObject({ state: 'recording', sport: 'run', trackEquivalent: { laps: 0, remainderMm: 0, lapMm: 400_000 } });
   expect(loc.startLocationUpdatesAsync).toHaveBeenCalled();
   await act(async () => {});
 });
@@ -66,6 +76,8 @@ test('記錄頁：跑步顯示配速、時間／距離；Lap；Pause 後顯示 R
   });
   await waitFor(() => expect(screen.getByTestId('record-distance').props.children).toBe('0.36'));
   expect(screen.getByTestId('record-primary').props.children).toBe('5:33');
+  expect(screen.getByTestId('record-track-laps').props.children).toBe('Lap 0 + 357 m'); // 跑道模式：依距離估算
+  expect(screen.getByText('400 m per lap · estimated by distance')).toBeTruthy();
   await waitFor(() => expect(screen.getByText('GPS · searching')).toBeTruthy(), { timeout: 3000 }); // 時鐘已推進 120 s、最後一點在 120 s 前（每秒刷新）
   await fireEvent.press(screen.getByTestId('record-lap'));
   await waitFor(() => expect(screen.getByText('Lap 1')).toBeTruthy());
@@ -92,6 +104,8 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   expect(screen.getByTestId('sum-manual-1')).toBeTruthy();
   expect(screen.getByTestId('sum-auto_distance-1')).toBeTruthy(); // 357 m < 400 m：只有末段 partial 自動圈
   expect(screen.getAllByText('Partial').length).toBeGreaterThan(0);
+  expect(screen.getByText('Track equivalent: 0 laps × 400 m + 357 m')).toBeTruthy();
+  expect(screen.getByText('Estimated from GPS distance, not physical line crossings')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('sum-tab-quality'));
   expect(screen.getByText('120 points accepted')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('sum-done'));

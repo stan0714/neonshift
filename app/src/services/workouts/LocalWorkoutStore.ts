@@ -16,6 +16,8 @@ export type SessionMeta = {
   sport: 'run' | 'walk';
   environment: 'outdoor' | 'indoor';
   autoLapMm: number | null;
+  /** PG-R-12 跑道等效圈長（mm；null＝未啟用）；只作距離估算，非過線圈。舊 meta 可能缺此欄位 → 視為 null */
+  trackLapMm?: number | null;
   splitLengthMm: number;
   status: 'recording' | 'paused' | 'recoverable' | 'saved' | 'needs_review' | 'discarded';
   startedAtUtc: number;

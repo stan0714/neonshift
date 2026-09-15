@@ -127,6 +127,28 @@ describe('WorkoutRecorder', () => {
     expect(storeB.list().map((m) => m.sessionId)).not.toContain(meta.sessionId);
   });
 
+  test('PG-R-12 跑道模式：trackLapMm 寫入 meta、snapshot 即時等效圈、摘要 extras 帶 track_equivalent；跨 process 恢復沿用圈長；舊 meta 無欄位 → null', async () => {
+    const storeA = new LocalWorkoutStore();
+    const recA = new WorkoutRecorder({ store: storeA, now: () => 1_000_000, sync: jest.fn(async () => ({ sessionId: null })) });
+    const meta = await recA.start({ sport: 'run', environment: 'outdoor', trackLapMm: 400_000 });
+    expect(storeA.readMeta(meta.sessionId)?.trackLapMm).toBe(400_000);
+    recA.ingest(pts(200, 1_000_000)); // ≈ 600 m
+    expect(recA.snapshot().trackEquivalent).toMatchObject({ laps: 1, lapMm: 400_000 });
+    await new Promise((r) => setTimeout(r, 0));
+    const sync: jest.Mock = jest.fn(async () => ({ sessionId: 'server-7' }));
+    const recB = new WorkoutRecorder({ store: new LocalWorkoutStore(), now: () => 2_000_000, sync });
+    await recB.markRecoverable();
+    const c = await recB.recover(meta.sessionId, 'continue');
+    expect(c.summary!.trackEquivalent).toMatchObject({ laps: 1, lapMm: 400_000 });
+    expect((sync.mock.calls[0]![0] as { extras: { track_equivalent: unknown } }).extras.track_equivalent).toMatchObject({ laps: 1, lapMm: 400_000 });
+    // 未啟用
+    const recC = new WorkoutRecorder({ store: new LocalWorkoutStore(), now: () => 3_000_000, sync: jest.fn(async () => ({ sessionId: null })) });
+    await recC.start({ sport: 'walk', environment: 'outdoor' });
+    expect(recC.snapshot().trackEquivalent).toBeNull();
+    const s = await recC.finish();
+    expect(s.summary.trackEquivalent).toBeNull();
+  });
+
   test('toRawPoints：同 timestamp 重送不重播、精度缺 → ∞（引擎會拒）', () => {
     const l = (ts: number, acc: number | null) => ({ timestamp: ts, coords: { latitude: 25, longitude: 121.5, accuracy: acc, speed: null, altitude: null, altitudeAccuracy: null, heading: null } });
     const out = toRawPoints([l(1000, 5), l(1000, 5), l(2000, null)] as never);
