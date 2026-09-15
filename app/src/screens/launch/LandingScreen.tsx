@@ -24,7 +24,7 @@ export function LandingScreen() {
     headline: t('landing.headline'),
     body: t('landing.body'),
     proofs: PROOF_ICONS.map((icon, i) => ({ icon, text: t(`landing.proof${i + 1}` as 'landing.proof1') })),
-    primary: t('common.connectWallet'),
+    primary: t('guide.welcomeAction'),
     secondary: t('landing.preview'),
   };
   const navigation = useNavigation();
@@ -86,7 +86,7 @@ export function LandingScreen() {
       </Animated.View>
 
       <Animated.View style={[styles.actions, enter(3)]}>
-        <Button label={COPY.primary} onPress={() => navigation.navigate('Onboarding', { screen: 'WalletConnect' })} />
+        <Button label={COPY.primary} onPress={() => navigation.navigate('GameGuide', { onboarding: true })} />
         <Button
           label={COPY.secondary}
           variant="secondary"

@@ -92,7 +92,7 @@ describe('WalletService（PG-A-06，FR-01）', () => {
         if (p.auth_token) throw sessionClosed();
         return authResult('fresh');
       });
-      const signAndSendTransactions = jest.fn(async () => ['sig-1']);
+      const signAndSendTransactions = jest.fn(async (_p: { minContextSlot?: number }) => ['sig-1']);
       mockTransact.mockImplementation(async (cb) => cb({ authorize, signAndSendTransactions } as never));
       const sig = await walletService.signAndSendTransaction({ __tx: true } as never, { minContextSlot: 4200 });
       expect(sig).toBe('sig-1');

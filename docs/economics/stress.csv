@@ -1,0 +1,10 @@
+scenario,eligible_wallets,daily_per_wallet_tskr,daily_requested_tskr,initial_reserve_runway_days,proposed_daily_budget_tskr,proposed_average_per_wallet_tskr,proposed_180d_reserve_tskr
+lv1_both_tasks,100,15,1500,133.33,1000.00,10.0000,20000.00
+lv5_both_tasks,100,33,3300,60.61,1000.00,10.0000,20000.00
+configured_daily_ceiling,100,40,4000,50.00,1000.00,10.0000,20000.00
+lv1_both_tasks,1000,15,15000,13.33,1000.00,1.0000,20000.00
+lv5_both_tasks,1000,33,33000,6.06,1000.00,1.0000,20000.00
+configured_daily_ceiling,1000,40,40000,5.00,1000.00,1.0000,20000.00
+lv1_both_tasks,10000,15,150000,1.33,1000.00,0.1000,20000.00
+lv5_both_tasks,10000,33,330000,0.61,1000.00,0.1000,20000.00
+configured_daily_ceiling,10000,40,400000,0.50,1000.00,0.1000,20000.00

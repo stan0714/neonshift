@@ -112,6 +112,11 @@ export function ProfileScreen() {
         <Chip label={t('common.devnet')} kind="devnet" />
       </View>
 
+      <Section title={t('guide.entry')}>
+        <Text variant="bodySmall" tone="secondary">{t('guide.entryBody')}</Text>
+        <Button label={t('guide.entry')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('GameGuide')} testID="profile-game-guide" />
+      </Section>
+
       <Section title={t('profile.wallet')}>
         <Row icon="credit-card" label={wallet.session ? shortAddress(wallet.session.address, 6) : t('common.notConnected')} detail={wallet.session?.label ?? `Solana ${APP_CONFIG.cluster}`} />
         <Row icon="server" label={t('profile.backendSession')} detail={backend === null ? '…' : backend ? t('profile.signedIn') : t('profile.signedOut')} />

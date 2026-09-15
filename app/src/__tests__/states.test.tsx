@@ -55,7 +55,7 @@ describe('Home inline states（Style 14）', () => {
     expect(screen.getByText(/safe onchain; showing cached values/)).toBeTruthy();
     expect(screen.getByText('Retry')).toBeTruthy();
     // PG-U-01：固定「開始運動」入口帶最近模式 → WorkoutStart
-    expect(screen.getByText(/Recent: Run · tap to quick start/)).toBeTruthy();
+    expect(screen.getByText(/Recent: Run/)).toBeTruthy();
     await fireEvent.press(screen.getByTestId('home-start-workout'));
     expect(mockNavigate).toHaveBeenCalledWith('WorkoutStart');
   });

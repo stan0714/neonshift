@@ -1,3 +1,4 @@
+import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
@@ -14,7 +15,7 @@ import { healthConnect, type HealthPermissionSummary } from '@/services/health/H
 import { useLevelRevealStore } from '@/state/levelRevealStore';
 import { useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
-import { color, radius, space, Text, useTheme } from '@/theme';
+import { color, radius, space, Text, useTheme, glowStyle } from '@/theme';
 
 import { ClockInSheet } from './ClockInSheet';
 import { useT, type TKey } from '@/i18n';
@@ -125,40 +126,40 @@ export function HomeScreen() {
         <Chip label={t('common.devnet')} kind="devnet" />
       </View>
 
-      <View style={[styles.header, styles.section]}>
-        <Text variant="label" tone="muted" uppercase>
-          {t('home.today')}
-        </Text>
-        {/* PG-U-01：固定「開始運動」入口，帶最近模式快速開始（開始頁仍可改） */}
-        <Pressable onPress={() => navigation.navigate('WorkoutStart')} accessibilityRole="button" style={styles.startWorkout} testID="home-start-workout">
-          <Text variant="title">{t('home.startWorkout')}</Text>
-          <Text variant="caption" tone="muted">
+      {/* PG-U-01：固定「開始運動」主入口（mint 主按鈕，帶最近模式）＋ 四格快捷入口（圖示＋文字，等寬、≥ 48dp） */}
+      <Pressable onPress={() => navigation.navigate('WorkoutStart')} accessibilityRole="button" accessibilityLabel={`${t('home.startWorkout')} · ${t('home.recentMode', { mode: t(`wo.mode.${prefs.mode}` as TKey) })}`} style={({ pressed }) => [styles.startWorkout, glowStyle('medium', color.mint), pressed && styles.pressed]} testID="home-start-workout">
+        <View style={styles.startIcon}>
+          <Feather name="play" size={26} color={color.onMint} />
+        </View>
+        <View style={styles.flex}>
+          <Text variant="heading2" style={styles.onMint}>
+            {t('home.startWorkout')}
+          </Text>
+          <Text variant="caption" style={styles.onMintMuted}>
             {t('home.recentMode', { mode: t(`wo.mode.${prefs.mode}` as TKey) })}
           </Text>
-        </Pressable>
-        <View style={styles.links}>
-          <Pressable onPress={() => navigation.navigate('Gallery')} accessibilityRole="link" hitSlop={8} testID="home-gallery-link">
-            <Text variant="label" tone="cyan" uppercase>
-              {t('home.gallery')}
-            </Text>
-          </Pressable>
-          <Pressable onPress={() => navigation.navigate('Workouts')} accessibilityRole="link" hitSlop={8} testID="home-workouts-link">
-            <Text variant="label" tone="cyan" uppercase>
-              {t('home.workouts')}
-            </Text>
-          </Pressable>
-          <Pressable onPress={() => navigation.navigate('Explore')} accessibilityRole="link" hitSlop={8} testID="home-explore-link">
-            <Text variant="label" tone="cyan" uppercase>
-              {t('home.explore')}
-            </Text>
-          </Pressable>
-          <Pressable onPress={() => navigation.navigate('ActivityHistory')} accessibilityRole="link" hitSlop={8} testID="home-activity-link">
-            <Text variant="label" tone="cyan" uppercase>
-              {t('home.activity')}
-            </Text>
-          </Pressable>
         </View>
+        <Feather name="chevron-right" size={22} color={color.onMint} />
+      </Pressable>
+      <View style={styles.quick} accessibilityRole="menu">
+        {([
+          { key: 'workouts', icon: 'list', route: 'Workouts', testID: 'home-workouts-link' },
+          { key: 'explore', icon: 'map', route: 'Explore', testID: 'home-explore-link' },
+          { key: 'gallery', icon: 'image', route: 'Gallery', testID: 'home-gallery-link' },
+          { key: 'activity', icon: 'calendar', route: 'ActivityHistory', testID: 'home-activity-link' },
+        ] as const).map((q) => (
+          <Pressable key={q.key} onPress={() => navigation.navigate(q.route)} accessibilityRole="button" style={({ pressed }) => [styles.quickItem, pressed && styles.pressed]} testID={q.testID}>
+            <Feather name={q.icon} size={22} color={color.cyan} />
+            <Text variant="caption" tone="secondary" style={styles.quickLabel} numberOfLines={1}>
+              {t(`home.${q.key}` as TKey)}
+            </Text>
+          </Pressable>
+        ))}
       </View>
+
+      <Text variant="label" tone="muted" uppercase style={styles.section}>
+        {t('home.today')}
+      </Text>
       <View style={styles.cards}>
         <DataCard icon="activity" label={t('home.steps')} value={steps.value.toLocaleString()} unit={t('home.stepsUnit')} goalLabel={t('home.goal', { n: steps.goal })} ratio={steps.ratio} tint={color.mint} statusText={stepsStatus} outdated={outdated || Boolean(d.health?.error)} testID="card-steps" />
         <View style={styles.gap} />
@@ -202,8 +203,15 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.canvas },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   section: { marginTop: space.xl, marginBottom: space.xs },
-  links: { flexDirection: 'row', gap: space.m },
-  startWorkout: { marginTop: space.m, padding: space.m, borderRadius: radius.m, borderWidth: 1, borderColor: color.mint, backgroundColor: color.surface },
+  flex: { flex: 1 },
+  pressed: { opacity: 0.85 },
+  startWorkout: { marginTop: space.xl, minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: space.s, paddingVertical: space.s, paddingHorizontal: space.m, borderRadius: radius.l, backgroundColor: color.mint },
+  startIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF33', alignItems: 'center', justifyContent: 'center' },
+  onMint: { color: color.onMint },
+  onMintMuted: { color: color.onMint, opacity: 0.75 },
+  quick: { flexDirection: 'row', gap: space.xs, marginTop: space.s },
+  quickItem: { flex: 1, minHeight: 64, alignItems: 'center', justifyContent: 'center', gap: space.xxs, paddingVertical: space.xs, borderRadius: radius.m, backgroundColor: color.surface, borderWidth: 1, borderColor: color.borderSubtle },
+  quickLabel: { textAlign: 'center' },
   cards: { flexDirection: 'row' },
   gap: { width: space.s },
   utc: { marginTop: space.xs },

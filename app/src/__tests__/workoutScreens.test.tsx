@@ -37,36 +37,63 @@ beforeEach(() => {
   loc.getForegroundPermissionsAsync.mockResolvedValue({ granted: true });
 });
 
-test('開始頁：室內停用開始並導向匯入；權限拒絕顯示引導；戶外跑步 → recorder.start（400 m 自動圈、英里分段）→ 記錄頁', async () => {
+test('開始頁（NRC 版面）：GPS chip 切室內停用 START 並導向匯入；權限拒絕顯示引導；設定面板（自動圈／英里／跑道）；目標面板；戶外健走 → recorder.start → 記錄頁', async () => {
   fsMock.__reset();
   await render(<WorkoutStartScreen />, { wrapper: Wrapper });
-  await fireEvent.press(screen.getByTestId('start-env-indoor'));
+  // 預設：跑步、自由目標、GPS 開
+  expect(screen.getByTestId('start-goal-value').props.children).toBe('Free');
+  expect(screen.getByTestId('start-env-label').props.children).toBe('GPS on');
+  await fireEvent.press(screen.getByTestId('start-env'));
   expect(screen.getByTestId('start-indoor')).toBeTruthy();
   expect(screen.getByTestId('start-go').props.accessibilityState.disabled).toBe(true);
-  await fireEvent.press(screen.getByTestId('start-env-outdoor'));
+  await fireEvent.press(screen.getByTestId('start-env'));
+  expect(screen.queryByTestId('start-indoor')).toBeNull();
   loc.getForegroundPermissionsAsync.mockResolvedValueOnce({ granted: false });
   loc.requestForegroundPermissionsAsync.mockResolvedValueOnce({ granted: false });
   await fireEvent.press(screen.getByTestId('start-go'));
   await waitFor(() => expect(screen.getByTestId('start-permission')).toBeTruthy());
-  await fireEvent.press(screen.getByTestId('start-autolap-400'));
-  await fireEvent.press(screen.getByTestId('start-units-mi'));
-  // PG-U-01：預設模式跑步；改健走＋時間目標 10 分鐘（開始後固定於 session）
-  expect(screen.getByText('Run: pace, distance, time.')).toBeTruthy();
+  // PG-U-01：預設模式跑步；改健走（開始後固定於 session）
+  expect(screen.getByTestId('start-mode-hint').props.children).toBe('Run: pace, distance, time.');
   await fireEvent.press(screen.getByTestId('start-mode-brisk'));
   expect(screen.getByText(/Brisk walk is a mode you choose/)).toBeTruthy();
+  // 目標面板：距離 3 km → 大數字 3.00 Kilometers；改時間 10 分 → 10:00 Minutes；Clear → Free
+  await fireEvent.press(screen.getByTestId('start-goal-pill'));
+  await fireEvent.press(screen.getByTestId('start-goal-distance'));
+  await fireEvent.press(screen.getByTestId('start-goal-dist-3'));
+  expect(screen.getByTestId('start-goal-value').props.children).toBe('3.00');
+  expect(screen.getByTestId('start-goal-unit').props.children).toBe('Kilometers');
   await fireEvent.press(screen.getByTestId('start-goal-time'));
   await fireEvent.press(screen.getByTestId('start-goal-time-10'));
-  expect(screen.getByText(/one reminder when the goal is reached/)).toBeTruthy();
-  // PG-R-12 跑道模式：需核對圈長才可開始；自訂值超範圍擋下
+  expect(screen.getByTestId('start-goal-value').props.children).toBe('10:00');
+  expect(screen.getByTestId('start-goal-unit').props.children).toBe('Minutes');
+  expect(screen.getAllByText(/one reminder when the goal is reached/).length).toBeGreaterThan(0);
+  await fireEvent.press(screen.getByTestId('start-goal-clear'));
+  expect(screen.getByTestId('start-goal-value').props.children).toBe('Free');
+  await fireEvent.press(screen.getByTestId('start-goal-time'));
+  await fireEvent.press(screen.getByTestId('start-goal-done'));
+  expect(screen.queryByTestId('start-goal-sheet')).toBeNull();
+  expect(screen.getByTestId('start-goal-value').props.children).toBe('10:00');
+  // 設定面板：400 m 自動圈、英里分段；PG-R-12 跑道模式需核對圈長才可開始；自訂值超範圍擋下
+  await fireEvent.press(screen.getByTestId('start-settings'));
+  await fireEvent.press(screen.getByTestId('start-autolap-400'));
+  await fireEvent.press(screen.getByTestId('start-units-mi'));
   await fireEvent.press(screen.getByTestId('start-track-custom'));
   await fireEvent.changeText(screen.getByTestId('start-track-custom-input'), '5000');
   expect(screen.getByText('Lap length must be a whole number between 100 and 2,000 m.')).toBeTruthy();
   expect(screen.getByTestId('start-track-confirm').props.disabled).toBe(true);
   await fireEvent.press(screen.getByTestId('start-track-400'));
-  expect(screen.getByTestId('start-go').props.accessibilityState.disabled).toBe(true);
   expect(screen.getByText(/not physical line crossings/)).toBeTruthy();
+  await fireEvent.press(screen.getByTestId('start-settings-done'));
+  expect(screen.getByTestId('start-go').props.accessibilityState.disabled).toBe(true);
+  expect(screen.getByTestId('start-disabled-reason').props.children).toBe('Set and confirm the track lap length first');
+  await fireEvent.press(screen.getByTestId('start-settings'));
   await fireEvent(screen.getByTestId('start-track-confirm'), 'valueChange', true);
+  await fireEvent.press(screen.getByTestId('start-settings-done'));
   expect(screen.getByTestId('start-go').props.accessibilityState.disabled).toBe(false);
+  // 語音提示開關（圓鍵）
+  await fireEvent.press(screen.getByTestId('start-cue-voice'));
+  expect(useWorkoutPrefs.getState().voice).toBe(true);
+  await fireEvent.press(screen.getByTestId('start-cue-voice'));
   await fireEvent.press(screen.getByTestId('start-go'));
   await waitFor(() => expect(mockNav.navigate).toHaveBeenCalledWith('WorkoutRecord'));
   expect(recorder.snapshot()).toMatchObject({ state: 'recording', sport: 'walk', intent: 'brisk', goal: { kind: 'time', target: 600, unit: 's', version: 1 }, goalReached: false, trackEquivalent: { laps: 0, remainderMm: 0, lapMm: 400_000 } });

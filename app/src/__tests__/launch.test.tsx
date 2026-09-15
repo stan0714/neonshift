@@ -44,10 +44,10 @@ describe('Landing（Style 9）', () => {
     }
   });
 
-  test('Connect wallet → Onboarding；Preview → DemoPreview', async () => {
+  test('Start adventure → GameGuide；Preview → DemoPreview', async () => {
     await render(<LandingScreen />, { wrapper: Wrapper });
-    await fireEvent.press(screen.getByText('Connect wallet'));
-    expect(mockNavigate).toHaveBeenCalledWith('Onboarding', { screen: 'WalletConnect' });
+    await fireEvent.press(screen.getByText('Start your adventure'));
+    expect(mockNavigate).toHaveBeenCalledWith('GameGuide', { onboarding: true });
     await fireEvent.press(screen.getByText('Preview the app'));
     expect(mockNavigate).toHaveBeenCalledWith('DemoPreview');
   });

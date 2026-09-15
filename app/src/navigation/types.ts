@@ -21,6 +21,7 @@ export type RootParamList = {
   Bootstrap: undefined;
   Landing: undefined;
   DemoPreview: undefined;
+  GameGuide: { onboarding?: boolean } | undefined;
   Onboarding: NavigatorScreenParams<OnboardingParamList>;
   Main: NavigatorScreenParams<TabParamList>;
   ActivityHistory: undefined;

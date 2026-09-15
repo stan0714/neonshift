@@ -1,3 +1,4 @@
+import { GameGuideScreen } from '@/screens/GameGuideScreen';
 import { NavigationContainer, type LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -56,6 +57,7 @@ export function RootNavigator() {
         }}
       >
         <Stack.Screen name="Bootstrap" component={BootstrapScreen} options={{ animation: 'none' }} />
+        <Stack.Screen name="GameGuide" component={GameGuideScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="Landing" component={LandingScreen} />
         <Stack.Screen name="DemoPreview" component={DemoPreviewScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
