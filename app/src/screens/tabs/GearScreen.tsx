@@ -6,6 +6,7 @@ import Svg, { Circle } from "react-native-svg";
 
 import { Button, Chip, InlineState, Screen, Surface } from "@/components";
 import { ShoeHero } from "@/components/ShoeHero";
+import { Milestones } from "@/screens/workouts/Milestones";
 import { APP_CONFIG } from "@/config/app";
 import { SHOE_PROGRESSION, type ShoeLevel } from "@/config/shoeProgression";
 import {
@@ -266,6 +267,8 @@ export function GearScreen() {
           />
         ))}
       </View>
+
+      <Milestones reloadKey={claimedCount} />
 
       <Text variant="caption" tone="muted" style={styles.disclaimer}>
         {t("common.testToken")}

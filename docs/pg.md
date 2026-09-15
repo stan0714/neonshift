@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.41（PG-M-01／M-02 完成） |
+| 文件版本 | v0.42（PG-M-03 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -565,6 +565,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.42 | 2026-09-15 | PG-M-03 完成（WIP）：紀念作品、Milestones 收藏與領取預覽、藝廊首次篩選 |
 | v0.41 | 2026-09-15 | PG-M-01／M-02 完成（WIP）：里程碑判定與穩定 key 鑄造 |
 | v0.40 | 2026-09-15 | PG-R-12 完成（WIP）：跑道模式與等效圈提示 |
 | v0.39 | 2026-09-15 | PG-R-09 完成（WIP）：藝廊 PB 卡、NFT 詳情、退出藝廊、作品 |
@@ -688,7 +689,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 |---|---|---|---|---|---|---|
 | PG-M-01 | 首 5K／10K／半馬／全馬、First Finish 資格判定 | commemorative-nfts 1、2 | FR-17.1、BR-46 | 2.0 | WIP | 2026-09-15：`milestones/compute.ts`（整數毫米門檻、單次不累加、裝置 5K／10K 開放、半馬／全馬 device_pending、待審／估算／手動不合格、主辦方 FINISHED＋賽事時間、同筆全馬解鎖四章同一來源、首次＝最早）；`GET /me/milestones`；vitest 5（含 §6 邊界 4,999.999／5,000…42,194.999／42,195） |
 | PG-M-02 | 首次 stable key、registry／receipt、更正及終身防重領 | commemorative-nfts 4 | FR-17.3、BR-47 | 2.5 | WIP | 2026-09-15：migration 0013（achievements kind／milestone_key 唯一／source_*）；`achievement_id = sha256("neonshift-milestone\|wallet\|key")`；`POST /me/milestones/mint-intent`；Rust／TS category 7–11、向量 12 組、LiteSVM 通過；`reconcileMilestones`（失效撤銷、重新達標同 id 恢復、更早回填／更正不重發；已鑄造只更新來源）；藝廊投影 kind＝milestone；vitest 2＋PG 整合。待：devnet 程式升級後 sync-achievements |
-| PG-M-03 | 四款紀念作品、Milestones 收藏／鑄造預覽 | commemorative-nfts 5；Style 22 | FR-17.4 | 3.0 | TODO | 待指派 |
+| PG-M-03 | 四款紀念作品、Milestones 收藏／鑄造預覽 | commemorative-nfts 5；Style 22 | FR-17.4 | 3.0 | WIP | 2026-09-15：9 張作品（`web/nft/achievements/milestones/`，四距離 × 官方／裝置＋First Finish）；App `Milestones` 區塊（Gear 收藏；狀態 7 種、涵蓋起點、逐枚領取提示、同意 → 領取預覽逐項列出公開內容＋費用 → MWA）；藝廊「首次」篩選、首次區與 PB 分列、卡片／詳情支援里程碑；ApiClient `milestones／milestoneMintIntent`；Jest 208／208。待：實機驗證、devnet 程式升級 |
 | PG-M-04 | 活動 First Finish／專屬紀念章權限與端到端驗收 | commemorative-nfts 2、3、6 | FR-17.2、BR-48 | 2.0 | TODO | 待指派 |
 | PG-M-05 | 回歸／週年章、歷史涵蓋及保留政策 | commemorative-nfts 2 | FR-17.2、BR-49 | 2.0 | TODO | 待指派；第二階段 |
 

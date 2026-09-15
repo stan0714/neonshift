@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 520" width="520" height="520">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#050711"/><stop offset="1" stop-color="#0B1020"/></linearGradient><radialGradient id="halo"><stop offset="0" stop-color="#9B6CFF" stop-opacity="0.26"/><stop offset="1" stop-color="#9B6CFF" stop-opacity="0"/></radialGradient><linearGradient id="vm" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9B6CFF"/><stop offset="1" stop-color="#30EBC8"/></linearGradient></defs>
+<rect width="520" height="520" rx="48" fill="url(#bg)"/>
+<rect x="14" y="14" width="492" height="492" rx="40" fill="none" stroke="#9B6CFF" stroke-opacity="0.35" stroke-width="2"/>
+<circle cx="260" cy="236" r="200" fill="url(#halo)"/>
+<circle cx="260" cy="230" r="170" fill="none" stroke="url(#vm)" stroke-width="16"/><circle cx="260" cy="230" r="135" fill="none" stroke="#30EBC8" stroke-opacity="0.3" stroke-width="4"/><path d="M190 300 L190 210 Q260 150 330 210 L330 300" fill="none" stroke="#F4F8FF" stroke-width="8" stroke-linecap="round"/><line x1="170" y1="300" x2="350" y2="300" stroke="#F4F8FF" stroke-width="6" stroke-linecap="round"/>
+<text x="260" y="352" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="44" font-weight="800" letter-spacing="2" fill="#F4F8FF">42.195K</text>
+<text x="260" y="452" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="17" font-weight="700" letter-spacing="2" fill="#F4F8FF">GENESIS DISTANCE · FIRST MARATHON</text>
+<text x="260" y="486" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="16" letter-spacing="3" fill="#718099">DEVICE RECORDED</text>
+</svg>

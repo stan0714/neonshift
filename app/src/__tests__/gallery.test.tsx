@@ -99,6 +99,29 @@ describe('GalleryPlayerScreen', () => {
     await act(async () => {});
   });
 
+  test('PG-M-03：首次里程碑卡與 PB 分開列（Genesis Distance／First Finish、未公開文案）；Firsts 篩選只留首次；無首次時 Firsts 顯示空狀態', async () => {
+    const ach = (o: Record<string, unknown>) => ({ achievement_id: 'a1', asset: 'AssetA', series: 'pb_speed', category: 'fastest_5k', verification_class: 'device', environment: 'outdoor', record: 'current', public: true, value: '25:00', achieved_on: '2026-09-05', image: '', name: 'x', minted_at: '2026-09-06T00:00:00Z', minted_signature: 's', metadata_uri: '/v1/nft/achievements/a1.json', ...o });
+    api.galleryPlayer.mockResolvedValue({ player: player(B, 1), is_you: false, collectibles: [], achievements: [ach({}), ach({ achievement_id: 'm1', asset: 'AssetM', kind: 'milestone', series: 'genesis_distance', category: 'first_10k', public: false, value: null }), ach({ achievement_id: 'm2', asset: 'AssetF', kind: 'milestone', series: 'first_finish', category: 'first_finish', verification_class: 'organizer', public: true, value: '42.195 km' })] });
+    await render(<GalleryPlayerScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('gallery-first-m1')).toBeTruthy());
+    expect(screen.getByTestId('gallery-first-m1').props.accessibilityLabel).toBe('First 10K · Current best');
+    expect(screen.getByText('Genesis Distance · Device recorded')).toBeTruthy();
+    expect(screen.getByText('First Finish · Official result')).toBeTruthy();
+    expect(screen.getByText('Distance and date private')).toBeTruthy();
+    expect(screen.getByTestId('gallery-pb-a1')).toBeTruthy();
+    expect(screen.queryByTestId('gallery-pb-m1')).toBeNull(); // 不混入 PB 區
+    await fireEvent.press(screen.getByTestId('gallery-filter-first'));
+    expect(screen.queryByTestId('gallery-pb-a1')).toBeNull();
+    expect(screen.getByTestId('gallery-first-m2')).toBeTruthy();
+    api.galleryPlayer.mockResolvedValue({ player: player(B, 1), is_you: false, collectibles: [], achievements: [ach({})] });
+    await render(<GalleryPlayerScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('gallery-pb-a1')).toBeTruthy());
+    expect(screen.queryByTestId('gallery-no-first')).toBeNull(); // All 且無首次 → 不顯示區塊
+    await fireEvent.press(screen.getByTestId('gallery-filter-first'));
+    expect(screen.getByTestId('gallery-no-first')).toBeTruthy();
+    await act(async () => {});
+  });
+
   test('NFT 詳情：系列、原達成者、狀態、鑄造日期、network、Explorer；invalidated 說明', async () => {
     api.galleryAchievement.mockResolvedValue({ achievement_id: 'a3', asset: 'AssetC', series: 'pb_speed', category: 'fastest_10k', verification_class: 'organizer', environment: 'outdoor', record: 'invalidated', public: false, value: null, achieved_on: null, image: '', name: 'x', minted_at: '2026-09-06T00:00:00Z', minted_signature: 's', metadata_uri: '', original_achiever: B, metadata: {}, network: 'devnet', explorer_url: 'https://explorer.solana.com/address/AssetC?cluster=devnet' });
     await render(<AchievementDetailScreen />, { wrapper: Wrapper });

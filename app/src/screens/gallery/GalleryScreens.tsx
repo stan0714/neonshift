@@ -129,7 +129,7 @@ export function GalleryPlayerScreen() {
   const [data, setData] = useState<GalleryPlayerResponse | null>(null);
   const [err, setErr] = useState<Err | null>(null);
   const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'shoes' | 'events' | 'pb'>('all');
+  const [filter, setFilter] = useState<'all' | 'shoes' | 'events' | 'pb' | 'first'>('all');
   const navigation = useNavigation();
 
   const load = useCallback(async () => {
@@ -191,7 +191,7 @@ export function GalleryPlayerScreen() {
 
           {data?.is_you && data.hidden ? <InlineState kind="info" title={t('gal.hiddenNote')} testID="gallery-hidden-note" /> : null}
           <View style={styles.filters} accessibilityRole="tablist">
-            {(['all', 'shoes', 'events', 'pb'] as const).map((f) => (
+            {(['all', 'shoes', 'events', 'pb', 'first'] as const).map((f) => (
               <Pressable key={f} onPress={() => setFilter(f)} accessibilityRole="tab" accessibilityState={{ selected: filter === f }} style={[styles.filter, filter === f && styles.filterOn]} testID={`gallery-filter-${f}`}>
                 <Text variant="caption" tone={filter === f ? undefined : 'secondary'} style={filter === f && styles.filterOnText}>
                   {t(`gal.filter.${f}` as TKey)}
@@ -199,6 +199,32 @@ export function GalleryPlayerScreen() {
               </Pressable>
             ))}
           </View>
+          {filter === 'all' || filter === 'first' ? (() => {
+            // PG-M-03：首次里程碑（Genesis Distance／First Finish）與 PB 分開列，不混稱
+            const firsts = (data?.achievements ?? []).filter((a) => a.series === 'genesis_distance' || a.series === 'first_finish');
+            return filter === 'first' || firsts.length ? (
+              <>
+                <View style={styles.sectionHead}>
+                  <Text variant="label" tone="muted" uppercase>
+                    {t('gal.firstSection')}
+                  </Text>
+                </View>
+                {firsts.length === 0 ? (
+                  <Text variant="bodySmall" tone="secondary" testID="gallery-no-first">
+                    {t('gal.noFirst')}
+                  </Text>
+                ) : (
+                  <View style={styles.grid}>
+                    {firsts.map((a) => (
+                      <View key={a.achievement_id} style={styles.cell}>
+                        <PbCard a={a} onPress={a.asset ? () => navigation.navigate('AchievementDetail', { asset: a.asset! }) : undefined} testID={`gallery-first-${a.achievement_id}`} />
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
+            ) : null;
+          })() : null}
           {filter === 'all' || filter === 'pb' ? (
             <>
               <View style={styles.sectionHead}>
@@ -213,13 +239,13 @@ export function GalleryPlayerScreen() {
                   </Pressable>
                 ) : null}
               </View>
-              {(data?.achievements ?? []).length === 0 ? (
+              {(data?.achievements ?? []).filter((a) => a.series !== 'genesis_distance' && a.series !== 'first_finish').length === 0 ? (
                 <Text variant="bodySmall" tone="secondary" testID="gallery-no-pb">
                   {t('gal.noPb')}
                 </Text>
               ) : (
                 <View style={styles.grid}>
-                  {(data?.achievements ?? []).map((a) => (
+                  {(data?.achievements ?? []).filter((a) => a.series !== 'genesis_distance' && a.series !== 'first_finish').map((a) => (
                     <View key={a.achievement_id} style={styles.cell}>
                       <PbCard a={a} onPress={a.asset ? () => navigation.navigate('AchievementDetail', { asset: a.asset! }) : undefined} testID={`gallery-pb-${a.achievement_id}`} />
                     </View>

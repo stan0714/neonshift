@@ -807,6 +807,13 @@ My collection 新增 Milestones；摘要可同時呈現首次、活動與 PB 卡
 
 紀念情境以首次完賽、活動留念、回歸及週年為主；不把回歸推論為康復／傷病，不引導高熱量或超量運動。圖案抽象化，不展示原始路線；公開預覽明列成就門檻本身亦會透露運動紀錄。
 
+### 22.1 實作（PG-M-03，2026-09-15）
+
+- **作品**：`tools/nft-assets/build.mjs` → `web/nft/achievements/milestones/<category>-<class>.svg`（9 張：四距離 × organizer／device ＋ first_finish organizer）。統一 520×520 框架：細邊框、halo、主圖、距離字標（5K／10K／21.0975K／42.195K／FINISH）、系列字（GENESIS DISTANCE · FIRST …／FIRST FINISH · EVENT）、來源字（OFFICIAL RESULT mint／DEVICE RECORDED muted）。5K 青綠起跑門＋5 光點；10K 冰藍雙地平線＋日；半馬紫色半環＋虛線地平；全馬紫→青綠完整環＋終點拱門；First Finish 方格終點帶。
+- **Milestones 區塊** `Milestones`（Gear → My collection 之後，PG-M-03）：資料涵蓋起點 caption（「依已匯入的紀錄判定首次…不代表人生首次」）、「同一筆紀錄解鎖 N 個里程碑，請逐枚領取」；每卡：章名＋作品名、Official／Device（室內另標）、門檻「單次 ≥ x km」、達成日（已解鎖才顯示）、狀態 Chip：未解鎖 neutral／裝置版尚未開放 neutral＋說明／待審 devnet／可領取 synced＋「Mint NFT」／等待核准 devnet／已領取 level／已撤銷 offline。未解鎖卡 opacity 0.7，不用鞋階變灰。
+- **領取流程**：同意對話（預設只公開類別／門檻／驗證等級；門檻本身也會透露）→ intent → 「領取預覽」Alert 逐項列出會寫入 NFT 的屬性＋rent 揭露 → MWA 簽送；409 顯示「目前沒有符合的紀錄可領取」。
+- **藝廊**：`PbCard` 同一卡片支援 genesis_distance（award 圖示）／first_finish（flag）；未公開顯示「距離與日期未公開」；玩家頁新增「首次」篩選與「首次里程碑」區（與 PB 區分開，不混稱）；NFT 詳情系列文字依 kind。
+
 ## 23. 走路／跑步記錄與分圈
 
 延續既有深色、霓虹青綠／紫與數字字體設計，詳 [GPS 運動畫面規格](./walk-run-tracking.md)。開始頁分別選 Walking／Running 與戶外／室內；記錄頁走路主顯示 km/h、跑步主顯示 min/km，時間／距離為次要資訊。GPS 品質與暫停狀態需文字加圖示，不能只靠顏色。

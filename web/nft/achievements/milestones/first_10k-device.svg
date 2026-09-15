@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 520" width="520" height="520">
+<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#050711"/><stop offset="1" stop-color="#0B1020"/></linearGradient><radialGradient id="halo"><stop offset="0" stop-color="#24C8FF" stop-opacity="0.26"/><stop offset="1" stop-color="#24C8FF" stop-opacity="0"/></radialGradient><linearGradient id="vm" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9B6CFF"/><stop offset="1" stop-color="#30EBC8"/></linearGradient></defs>
+<rect width="520" height="520" rx="48" fill="url(#bg)"/>
+<rect x="14" y="14" width="492" height="492" rx="40" fill="none" stroke="#24C8FF" stroke-opacity="0.35" stroke-width="2"/>
+<circle cx="260" cy="236" r="200" fill="url(#halo)"/>
+<path d="M60 250 Q260 150 460 250" fill="none" stroke="#24C8FF" stroke-width="10" stroke-linecap="round"/><path d="M90 296 Q260 210 430 296" fill="none" stroke="#24C8FF" stroke-opacity="0.55" stroke-width="6" stroke-linecap="round"/><circle cx="260" cy="150" r="26" fill="#24C8FF" fill-opacity="0.9"/><circle cx="260" cy="150" r="44" fill="none" stroke="#24C8FF" stroke-opacity="0.4" stroke-width="3"/>
+<text x="260" y="352" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="64" font-weight="800" letter-spacing="2" fill="#F4F8FF">10K</text>
+<text x="260" y="452" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="3" fill="#F4F8FF">GENESIS DISTANCE · FIRST 10K</text>
+<text x="260" y="486" text-anchor="middle" font-family="Inter, Roboto, Helvetica, Arial, sans-serif" font-size="16" letter-spacing="3" fill="#718099">DEVICE RECORDED</text>
+</svg>

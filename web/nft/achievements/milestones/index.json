@@ -1,0 +1,14 @@
+{
+  "base": "https://neonshift.cc/nft/achievements/milestones",
+  "files": [
+    "first_5k-organizer.svg",
+    "first_5k-device.svg",
+    "first_10k-organizer.svg",
+    "first_10k-device.svg",
+    "first_half-organizer.svg",
+    "first_half-device.svg",
+    "first_marathon-organizer.svg",
+    "first_marathon-device.svg",
+    "first_finish-organizer.svg"
+  ]
+}
