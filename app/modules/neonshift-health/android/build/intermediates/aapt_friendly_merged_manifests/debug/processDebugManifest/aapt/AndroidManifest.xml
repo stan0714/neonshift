@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="expo.modules.neonshifthealth" >
+
+    <uses-sdk android:minSdkVersion="34" />
+    <!-- Health Connect 讀取權限（FR-02）。app.json 也宣告了同一組，這裡確保 prebuild 重跑後仍存在 -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
+
+    <application>
+
+        <!-- Runbook 3.1：Android 14+ 權限說明頁；缺少時權限請求會被拒 -->
+        <activity-alias
+            android:name="expo.modules.neonshifthealth.ViewPermissionUsageActivity"
+            android:exported="true"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
+            android:targetActivity="dollar_openBracket_applicationId_closeBracket.MainActivity" >
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+    </application>
+
+</manifest>

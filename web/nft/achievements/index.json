@@ -1,0 +1,18 @@
+{
+  "base": "https://neonshift.cc/nft/achievements",
+  "files": [
+    "fastest_1k-organizer.svg",
+    "fastest_1k-device.svg",
+    "fastest_5k-organizer.svg",
+    "fastest_5k-device.svg",
+    "fastest_10k-organizer.svg",
+    "fastest_10k-device.svg",
+    "fastest_half-organizer.svg",
+    "fastest_half-device.svg",
+    "fastest_marathon-organizer.svg",
+    "fastest_marathon-device.svg",
+    "longest_run-organizer.svg",
+    "longest_run-device.svg"
+  ],
+  "note": "metadata served by api.neonshift.cc/v1/nft/achievements/<id>.json"
+}

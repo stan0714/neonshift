@@ -1,0 +1,24 @@
+# /etc/systemd/system/neonshift-signer.service — 隔離 attestor signer（只綁 127.0.0.1:6081；持有 attestor 私鑰）
+[Unit]
+Description=NeonShift attestor signer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=neonshift-signer
+Group=neonshift-signer
+WorkingDirectory=/opt/neonshift/backend
+EnvironmentFile=/etc/neonshift/signer.env
+ExecStart=/usr/bin/npm run signer
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+IPAddressAllow=localhost
+IPAddressDeny=any
+
+[Install]
+WantedBy=multi-user.target

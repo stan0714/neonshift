@@ -1,0 +1,42 @@
+{
+  "name": "NeonShift Shoe · Origin",
+  "symbol": "NSHOE",
+  "description": "Level 1 NeonShift gear, earned with 0 XP of verified movement. Graphite mesh · single light rail. A free achievement collectible — no purchase, no monetary value.",
+  "image": "https://neonshift.cc/nft/img/1.png",
+  "external_url": "https://neonshift.cc",
+  "attributes": [
+    {
+      "trait_type": "Type",
+      "value": "Shoe"
+    },
+    {
+      "trait_type": "Level",
+      "value": 1
+    },
+    {
+      "trait_type": "Stage",
+      "value": "Origin"
+    },
+    {
+      "trait_type": "XP threshold",
+      "value": 0
+    },
+    {
+      "trait_type": "Detail",
+      "value": "Graphite mesh · single light rail"
+    }
+  ],
+  "properties": {
+    "category": "image",
+    "files": [
+      {
+        "uri": "https://neonshift.cc/nft/img/1.png",
+        "type": "image/png"
+      },
+      {
+        "uri": "https://neonshift.cc/nft/img/1.svg",
+        "type": "image/svg+xml"
+      }
+    ]
+  }
+}

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeonShift Privacy Policy</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #050711; color: #F4F8FF; font: 16px/1.6 Inter, Roboto, Helvetica, Arial, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 32px 0 8px; color: #30EBC8; }
+  p, li { color: #AAB7CC; }
+  .meta { color: #718099; font-size: 14px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #26324A; vertical-align: top; }
+  th { color: #F4F8FF; }
+  a { color: #24C8FF; }
+  code { background: #121A2E; padding: 1px 6px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>NeonShift Privacy Policy</h1>
+  <p class="meta">Effective 2026-09-14 · Applies to the NeonShift Android app (package <code>cc.neonshift.app</code>) and the NeonShift API at <code>api.neonshift.cc</code>.</p>
+
+  <p>NeonShift turns verified daily movement into onchain progress on Solana devnet. This policy explains exactly which data leaves your phone, why, for how long, and how to delete it. tSKR is a devnet test token with no monetary value and is not the official SKR token.</p>
+
+  <h2>1. What stays on your phone</h2>
+  <ul>
+    <li><strong>Raw Health Connect records</strong> (individual step records, sleep sessions, their timestamps and source apps) are read on the device only. They are never uploaded.</li>
+    <li><strong>Raw motion sensor samples</strong> used for the optional 20-second motion check are processed on the device and discarded.</li>
+    <li><strong>GPS routes</strong> recorded when you start a run or walk in the app are encrypted and kept only on this phone. We upload a summary (distance, elapsed time, pace, splits and a GPS-quality score) — never coordinates. Deleting a workout deletes its route. Precise location is requested only while you use the app; a visible notification shows while recording continues on the lock screen.</li>
+    <li><strong>Exercise sessions imported from Health Connect</strong> (runs and walks, distance, steps and calories from the same source app) are read on the device; only the per-session summary is uploaded, labelled with its source.</li>
+    <li>Wallet authorization tokens and API session tokens are stored in Android Keystore-backed secure storage.</li>
+  </ul>
+
+  <h2>2. What we send to our servers, and why</h2>
+  <table>
+    <tr><th>Data</th><th>Purpose</th><th>Retention</th></tr>
+    <tr><td>Wallet address</td><td>Sign-in (Sign In With Solana), linking your claims to your wallet</td><td>Until you delete your data</td></tr>
+    <tr><td>Daily step total and per-minute step counts for the mission day; sleep session minutes; the Health Connect source app names</td><td>Verifying that a mission goal was met and detecting fake data before we sign an onchain attestation</td><td>At most 30 days</td></tr>
+    <tr><td>Motion-check statistics (cadence, rhythm, amplitude summaries — not raw samples)</td><td>Anti-cheat signal for step claims</td><td>At most 30 days</td></tr>
+    <tr><td>Tournament step totals reported during a weekend tournament</td><td>Leaderboard and settlement</td><td>At most 30 days after the tournament</td></tr>
+    <tr><td>App version, device model, Android API level</td><td>Compatibility and fraud detection</td><td>At most 30 days</td></tr>
+    <tr><td>Request logs (IP address, timestamps, request IDs, error codes)</td><td>Security, rate limiting and support</td><td>At most 30 days</td></tr>
+  </table>
+  <p>We never receive your health data outside of a mission or tournament claim you initiate, and we never sell or share it with third parties. There are no advertising SDKs in the app.</p>
+
+  <h2>3. What is public on the blockchain</h2>
+  <p>Your wallet address, mission claim receipts (task day and type, tSKR amount), gear level and XP, tournament entries and results, and achievement collectibles (NFTs) are recorded on Solana devnet. Blockchain data is public and permanent; it cannot be deleted by us. No step counts, sleep durations or other health values are written onchain — only whether a mission goal was met.</p>
+  <p>The in-app Gallery shows other players' wallet address, level, XP, streak and collectibles, all derived from public onchain events. It never shows health values.</p>
+
+  <h2>4. Deleting your data</h2>
+  <p>In the app, open <strong>Profile → Delete my backend data</strong>. This immediately signs you out on all devices and deletes your health summaries, verification records and request caches from our servers. If you have a stake in a tournament that has not settled, the tournament summary is kept until settlement and never longer than 30 days; you will see the exact date in the app. Signing in again afterwards is treated as new consent.</p>
+  <p>You can revoke Health Connect access at any time in Android Settings → Health Connect; NeonShift then stops reading health data.</p>
+
+  <h2>5. Permissions we ask for</h2>
+  <ul>
+    <li><strong>Health Connect: Steps, Sleep</strong> (and optional background read) — to check daily missions.</li>
+    <li><strong>Activity recognition / motion sensors</strong> — optional 20-second on-device motion check.</li>
+    <li><strong>Internet</strong> — to talk to our API and Solana devnet.</li>
+  </ul>
+
+  <h2>6. Security</h2>
+  <p>Traffic is TLS only. Session tokens are short-lived (15 minutes) with revocable refresh tokens. Every claim is signed by your wallet; server-side attestation keys are held in an isolated signer service. Our servers never hold your wallet private key.</p>
+
+  <h2>7. Children</h2>
+  <p>NeonShift is not directed at children under 16 and does not knowingly collect their data.</p>
+
+  <h2>8. Changes and contact</h2>
+  <p>We will post updates to this page and change the effective date above. Questions or deletion requests: <a href="mailto:privacy@neonshift.cc">privacy@neonshift.cc</a>.</p>
+</main>
+</body>
+</html>

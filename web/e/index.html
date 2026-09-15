@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeonShift Event</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #050711; color: #F4F8FF; font: 16px/1.6 Inter, Roboto, Helvetica, Arial, sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 48px 20px 80px; }
+  h1 { font-size: 26px; margin: 0 0 8px; }
+  p { color: #AAB7CC; }
+  .slug { color: #30EBC8; font-family: ui-monospace, Menlo, monospace; }
+  .btn { display: inline-block; margin-top: 16px; padding: 14px 22px; border-radius: 12px; background: #30EBC8; color: #041016; font-weight: 700; text-decoration: none; }
+  .meta { color: #718099; font-size: 14px; margin-top: 32px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>NeonShift 活動 <span id="slug" class="slug"></span></h1>
+  <p>這個連結會在 NeonShift App（Solana Mobile Seeker）中開啟活動頁面，讓你報名、報到與領取活動權益。</p>
+  <p>This link opens the event inside the NeonShift app on Solana Mobile Seeker for registration, check-in and perks.</p>
+  <a id="open" class="btn" href="#">Open in NeonShift</a>
+  <p class="meta">尚未安裝？請從 Solana dApp Store 安裝 NeonShift，再重新感應標籤或掃描 QR。<br>Not installed yet? Get NeonShift from the Solana dApp Store, then tap the tag or scan the QR again.</p>
+</main>
+<script>
+  var m = location.pathname.match(/^\/e\/([^/]+)/);
+  var slug = m ? decodeURIComponent(m[1]) : '';
+  document.getElementById('slug').textContent = slug;
+  document.getElementById('open').href = 'neonshift://e/' + encodeURIComponent(slug) + location.search;
+</script>
+</body>
+</html>

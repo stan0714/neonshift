@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="expo.modules.neonshiftsensors.MotionStatsTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-09-14T06:50:57.057Z" hostname="MacBook-Pro-7.local" time="0.034">
+  <properties/>
+  <testcase name="short_or_empty_windows_do_not_crash" classname="expo.modules.neonshiftsensors.MotionStatsTest" time="0.003"/>
+  <testcase name="low_amplitude_noise_is_treated_as_stationary" classname="expo.modules.neonshiftsensors.MotionStatsTest" time="0.011"/>
+  <testcase name="variance_of_regular_vs_irregular_cadence" classname="expo.modules.neonshiftsensors.MotionStatsTest" time="0.008"/>
+  <testcase name="dominant_frequency_of_running_like_signal" classname="expo.modules.neonshiftsensors.MotionStatsTest" time="0.004"/>
+  <testcase name="static_signal_has_no_dominant_frequency" classname="expo.modules.neonshiftsensors.MotionStatsTest" time="0.0"/>
+  <testcase name="window_summary_fields" classname="expo.modules.neonshiftsensors.MotionStatsTest" time="0.002"/>
+  <testcase name="dominant_frequency_of_walking_like_signal" classname="expo.modules.neonshiftsensors.MotionStatsTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

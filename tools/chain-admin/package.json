@@ -1,0 +1,25 @@
+{
+  "name": "@neonshift/chain-admin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "NeonShift 鏈上管理指令（initialize_config／status／set-paused／rotate-attestor），PG-I-07",
+  "engines": { "node": "^24.0.0" },
+  "scripts": {
+    "admin": "tsx src/cli.ts",
+    "init-config": "tsx src/cli.ts init-config",
+    "status": "tsx src/cli.ts status",
+    "sync-achievements": "tsx src/cli.ts sync-achievements",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/spl-token": "^0.4.13",
+    "@solana/web3.js": "^1.99.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.23.13",
+    "typescript": "^5.6.0"
+  }
+}
