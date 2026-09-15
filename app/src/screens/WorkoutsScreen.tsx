@@ -5,6 +5,7 @@ import { Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import { formatDuration, formatKcal, formatKm, formatPace, qualityKind, modeLabel } from '@/domain/workouts';
 import { useT, type TKey } from '@/i18n';
+import { localTimeZone, matchesMode, weeklyReview, type ModeFilter } from '@/domain/review';
 import { ApiError, apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
 import { importFromHealthConnect } from '@/services/workouts/importer';
 import type { SessionMeta } from '@/services/workouts/LocalWorkoutStore';
@@ -19,6 +20,7 @@ import { color, radius, space, Text } from '@/theme';
 export function WorkoutsScreen() {
   const { t } = useT();
   const [items, setItems] = useState<WorkoutSummary[] | null>(null);
+  const [mode, setMode] = useState<ModeFilter>('all'); // PG-U-03：走路＋健走合看 walking
   const [error, setError] = useState<{ message: string; code: string; ref?: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -109,7 +111,34 @@ export function WorkoutsScreen() {
         <InlineState kind="info" title={t('wo.empty')} testID="workouts-empty" />
       ) : null}
       <PersonalBests reloadKey={items?.length ?? 0} />
-      {items?.map((w) => (
+      {items && items.length ? (
+        <>
+          <View style={styles.filters} accessibilityRole="tablist">
+            {(['all', 'walking', 'running'] as const).map((f) => (
+              <Pressable key={f} onPress={() => setMode(f)} accessibilityRole="tab" accessibilityState={{ selected: mode === f }} style={[styles.filter, mode === f && styles.filterOn]} testID={`workouts-filter-${f}`}>
+                <Text variant="caption" tone={mode === f ? undefined : 'secondary'} style={mode === f && styles.filterOnText}>
+                  {t(`wo.filter.${f}` as TKey)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Surface style={styles.card} testID="workouts-week-review">
+            <Text variant="title">{t('wo.week.title')}</Text>
+            <Text variant="caption" tone="muted">
+              {t('wo.week.note', { tz: localTimeZone() })}
+            </Text>
+            {weeklyReview(items, mode).slice(0, 4).map((wk) => (
+              <View key={wk.weekStart} style={styles.rowBetween} testID={`workouts-week-${wk.weekStart}`}>
+                <Text variant="bodySmall">{t('wo.week.row', { start: wk.weekStart })}</Text>
+                <Text variant="bodySmall" tone="secondary" numeric>
+                  {t('wo.week.stats', { n: wk.sessions, days: wk.activeDays, km: (Number(wk.distanceMm) / 1_000_000).toFixed(1), time: formatDuration(String(wk.elapsedMs)) })}
+                </Text>
+              </View>
+            ))}
+          </Surface>
+        </>
+      ) : null}
+      {items?.filter((w) => matchesMode(w, mode)).map((w) => (
         <Surface key={w.session_id} style={styles.card} testID={`workout-${w.session_id}`}>
           <View style={styles.rowBetween}>
             <Text variant="title">
@@ -169,6 +198,10 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  filters: { flexDirection: 'row', gap: space.xs, marginTop: space.m },
+  filter: { minHeight: 36, paddingHorizontal: space.s, borderRadius: radius.m, borderWidth: 1, borderColor: color.borderSubtle, alignItems: 'center', justifyContent: 'center' },
+  filterOn: { backgroundColor: color.mint, borderColor: color.mint },
+  filterOnText: { color: color.onMint },
   mt: { marginTop: space.m },
   mtS: { marginTop: space.s },
   mtXs: { marginTop: space.xs },

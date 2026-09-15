@@ -16,7 +16,7 @@ jest.mock('expo-crypto', () => { let n = 0; return { randomUUID: () => `00000000
 const mockNav = { navigate: jest.fn(), dispatch: jest.fn() };
 let mockRoute: { params: Record<string, string> } = { params: {} };
 jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => mockNav, useRoute: () => mockRoute }));
-jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { importWorkouts: jest.fn(async (sessions: { external_record_id: string }[]) => ({ imported: 1, results: sessions.map((s) => ({ external_record_id: s.external_record_id, outcome: 'created', session: { session_id: 'server-9' } })) })) } }));
+jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { myWorkouts: jest.fn(async () => ({ items: [], rules_version: 1 })), importWorkouts: jest.fn(async (sessions: { external_record_id: string }[]) => ({ imported: 1, results: sessions.map((s) => ({ external_record_id: s.external_record_id, outcome: 'created', session: { session_id: 'server-9' } })) })) } }));
 const sync = (jest.requireMock('@/services/api/ApiClient') as { apiClient: { importWorkouts: jest.Mock } }).apiClient.importWorkouts;
 let clock = 1_000_000;
 jest.spyOn(Date, 'now').mockImplementation(() => clock);
@@ -123,8 +123,13 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   await render(<WorkoutSummaryScreen />, { wrapper: Wrapper });
   expect(screen.getByTestId('sum-distance').props.children).toBe('0.36 km');
   // PG-U-01：模式標籤、目標結果、同步 payload 帶 intent／goal
-  expect(screen.getByText(/^Brisk walk · /)).toBeTruthy();
+  expect(screen.getAllByText(/^Brisk walk · /).length).toBeGreaterThan(0);
   expect(screen.getByTestId('sum-goal-met').props.children).toBe('Goal 10 min reached');
+  // PG-U-03：同類不足 3 筆不比較；分享預覽預設不含日期／配速，勾選後加入
+  await waitFor(() => expect(screen.getByTestId('sum-compare-none')).toBeTruthy());
+  expect(screen.getByTestId('sum-share-preview').props.children).toMatch(/^Brisk walk · 0\.36 km · \d+:\d\d · #NeonShift$/);
+  await fireEvent(screen.getByTestId('sum-share-date'), 'valueChange', true);
+  expect(screen.getByTestId('sum-share-preview').props.children).toMatch(/· \d{4}-\d{2}-\d{2} · #NeonShift$/);
   expect(screen.getByText('—')).toBeTruthy(); // kcal 無裝置值
   expect(screen.getByTestId('sum-sync').props.children).toBe('Synced to your account');
   expect(screen.getByTestId('sum-split-1')).toBeTruthy();

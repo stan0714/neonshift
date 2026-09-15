@@ -1,11 +1,13 @@
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, Share, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import type { Lap } from '@/domain/gps/engine';
 import { formatDuration, formatKm, formatPace, modeLabel } from '@/domain/workouts';
 import { useT, type TKey } from '@/i18n';
+import { compareSameCategory, shareText, type ShareFields } from '@/domain/review';
+import { apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
 import type { RootParamList } from '@/navigation/types';
 import { LocalWorkoutStore, type SessionMeta } from '@/services/workouts/LocalWorkoutStore';
 import { goalReached, workoutRecorder } from '@/services/workouts/WorkoutRecorder';
@@ -26,6 +28,18 @@ export function WorkoutSummaryScreen() {
   useEffect(reload, [reload]);
 
   const s = meta?.summary;
+  // PG-U-03：同類回顧（伺服器清單）與分享欄位
+  const [peers, setPeers] = useState<WorkoutSummary[] | null>(null);
+  const [shareFields, setShareFields] = useState<ShareFields>({ date: false, pace: false, mode: true });
+  useEffect(() => {
+    let alive = true;
+    apiClient.myWorkouts({ limit: 100 }).then((r) => { if (alive) setPeers(r.items); }).catch(() => { if (alive) setPeers([]); });
+    return () => { alive = false; };
+  }, [params.sessionId]);
+  const peersLoaded = peers !== null;
+  const asSummary: WorkoutSummary | null = meta && s ? ({ session_id: meta.syncedSessionId ?? meta.sessionId, sport: meta.sport, intent: meta.intent ?? null, environment: meta.environment, source: { origin: 'gps', source_id: 'cc.neonshift.app/gps', external_record_id: meta.sessionId, source_revision: 1 }, started_at: new Date(meta.startedAtUtc).toISOString(), ended_at: new Date(meta.endedAtUtc ?? meta.startedAtUtc + s.elapsedMs).toISOString(), elapsed_ms: String(s.elapsedMs), paused_ms: String(s.pausedMs), status: 'saved', quality: 'complete', rules_version: s.rulesVersion, review_reasons: [], metrics: { distance: s.distanceMm > 0 ? { value_mm: String(s.distanceMm), method: 'gps' } : null, steps: null, active_energy: null, total_energy: null, avg_pace_s_per_km: s.avgPaceSPerKm, avg_speed_kmh: s.avgSpeedKmh, step_length_mm: null }, pb_eligible: false, possible_duplicate_of: null, extras: {}, revision: 1, imported_at: '', updated_at: '' } as WorkoutSummary) : null;
+  const cmp = asSummary && peers ? compareSameCategory(asSummary, peers) : null;
+  const sharePreview = asSummary ? shareText(asSummary, shareFields, { mode: modeLabel(t, asSummary.sport, asSummary.intent), app: 'NeonShift' }) : '';
   // PG-U-01：目標結果（未達標仍保存，顯示實際完成）；模式標籤
   const goalMet = !!meta?.goal && !!s && goalReached(meta.goal, s.elapsedMs, s.distanceMm);
   const goalLabel = meta?.goal ? (meta.goal.kind === 'time' ? t('rec.goal.min', { n: Math.round(meta.goal.target / 60) }) : t('rec.goal.km', { n: meta.goal.target / 1_000_000 })) : '';
@@ -121,6 +135,40 @@ export function WorkoutSummaryScreen() {
           </View>
         )}
       </Surface>
+      {/* PG-U-03：同類個人回顧（同 sport／環境／來源等級；不足 3 筆不生成百分比）＋分享預覽（預設無座標／精確時間／錢包） */}
+      {cmp ? (
+        <Surface style={styles.card} testID="sum-compare">
+          <Text variant="title">{t('sum.compare.title')}</Text>
+          <Text variant="bodySmall" tone="secondary">
+            {t('sum.compare.body', { n: cmp.count, km: (Number(cmp.avgDistanceMm) / 1_000_000).toFixed(2), pace: cmp.avgPaceSPerKm === null ? '—' : formatPace(cmp.avgPaceSPerKm) })}
+          </Text>
+          {cmp.paceDeltaPct !== null ? (
+            <Text variant="bodySmall" tone={cmp.paceDeltaPct >= 0 ? 'mint' : 'secondary'} testID="sum-compare-pace">
+              {cmp.paceDeltaPct >= 0 ? t('sum.compare.faster', { p: cmp.paceDeltaPct }) : t('sum.compare.slower', { p: -cmp.paceDeltaPct })}
+            </Text>
+          ) : null}
+        </Surface>
+      ) : peersLoaded ? (
+        <Text variant="caption" tone="muted" style={styles.mt} testID="sum-compare-none">
+          {t('sum.compare.none')}
+        </Text>
+      ) : null}
+      <Surface style={styles.card} testID="sum-share">
+        <Text variant="title">{t('sum.share.title')}</Text>
+        <Text variant="caption" tone="muted">
+          {t('sum.share.note')}
+        </Text>
+        {(['mode', 'pace', 'date'] as const).map((f) => (
+          <View key={f} style={styles.rowBetween}>
+            <Text variant="bodySmall">{t(`sum.share.${f}` as TKey)}</Text>
+            <Switch value={shareFields[f]} onValueChange={(v) => setShareFields({ ...shareFields, [f]: v })} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t(`sum.share.${f}` as TKey)} testID={`sum-share-${f}`} />
+          </View>
+        ))}
+        <Text variant="bodySmall" tone="secondary" style={styles.mt} testID="sum-share-preview">
+          {sharePreview}
+        </Text>
+        <Button label={t('sum.share.button')} variant="secondary" style={styles.mt} onPress={() => void Share.share({ message: sharePreview }).catch(() => {})} testID="sum-share-button" />
+      </Surface>
       <Button label={t('sum.done')} style={styles.mt} onPress={() => navigation.navigate('Workouts')} testID="sum-done" />
     </Screen>
   );
@@ -140,6 +188,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.xs, minHeight: 44 },
   hero: { alignItems: 'center', marginTop: space.m },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: space.m, gap: space.s },
   stat: { width: '47%', padding: space.m, borderRadius: radius.m, backgroundColor: color.elevated },

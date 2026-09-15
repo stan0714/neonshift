@@ -81,6 +81,13 @@ describe('WorkoutsScreen', () => {
     expect(screen.getByText('From records imported since 2026-09-01')).toBeTruthy();
     expect(screen.getByText('A record was corrected or deleted — this best was revised.')).toBeTruthy();
     expect(screen.getAllByText('5.00 km')).toHaveLength(2); // s1 與 s3 都是 5 km
+    // PG-U-03：週回顧與模式篩選
+    expect(screen.getByTestId('workouts-week-review')).toBeTruthy();
+    expect(screen.getByText(/Weeks start Monday, local time/)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('workouts-filter-walking'));
+    expect(screen.queryByTestId('workout-s1')).toBeNull(); // s1 是跑步
+    await fireEvent.press(screen.getByTestId('workouts-filter-all'));
+    expect(screen.getByTestId('workout-s1')).toBeTruthy();
     expect(screen.getAllByText('5:00 /km').length).toBeGreaterThan(0);
     expect(screen.getAllByText('320 kcal').length).toBeGreaterThan(0);
     expect(screen.getByText('350 kcal (total)')).toBeTruthy();
