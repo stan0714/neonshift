@@ -94,21 +94,23 @@ function publicAchievement(a: Achievement, pbs: PbRevision[]) {
   const pb = a.kind === "pb" ? pbs.find((p) => p.pbId === a.pbId) : null;
   const invalid = a.status === "revoked" || a.status === "revoke_pending";
   // PG-M-02 里程碑：有效即 current（沒有「被超越」的歷史概念）；來源失效 → invalidated
-  const record: "current" | "historical" | "invalidated" = a.kind === "milestone" ? (invalid ? "invalidated" : "current") : invalid || !pb || pb.status === "invalidated" ? "invalidated" : pb.status === "current" ? "current" : "historical";
+  const record: "current" | "historical" | "invalidated" = a.kind === "milestone" || a.kind === "event" ? (invalid ? "invalidated" : "current") : invalid || !pb || pb.status === "invalidated" ? "invalidated" : pb.status === "current" ? "current" : "historical";
   const attrs = (a.metadata.attributes as { trait_type: string; value: string }[] | undefined) ?? [];
   const valueAttr = attrs.find((x) => x.trait_type === "Time" || x.trait_type === "Distance");
   return {
     achievement_id: a.achievementId,
     asset: a.asset,
     kind: a.kind,
-    series: a.kind === "milestone" ? (a.category === "first_finish" ? "first_finish" : "genesis_distance") : a.category === "longest_run" ? "pb_distance" : "pb_speed",
+    series: a.kind === "event" ? a.category : a.kind === "milestone" ? (a.category === "first_finish" ? "first_finish" : "genesis_distance") : a.category === "longest_run" ? "pb_distance" : "pb_speed",
+    event: a.kind === "event" ? { title: ((a.metadata.attributes as { trait_type: string; value: string }[] | undefined) ?? []).find((x) => x.trait_type === "Event")?.value ?? null, event_id: (a.metadata.properties as { event_id?: string } | undefined)?.event_id ?? null } : null,
     category: a.category,
     verification_class: a.verificationClass,
     environment: (attrs.find((x) => x.trait_type === "Environment")?.value as string | undefined) ?? "outdoor",
     record,
     public: a.publicConsent,
     value: a.publicConsent && valueAttr ? valueAttr.value : null,
-    achieved_on: a.publicConsent ? ((attrs.find((x) => x.trait_type === "Achieved")?.value as string | undefined) ?? null) : null,
+    // 活動章的活動日期為公開資訊；其餘精確日期只在公開同意時
+    achieved_on: a.kind === "event" ? ((attrs.find((x) => x.trait_type === "Event date")?.value as string | undefined) ?? null) : a.publicConsent ? ((attrs.find((x) => x.trait_type === "Achieved")?.value as string | undefined) ?? null) : null,
     image: a.metadata.image as string,
     name: a.metadata.name as string,
     minted_at: a.mintedAt?.toISOString() ?? null,

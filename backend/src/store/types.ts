@@ -225,9 +225,13 @@ export type EventRow = { purgedAt?: Date | null;
   eventId: string; orgId: string; slug: string; title: string; description: string; state: EventState; timezone: string;
   registrationOpensAt: Date | null; registrationClosesAt: Date | null; startsAt: Date | null; endsAt: Date | null;
   capacity: number; registrationCount: number; currentRuleRevision: string | null; tournamentAddress: string | null;
+  /** PG-M-04 活動留念章：主辦方是否發行報到章／完賽章（分開；每玩家／活動／章別一次） */
+  badges: EventBadges;
   revision: number; cancelReason: string | null; createdBy: string; createdAt: Date; updatedAt: Date; publishedAt: Date | null; cancelledAt: Date | null;
 };
-export type EventPatch = Partial<Pick<EventRow, "title" | "description" | "timezone" | "registrationOpensAt" | "registrationClosesAt" | "startsAt" | "endsAt" | "capacity" | "tournamentAddress">>;
+export type EventBadges = { checkIn: boolean; finish: boolean };
+export const NO_BADGES: EventBadges = { checkIn: false, finish: false };
+export type EventPatch = Partial<Pick<EventRow, "title" | "description" | "timezone" | "registrationOpensAt" | "registrationClosesAt" | "startsAt" | "endsAt" | "capacity" | "tournamentAddress" | "badges">>;
 export type EventRuleRevision = { revisionId: string; eventId: string; version: number; rules: unknown; rulesHash: Buffer; createdBy: string; createdAt: Date; publishedAt: Date | null };
 export type EventRoleGrant = { eventId: string; wallet: string; role: EventRole; checkpointId: string | null; grantedBy: string; grantedAt: Date; revokedAt: Date | null };
 export type AuditEntry = { eventId: string | null; orgId: string | null; actorWallet: string; action: string; target: string | null; revisionId: string | null; requestId: string | null; details: unknown };
@@ -271,7 +275,7 @@ export interface PartnerStore {
    * 原子報名：活動 published 且（capacity = 0 或 registration_count < capacity）才建立／復用 participant 並 +1。
    * 回 "full"（額滿）、"exists"（已報名）、或 participant。
    */
-  registerParticipant(p: { eventId: string; wallet: string; acceptedRuleRevision: string; displayName: string | null; publicConsent: boolean }, now: Date): Promise<EventParticipant | "full" | "exists" | "not_open">;
+  registerParticipant(p: { eventId: string; wallet: string; acceptedRuleRevision: string; displayName: string | null; publicConsent: boolean; levelAtRegistration?: number | null }, now: Date): Promise<EventParticipant | "full" | "exists" | "not_open">;
   cancelRegistration(eventId: string, wallet: string, now: Date): Promise<EventParticipant | null>;
   getParticipant(eventId: string, wallet: string): Promise<EventParticipant | null>;
   listParticipations(wallet: string): Promise<EventParticipant[]>;
@@ -369,7 +373,7 @@ export interface PartnerStore {
 }
 
 /** PG-R-08 PB 成就＋ PG-M-02 首次里程碑：kind=pb 以 pbId 為來源；kind=milestone 以穩定 key（category|environment|class）為來源，來源更正沿用同一 achievement_id（終身一枚） */
-export type Achievement = { achievementId: string; wallet: string; kind: "pb" | "milestone"; pbId: string | null; milestoneKey: string | null; sourceKind: "workout" | "result" | null; sourceId: string | null; category: string; verificationClass: "organizer" | "device"; sourceRevision: number; rulesMajor: number; publicConsent: boolean; metadata: Record<string, unknown>; metadataHash: Buffer; status: "pending_registry" | "approved" | "minted" | "revoke_pending" | "revoked"; registrySignature: string | null; registryUpdatedAt: Date | null; asset: string | null; mintedSignature: string | null; mintedAt: Date | null; createdAt: Date; updatedAt: Date };
+export type Achievement = { achievementId: string; wallet: string; kind: "pb" | "milestone" | "event"; pbId: string | null; milestoneKey: string | null; sourceKind: "workout" | "result" | null; sourceId: string | null; category: string; verificationClass: "organizer" | "device"; sourceRevision: number; rulesMajor: number; publicConsent: boolean; metadata: Record<string, unknown>; metadataHash: Buffer; status: "pending_registry" | "approved" | "minted" | "revoke_pending" | "revoked"; registrySignature: string | null; registryUpdatedAt: Date | null; asset: string | null; mintedSignature: string | null; mintedAt: Date | null; createdAt: Date; updatedAt: Date };
 
 export type PbDesired = { key: string; discipline: "run"; category: string; environment: string; verificationClass: string; timingBasis: string; rulesMajor: number; value: bigint; sourceKind: "workout" | "result"; sourceId: string; sourceRevision: number; achievedAt: Date; status: "current" | "historical"; isBaseline: boolean; previousSourceId: string | null };
 export type PbRevision = { pbId: string; wallet: string; discipline: string; category: string; environment: string; verificationClass: string; timingBasis: string; rulesMajor: number; value: bigint; sourceKind: "workout" | "result"; sourceId: string; sourceRevision: number; achievedAt: Date; status: "current" | "historical" | "invalidated"; isBaseline: boolean; previousPbId: string | null; createdAt: Date; invalidatedAt: Date | null; reason: string | null };
@@ -395,4 +399,5 @@ export type FulfillOutcome = { kind: "ok"; redemption: EventRedemption; already:
 export type Checkpoint = { checkpointId: string; eventId: string; name: string; purpose: "check_in" | "redemption" | "info" };
 export type NfcTag = { tagId: string; eventId: string; checkpointId: string | null; opaqueRef: string; purpose: "checkpoint" | "participant"; participantWallet: string | null; issuedBy: string; issuedAt: Date; revokedAt: Date | null };
 
-export type EventParticipant = { eventId: string; wallet: string; status: "registered" | "cancelled" | "checked_in"; acceptedRuleRevision: string; displayName: string | null; publicConsentAt: Date | null; registeredAt: Date; cancelledAt: Date | null; retentionDueAt: Date | null };
+/** levelAtRegistration：報名時鞋階快照（PG-M-04／shoe-gameplay：活動 NFT 依報名時承諾權限，之後降級不沒收）；舊列 null */
+export type EventParticipant = { eventId: string; wallet: string; status: "registered" | "cancelled" | "checked_in"; acceptedRuleRevision: string; displayName: string | null; publicConsentAt: Date | null; registeredAt: Date; cancelledAt: Date | null; retentionDueAt: Date | null; levelAtRegistration: number | null };

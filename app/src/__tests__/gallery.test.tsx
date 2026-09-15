@@ -122,6 +122,25 @@ describe('GalleryPlayerScreen', () => {
     await act(async () => {});
   });
 
+  test('PG-M-04：活動紀念章卡（活動名、活動日期公開、時間未公開文案）；Events 篩選只留活動章；無活動章顯示空狀態', async () => {
+    const ach = (o: Record<string, unknown>) => ({ achievement_id: 'a1', asset: 'AssetA', series: 'pb_speed', category: 'fastest_5k', verification_class: 'device', environment: 'outdoor', record: 'current', public: true, value: '25:00', achieved_on: '2026-09-05', image: '', name: 'x', minted_at: '2026-09-06T00:00:00Z', minted_signature: 's', metadata_uri: '/v1/nft/achievements/a1.json', ...o });
+    api.galleryPlayer.mockResolvedValue({ player: player(B, 1), is_you: false, collectibles: [], achievements: [ach({}), ach({ achievement_id: 'e1', asset: 'AssetE', kind: 'event', series: 'event_finish', category: 'event_finish', verification_class: 'organizer', public: false, value: null, achieved_on: '2026-10-03', event: { title: 'River 10K', event_id: 'ev1' } })] });
+    await render(<GalleryPlayerScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('gallery-event-e1')).toBeTruthy());
+    expect(screen.getByTestId('gallery-event-e1').props.accessibilityLabel).toBe('River 10K · Current best');
+    expect(screen.getByText('Event finisher · Official result')).toBeTruthy();
+    expect(screen.getByText('2026-10-03')).toBeTruthy(); // 活動日期公開
+    await fireEvent.press(screen.getByTestId('gallery-filter-events'));
+    expect(screen.queryByTestId('gallery-pb-a1')).toBeNull();
+    expect(screen.getByTestId('gallery-event-e1')).toBeTruthy();
+    api.galleryPlayer.mockResolvedValue({ player: player(B, 1), is_you: false, collectibles: [], achievements: [ach({})] });
+    await render(<GalleryPlayerScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('gallery-pb-a1')).toBeTruthy());
+    await fireEvent.press(screen.getByTestId('gallery-filter-events'));
+    expect(screen.getByTestId('gallery-events-empty')).toBeTruthy();
+    await act(async () => {});
+  });
+
   test('NFT 詳情：系列、原達成者、狀態、鑄造日期、network、Explorer；invalidated 說明', async () => {
     api.galleryAchievement.mockResolvedValue({ achievement_id: 'a3', asset: 'AssetC', series: 'pb_speed', category: 'fastest_10k', verification_class: 'organizer', environment: 'outdoor', record: 'invalidated', public: false, value: null, achieved_on: null, image: '', name: 'x', minted_at: '2026-09-06T00:00:00Z', minted_signature: 's', metadata_uri: '', original_achiever: B, metadata: {}, network: 'devnet', explorer_url: 'https://explorer.solana.com/address/AssetC?cluster=devnet' });
     await render(<AchievementDetailScreen />, { wrapper: Wrapper });

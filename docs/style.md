@@ -813,6 +813,7 @@ My collection 新增 Milestones；摘要可同時呈現首次、活動與 PB 卡
 - **Milestones 區塊** `Milestones`（Gear → My collection 之後，PG-M-03）：資料涵蓋起點 caption（「依已匯入的紀錄判定首次…不代表人生首次」）、「同一筆紀錄解鎖 N 個里程碑，請逐枚領取」；每卡：章名＋作品名、Official／Device（室內另標）、門檻「單次 ≥ x km」、達成日（已解鎖才顯示）、狀態 Chip：未解鎖 neutral／裝置版尚未開放 neutral＋說明／待審 devnet／可領取 synced＋「Mint NFT」／等待核准 devnet／已領取 level／已撤銷 offline。未解鎖卡 opacity 0.7，不用鞋階變灰。
 - **領取流程**：同意對話（預設只公開類別／門檻／驗證等級；門檻本身也會透露）→ intent → 「領取預覽」Alert 逐項列出會寫入 NFT 的屬性＋rent 揭露 → MWA 簽送；409 顯示「目前沒有符合的紀錄可領取」。
 - **藝廊**：`PbCard` 同一卡片支援 genesis_distance（award 圖示）／first_finish（flag）；未公開顯示「距離與日期未公開」；玩家頁新增「首次」篩選與「首次里程碑」區（與 PB 區分開，不混稱）；NFT 詳情系列文字依 kind。
+- **活動紀念章（PG-M-04）**：活動詳情在 Perks 之後加 `EventBadges` Surface（主辦方有發行才顯示）：說明「報到章與完賽章分開、每人每章一枚、免費只付 rent、需報名時 Lv2」；每列章名＋提示（未達權限時顯示「需報名時跑鞋 Lv2（你當時為 Lv1）」）、狀態 Chip（需報名／未達成／未達權限／已取消／可領取＋Mint／等待核准／已領取／已撤銷）。藝廊 Events 篩選改列活動章（check-circle／flag 圖示、卡名＝活動名、活動日期公開、時間名次未公開文案），無則空狀態。
 
 ## 23. 走路／跑步記錄與分圈
 

@@ -11,6 +11,7 @@ import nacl from 'tweetnacl';
 import vectors from '../../../backend/src/lib/achievement-vectors.json';
 import { ACHIEVEMENT_LEN, claimAchievementInstruction } from '@/chain/instructions';
 import { achievementAssetPda, achievementPda, discriminator, eligibilityPda, MPL_CORE_PROGRAM_ID } from '@/chain/program';
+import { EventBadges } from '@/screens/events/EventBadges';
 import { Milestones } from '@/screens/workouts/Milestones';
 import { PersonalBests } from '@/screens/workouts/PersonalBests';
 import { achievementService } from '@/services/chain/AchievementService';
@@ -23,8 +24,8 @@ jest.mock('@/config/app', () => ({ APP_CONFIG: { ...jest.requireActual('@/config
 const mockAccountExists = jest.fn(async (_k: PublicKey) => false);
 const mockSend = jest.fn(async (_w: PublicKey, _ixs: unknown[]) => ({ signature: 'sigMint', blockhash: 'b', lastValidBlockHeight: 1 }));
 jest.mock('@/services/chain/ChainClient', () => ({ accountExists: (k: PublicKey) => mockAccountExists(k), sendWithWallet: (w: PublicKey, ixs: unknown[]) => mockSend(w, ixs), getConnection: () => ({}) }));
-jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { personalBests: jest.fn(), myAchievements: jest.fn(async () => ({ items: [] })), mintIntent: jest.fn(), milestones: jest.fn(), milestoneMintIntent: jest.fn() } }));
-const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'personalBests' | 'myAchievements' | 'mintIntent' | 'milestones' | 'milestoneMintIntent', jest.Mock>;
+jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { personalBests: jest.fn(), myAchievements: jest.fn(async () => ({ items: [] })), mintIntent: jest.fn(), milestones: jest.fn(), milestoneMintIntent: jest.fn(), eventBadges: jest.fn(), eventBadgeMintIntent: jest.fn() } }));
+const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'personalBests' | 'myAchievements' | 'mintIntent' | 'milestones' | 'milestoneMintIntent' | 'eventBadges' | 'eventBadgeMintIntent', jest.Mock>;
 
 const kp = nacl.sign.keyPair();
 const wallet = new PublicKey(kp.publicKey);
@@ -160,6 +161,47 @@ describe('Milestones 收藏（PG-M-03）', () => {
     await fireEvent.press(screen.getByTestId('ms-mint-first_5k-device'));
     await act(async () => { alerts[2]!.buttons.find((b) => b.text === 'Share value')!.onPress!(); });
     await waitFor(() => expect(screen.getByTestId('ms-error').props.accessibilityLabel ?? screen.getByText('No qualifying record to claim right now.')).toBeTruthy());
+    await act(async () => {});
+  });
+});
+
+describe('EventBadges（PG-M-04）', () => {
+  const EV = '11111111-2222-4333-8444-555555555555';
+  const item = (kind: 'check_in' | 'finish', status: string, over: Record<string, unknown> = {}) => ({ key: `event|${EV}|${kind}`, event_id: EV, kind, category: kind === 'check_in' ? 'event_check_in' : 'event_finish', rules_major: 1, status, level_at_registration: 2, min_level: 2, event: { title: 'River 10K', slug: 'river-10k', starts_at: '2026-10-03T00:00:00Z', ends_at: null, state: 'published' }, source: status === 'eligible' ? { kind: 'result', id: 'r1', revision: 1, achieved_at: '2026-10-03T00:00:00Z' } : null, ...over });
+  test('未發行不顯示；未報名顯示「需報名」；報到章可領取／完賽章未達成／權限不足說明；領取：同意 → 預覽 → 錢包簽送', async () => {
+    useWalletStore.setState({ status: 'connected', session: { address: wallet.toBase58(), publicKey: wallet, walletUriBase: '', label: 'Phantom' }, error: null } as never);
+    await render(<EventBadges eventId={EV} badges={{ check_in: false, finish: false }} registration="registered" />, { wrapper: Wrapper });
+    await act(async () => {});
+    expect(screen.queryByTestId('event-badges')).toBeNull();
+    await render(<EventBadges eventId={EV} badges={{ check_in: true, finish: true }} registration="none" />, { wrapper: Wrapper });
+    await act(async () => {});
+    expect(screen.getByTestId('event-badge-check_in').props.accessibilityLabel).toBe('Check-in badge · Register first');
+    api.eventBadges.mockResolvedValue({ rules_major: 1, items: [item('check_in', 'eligible', { source: { kind: 'participant', id: 'p', revision: 1, achieved_at: '2026-10-03T00:00:00Z' } }), item('finish', 'level_locked', { level_at_registration: 1 })] });
+    api.myAchievements.mockResolvedValue({ items: [] });
+    await render(<EventBadges eventId={EV} badges={{ check_in: true, finish: true }} registration="checked_in" />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('event-badge-mint-check_in')).toBeTruthy());
+    expect(screen.getByTestId('event-badge-check_in').props.accessibilityLabel).toBe('Check-in badge · Claimable');
+    expect(screen.getByTestId('event-badge-finish').props.accessibilityLabel).toBe('Finisher badge · Level not met');
+    expect(screen.getByText('Needs Lv2 gear at registration (you were Lv1).')).toBeTruthy();
+    const alerts: { title: string; message: string; buttons: { text: string; onPress?: () => void }[] }[] = [];
+    jest.spyOn(Alert, 'alert').mockImplementation((title, m, b) => { alerts.push({ title: String(title), message: String(m), buttons: (b ?? []) as never }); });
+    const msg = message();
+    const sig = nacl.sign.detached(msg, kp.secretKey);
+    const id = Buffer.from(msg.subarray(90, 122)).toString('hex');
+    api.eventBadgeMintIntent.mockResolvedValueOnce({ achievement: { achievement_id: id, kind: 'event', milestone_key: `event|${EV}|check_in`, status: 'approved', minted: false, pb_id: null }, pb_id: null, milestone_key: `event|${EV}|check_in`, fee_estimate_lamports: 3_500_000, metadata_preview: { attributes: [{ trait_type: 'Event', value: 'River 10K' }, { trait_type: 'Badge', value: 'Check-in' }] }, status: 'approved', proof: { message_b64: Buffer.from(msg).toString('base64'), signature_b64: Buffer.from(sig).toString('base64'), attestor: bs58.encode(kp.publicKey), expires_at: '', args: {} } });
+    await fireEvent.press(screen.getByTestId('event-badge-mint-check_in'));
+    expect(alerts[0]!.title).toBe('Share your finish time and rank on the NFT?');
+    await act(async () => { alerts[0]!.buttons.find((b) => b.text === 'Keep private')!.onPress!(); });
+    await waitFor(() => expect(alerts[1]?.title).toBe('Claim preview'));
+    expect(api.eventBadgeMintIntent).toHaveBeenCalledWith(EV, 'check_in', false);
+    expect(alerts[1]!.message).toContain('• Event: River 10K');
+    await act(async () => { alerts[1]!.buttons.find((b) => b.text === 'Mint')!.onPress!(); });
+    await waitFor(() => expect(screen.getByTestId('eb-success')).toBeTruthy());
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    // 已領取
+    api.myAchievements.mockResolvedValue({ items: [{ achievement_id: id, kind: 'event', milestone_key: `event|${EV}|check_in`, status: 'minted', minted: true }] });
+    await render(<EventBadges eventId={EV} badges={{ check_in: true, finish: false }} registration="checked_in" />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('event-badge-check_in').props.accessibilityLabel).toBe('Check-in badge · Claimed'));
     await act(async () => {});
   });
 });

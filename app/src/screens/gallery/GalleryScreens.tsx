@@ -239,13 +239,13 @@ export function GalleryPlayerScreen() {
                   </Pressable>
                 ) : null}
               </View>
-              {(data?.achievements ?? []).filter((a) => a.series !== 'genesis_distance' && a.series !== 'first_finish').length === 0 ? (
+              {(data?.achievements ?? []).filter((a) => a.series === 'pb_speed' || a.series === 'pb_distance').length === 0 ? (
                 <Text variant="bodySmall" tone="secondary" testID="gallery-no-pb">
                   {t('gal.noPb')}
                 </Text>
               ) : (
                 <View style={styles.grid}>
-                  {(data?.achievements ?? []).filter((a) => a.series !== 'genesis_distance' && a.series !== 'first_finish').map((a) => (
+                  {(data?.achievements ?? []).filter((a) => a.series === 'pb_speed' || a.series === 'pb_distance').map((a) => (
                     <View key={a.achievement_id} style={styles.cell}>
                       <PbCard a={a} onPress={a.asset ? () => navigation.navigate('AchievementDetail', { asset: a.asset! }) : undefined} testID={`gallery-pb-${a.achievement_id}`} />
                     </View>
@@ -254,11 +254,32 @@ export function GalleryPlayerScreen() {
               )}
             </>
           ) : null}
-          {filter === 'events' ? (
-            <Text variant="bodySmall" tone="secondary" style={styles.mt} testID="gallery-events-empty">
-              {t('gal.noPb')}
-            </Text>
-          ) : null}
+          {filter === 'all' || filter === 'events' ? (() => {
+            // PG-M-04：活動留念章（報到／完賽）獨立區塊
+            const evs = (data?.achievements ?? []).filter((a) => a.series === 'event_check_in' || a.series === 'event_finish');
+            return filter === 'events' || evs.length ? (
+              <>
+                <View style={styles.sectionHead}>
+                  <Text variant="label" tone="muted" uppercase>
+                    {t('gal.eventSection')}
+                  </Text>
+                </View>
+                {evs.length === 0 ? (
+                  <Text variant="bodySmall" tone="secondary" testID="gallery-events-empty">
+                    {t('gal.noEvents')}
+                  </Text>
+                ) : (
+                  <View style={styles.grid}>
+                    {evs.map((a) => (
+                      <View key={a.achievement_id} style={styles.cell}>
+                        <PbCard a={a} onPress={a.asset ? () => navigation.navigate('AchievementDetail', { asset: a.asset! }) : undefined} testID={`gallery-event-${a.achievement_id}`} />
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
+            ) : null;
+          })() : null}
           {filter === 'all' || filter === 'shoes' ? (
           <>
           <View style={styles.sectionHead}>

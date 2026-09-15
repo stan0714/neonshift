@@ -65,13 +65,15 @@ export type LeaderboardResponse = { week_id: number; status: TournamentStatus; g
 export type TournamentStepsResponse = { week_id: number; verified_steps: number; submitted_steps: number; accepted: boolean; first_reached_at: string | null; rank: number | null };
 export type GalleryPlayerView = { rank: number | null; wallet: string; shoe_level: number; core_level: number; xp: string; streak_days: number; max_streak_days: number; last_task_date: number | null; collectible_count: number; updated_at: string };
 export type GalleryListResponse = { generated_at: string; total: number; next_cursor: string | null; players: GalleryPlayerView[]; you: { rank: number } | null };
-export type GalleryAchievement = { achievement_id: string; asset: string | null; kind?: 'pb' | 'milestone'; series: 'pb_speed' | 'pb_distance' | 'genesis_distance' | 'first_finish'; category: PbCategory | MilestoneCategory; verification_class: 'organizer' | 'device'; environment: string; record: 'current' | 'historical' | 'invalidated'; public: boolean; value: string | null; achieved_on: string | null; image: string; name: string; minted_at: string | null; minted_signature: string | null; metadata_uri: string };
+export type GalleryAchievement = { achievement_id: string; asset: string | null; kind?: 'pb' | 'milestone' | 'event'; series: 'pb_speed' | 'pb_distance' | 'genesis_distance' | 'first_finish' | 'event_check_in' | 'event_finish'; category: PbCategory | MilestoneCategory | 'event_check_in' | 'event_finish'; event?: { title: string | null; event_id: string | null } | null; verification_class: 'organizer' | 'device'; environment: string; record: 'current' | 'historical' | 'invalidated'; public: boolean; value: string | null; achieved_on: string | null; image: string; name: string; minted_at: string | null; minted_signature: string | null; metadata_uri: string };
 export type GalleryAchievementDetail = GalleryAchievement & { original_achiever: string; metadata: Record<string, unknown>; network: string; explorer_url: string };
 export type GalleryPlayerResponse = { player: GalleryPlayerView; is_you: boolean; hidden?: boolean; collectibles: { kind: number; asset: string; signature: string; claimed_at: string }[]; achievements?: GalleryAchievement[] };
 export type PartnerEventView = {
   event_id: string; slug: string; title: string; description: string; state: 'draft' | 'published' | 'cancelled' | 'completed'; timezone: string;
   registration_opens_at: string | null; registration_closes_at: string | null; starts_at: string | null; ends_at: string | null;
   capacity: number; registration_count: number; spots_left: number | null; tournament_address: string | null;
+  /** PG-M-04：主辦方是否發行報到章／完賽章；舊後端可能缺 */
+  badges?: { check_in: boolean; finish: boolean };
   rules: { version: number; revision_id: string; rules: Record<string, unknown>; published_at: string | null } | null; cancel_reason: string | null;
 };
 export type EventRegistration = { status: 'registered' | 'cancelled' | 'checked_in'; accepted_rule_revision: string; display_name: string | null; public_consent: boolean; registered_at: string; cancelled_at: string | null };
@@ -106,8 +108,12 @@ export type MilestoneStatus = 'eligible' | 'pending_review' | 'device_pending' |
 export type MilestoneSource = { source: { kind: 'workout' | 'result'; id: string; revision: number }; achieved_at: string | null; distance_mm: string; reason: string | null };
 export type MilestoneItem = { key: string; category: MilestoneCategory; environment: 'outdoor' | 'indoor' | 'unknown'; verification_class: 'organizer' | 'device'; rules_major: number; threshold_mm: string | null; status: MilestoneStatus; first: MilestoneSource | null; pending: MilestoneSource | null };
 export type Milestones = { rules_major: number; imported_since: string | null; items: MilestoneItem[]; unlocked_by_source: { kind: 'workout' | 'result'; id: string; categories: MilestoneCategory[] }[] };
+/** PG-M-04：活動留念章（報到／完賽分開；報名時鞋階承諾） */
+export type EventBadgeKind = 'check_in' | 'finish';
+export type EventBadgeStatus = 'eligible' | 'locked' | 'level_locked' | 'cancelled';
+export type EventBadgeItem = { key: string; event_id: string; kind: EventBadgeKind; category: 'event_check_in' | 'event_finish'; rules_major: number; status: EventBadgeStatus; level_at_registration: number; min_level: number; event: { title: string; slug: string; starts_at: string | null; ends_at: string | null; state: string }; source: { kind: 'participant' | 'result'; id: string; revision: number; achieved_at: string | null } | null };
 export type AchievementStatus = 'pending_registry' | 'approved' | 'minted' | 'revoke_pending' | 'revoked';
-export type AchievementView = { achievement_id: string; minted: boolean; kind: 'pb' | 'milestone'; pb_id: string | null; milestone_key: string | null; source: { kind: 'workout' | 'result'; id: string; revision: number } | null; category: PbCategory | MilestoneCategory; verification_class: 'organizer' | 'device'; source_revision: number; rules_major: number; public_consent: boolean; status: AchievementStatus; metadata_hash: string; metadata_uri: string; asset: string | null; minted_signature: string | null; minted_at: string | null; registry_updated_at: string | null; updated_at: string };
+export type AchievementView = { achievement_id: string; minted: boolean; kind: 'pb' | 'milestone' | 'event'; pb_id: string | null; milestone_key: string | null; source: { kind: 'workout' | 'result'; id: string; revision: number } | null; category: PbCategory | MilestoneCategory; verification_class: 'organizer' | 'device'; source_revision: number; rules_major: number; public_consent: boolean; status: AchievementStatus; metadata_hash: string; metadata_uri: string; asset: string | null; minted_signature: string | null; minted_at: string | null; registry_updated_at: string | null; updated_at: string };
 export type MintIntent = { achievement: AchievementView; pb_id: string | null; milestone_key: string | null; fee_estimate_lamports: number; metadata_preview: Record<string, unknown>; status: AchievementStatus; proof: { message_b64: string; signature_b64: string; attestor: string; expires_at: string; args: Record<string, unknown> } | null };
 export type WorkoutImportResult = { imported: number; results: ({ external_record_id: string; outcome: 'created' | 'superseded' | 'same' | 'stale' | 'deleted'; session: WorkoutSummary } | { external_record_id: string; outcome: 'invalid'; reasons: string[] })[] };
 export type EventBenefit = { benefit_id: string; kind: 'physical' | 'digital_badge'; name: string; remaining: number; per_person_limit: number; requires_checkin: boolean; claim_deadline: string | null };
@@ -294,6 +300,14 @@ export class ApiClient {
 
   milestoneMintIntent(key: string, publicConsent: boolean): Promise<MintIntent> {
     return this.request('POST', '/me/milestones/mint-intent', { key, public_consent: publicConsent });
+  }
+
+  eventBadges(): Promise<{ rules_major: number; items: EventBadgeItem[] }> {
+    return this.request('GET', '/me/event-badges');
+  }
+
+  eventBadgeMintIntent(eventId: string, kind: EventBadgeKind, publicConsent: boolean): Promise<MintIntent> {
+    return this.request('POST', '/me/event-badges/mint-intent', { event_id: eventId, kind, public_consent: publicConsent });
   }
 
   myAchievements(): Promise<{ items: AchievementView[] }> {

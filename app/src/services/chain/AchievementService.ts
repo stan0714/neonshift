@@ -26,6 +26,10 @@ export const achievementService = {
   milestoneIntent(key: string, publicConsent: boolean) {
     return apiClient.milestoneMintIntent(key, publicConsent);
   },
+  /** PG-M-04：活動留念章（報到／完賽；每玩家／活動／章別一次） */
+  eventBadgeIntent(eventId: string, kind: 'check_in' | 'finish', publicConsent: boolean) {
+    return apiClient.eventBadgeMintIntent(eventId, kind, publicConsent);
+  },
 
   async mint(wallet: PublicKey, intent: MintIntent): Promise<MintOutcome> {
     if (!APP_CONFIG.chainConfigured) throw new ClaimError('NOT_AVAILABLE', 'Onchain program is not configured for this build');

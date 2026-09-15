@@ -244,7 +244,7 @@ export class MemoryStore implements Store {
   }
 
   // ---- PG-E-03 ----
-  async registerParticipant(p: { eventId: string; wallet: string; acceptedRuleRevision: string; displayName: string | null; publicConsent: boolean }, now: Date) {
+  async registerParticipant(p: { eventId: string; wallet: string; acceptedRuleRevision: string; displayName: string | null; publicConsent: boolean; levelAtRegistration?: number | null }, now: Date) {
     const e = this.events.get(p.eventId);
     if (!e || e.state !== "published") return "not_open" as const;
     const k = `${p.eventId}:${p.wallet}`;
@@ -252,7 +252,7 @@ export class MemoryStore implements Store {
     if (cur && cur.status !== "cancelled") return "exists" as const;
     if (e.capacity !== 0 && e.registrationCount >= e.capacity) return "full" as const;
     e.registrationCount += 1;
-    const row: EventParticipant = { eventId: p.eventId, wallet: p.wallet, status: "registered", acceptedRuleRevision: p.acceptedRuleRevision, displayName: p.displayName, publicConsentAt: p.publicConsent ? now : null, registeredAt: now, cancelledAt: null, retentionDueAt: null };
+    const row: EventParticipant = { eventId: p.eventId, wallet: p.wallet, status: "registered", acceptedRuleRevision: p.acceptedRuleRevision, displayName: p.displayName, publicConsentAt: p.publicConsent ? now : null, registeredAt: now, cancelledAt: null, retentionDueAt: null, levelAtRegistration: p.levelAtRegistration ?? null };
     this.participants.set(k, row);
     return row;
   }

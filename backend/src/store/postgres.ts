@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBadges, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -34,6 +34,9 @@ const toPlayer = (r: Row): Player => ({
 });
 
 /** PostgreSQL 實作（SD 4.5）。所有一次性語意都靠單一 UPDATE … WHERE 的原子性，不做讀後寫。 */
+/** events.badges JSONB → EventBadges（缺欄位視為未發行） */
+const badgesOf = (v: unknown): EventBadges => { const o = (v ?? {}) as { check_in?: unknown; finish?: unknown }; return { checkIn: o.check_in === true, finish: o.finish === true }; };
+
 export class PostgresStore implements Store {
   constructor(private readonly pool: pg.Pool) {}
 
@@ -193,6 +196,7 @@ export class PostgresStore implements Store {
       registrationOpensAt: (x.registration_opens_at as Date | null) ?? null, registrationClosesAt: (x.registration_closes_at as Date | null) ?? null, startsAt: (x.starts_at as Date | null) ?? null, endsAt: (x.ends_at as Date | null) ?? null,
       purgedAt: (x.purged_at as Date | null) ?? null,
       capacity: Number(x.capacity), registrationCount: Number(x.registration_count), currentRuleRevision: (x.current_rule_revision as string | null) ?? null, tournamentAddress: (x.tournament_address as string | null) ?? null,
+      badges: badgesOf(x.badges),
       revision: Number(x.revision), cancelReason: (x.cancel_reason as string | null) ?? null, createdBy: x.created_by as string, createdAt: x.created_at as Date, updatedAt: x.updated_at as Date, publishedAt: (x.published_at as Date | null) ?? null, cancelledAt: (x.cancelled_at as Date | null) ?? null,
     };
   }
@@ -230,9 +234,9 @@ export class PostgresStore implements Store {
   }
   async createEvent(e: Parameters<Store["createEvent"]>[0], now: Date) {
     const r = await this.pool.query(
-      `INSERT INTO events (event_id, org_id, slug, title, description, timezone, registration_opens_at, registration_closes_at, starts_at, ends_at, capacity, tournament_address, created_by, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14) RETURNING *`,
-      [e.eventId, e.orgId, e.slug, e.title, e.description, e.timezone, e.registrationOpensAt, e.registrationClosesAt, e.startsAt, e.endsAt, e.capacity, e.tournamentAddress, e.createdBy, now],
+      `INSERT INTO events (event_id, org_id, slug, title, description, timezone, registration_opens_at, registration_closes_at, starts_at, ends_at, capacity, tournament_address, badges, created_by, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15) RETURNING *`,
+      [e.eventId, e.orgId, e.slug, e.title, e.description, e.timezone, e.registrationOpensAt, e.registrationClosesAt, e.startsAt, e.endsAt, e.capacity, e.tournamentAddress, JSON.stringify({ check_in: e.badges.checkIn, finish: e.badges.finish }), e.createdBy, now],
     );
     return this.partnerEventRow(r.rows[0] as Row);
   }
@@ -245,12 +249,12 @@ export class PostgresStore implements Store {
     return r.rows[0] ? this.partnerEventRow(r.rows[0] as Row) : null;
   }
   async updateEvent(eventId: string, expectedRevision: number, patch: EventPatch, now: Date) {
-    const cols: Record<string, string> = { title: "title", description: "description", timezone: "timezone", registrationOpensAt: "registration_opens_at", registrationClosesAt: "registration_closes_at", startsAt: "starts_at", endsAt: "ends_at", capacity: "capacity", tournamentAddress: "tournament_address" };
+    const cols: Record<string, string> = { title: "title", description: "description", timezone: "timezone", registrationOpensAt: "registration_opens_at", registrationClosesAt: "registration_closes_at", startsAt: "starts_at", endsAt: "ends_at", capacity: "capacity", tournamentAddress: "tournament_address", badges: "badges" };
     const sets: string[] = [];
     const args: unknown[] = [eventId, expectedRevision, now];
     for (const [k, col] of Object.entries(cols)) {
       if (k in patch) {
-        args.push((patch as Record<string, unknown>)[k]);
+        args.push(k === "badges" ? JSON.stringify({ check_in: patch.badges!.checkIn, finish: patch.badges!.finish }) : (patch as Record<string, unknown>)[k]);
         sets.push(`${col} = $${args.length}`);
       }
     }
@@ -316,9 +320,9 @@ export class PostgresStore implements Store {
 
   // ---- PG-E-03 ----
   private participantRow(x: Row): EventParticipant {
-    return { eventId: x.event_id as string, wallet: x.wallet as string, status: x.status as EventParticipant["status"], acceptedRuleRevision: x.accepted_rule_revision as string, displayName: (x.display_name as string | null) ?? null, publicConsentAt: (x.public_consent_at as Date | null) ?? null, registeredAt: x.registered_at as Date, cancelledAt: (x.cancelled_at as Date | null) ?? null, retentionDueAt: (x.retention_due_at as Date | null) ?? null };
+    return { eventId: x.event_id as string, wallet: x.wallet as string, status: x.status as EventParticipant["status"], acceptedRuleRevision: x.accepted_rule_revision as string, displayName: (x.display_name as string | null) ?? null, publicConsentAt: (x.public_consent_at as Date | null) ?? null, registeredAt: x.registered_at as Date, cancelledAt: (x.cancelled_at as Date | null) ?? null, retentionDueAt: (x.retention_due_at as Date | null) ?? null, levelAtRegistration: x.level_at_registration === null || x.level_at_registration === undefined ? null : Number(x.level_at_registration) };
   }
-  async registerParticipant(p: { eventId: string; wallet: string; acceptedRuleRevision: string; displayName: string | null; publicConsent: boolean }, now: Date) {
+  async registerParticipant(p: { eventId: string; wallet: string; acceptedRuleRevision: string; displayName: string | null; publicConsent: boolean; levelAtRegistration?: number | null }, now: Date) {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -330,11 +334,11 @@ export class PostgresStore implements Store {
       if (Number(e.capacity) !== 0 && Number(e.registration_count) >= Number(e.capacity)) { await client.query("ROLLBACK"); return "full" as const; }
       await client.query(`UPDATE events SET registration_count = registration_count + 1 WHERE event_id = $1`, [p.eventId]);
       const r = await client.query(
-        `INSERT INTO event_participants (event_id, wallet, status, accepted_rule_revision, display_name, public_consent_at, registered_at, cancelled_at)
-         VALUES ($1,$2,'registered',$3,$4,$5,$6,NULL)
-         ON CONFLICT (event_id, wallet) DO UPDATE SET status = 'registered', accepted_rule_revision = EXCLUDED.accepted_rule_revision, display_name = EXCLUDED.display_name, public_consent_at = EXCLUDED.public_consent_at, registered_at = EXCLUDED.registered_at, cancelled_at = NULL
+        `INSERT INTO event_participants (event_id, wallet, status, accepted_rule_revision, display_name, public_consent_at, registered_at, cancelled_at, level_at_registration)
+         VALUES ($1,$2,'registered',$3,$4,$5,$6,NULL,$7)
+         ON CONFLICT (event_id, wallet) DO UPDATE SET status = 'registered', accepted_rule_revision = EXCLUDED.accepted_rule_revision, display_name = EXCLUDED.display_name, public_consent_at = EXCLUDED.public_consent_at, registered_at = EXCLUDED.registered_at, cancelled_at = NULL, level_at_registration = EXCLUDED.level_at_registration
          RETURNING *`,
-        [p.eventId, p.wallet, p.acceptedRuleRevision, p.displayName, p.publicConsent ? now : null, now],
+        [p.eventId, p.wallet, p.acceptedRuleRevision, p.displayName, p.publicConsent ? now : null, now, p.levelAtRegistration ?? null],
       );
       await client.query("COMMIT");
       return this.participantRow(r.rows[0] as Row);

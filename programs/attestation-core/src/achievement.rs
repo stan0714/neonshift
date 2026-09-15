@@ -12,7 +12,7 @@
 //! | 57 | 1 | cluster_id |
 //! | 58 | 32 | wallet |
 //! | 90 | 32 | achievement_id（伺服器穩定分配，不由 client 自選） |
-//! | 122 | 1 | category（1..=6 PB；7..=11 首次里程碑，PG-M-02） |
+//! | 122 | 1 | category（1..=6 PB；7..=11 首次里程碑，PG-M-02；12..=13 活動留念章，PG-M-04） |
 //! | 123 | 1 | verification_class（1 organizer／2 device） |
 //! | 124 | 4 | source_revision u32 LE |
 //! | 128 | 2 | rules_version u16 LE |
@@ -67,8 +67,12 @@ pub const CATEGORY_FIRST_HALF: u8 = 9;
 pub const CATEGORY_FIRST_MARATHON: u8 = 10;
 /// 首次完賽（主辦方 FINISHED）。
 pub const CATEGORY_FIRST_FINISH: u8 = 11;
+/// 活動報到章（Event Memory，PG-M-04；key＝wallet＋event＋章別）。
+pub const CATEGORY_EVENT_CHECK_IN: u8 = 12;
+/// 活動完賽章。
+pub const CATEGORY_EVENT_FINISH: u8 = 13;
 /// 有效 category 上限（含）。
-pub const CATEGORY_MAX: u8 = CATEGORY_FIRST_FINISH;
+pub const CATEGORY_MAX: u8 = CATEGORY_EVENT_FINISH;
 /// 驗證等級：主辦方。
 pub const CLASS_ORGANIZER: u8 = 1;
 /// 驗證等級：裝置／GPS。
@@ -265,8 +269,8 @@ mod tests {
         b[0] ^= 1;
         assert_eq!(AchievementProof::decode(&b).unwrap_err(), AchievementError::BadDomain);
         let mut c = base();
-        c.category = 12;
-        assert_eq!(AchievementProof::decode(&c.encode()).unwrap_err(), AchievementError::BadCategory { got: 12 });
+        c.category = 14;
+        assert_eq!(AchievementProof::decode(&c.encode()).unwrap_err(), AchievementError::BadCategory { got: 14 });
         c.category = CATEGORY_FIRST_FINISH; // 里程碑類別在範圍內
         assert!(AchievementProof::decode(&c.encode()).is_ok());
         let mut t = base();

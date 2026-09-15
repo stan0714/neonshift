@@ -230,11 +230,12 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       expect((await store.getMembership(orgId, owner))?.revokedAt, name).toBeNull();
 
       const eventId = randomUUID();
-      const e = await store.createEvent({ eventId, orgId, slug: "ev-" + name, title: "T", description: "", timezone: "UTC", registrationOpensAt: null, registrationClosesAt: null, startsAt: null, endsAt: null, capacity: 10, tournamentAddress: null, createdBy: owner }, now);
+      const e = await store.createEvent({ eventId, orgId, slug: "ev-" + name, title: "T", description: "", timezone: "UTC", registrationOpensAt: null, registrationClosesAt: null, startsAt: null, endsAt: null, capacity: 10, tournamentAddress: null, badges: { checkIn: true, finish: true }, createdBy: owner }, now);
       expect([e.state, e.revision], name).toEqual(["draft", 1]);
       expect(await store.updateEvent(eventId, 99, { title: "X" }, now), name).toBeNull(); // 版本不符
-      const u = await store.updateEvent(eventId, 1, { title: "River 5K", capacity: 50 }, now);
-      expect([u?.title, u?.capacity, u?.revision], name).toEqual(["River 5K", 50, 2]);
+      expect(e.badges, name).toEqual({ checkIn: true, finish: true }); // PG-M-04
+      const u = await store.updateEvent(eventId, 1, { title: "River 5K", capacity: 50, badges: { checkIn: false, finish: true } }, now);
+      expect([u?.title, u?.capacity, u?.revision, u?.badges], name).toEqual(["River 5K", 50, 2, { checkIn: false, finish: true }]);
       const rev = await store.addRuleRevision({ revisionId: randomUUID(), eventId, version: 1, rules: { distance_m: 5000 }, rulesHash: Buffer.alloc(32, 1), createdBy: owner }, now);
       expect(await store.transitionEvent(eventId, ["published"], "cancelled", {}, now), name).toBeNull(); // from 不符
       const pub = await store.transitionEvent(eventId, ["draft"], "published", { currentRuleRevision: rev.revisionId }, now);
@@ -260,12 +261,15 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
       const owner = "O" + name;
       await store.createOrganization({ orgId, name: "Org2 " + name, slug: "org2-" + name, createdBy: owner }, now);
       const eventId = randomUUID();
-      await store.createEvent({ eventId, orgId, slug: "ev2-" + name, title: "T", description: "", timezone: "UTC", registrationOpensAt: null, registrationClosesAt: null, startsAt: now, endsAt: new Date("2026-10-03T04:00:00Z"), capacity: 2, tournamentAddress: null, createdBy: owner }, now);
+      await store.createEvent({ eventId, orgId, slug: "ev2-" + name, title: "T", description: "", timezone: "UTC", registrationOpensAt: null, registrationClosesAt: null, startsAt: now, endsAt: new Date("2026-10-03T04:00:00Z"), capacity: 2, tournamentAddress: null, badges: { checkIn: false, finish: false }, createdBy: owner }, now);
       const rev = await store.addRuleRevision({ revisionId: randomUUID(), eventId, version: 1, rules: {}, rulesHash: Buffer.alloc(32, 2), createdBy: owner }, now);
       await store.transitionEvent(eventId, ["draft"], "published", { currentRuleRevision: rev.revisionId }, now);
       const [a, b, c] = ["A" + name, "B" + name, "C" + name];
       // 報名：容量 2、重複 exists、第三人 full；取消釋放
-      expect(typeof (await store.registerParticipant({ eventId, wallet: a, acceptedRuleRevision: rev.revisionId, displayName: "Alice", publicConsent: true }, now)), name).toBe("object");
+      const reg = await store.registerParticipant({ eventId, wallet: a, acceptedRuleRevision: rev.revisionId, displayName: "Alice", publicConsent: true, levelAtRegistration: 2 }, now);
+      expect(typeof reg, name).toBe("object");
+      expect((reg as { levelAtRegistration: number | null }).levelAtRegistration, name).toBe(2); // PG-M-04 報名時鞋階快照
+      expect((await store.getParticipant(eventId, a))?.levelAtRegistration, name).toBe(2);
       expect(await store.registerParticipant({ eventId, wallet: a, acceptedRuleRevision: rev.revisionId, displayName: null, publicConsent: false }, now), name).toBe("exists");
       await store.registerParticipant({ eventId, wallet: b, acceptedRuleRevision: rev.revisionId, displayName: null, publicConsent: false }, now);
       expect(await store.registerParticipant({ eventId, wallet: c, acceptedRuleRevision: rev.revisionId, displayName: null, publicConsent: false }, now), name).toBe("full");

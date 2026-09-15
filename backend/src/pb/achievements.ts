@@ -19,6 +19,7 @@ import type { AppConfig } from "../config.js";
 import { ApiError } from "../errors.js";
 import { ACHIEVEMENT_MAX_TTL_SECONDS, ACHIEVEMENT_VERSION, CATEGORY_CODE, CLASS_CODE, encodeAchievement, type AchievementProof } from "../lib/achievement.js";
 import { MILESTONE_RULES_MAJOR, type MilestoneCandidate, type MilestoneResolution } from "../milestones/compute.js";
+import { EVENT_BADGE_RULES_MAJOR, eventBadgeKeyOf, eventBadgeView, type EventBadgeResolution, type EventBadgeService } from "../milestones/eventBadges.js";
 import type { MilestoneService } from "../milestones/service.js";
 import type { AttestorSigner } from "../signer/types.js";
 import type { Achievement, PbRevision, Store } from "../store/types.js";
@@ -31,6 +32,8 @@ const IMAGE_BASE = "https://neonshift.cc/nft/achievements/";
 export const achievementIdOf = (wallet: string, pbId: string) => createHash("sha256").update(`neonshift-achievement|${wallet}|${pbId}`).digest("hex");
 /** PG-M-02：穩定 key 派生，不含來源／revision／規則版本／年份 */
 export const milestoneAchievementIdOf = (wallet: string, key: string) => createHash("sha256").update(`neonshift-milestone|${wallet}|${key}`).digest("hex");
+/** PG-M-04：活動留念章 key＝event|<event_id>|<kind>（與首次章不同 namespace） */
+export const eventBadgeAchievementIdOf = (wallet: string, key: string) => createHash("sha256").update(`neonshift-event-badge|${wallet}|${key}`).digest("hex");
 
 const categoryLabel: Record<string, string> = { fastest_1k: "Fastest 1K", fastest_5k: "Fastest 5K", fastest_10k: "Fastest 10K", fastest_half: "Fastest Half Marathon", fastest_marathon: "Fastest Marathon", longest_run: "Longest Run" };
 /** 首次里程碑作品名（commemorative-nfts 1） */
@@ -94,8 +97,34 @@ export function buildMilestoneMetadata(m: MilestoneResolution, first: MilestoneC
   };
 }
 
+/** PG-M-04 canonical metadata：活動名稱為公開資訊；精確完賽時間／名次只在公開同意時寫入；不含主辦方商標 */
+export function buildEventBadgeMetadata(b: EventBadgeResolution, achievementId: string, publicConsent: boolean): Record<string, Json> {
+  const kindLabel = b.kind === "check_in" ? "Check-in" : "Finisher";
+  const attrs: Json[] = [
+    { trait_type: "Series", value: "Event Memory" },
+    { trait_type: "Badge", value: kindLabel },
+    { trait_type: "Event", value: b.event.title },
+    { trait_type: "Verification", value: "Official" },
+    { trait_type: "Rules", value: `v${EVENT_BADGE_RULES_MAJOR}` },
+  ];
+  if (b.event.startsAt) attrs.push({ trait_type: "Event date", value: b.event.startsAt.toISOString().slice(0, 10) });
+  if (publicConsent && b.source?.result) {
+    attrs.push({ trait_type: "Time", value: fmtMs(BigInt(b.source.result.elapsedMs)) });
+    if (b.source.result.rank !== null) attrs.push({ trait_type: "Rank", value: String(b.source.result.rank) });
+  }
+  return {
+    name: `NeonShift · ${b.event.title} · ${kindLabel}`,
+    symbol: "NSEV",
+    description: b.kind === "check_in" ? `Checked in at ${b.event.title}, confirmed by the organizer and recorded by NeonShift.` : `Finished ${b.event.title}, confirmed by the organizer's published results and recorded by NeonShift. Not an official race certification.${publicConsent ? " Details shared by the runner." : ""}`,
+    image: `${IMAGE_BASE}milestones/event-${b.kind}.svg`,
+    external_url: `https://neonshift.cc/nft/achievements/${achievementId}`,
+    attributes: attrs,
+    properties: { category: "image", achievement_id: achievementId, event_id: b.eventId, badge_kind: b.kind, public: publicConsent },
+  };
+}
+
 export class AchievementService {
-  constructor(private readonly store: Store, private readonly config: AppConfig, private readonly signer: AttestorSigner, private readonly now: () => Date, private readonly milestones: MilestoneService | null = null) {}
+  constructor(private readonly store: Store, private readonly config: AppConfig, private readonly signer: AttestorSigner, private readonly now: () => Date, private readonly milestones: MilestoneService | null = null, private readonly eventBadges: EventBadgeService | null = null) {}
 
   /** 依 PB 建立／更新成就（冪等）；PB 需為 current／historical */
   async ensure(wallet: string, pbId: string, publicConsent: boolean): Promise<{ achievement: Achievement; pb: PbRevision }> {
@@ -147,9 +176,43 @@ export class AchievementService {
     }
   }
 
-  /** 已核准者簽發 15 分鐘證明；回傳鏈上指令參數與費用揭露（PB 以 pbId、里程碑以穩定 key） */
-  async intent(wallet: string, ref: { pbId: string } | { milestoneKey: string }, publicConsent: boolean) {
-    const achievement = "pbId" in ref ? (await this.ensure(wallet, ref.pbId, publicConsent)).achievement : (await this.ensureMilestone(wallet, ref.milestoneKey, publicConsent)).achievement;
+  /** PG-M-04：依活動留念章 key 建立／更新（冪等；需 eligible） */
+  async ensureEventBadge(wallet: string, key: string, publicConsent: boolean): Promise<{ achievement: Achievement; badge: EventBadgeResolution }> {
+    if (!this.eventBadges) throw new ApiError(503, "EVENT_BADGES_UNAVAILABLE", "event badges not configured");
+    const b = (await this.eventBadges.resolve(wallet)).find((x) => x.key === key);
+    if (!b) throw new ApiError(404, "NOT_FOUND", "event badge not found");
+    if (b.status !== "eligible" || !b.source) throw new ApiError(409, "EVENT_BADGE_NOT_ELIGIBLE", `event badge is ${b.status}`);
+    const achievementId = eventBadgeAchievementIdOf(wallet, key);
+    const metadata = buildEventBadgeMetadata(b, achievementId, publicConsent);
+    const achievement = await this.store.upsertAchievement({ achievementId, wallet, kind: "event", pbId: null, milestoneKey: key, sourceKind: b.source.kind === "result" ? "result" : "workout", sourceId: b.source.id, category: b.category, verificationClass: "organizer", sourceRevision: b.source.revision, rulesMajor: EVENT_BADGE_RULES_MAJOR, publicConsent, metadata, metadataHash: metadataHashOf(metadata), status: "pending_registry", registrySignature: null, registryUpdatedAt: null, asset: null, mintedSignature: null, mintedAt: null }, this.now());
+    return { achievement, badge: b };
+  }
+
+  /** PG-M-04：活動章與目前判定同步（取消報名／結果更正 → revoke_pending；重新符合 → 同 id 恢復） */
+  async reconcileEventBadges(wallet: string) {
+    if (!this.eventBadges) return;
+    const list = (await this.store.listAchievements(wallet)).filter((a) => a.kind === "event");
+    if (!list.length) return;
+    const res = await this.eventBadges.resolve(wallet);
+    for (const a of list) {
+      const b = res.find((x) => x.key === a.milestoneKey);
+      const ok = b?.status === "eligible" && b.source ? b.source : null;
+      const revoked = a.status === "revoked" || a.status === "revoke_pending";
+      if (!ok) { if (!revoked) await this.store.setAchievementStatus(a.achievementId, "revoke_pending", {}, this.now()); continue; }
+      const sourceChanged = a.sourceId !== ok.id || a.sourceRevision !== ok.revision;
+      if (a.mintedSignature) {
+        if (revoked) await this.store.setAchievementStatus(a.achievementId, "minted", {}, this.now());
+        if (sourceChanged) await this.store.setAchievementSource(a.achievementId, { sourceKind: ok.kind === "result" ? "result" : "workout", sourceId: ok.id, sourceRevision: ok.revision }, this.now());
+      } else if (revoked || sourceChanged) {
+        if (revoked) await this.store.setAchievementStatus(a.achievementId, "pending_registry", {}, this.now());
+        await this.ensureEventBadge(wallet, a.milestoneKey!, a.publicConsent);
+      }
+    }
+  }
+
+  /** 已核准者簽發 15 分鐘證明；回傳鏈上指令參數與費用揭露（PB 以 pbId、里程碑／活動章以穩定 key） */
+  async intent(wallet: string, ref: { pbId: string } | { milestoneKey: string } | { eventBadgeKey: string }, publicConsent: boolean) {
+    const achievement = "pbId" in ref ? (await this.ensure(wallet, ref.pbId, publicConsent)).achievement : "milestoneKey" in ref ? (await this.ensureMilestone(wallet, ref.milestoneKey, publicConsent)).achievement : (await this.ensureEventBadge(wallet, ref.eventBadgeKey, publicConsent)).achievement;
     const base = { achievement: achievementView(achievement), pb_id: achievement.pbId, milestone_key: achievement.milestoneKey, fee_estimate_lamports: MINT_FEE_ESTIMATE_LAMPORTS, metadata_preview: achievement.metadata };
     if (achievement.status === "minted") return { ...base, status: "minted" as const, proof: null };
     if (achievement.status !== "approved") return { ...base, status: achievement.status, proof: null };
@@ -175,6 +238,7 @@ export class AchievementService {
   /** PB 重算後：被 invalidated 的 PB 若已有成就 → revoke_pending（已鑄造亦標記，鏈上歷史不刪） */
   async reconcile(wallet: string, pbs: PbRevision[]) {
     for (const a of await this.store.listAchievements(wallet)) {
+      if (a.kind !== "pb") continue; // 里程碑／活動章由 reconcileMilestones／reconcileEventBadges 處理
       const pb = pbs.find((p) => p.pbId === a.pbId);
       if ((!pb || pb.status === "invalidated") && a.status !== "revoked" && a.status !== "revoke_pending") await this.store.setAchievementStatus(a.achievementId, "revoke_pending", {}, this.now());
       else if (pb && pb.status !== "invalidated" && pb.sourceRevision !== a.sourceRevision && a.status !== "minted") {
@@ -187,8 +251,8 @@ export class AchievementService {
 
 export const achievementView = (a: Achievement) => ({ achievement_id: a.achievementId, minted: a.mintedSignature !== null, kind: a.kind, pb_id: a.pbId, milestone_key: a.milestoneKey, source: a.sourceKind && a.sourceId ? { kind: a.sourceKind, id: a.sourceId, revision: a.sourceRevision } : null, category: a.category, verification_class: a.verificationClass, source_revision: a.sourceRevision, rules_major: a.rulesMajor, public_consent: a.publicConsent, status: a.status, metadata_hash: a.metadataHash.toString("hex"), metadata_uri: `/v1/nft/achievements/${a.achievementId}.json`, asset: a.asset, minted_signature: a.mintedSignature, minted_at: a.mintedAt?.toISOString() ?? null, registry_updated_at: a.registryUpdatedAt?.toISOString() ?? null, updated_at: a.updatedAt.toISOString() });
 
-export async function achievementRoutes(app: FastifyInstance, opts: { auth: AuthService; store: Store; achievements: AchievementService; pbs: PersonalBestService; now: () => Date }) {
-  const { auth, store, achievements, pbs, now } = opts;
+export async function achievementRoutes(app: FastifyInstance, opts: { auth: AuthService; store: Store; achievements: AchievementService; pbs: PersonalBestService; now: () => Date; eventBadges?: EventBadgeService }) {
+  const { auth, store, achievements, pbs, now, eventBadges } = opts;
   const ops = (req: FastifyRequest) => {
     const token = app.config.OPS_TOKEN;
     if (!token) throw new ApiError(404, "NOT_FOUND", "not found");
@@ -203,6 +267,18 @@ export async function achievementRoutes(app: FastifyInstance, opts: { auth: Auth
     if (!b.success) throw new ApiError(422, "VALIDATION", "public_consent (boolean) is required");
     await pbs.recompute(req.auth!.wallet); // 先確認 PB 仍有效（BR-40）
     return achievements.intent(req.auth!.wallet, { pbId: pbId.data }, b.data.public_consent);
+  });
+
+  /** PG-M-04：活動留念章目錄與鑄造申請 */
+  app.get("/me/event-badges", { preHandler: requireAuth(auth) }, async (req) => {
+    if (!eventBadges) throw new ApiError(503, "EVENT_BADGES_UNAVAILABLE", "event badges not configured");
+    const list = await eventBadges.resolve(req.auth!.wallet);
+    return { rules_major: EVENT_BADGE_RULES_MAJOR, items: list.map(eventBadgeView) };
+  });
+  app.post("/me/event-badges/mint-intent", { preHandler: requireAuth(auth), config: { rateLimit: { max: app.config.RATE_LIMIT_SENSITIVE_PER_MINUTE, timeWindow: "1 minute" } } }, async (req) => {
+    const b = z.object({ event_id: z.string().uuid(), kind: z.enum(["check_in", "finish"]), public_consent: z.boolean() }).strict().safeParse(req.body ?? {});
+    if (!b.success) throw new ApiError(422, "VALIDATION", "event_id, kind and public_consent (boolean) are required");
+    return achievements.intent(req.auth!.wallet, { eventBadgeKey: eventBadgeKeyOf(b.data.event_id, b.data.kind) }, b.data.public_consent);
   });
 
   /** PG-M-02：里程碑鑄造申請（穩定 key）；讀取即重算資格 */

@@ -12,6 +12,7 @@ import { RpcChainReader, StaticChainReader, type ChainReader } from "./chain/rea
 import { galleryRoutes } from "./gallery/routes.js";
 import { partnerRoutes } from "./partner/routes.js";
 import { AchievementService, achievementRoutes } from "./pb/achievements.js";
+import { EventBadgeService } from "./milestones/eventBadges.js";
 import { MilestoneService, milestoneRoutes } from "./milestones/service.js";
 import { PersonalBestService, pbRoutes } from "./pb/service.js";
 import { workoutRoutes } from "./workouts/routes.js";
@@ -169,12 +170,13 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch, ch
     await v1.register(galleryRoutes, { auth, store: dataStore, now: now ?? (() => new Date()) });
     const pbs = new PersonalBestService(dataStore, now ?? (() => new Date()));
     const milestones = new MilestoneService(dataStore);
-    const achievements = new AchievementService(dataStore, config, attestorSigner, now ?? (() => new Date()), milestones);
-    pbs.onRecomputed = async (w, rows) => { await achievements.reconcile(w, rows); await achievements.reconcileMilestones(w); }; // PG-M-02：來源變動同步里程碑成就
-    await v1.register(partnerRoutes, { auth, store: dataStore, now: now ?? (() => new Date()), pbs });
+    const eventBadges = new EventBadgeService(dataStore);
+    const achievements = new AchievementService(dataStore, config, attestorSigner, now ?? (() => new Date()), milestones, eventBadges);
+    pbs.onRecomputed = async (w, rows) => { await achievements.reconcile(w, rows); await achievements.reconcileMilestones(w); await achievements.reconcileEventBadges(w); }; // PG-M-02／M-04：來源變動同步里程碑／活動章
+    await v1.register(partnerRoutes, { auth, store: dataStore, now: now ?? (() => new Date()), pbs, onParticipationChanged: (w) => achievements.reconcileEventBadges(w) });
     await v1.register(workoutRoutes, { auth, store: dataStore, now: now ?? (() => new Date()), pbs });
     await v1.register(pbRoutes, { auth, store: dataStore, pbs });
-    await v1.register(achievementRoutes, { auth, store: dataStore, achievements, pbs, now: now ?? (() => new Date()) });
+    await v1.register(achievementRoutes, { auth, store: dataStore, achievements, pbs, now: now ?? (() => new Date()), eventBadges });
     await v1.register(milestoneRoutes, { auth, milestones });
     v1.get("/rules/version", async () => ({ rules_version: ruleSet.version, rules_hash: `sha256:${ruleSet.hash.toString("hex")}`, description: ruleSet.config.description ?? null }));
   }, { prefix: API_PREFIX });

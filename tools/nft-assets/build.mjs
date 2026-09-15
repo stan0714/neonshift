@@ -220,6 +220,16 @@ for (const [key, fn] of Object.entries(milestoneArt)) for (const cls of key === 
   writeFileSync(resolve(OUT, "achievements", "milestones", file), fn(cls));
   msFiles.push(file);
 }
+// PG-M-04：活動留念章（報到／完賽）通用作品：不含主辦方商標；活動名由 metadata 提供
+const eventArt = {
+  check_in: msFrame(`<circle cx="260" cy="230" r="150" fill="none" stroke="${color.cyan}" stroke-opacity="0.5" stroke-width="6"/><path d="M175 235 L235 295 L350 175" fill="none" stroke="${color.cyan}" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>`, { label: "CHECKED IN", series: "EVENT MEMORY · CHECK-IN", cls: "organizer", tint: color.cyan }),
+  finish: msFrame(`<line x1="150" y1="120" x2="150" y2="330" stroke="${color.mint}" stroke-width="10" stroke-linecap="round"/><path d="M150 130 L360 130 L330 190 L360 250 L150 250 Z" fill="${color.mint}" fill-opacity="0.85"/>${[0, 1, 2, 3].map((i) => `<rect x="${170 + i * 40}" y="${i % 2 ? 150 : 190}" width="40" height="40" fill="${color.canvas}" fill-opacity="0.6"/>`).join("")}`, { label: "FINISHER", series: "EVENT MEMORY · FINISH", cls: "organizer", tint: color.mint }),
+};
+for (const [kind, svg] of Object.entries(eventArt)) {
+  const file = `event-${kind}.svg`;
+  writeFileSync(resolve(OUT, "achievements", "milestones", file), svg);
+  msFiles.push(file);
+}
 writeFileSync(resolve(OUT, "achievements", "milestones", "index.json"), JSON.stringify({ base: `${BASE}/achievements/milestones`, files: msFiles }, null, 2) + "\n");
 console.log(`wrote ${msFiles.length} milestone artworks`);
 // PNG fallback（Style 16.2；部分錢包不渲染 SVG）：需要 rsvg-convert（brew install librsvg）
