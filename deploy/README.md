@@ -48,6 +48,13 @@ deploy/l1/deploy.sh             # 之後每次：rsync → npm ci → migration 
 ssh root@l1.neonshift.cc 'journalctl -u neonshift-api -f'
 ```
 
-Cloudflare Pages：建立專案連到本 repo，**Build output directory = `web`**、不需 build 指令；自訂網域 `neonshift.cc`。`web/_headers` 設定 `assetlinks.json`／NFT 的 Content-Type 與 CORS，`web/_redirects` 讓 `/e/<slug>` 落到導引頁。
+Cloudflare Pages（2026-09-15 已建立專案 `neonshift`，直接上傳、不走 Git）：
+
+```bash
+npx wrangler login                                   # 一次；若 ~/.wrangler 目錄存在，wrangler 會改讀該處，需 cp ~/Library/Preferences/.wrangler/config/default.toml ~/.wrangler/config/
+npx wrangler pages deploy web --project-name neonshift --branch main --commit-dirty=true
+```
+
+預覽網址 `https://neonshift-2gd.pages.dev`；自訂網域 `neonshift.cc` 已加入專案（Pages API），DNS 需在 Cloudflare 儀表板把 `neonshift.cc` 的 A 紀錄換成 CNAME → `neonshift-2gd.pages.dev`（OAuth token 沒有 DNS 權限）。`web/_headers` 設定 `assetlinks.json`／NFT 的 Content-Type 與 CORS，`web/_redirects` 讓 `/e/<slug>` 落到 `/e/`（Pages 會把 `/e/index.html` 正規化成 `/e/`，rewrite 目標不能寫 index.html）。
 
 秘密只在主機 `/etc/neonshift/`（root 可讀、各服務帳號唯讀），不進 repo；`OPS_TOKEN`／`METRICS_TOKEN` 需要時 `ssh root@l1.neonshift.cc 'grep -E "OPS|METRICS" /etc/neonshift/api.env'`。
