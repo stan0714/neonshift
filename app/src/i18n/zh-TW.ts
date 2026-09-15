@@ -910,6 +910,8 @@ export const zhTW: Record<keyof typeof en, string> = {
   'rec.units.mi': '1 英里',
   'rec.go': '開始',
   'rec.settings': '運動設定',
+  'rec.countdown.skip': '點一下立即開始',
+  'rec.countdown.hint': '略過倒數',
   'rec.shoe': 'Lv {n} 跑鞋 · 開啟裝備',
   'rec.env.gpsOn': 'GPS 開啟',
   'rec.env.toggleHint': '切換戶外（GPS）與室內',

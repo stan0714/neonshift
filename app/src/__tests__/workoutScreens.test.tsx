@@ -94,8 +94,14 @@ test('開始頁（NRC 版面）：GPS chip 切室內停用 START 並導向匯入
   await fireEvent.press(screen.getByTestId('start-cue-voice'));
   expect(useWorkoutPrefs.getState().voice).toBe(true);
   await fireEvent.press(screen.getByTestId('start-cue-voice'));
+  // 3–2–1 倒數：按 START 先進倒數（顯示 3、尚未開始記錄）；點一下倒數畫面略過 → 立即開始
   await fireEvent.press(screen.getByTestId('start-go'));
+  await waitFor(() => expect(screen.getByTestId('start-countdown-number').props.children).toBe(3));
+  expect(recorder.snapshot().state).toBe('idle');
+  await fireEvent.press(screen.getByTestId('start-go'));
+  await fireEvent.press(screen.getByTestId('start-countdown'));
   await waitFor(() => expect(mockNav.navigate).toHaveBeenCalledWith('WorkoutRecord'));
+  expect(screen.queryByTestId('start-countdown')).toBeNull();
   expect(recorder.snapshot()).toMatchObject({ state: 'recording', sport: 'walk', intent: 'brisk', goal: { kind: 'time', target: 600, unit: 's', version: 1 }, goalReached: false, trackEquivalent: { laps: 0, remainderMm: 0, lapMm: 400_000 } });
   expect(useWorkoutPrefs.getState().mode).toBe('brisk'); // 最近模式保存
   expect(loc.startLocationUpdatesAsync).toHaveBeenCalled();

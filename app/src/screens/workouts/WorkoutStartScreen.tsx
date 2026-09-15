@@ -1,12 +1,15 @@
 import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { useEffect, useState } from 'react';
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import * as Haptics from 'expo-haptics';
+import * as Speech from 'expo-speech';
+import { Animated, Easing, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import Svg, { Line, Path } from 'react-native-svg';
 
 import { Button, InlineState, Screen, Surface } from '@/components';
 import { ShoeHero } from '@/components/ShoeHero';
 import { SPLIT_KM_MM, SPLIT_MILE_MM, TRACK_LAP_MAX_M, TRACK_LAP_MIN_M } from '@/domain/gps/engine';
+import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useT, type TKey } from '@/i18n';
 import type { WorkoutGoal } from '@/services/api/ApiClient';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
@@ -85,6 +88,68 @@ function Backdrop() {
   );
 }
 
+export const COUNTDOWN_FROM = 3;
+export const COUNTDOWN_TICK_MS = 1000;
+
+/**
+ * 3–2–1 倒數（Style 24.5；PG-U-01「倒數可跳過」）：點一下任何地方立即開始；返回鍵取消。
+ * 每格一次 haptic（震動提示開啟時）與語音（語音提示開啟時）；減少動態時不縮放。
+ */
+function Countdown({ visible, voice, haptic, locale, onDone, onCancel }: { visible: boolean; voice: boolean; haptic: boolean; locale: 'zh-TW' | 'en'; onDone: () => void; onCancel: () => void }) {
+  const { t } = useT();
+  const reduceMotion = useReduceMotion();
+  const [n, setN] = useState(COUNTDOWN_FROM);
+  const scale = useRef(new Animated.Value(1)).current;
+  const done = useRef(false);
+  useEffect(() => {
+    if (!visible) return;
+    done.current = false;
+    setN(COUNTDOWN_FROM);
+    let current = COUNTDOWN_FROM;
+    const tick = () => {
+      if (haptic) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      if (voice) Speech.speak(String(current), { language: locale });
+      if (!reduceMotion) {
+        scale.setValue(1.35);
+        Animated.timing(scale, { toValue: 1, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+      }
+    };
+    tick();
+    const id = setInterval(() => {
+      current -= 1;
+      if (current <= 0) {
+        clearInterval(id);
+        if (!done.current) {
+          done.current = true;
+          onDone();
+        }
+        return;
+      }
+      setN(current);
+      tick();
+    }, COUNTDOWN_TICK_MS);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+  const skip = () => {
+    if (done.current) return;
+    done.current = true;
+    onDone();
+  };
+  return (
+    <Modal visible={visible} transparent={false} animationType="fade" onRequestClose={onCancel} statusBarTranslucent>
+      <Pressable style={styles.countdown} onPress={skip} accessibilityRole="button" accessibilityLabel={t('rec.countdown.skip')} accessibilityHint={t('rec.countdown.hint')} testID="start-countdown">
+        <Animated.Text style={[styles.countdownNumber, { transform: [{ scale }] }]} accessibilityLiveRegion="assertive" maxFontSizeMultiplier={1.2} testID="start-countdown-number">
+          {n}
+        </Animated.Text>
+        <Text variant="title" tone="secondary" style={styles.center}>
+          {t('rec.countdown.skip')}
+        </Text>
+      </Pressable>
+    </Modal>
+  );
+}
+
 const fmtDist = (km: number) => km.toFixed(2);
 const fmtTime = (min: number) => `${String(min).padStart(2, '0')}:00`;
 
@@ -95,7 +160,7 @@ const fmtTime = (min: number) => `${String(min).padStart(2, '0')}:00`;
  * 目標快照存入 session、達標只提醒；室內不啟用 GPS。
  */
 export function WorkoutStartScreen() {
-  const { t } = useT();
+  const { t, locale } = useT();
   const navigation = useNavigation();
   const prefs = useWorkoutPrefs();
   const shoeLevel = useDashboardStore((s) => (s.profile?.shoeLevel ?? 1) as 1 | 2 | 3 | 4 | 5);
@@ -121,7 +186,9 @@ export function WorkoutStartScreen() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<{ kind: 'permission' | 'generic'; message?: string } | null>(null);
   const [sheet, setSheet] = useState<'goal' | 'settings' | null>(null);
+  const [counting, setCounting] = useState(false);
 
+  /** 按下 START：先確認定位權限，再進 3–2–1 倒數；倒數結束（或點一下略過）才真正開始記錄 */
   const go = async () => {
     setBusy(true);
     setErr(null);
@@ -130,6 +197,15 @@ export function WorkoutStartScreen() {
         setErr({ kind: 'permission' });
         return;
       }
+      setCounting(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const begin = async () => {
+    setCounting(false);
+    setBusy(true);
+    try {
       const goal = goalOf(goalKind, timeMin, distKm);
       await prefs.set({ mode, goal }); // 最近模式與目標（快速開始用）
       await workoutRecorder.start({ sport, intent, goal, environment: env, autoLapMm: autoLap === 'off' ? null : Number(autoLap) * 1000, trackLapMm: trackLapM === null ? null : trackLapM * 1000, splitLengthMm: units === 'km' ? SPLIT_KM_MM : SPLIT_MILE_MM });
@@ -219,6 +295,8 @@ export function WorkoutStartScreen() {
       {err?.kind === 'permission' ? <InlineState kind="warning" title={t('rec.permissionTitle')} body={t('rec.permissionBody')} action={{ label: t('rec.permissionOpen'), onPress: () => void Linking.openSettings() }} testID="start-permission" /> : null}
       {err?.kind === 'generic' ? <InlineState kind="error" title={t('rec.err', { message: err.message ?? '' })} testID="start-error" /> : null}
 
+      <Countdown visible={counting} voice={prefs.voice} haptic={prefs.haptic} locale={locale === 'zh-TW' ? 'zh-TW' : 'en'} onDone={() => void begin()} onCancel={() => setCounting(false)} />
+
       <Sheet visible={sheet === 'goal'} onClose={() => setSheet(null)} title={t('rec.goal')} testID="start-goal-sheet">
         {(['distance', 'time', 'free'] as const).map((g) => (
           <View key={g}>
@@ -298,6 +376,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   mtXs: { marginTop: space.xs },
   center: { textAlign: 'center' },
+  countdown: { flex: 1, backgroundColor: color.canvas, alignItems: 'center', justifyContent: 'center', gap: space.xl },
+  countdownNumber: { fontSize: 200, lineHeight: 220, fontWeight: '800', fontStyle: 'italic', color: color.mint, fontVariant: ['tabular-nums'], textAlign: 'center' },
   tabs: { flexDirection: 'row', marginTop: space.s },
   tab: { marginRight: space.l, paddingVertical: space.xs, minHeight: 48, justifyContent: 'center' },
   tabLine: { height: 2, marginTop: space.xxs, backgroundColor: 'transparent', borderRadius: 1 },

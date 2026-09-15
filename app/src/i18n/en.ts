@@ -931,6 +931,8 @@ export const en = {
   'rec.units.mi': '1 mile',
   'rec.go': 'Start',
   'rec.settings': 'Run settings',
+  'rec.countdown.skip': 'Tap to start now',
+  'rec.countdown.hint': 'Skips the countdown',
   'rec.shoe': 'Level {n} shoe · open Gear',
   'rec.env.gpsOn': 'GPS on',
   'rec.env.toggleHint': 'Switches between outdoor (GPS) and indoor',
