@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.48（PG-V-05 完成） |
+| 文件版本 | v0.49（PG-U-01 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -567,6 +567,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.49 | 2026-09-15 | PG-U-01 完成（WIP）：三模式、目標快照與開始／摘要流程 |
 | v0.48 | 2026-09-15 | PG-V-05 完成（WIP）：事故凍結治理與攻擊測試 |
 | v0.47 | 2026-09-15 | PG-V-04 完成（WIP）：維持儀表、收藏分區、雙榜 |
 | v0.46 | 2026-09-15 | PG-V-03 完成（WIP）：歷史等級與 PB 能力快照 |
@@ -732,7 +733,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
-| PG-U-01 | 三模式、intent 相容、目標快照與開始／摘要流程 | sport-experience-gameplay 1、2、4 | FR-19.1、BR-55 | 3.0 | TODO | 待指派 |
+| PG-U-01 | 三模式、intent 相容、目標快照與開始／摘要流程 | sport-experience-gameplay 1、2、4 | FR-19.1、BR-55 | 3.0 | WIP | 2026-09-15：migration 0016 intent／goal_snapshot、匯入 schema 檢查（模式與分類一致、舊資料 null、跑步推導）；App 三模式＋目標開始頁、最近模式偏好與 Home 快速開始、session 固定 intent／goal、達標一次提醒不自動停止、摘要目標結果與模式標籤、歷程「走路（未指定模式）」；vitest 194、PG 整合 17、Jest 218。待：倒數（可跳過）、實機 |
 | PG-U-02 | 操作鎖、大字／讀屏、可選語音與震動 | sport-experience-gameplay 3；Style 24 | FR-19.2 | 3.0 | TODO | 待指派 |
 | PG-U-03 | 模式篩選、週回顧、同類比较及分享預覽 | sport-experience-gameplay 4 | FR-19.3、BR-59 | 3.0 | TODO | 待指派 |
 | PG-U-04 | 任務模板、接受／領取、去重與探索冊外觀 | sport-experience-gameplay 5；SD 17 | FR-19.4、BR-56、57 | 5.0 | TODO | 待指派 |

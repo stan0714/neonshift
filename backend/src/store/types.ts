@@ -391,6 +391,9 @@ export type PbRevision = { pbId: string; wallet: string; discipline: string; cat
 
 export type WorkoutSession = {
   sessionId: string; wallet: string; sport: "run" | "walk"; environment: "outdoor" | "indoor" | "unknown"; origin: "health_connect" | "device" | "gps" | "organizer" | "manual";
+  /** PG-U-01：使用模式；舊資料 null */
+  intent: "casual" | "brisk" | "run" | null;
+  goalSnapshot: { kind: "free" | "time" | "distance"; target: number; unit: "s" | "mm"; version: number } | null;
   sourceId: string; externalRecordId: string; sourceRevision: number; startedAt: Date; endedAt: Date; elapsedMs: bigint; pausedMs: bigint;
   status: "saved" | "needs_review" | "invalid" | "deleted"; quality: "complete" | "partial" | "estimated" | "needs_review" | "invalid"; rulesVersion: number;
   distanceMm: bigint | null; distanceMethod: "device" | "gps" | "estimated" | "organizer" | null; steps: number | null; activeEnergyMkcal: bigint | null; energyMethod: "device" | "estimated" | "total" | null; totalEnergyMkcal: bigint | null; stepLengthMm: number | null;

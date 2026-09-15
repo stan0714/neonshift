@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
-import { formatDuration, formatKcal, formatKm, formatPace, qualityKind } from '@/domain/workouts';
+import { formatDuration, formatKcal, formatKm, formatPace, qualityKind, modeLabel } from '@/domain/workouts';
 import { useT, type TKey } from '@/i18n';
 import { ApiError, apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
 import { importFromHealthConnect } from '@/services/workouts/importer';
@@ -113,7 +113,7 @@ export function WorkoutsScreen() {
         <Surface key={w.session_id} style={styles.card} testID={`workout-${w.session_id}`}>
           <View style={styles.rowBetween}>
             <Text variant="title">
-              {t(`wo.sport.${w.sport}` as TKey)}
+              {modeLabel(t, w.sport, w.intent)}
               {w.environment === 'indoor' ? ` · ${t('wo.env.indoor')}` : ''}
             </Text>
             <Chip label={t(`wo.quality.${w.quality}` as TKey)} kind={qualityKind(w.quality)} />

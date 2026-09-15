@@ -9,6 +9,7 @@ import { WorkoutRecordScreen } from '@/screens/workouts/WorkoutRecordScreen';
 import { WorkoutStartScreen } from '@/screens/workouts/WorkoutStartScreen';
 import { WorkoutSummaryScreen } from '@/screens/workouts/WorkoutSummaryScreen';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
+import { useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import { ThemeProvider } from '@/theme';
 
 jest.mock('expo-crypto', () => { let n = 0; return { randomUUID: () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}` }; });
@@ -49,6 +50,13 @@ test('開始頁：室內停用開始並導向匯入；權限拒絕顯示引導�
   await waitFor(() => expect(screen.getByTestId('start-permission')).toBeTruthy());
   await fireEvent.press(screen.getByTestId('start-autolap-400'));
   await fireEvent.press(screen.getByTestId('start-units-mi'));
+  // PG-U-01：預設模式跑步；改健走＋時間目標 10 分鐘（開始後固定於 session）
+  expect(screen.getByText('Run: pace, distance, time.')).toBeTruthy();
+  await fireEvent.press(screen.getByTestId('start-mode-brisk'));
+  expect(screen.getByText(/Brisk walk is a mode you choose/)).toBeTruthy();
+  await fireEvent.press(screen.getByTestId('start-goal-time'));
+  await fireEvent.press(screen.getByTestId('start-goal-time-10'));
+  expect(screen.getByText(/one reminder when the goal is reached/)).toBeTruthy();
   // PG-R-12 跑道模式：需核對圈長才可開始；自訂值超範圍擋下
   await fireEvent.press(screen.getByTestId('start-track-custom'));
   await fireEvent.changeText(screen.getByTestId('start-track-custom-input'), '5000');
@@ -61,21 +69,28 @@ test('開始頁：室內停用開始並導向匯入；權限拒絕顯示引導�
   expect(screen.getByTestId('start-go').props.accessibilityState.disabled).toBe(false);
   await fireEvent.press(screen.getByTestId('start-go'));
   await waitFor(() => expect(mockNav.navigate).toHaveBeenCalledWith('WorkoutRecord'));
-  expect(recorder.snapshot()).toMatchObject({ state: 'recording', sport: 'run', trackEquivalent: { laps: 0, remainderMm: 0, lapMm: 400_000 } });
+  expect(recorder.snapshot()).toMatchObject({ state: 'recording', sport: 'walk', intent: 'brisk', goal: { kind: 'time', target: 600, unit: 's', version: 1 }, goalReached: false, trackEquivalent: { laps: 0, remainderMm: 0, lapMm: 400_000 } });
+  expect(useWorkoutPrefs.getState().mode).toBe('brisk'); // 最近模式保存
   expect(loc.startLocationUpdatesAsync).toHaveBeenCalled();
   await act(async () => {});
 });
 
-test('記錄頁：跑步顯示配速、時間／距離；Lap；Pause 後顯示 Resume／Finish；Finish 需確認 → 摘要頁', async () => {
+test('記錄頁：健走顯示速度、時間／距離；目標進度 → 達標提醒一次不自動停止；Lap；Pause 後顯示 Resume／Finish；Finish 需確認 → 摘要頁', async () => {
   jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, b) => b?.find((x) => x.style === 'destructive')?.onPress?.());
   await render(<WorkoutRecordScreen />, { wrapper: Wrapper });
   expect(screen.getByTestId('record-primary').props.children).toBe('—'); // 不足 5 秒窗
+  expect(screen.getByTestId('record-goal').props.children).toBe('Goal 10 min');
   await act(async () => {
     recorder.ingest(pts(120, clock));
     clock += 120_000;
   });
   await waitFor(() => expect(screen.getByTestId('record-distance').props.children).toBe('0.36'));
-  expect(screen.getByTestId('record-primary').props.children).toBe('5:33');
+  expect(screen.getByTestId('record-primary').props.children).toBe('10.8'); // 健走：km/h（3 m/s）
+  // 10 分鐘目標：120 s 未達；時鐘推到 600 s 後達標提醒（含暫停時間），狀態仍 recording
+  clock += 480_000;
+  await act(async () => {});
+  await waitFor(() => expect(screen.getByTestId('record-goal').props.children).toBe('Goal reached — nice! Keep going, or pause and finish.'), { timeout: 3000 });
+  expect(recorder.snapshot().state).toBe('recording');
   expect(screen.getByTestId('record-track-laps').props.children).toBe('Lap 0 + 357 m'); // 跑道模式：依距離估算
   expect(screen.getByText('400 m per lap · estimated by distance')).toBeTruthy();
   await waitFor(() => expect(screen.getByText('GPS · searching')).toBeTruthy(), { timeout: 3000 }); // 時鐘已推進 120 s、最後一點在 120 s 前（每秒刷新）
@@ -89,6 +104,7 @@ test('記錄頁：跑步顯示配速、時間／距離；Lap；Pause 後顯示 R
   await waitFor(() => expect(mockNav.dispatch).toHaveBeenCalled());
   const summaryId = recorder.snapshot().state === 'idle' ? (sync.mock.calls[0]![0] as { external_record_id: string }[])[0]!.external_record_id : '';
   expect(summaryId).toBeTruthy();
+  expect((sync.mock.calls[0]![0] as { intent: string; goal: { kind: string; target: number } }[])[0]).toMatchObject({ sport: 'walk', intent: 'brisk', goal: { kind: 'time', target: 600 } }); // PG-U-01 同步 payload
   mockRoute = { params: { sessionId: summaryId } };
   await act(async () => {});
 });
@@ -96,6 +112,9 @@ test('記錄頁：跑步顯示配速、時間／距離；Lap；Pause 後顯示 R
 test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分段含末段 Partial；圈數含手動圈與 400 m 自動圈；品質；已同步', async () => {
   await render(<WorkoutSummaryScreen />, { wrapper: Wrapper });
   expect(screen.getByTestId('sum-distance').props.children).toBe('0.36 km');
+  // PG-U-01：模式標籤、目標結果、同步 payload 帶 intent／goal
+  expect(screen.getByText(/^Brisk walk · /)).toBeTruthy();
+  expect(screen.getByTestId('sum-goal-met').props.children).toBe('Goal 10 min reached');
   expect(screen.getByText('—')).toBeTruthy(); // kcal 無裝置值
   expect(screen.getByTestId('sum-sync').props.children).toBe('Synced to your account');
   expect(screen.getByTestId('sum-split-1')).toBeTruthy();

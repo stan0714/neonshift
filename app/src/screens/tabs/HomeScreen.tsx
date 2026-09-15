@@ -12,11 +12,12 @@ import type { ClaimInput, ClaimPhase } from '@/services/claim/ClaimFlow';
 import { estimateReward, formatTskr, sleepProgress, stepsProgress, useDashboardStore } from '@/state/dashboardStore';
 import { healthConnect, type HealthPermissionSummary } from '@/services/health/HealthConnectService';
 import { useLevelRevealStore } from '@/state/levelRevealStore';
+import { useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
-import { color, space, Text, useTheme } from '@/theme';
+import { color, radius, space, Text, useTheme } from '@/theme';
 
 import { ClockInSheet } from './ClockInSheet';
-import { useT } from '@/i18n';
+import { useT, type TKey } from '@/i18n';
 
 const OUTDATED_MS = 30 * 60 * 1000;
 
@@ -57,6 +58,9 @@ export function HomeScreen() {
   const untilMidnight = secondsUntilUtcMidnight(now);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t('home.morning') : hour < 18 ? t('home.afternoon') : t('home.evening');
+
+  const prefs = useWorkoutPrefs();
+  useEffect(() => { if (!prefs.loaded) void prefs.load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const startClaim = (type: TaskType) => {
     if (!session || !d.config) return;
@@ -125,6 +129,13 @@ export function HomeScreen() {
         <Text variant="label" tone="muted" uppercase>
           {t('home.today')}
         </Text>
+        {/* PG-U-01：固定「開始運動」入口，帶最近模式快速開始（開始頁仍可改） */}
+        <Pressable onPress={() => navigation.navigate('WorkoutStart')} accessibilityRole="button" style={styles.startWorkout} testID="home-start-workout">
+          <Text variant="title">{t('home.startWorkout')}</Text>
+          <Text variant="caption" tone="muted">
+            {t('home.recentMode', { mode: t(`wo.mode.${prefs.mode}` as TKey) })}
+          </Text>
+        </Pressable>
         <View style={styles.links}>
           <Pressable onPress={() => navigation.navigate('Gallery')} accessibilityRole="link" hitSlop={8} testID="home-gallery-link">
             <Text variant="label" tone="cyan" uppercase>
@@ -187,6 +198,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   section: { marginTop: space.xl, marginBottom: space.xs },
   links: { flexDirection: 'row', gap: space.m },
+  startWorkout: { marginTop: space.m, padding: space.m, borderRadius: radius.m, borderWidth: 1, borderColor: color.mint, backgroundColor: color.surface },
   cards: { flexDirection: 'row' },
   gap: { width: space.s },
   utc: { marginTop: space.xs },

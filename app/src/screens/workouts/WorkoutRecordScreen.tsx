@@ -1,5 +1,6 @@
 import { StackActions, useNavigation } from '@react-navigation/native';
 import { useEffect, useState } from 'react';
+import * as Haptics from 'expo-haptics';
 import { Alert, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 
 import { Chip, Screen } from '@/components';
@@ -19,6 +20,15 @@ export function WorkoutRecordScreen() {
   const s = useRecorder();
   const [busy, setBusy] = useState(false);
   const [lapNote, setLapNote] = useState<string | null>(null);
+  const [goalNotified, setGoalNotified] = useState(false);
+
+  useEffect(() => {
+    // PG-U-01：達標只提醒一次（震動＋文字），不自動停止；結束仍需確認
+    if (s.goalReached && !goalNotified) {
+      setGoalNotified(true);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    }
+  }, [s.goalReached, goalNotified]);
 
   useEffect(() => {
     // 記錄中不讓返回鍵離開（避免誤觸）；用 Finish 結束
@@ -80,6 +90,11 @@ export function WorkoutRecordScreen() {
           </Text>
         </View>
       </View>
+      {s.goal && s.goal.kind !== 'free' ? (
+        <Text variant="caption" tone={s.goalReached ? 'mint' : 'muted'} style={styles.center} testID="record-goal">
+          {s.goalReached ? t('rec.goalReached') : t('rec.goalProgress', { target: s.goal.kind === 'time' ? t('rec.goal.min', { n: Math.round(s.goal.target / 60) }) : t('rec.goal.km', { n: s.goal.target / 1_000_000 }) })}
+        </Text>
+      ) : null}
       {s.trackEquivalent ? (
         <View style={styles.track} testID="record-track">
           <Text variant="title" numeric testID="record-track-laps">

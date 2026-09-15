@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import nacl from 'tweetnacl';
 
 import type { Lap, RawPoint, Summary } from '@/domain/gps/engine';
+import type { WorkoutGoal, WorkoutIntent } from '@/services/api/ApiClient';
 
 /**
  * LocalWorkoutStore（PG-R-03，SD 16）：本機加密軌跡與 checkpoint。
@@ -14,6 +15,10 @@ import type { Lap, RawPoint, Summary } from '@/domain/gps/engine';
 export type SessionMeta = {
   sessionId: string;
   sport: 'run' | 'walk';
+  /** PG-U-01：使用模式（走路 casual／健走 brisk／跑步 run）；開始後固定 */
+  intent?: WorkoutIntent | null;
+  /** PG-U-01：目標快照；達標只提醒一次、不自動停止 */
+  goal?: WorkoutGoal | null;
   environment: 'outdoor' | 'indoor';
   autoLapMm: number | null;
   /** PG-R-12 跑道等效圈長（mm；null＝未啟用）；只作距離估算，非過線圈。舊 meta 可能缺此欄位 → 視為 null */

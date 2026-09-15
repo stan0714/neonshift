@@ -8,7 +8,7 @@ import { loadConfig } from "../config.js";
 import type { Db } from "../db.js";
 import { LocalKeypairSigner } from "../signer/index.js";
 import { MemoryStore } from "../store/memory.js";
-import { derive, workoutInput } from "./schema.js";
+import { derive, workoutInput, intentOf } from "./schema.js";
 
 const db: Db = { pool: null, ping: async () => false, close: async () => {} };
 let app: ReturnType<typeof buildApp>;
@@ -63,6 +63,18 @@ describe("derive（活動 4／3.2）", () => {
     expect(workoutInput.safeParse({ ...base, distance_mm: "99999999999" }).success).toBe(false); // 超上限
     expect(workoutInput.parse({ ...base, distance_mm: "5000000" }).distance_mm).toBe(5_000_000n);
   });
+  it("PG-U-01 intent／goal：缺省 null（跑步可推導 run，走路不自動判定健走）；模式與分類不符拒絕；目標單位／正值檢查", () => {
+    expect(workoutInput.parse(base).intent).toBeNull();
+    expect(intentOf(workoutInput.parse(base))).toBe("run");
+    expect(intentOf(workoutInput.parse({ ...base, sport: "walk" }))).toBeNull();
+    expect(workoutInput.parse({ ...base, sport: "walk", intent: "brisk" }).intent).toBe("brisk");
+    expect(workoutInput.safeParse({ ...base, sport: "walk", intent: "run" }).success).toBe(false);
+    expect(workoutInput.safeParse({ ...base, intent: "brisk" }).success).toBe(false);
+    expect(workoutInput.parse({ ...base, goal: { kind: "time", target: 1200, unit: "s", version: 1 } }).goal).toEqual({ kind: "time", target: 1200, unit: "s", version: 1 });
+    expect(workoutInput.safeParse({ ...base, goal: { kind: "time", target: 1200, unit: "mm", version: 1 } }).success).toBe(false);
+    expect(workoutInput.safeParse({ ...base, goal: { kind: "distance", target: 0, unit: "mm", version: 1 } }).success).toBe(false);
+    expect(workoutInput.safeParse({ ...base, goal: { kind: "free", target: 0, unit: "s", version: 1 } }).success).toBe(true);
+  });
 });
 
 describe("POST /workouts/import、/me/workouts", () => {
@@ -74,6 +86,7 @@ describe("POST /workouts/import、/me/workouts", () => {
     expect(s1.outcome).toBe("created");
     expect(s1.session.metrics).toMatchObject({ distance: { value_mm: "5000000", method: "device" }, avg_pace_s_per_km: 300, active_energy: { value_mkcal: "320000", method: "device" } });
     expect(s1.session.elapsed_ms).toBe("1500000");
+    expect([s1.session.intent, s1.session.goal]).toEqual(["run", null]); // PG-U-01：跑步推導 run
     r = await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [{ ...base, distance_mm: "5000000", distance_method: "device" }] } });
     expect([r.statusCode, j(r).results[0].outcome]).toEqual([200, "same"]);
     r = await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [{ ...base, source_revision: 2, distance_mm: "5100000", distance_method: "device" }] } });

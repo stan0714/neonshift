@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.33（事故凍結） |
+| 文件版本 | v0.34（三模式與目標） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -967,6 +967,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.34 | 2026-09-15 | PG-U-01：workout intent／goal_snapshot（migration 0016）、三模式與目標流程 |
 | v0.33 | 2026-09-15 | PG-V-05：IncidentFreeze PDA、set_incident_freeze、凍結期不升不降、6044 |
 | v0.32 | 2026-09-15 | PG-V-04：藝廊 board=lifetime、App 維持儀表與收藏分區 |
 | v0.31 | 2026-09-15 | PG-V-03：level_history 投影、PB NFT Lv3 達成日門檻與能力快照 |
@@ -1107,3 +1108,5 @@ Indoor 不啟用 GPS 推算距離，僅接可信裝置／已標記來源；缺�
 依 [補充規格](./sport-experience-gameplay.md)。WorkoutSession 新增可空 intent 與 goal_snapshot（kind、target、unit、version）；舊資料不回填為健走。擬新增 QuestTemplate、QuestEnrollment（wallet、template_version、start/end UTC、timezone、goal）、QuestContribution（來源穩定 ID／revision）、QuestReceipt（wallet＋enrollment 唯一）與 CosmeticEntitlement。資格由後端依有效摘要計算，禁止接受 client 自報 completed；發放 receipt 與外觀權限同交易原子提交。重播同來源不重領，來源修正／刪除觸發重算及權限撤銷。走路與健走共用來源去重鍵。
 
 擬新增本人任務查詢／接受／領取 API，皆沿用 wallet authentication；接受與領取支援 idempotency key，活動序列與截止時間由服務端驗證。探索模組只讀既有摘要，不寫鏈上維持帳戶或 NFT registry；不收原始座標。具體 schema／API migration 由 PG-U-04 實作並驗證唯一性、併發與刪除事件。
+
+**實作（2026-09-15，PG-U-01）**：migration 0016 `workout_sessions.intent`（NULL｜casual｜brisk｜run，CHECK）與 `goal_snapshot JSONB`；匯入 schema `intent`（walk → casual｜brisk、run → run，不符拒絕；缺省 null，跑步以 `intentOf` 推導 run、走路不自動判定健走）與 `goal {kind free|time|distance, target, unit s|mm, version}`（單位／正值檢查）；`/me/workouts` 回 `intent`、`goal`。App：`workoutPrefsStore`（最近模式與目標，SecureStore）；開始頁三模式 Segmented（走路／健走／跑步＋提示）與目標（自由／10／20／30 分鐘／1／3／5 km，達標只提醒不自動停止）；session meta 記 `intent`／`goal`（開始後固定）；`RecorderSnapshot.goalReached`（時間含暫停 elapsed、距離用接受距離）；記錄頁目標列＋達標一次震動提醒；摘要頁模式標籤與「目標已達成／未達成（已保存實際）」；歷程列表模式標籤（舊資料「走路（未指定模式）」）；Home 固定「開始運動」入口帶最近模式；同步 payload 含 intent／goal。待：U-02 操作鎖／讀屏／語音震動、U-03 週回顧與分享、U-04 探索冊。

@@ -2,7 +2,7 @@ import { randomUUID } from 'expo-crypto';
 import * as Location from 'expo-location';
 
 import { GpsMetricsEngine, type Lap, type RawPoint, type Summary, type TrackEquivalent } from '@/domain/gps/engine';
-import { apiClient, type WorkoutImportInput } from '@/services/api/ApiClient';
+import { apiClient, type WorkoutGoal, type WorkoutImportInput, type WorkoutIntent } from '@/services/api/ApiClient';
 import { LocalWorkoutStore, type SessionMeta } from './LocalWorkoutStore';
 import { resetLocationSeq, setLocationSink, WORKOUT_LOCATION_TASK } from './locationTask';
 
@@ -29,6 +29,11 @@ export type RecorderSnapshot = {
   /** PG-R-12：跑道等效圈（依距離估算）；未啟用 → null */
   trackEquivalent: TrackEquivalent | null;
   interrupted: boolean;
+  /** PG-U-01 */
+  intent: WorkoutIntent | null;
+  goal: WorkoutGoal | null;
+  /** 目標已達（依 elapsed／distance）；UI 只提醒一次，不自動停止 */
+  goalReached: boolean;
 };
 
 type LocationApi = Pick<typeof Location, 'requestForegroundPermissionsAsync' | 'getForegroundPermissionsAsync' | 'startLocationUpdatesAsync' | 'stopLocationUpdatesAsync' | 'hasStartedLocationUpdatesAsync'>;
@@ -39,6 +44,9 @@ const defaultSync = async (input: WorkoutImportInput) => {
   const first = r.results[0];
   return { sessionId: first && first.outcome !== 'invalid' ? first.session.session_id : null };
 };
+
+/** PG-U-01：目標達成判定（時間用含暫停的 elapsed；距離用接受距離）；free 永不達 */
+export const goalReached = (goal: WorkoutGoal | null, elapsedMs: number, distanceMm: number) => !!goal && goal.kind !== 'free' && goal.target > 0 && (goal.kind === 'time' ? elapsedMs >= goal.target * 1000 : distanceMm >= goal.target);
 
 /** meta → 引擎設定（舊 meta 無 trackLapMm → null） */
 const engineConfigOf = (meta: SessionMeta) => ({ autoLapMm: meta.autoLapMm, trackLapMm: meta.trackLapMm ?? null, splitLengthMm: meta.splitLengthMm });
@@ -93,6 +101,9 @@ export class WorkoutRecorder {
       laps: e ? [...e.laps] : [],
       trackEquivalent: e?.trackEquivalent() ?? null,
       interrupted: this.meta?.interrupted ?? false,
+      intent: this.meta?.intent ?? null,
+      goal: this.meta?.goal ?? null,
+      goalReached: goalReached(this.meta?.goal ?? null, e && this.meta ? e.elapsedAt(t) + (e.status === 'finished' ? 0 : this.pausedTotal()) : 0, e?.distanceMm ?? 0),
     };
   }
   private pausedTotal() {
@@ -107,12 +118,12 @@ export class WorkoutRecorder {
     return r.granted;
   }
 
-  async start(opts: { sport: 'run' | 'walk'; environment: 'outdoor' | 'indoor'; autoLapMm?: number | null; trackLapMm?: number | null; splitLengthMm?: number }): Promise<SessionMeta> {
+  async start(opts: { sport: 'run' | 'walk'; intent?: WorkoutIntent | null; goal?: WorkoutGoal | null; environment: 'outdoor' | 'indoor'; autoLapMm?: number | null; trackLapMm?: number | null; splitLengthMm?: number }): Promise<SessionMeta> {
     if (this.state !== 'idle') throw new Error('a session is already active');
     if (opts.environment === 'indoor') throw new Error('indoor sessions do not use GPS'); // Indoor 不啟用 GPS 推算距離
     const t = this.now();
     const sessionId = randomUUID();
-    this.meta = await this.store.create({ sessionId, sport: opts.sport, environment: opts.environment, autoLapMm: opts.autoLapMm ?? null, trackLapMm: opts.trackLapMm ?? null, splitLengthMm: opts.splitLengthMm ?? 1_000_000, status: 'recording', startedAtUtc: t, startedMonoMs: t, processId: this.processId });
+    this.meta = await this.store.create({ sessionId, sport: opts.sport, intent: opts.intent ?? (opts.sport === 'run' ? 'run' : null), goal: opts.goal ?? null, environment: opts.environment, autoLapMm: opts.autoLapMm ?? null, trackLapMm: opts.trackLapMm ?? null, splitLengthMm: opts.splitLengthMm ?? 1_000_000, status: 'recording', startedAtUtc: t, startedMonoMs: t, processId: this.processId });
     this.engine = new GpsMetricsEngine(opts.sport, engineConfigOf(this.meta));
     this.engine.start(t);
     this.state = 'recording';
@@ -233,6 +244,8 @@ export class WorkoutRecorder {
     try {
       const r = await this.sync({
         sport: meta.sport,
+        intent: meta.intent ?? null,
+        goal: meta.goal ?? null,
         environment: meta.environment,
         origin: 'gps',
         source_id: 'cc.neonshift.app/gps',

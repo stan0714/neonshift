@@ -14,7 +14,7 @@ import { canonicalize, type Json } from "../claim/canonical.js";
 import { ApiError } from "../errors.js";
 import type { Store, WorkoutSession } from "../store/types.js";
 import type { PersonalBestService } from "../pb/service.js";
-import { derive, importBody, WORKOUT_RULES_VERSION } from "./schema.js";
+import { derive, importBody, WORKOUT_RULES_VERSION, intentOf } from "./schema.js";
 
 const uuid = z.string().uuid();
 const str = (b: bigint | null) => (b === null ? null : b.toString());
@@ -36,7 +36,7 @@ export function workoutView(w: WorkoutSession) {
       avg_speed_kmh: km && km > 0 ? Number((km / (elapsedS / 3600)).toFixed(3)) : null,
       step_length_mm: w.stepLengthMm,
     },
-    pb_eligible: w.pbEligible, extras: w.extras, revision: w.revision, imported_at: w.importedAt.toISOString(), updated_at: w.updatedAt.toISOString(),
+    pb_eligible: w.pbEligible, extras: w.extras, intent: w.intent, goal: w.goalSnapshot, revision: w.revision, imported_at: w.importedAt.toISOString(), updated_at: w.updatedAt.toISOString(),
   };
 }
 
@@ -60,7 +60,7 @@ export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthServ
           sessionId: randomUUID(), wallet, sport: w.sport, environment: w.environment, origin: w.origin, sourceId: w.source_id, externalRecordId: w.external_record_id, sourceRevision: w.source_revision,
           startedAt: w.started_at, endedAt: w.ended_at, elapsedMs: d.elapsedMs, pausedMs: w.paused_ms, status: d.status, quality: d.quality, rulesVersion: WORKOUT_RULES_VERSION,
           distanceMm: d.distanceMm, distanceMethod: d.distanceMethod, steps: w.steps, activeEnergyMkcal: w.active_energy_mkcal, energyMethod: w.energy_method, totalEnergyMkcal: w.total_energy_mkcal, stepLengthMm: w.step_length_mm,
-          pbEligible: d.pbEligible, reviewReasons: d.reviewReasons, extras: w.extras, requestHash: hash,
+          pbEligible: d.pbEligible, reviewReasons: d.reviewReasons, extras: w.extras, intent: intentOf(w), goalSnapshot: w.goal, requestHash: hash,
         },
         t,
       );

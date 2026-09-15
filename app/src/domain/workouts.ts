@@ -1,4 +1,5 @@
 import type { WorkoutImportInput, WorkoutSummary } from '@/services/api/ApiClient';
+import type { TKey } from '@/i18n';
 
 /**
  * 運動 session 領域邏輯（PG-R-01；activity-running-gallery 3.2／4）。
@@ -82,3 +83,11 @@ export const formatKcal = (mkcal: string | null | undefined) => (mkcal === null 
 
 /** Chip 對應：品質 → 顯示種類 */
 export const qualityKind = (q: WorkoutSummary['quality']): 'synced' | 'neutral' | 'offline' | 'devnet' => (q === 'complete' ? 'synced' : q === 'estimated' || q === 'partial' ? 'neutral' : q === 'needs_review' ? 'devnet' : 'offline');
+
+/** PG-U-01：模式標籤——跑步 run；走路依 intent（casual／brisk），舊資料 intent 空 → 「走路（未指定模式）」 */
+export function modeLabel(t: (k: TKey) => string, sport: 'run' | 'walk', intent: 'casual' | 'brisk' | 'run' | null | undefined): string {
+  if (sport === 'run') return t('wo.mode.run');
+  if (intent === 'brisk') return t('wo.mode.brisk');
+  if (intent === 'casual') return t('wo.mode.walk');
+  return t('wo.mode.unset');
+}

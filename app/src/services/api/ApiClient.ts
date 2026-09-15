@@ -87,13 +87,17 @@ export type MyResult = { revision_id: string; import_id: string; discipline: str
 // PG-R-01：運動 session 摘要（大整數以十進位字串傳遞）
 export type WorkoutOrigin = 'health_connect' | 'device' | 'gps' | 'organizer' | 'manual';
 export type WorkoutQuality = 'complete' | 'partial' | 'estimated' | 'needs_review' | 'invalid';
+export type WorkoutIntent = 'casual' | 'brisk' | 'run';
+export type WorkoutGoal = { kind: 'free' | 'time' | 'distance'; target: number; unit: 's' | 'mm'; version: number };
 export type WorkoutImportInput = {
   sport: 'run' | 'walk'; environment?: 'outdoor' | 'indoor' | 'unknown'; origin: WorkoutOrigin; source_id: string; external_record_id: string; source_revision?: number;
+  /** PG-U-01：使用模式與目標快照 */
+  intent?: WorkoutIntent | null; goal?: WorkoutGoal | null;
   started_at: string; ended_at: string; paused_ms?: string; distance_mm?: string | null; distance_method?: 'device' | 'gps' | 'estimated' | 'organizer' | null; steps?: number | null;
   active_energy_mkcal?: string | null; energy_method?: 'device' | 'estimated' | 'total' | null; total_energy_mkcal?: string | null; step_length_mm?: number | null; client_flags?: string[]; extras?: Record<string, unknown>;
 };
 export type WorkoutSummary = {
-  session_id: string; sport: 'run' | 'walk'; environment: 'outdoor' | 'indoor' | 'unknown';
+  session_id: string; sport: 'run' | 'walk'; environment: 'outdoor' | 'indoor' | 'unknown'; /** PG-U-01（舊後端可能缺） */ intent?: WorkoutIntent | null; goal?: WorkoutGoal | null;
   source: { origin: WorkoutOrigin; source_id: string; external_record_id: string; source_revision: number };
   started_at: string; ended_at: string; elapsed_ms: string; paused_ms: string; status: 'saved' | 'needs_review' | 'invalid' | 'deleted'; quality: WorkoutQuality; rules_version: number; review_reasons: string[]; possible_duplicate_of: string | null;
   metrics: { distance: { value_mm: string; method: string | null } | null; steps: number | null; active_energy: { value_mkcal: string; method: string | null } | null; total_energy: { value_mkcal: string } | null; avg_pace_s_per_km: number | null; avg_speed_kmh: number | null; step_length_mm: number | null };

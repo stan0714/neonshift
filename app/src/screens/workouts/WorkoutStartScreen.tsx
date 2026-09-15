@@ -1,10 +1,12 @@
 import { useNavigation } from '@react-navigation/native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 
 import { Button, InlineState, Screen, Surface } from '@/components';
 import { SPLIT_KM_MM, SPLIT_MILE_MM, TRACK_LAP_MAX_M, TRACK_LAP_MIN_M } from '@/domain/gps/engine';
 import { useT, type TKey } from '@/i18n';
+import { FREE_GOAL, GOAL_VERSION, modeToSport, useWorkoutPrefs, type WorkoutMode } from '@/state/workoutPrefsStore';
+import type { WorkoutGoal } from '@/services/api/ApiClient';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { color, radius, space, Text } from '@/theme';
 
@@ -31,11 +33,30 @@ export function trackLapMetersOf(choice: TrackChoice, custom: string): number | 
   return Number.isInteger(m) && m >= TRACK_LAP_MIN_M && m <= TRACK_LAP_MAX_M ? m : null;
 }
 
-/** 開始頁（Style 23）：選 Walking／Running、戶外／室內、自動圈、分段單位與跑道模式（PG-R-12：等效圈依距離估算，需確認圈長）；室內不啟用 GPS */
+type GoalChoice = 'free' | 'time' | 'distance';
+const TIME_PRESETS = [10, 20, 30] as const; // 分鐘（可獎勵目標模板初版）
+const DIST_PRESETS = [1, 3, 5] as const; // 公里
+export function goalOf(kind: GoalChoice, timeMin: number, distKm: number): WorkoutGoal {
+  if (kind === 'time') return { kind: 'time', target: timeMin * 60, unit: 's', version: GOAL_VERSION };
+  if (kind === 'distance') return { kind: 'distance', target: Math.round(distKm * 1_000_000), unit: 'mm', version: GOAL_VERSION };
+  return FREE_GOAL;
+}
+
+/** 開始頁（Style 23／24；PG-U-01）：三模式（走路／健走／跑步，開始後固定）、目標（自由／時間／距離，快照存入 session、達標只提醒）、最近模式預設；戶外／室內、自動圈、分段單位與跑道模式（PG-R-12）；室內不啟用 GPS */
 export function WorkoutStartScreen() {
   const { t } = useT();
   const navigation = useNavigation();
-  const [sport, setSport] = useState<'run' | 'walk'>('run');
+  const prefs = useWorkoutPrefs();
+  const [mode, setMode] = useState<WorkoutMode>(prefs.mode);
+  const [goalKind, setGoalKind] = useState<GoalChoice>(prefs.goal.kind);
+  const [timeMin, setTimeMin] = useState<number>(prefs.goal.kind === 'time' ? Math.round(prefs.goal.target / 60) : 20);
+  const [distKm, setDistKm] = useState<number>(prefs.goal.kind === 'distance' ? prefs.goal.target / 1_000_000 : 3);
+  useEffect(() => {
+    if (prefs.loaded) return;
+    void prefs.load().then((p) => { setMode(p.mode); setGoalKind(p.goal.kind); if (p.goal.kind === 'time') setTimeMin(Math.round(p.goal.target / 60)); if (p.goal.kind === 'distance') setDistKm(p.goal.target / 1_000_000); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const { sport, intent } = modeToSport(mode);
   const [env, setEnv] = useState<'outdoor' | 'indoor'>('outdoor');
   const [autoLap, setAutoLap] = useState<'off' | '400' | '1000'>('off');
   const [units, setUnits] = useState<'km' | 'mi'>('km');
@@ -56,7 +77,9 @@ export function WorkoutStartScreen() {
         setErr({ kind: 'permission' });
         return;
       }
-      await workoutRecorder.start({ sport, environment: env, autoLapMm: autoLap === 'off' ? null : Number(autoLap) * 1000, trackLapMm: trackLapM === null ? null : trackLapM * 1000, splitLengthMm: units === 'km' ? SPLIT_KM_MM : SPLIT_MILE_MM });
+      const goal = goalOf(goalKind, timeMin, distKm);
+      await prefs.set({ mode, goal }); // 最近模式與目標（快速開始用）
+      await workoutRecorder.start({ sport, intent, goal, environment: env, autoLapMm: autoLap === 'off' ? null : Number(autoLap) * 1000, trackLapMm: trackLapM === null ? null : trackLapM * 1000, splitLengthMm: units === 'km' ? SPLIT_KM_MM : SPLIT_MILE_MM });
       navigation.navigate('WorkoutRecord');
     } catch (e) {
       setErr({ kind: 'generic', message: e instanceof Error ? e.message : String(e) });
@@ -68,9 +91,23 @@ export function WorkoutStartScreen() {
   return (
     <Screen scroll testID="workout-start-screen">
       <Text variant="label" tone="muted" uppercase>
-        {t('rec.sport')}
+        {t('rec.mode')}
       </Text>
-      <Segmented items={[{ value: 'run', label: t('wo.sport.run') }, { value: 'walk', label: t('wo.sport.walk') }]} value={sport} onChange={setSport} testID="start-sport" />
+      <Segmented items={(['walk', 'brisk', 'run'] as const).map((m) => ({ value: m, label: t(`wo.mode.${m}` as TKey) }))} value={mode} onChange={setMode} testID="start-mode" />
+      <Text variant="caption" tone="muted" style={styles.mtXs}>
+        {t(`rec.modeHint.${mode}` as TKey)}
+      </Text>
+      <Text variant="label" tone="muted" uppercase style={styles.mt}>
+        {t('rec.goal')}
+      </Text>
+      <Segmented items={(['free', 'time', 'distance'] as const).map((g) => ({ value: g, label: t(`rec.goal.${g}` as TKey) }))} value={goalKind} onChange={setGoalKind} testID="start-goal" />
+      {goalKind === 'time' ? <Segmented items={TIME_PRESETS.map((m) => ({ value: String(m), label: t('rec.goal.min', { n: m }) }))} value={String(timeMin)} onChange={(v) => setTimeMin(Number(v))} testID="start-goal-time" /> : null}
+      {goalKind === 'distance' ? <Segmented items={DIST_PRESETS.map((k) => ({ value: String(k), label: t('rec.goal.km', { n: k }) }))} value={String(distKm)} onChange={(v) => setDistKm(Number(v))} testID="start-goal-dist" /> : null}
+      {goalKind !== 'free' ? (
+        <Text variant="caption" tone="muted" style={styles.mtXs}>
+          {t('rec.goalHint')}
+        </Text>
+      ) : null}
       <Text variant="label" tone="muted" uppercase style={styles.mt}>
         {t('rec.env')}
       </Text>

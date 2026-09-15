@@ -339,9 +339,10 @@ describe.skipIf(!url)("PostgresStore 與 MemoryStore 行為一致", () => {
     for (const { name, store } of stores) {
       const wallet = "W" + name;
       const t0 = new Date("2026-09-14T00:00:00Z");
-      const mk = (over: Partial<Parameters<Store["upsertWorkout"]>[0]>) => ({ sessionId: randomUUID(), wallet, sport: "run" as const, environment: "outdoor" as const, origin: "health_connect" as const, sourceId: "watch", externalRecordId: "r1", sourceRevision: 1, startedAt: t0, endedAt: new Date(t0.getTime() + 1_500_000), elapsedMs: 1_500_000n, pausedMs: 0n, status: "saved" as const, quality: "complete" as const, rulesVersion: 1, distanceMm: 5_000_000n, distanceMethod: "device" as const, steps: 6000, activeEnergyMkcal: null, energyMethod: null, totalEnergyMkcal: null, stepLengthMm: null, pbEligible: true, reviewReasons: [], extras: {}, requestHash: Buffer.alloc(32, 9), ...over });
+      const mk = (over: Partial<Parameters<Store["upsertWorkout"]>[0]>) => ({ sessionId: randomUUID(), wallet, sport: "run" as const, environment: "outdoor" as const, origin: "health_connect" as const, sourceId: "watch", externalRecordId: "r1", sourceRevision: 1, startedAt: t0, endedAt: new Date(t0.getTime() + 1_500_000), elapsedMs: 1_500_000n, pausedMs: 0n, status: "saved" as const, quality: "complete" as const, rulesVersion: 1, distanceMm: 5_000_000n, distanceMethod: "device" as const, steps: 6000, activeEnergyMkcal: null, energyMethod: null, totalEnergyMkcal: null, stepLengthMm: null, pbEligible: true, reviewReasons: [], extras: {}, intent: "run" as const, goalSnapshot: { kind: "time" as const, target: 1200, unit: "s" as const, version: 1 }, requestHash: Buffer.alloc(32, 9), ...over });
       const a = await store.upsertWorkout(mk({}), t0);
       expect(a.outcome, name).toBe("created");
+      expect([a.session.intent, a.session.goalSnapshot], name).toEqual(["run", { kind: "time", target: 1200, unit: "s", version: 1 }]); // PG-U-01
       expect((await store.upsertWorkout(mk({}), t0)).outcome, name).toBe("same");
       const b = await store.upsertWorkout(mk({ sourceRevision: 2, distanceMm: 5_100_000n }), t0);
       expect([b.outcome, b.session.sessionId === a.session.sessionId, b.session.revision, b.session.distanceMm], name).toEqual(["superseded", true, 2, 5_100_000n]);

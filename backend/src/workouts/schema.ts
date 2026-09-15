@@ -22,6 +22,10 @@ const iso = z.string().datetime({ offset: true }).transform((s) => new Date(s));
 export const workoutInput = z
   .object({
     sport: z.enum(["run", "walk"]),
+    /** PG-U-01：使用模式（walk → casual｜brisk；run → run）；缺省 null（舊資料／匯入來源） */
+    intent: z.enum(["casual", "brisk", "run"]).nullable().default(null),
+    /** PG-U-01：開始時的目標快照；達標只提醒不自動停止 */
+    goal: z.object({ kind: z.enum(["free", "time", "distance"]), target: z.number().int().min(0).max(1_000_000_000), unit: z.enum(["s", "mm"]), version: z.number().int().min(1).max(100) }).strict().nullable().default(null),
     environment: z.enum(["outdoor", "indoor", "unknown"]).default("unknown"),
     origin: z.enum(["health_connect", "device", "gps", "organizer", "manual"]),
     /** 來源識別（Health Connect 寫入 App package、手錶型號、活動 id…） */
@@ -44,8 +48,17 @@ export const workoutInput = z
     /** 可選：分段／圈數等摘要（不含座標） */
     extras: z.record(z.string(), z.unknown()).default({}),
   })
-  .strict();
+  .strict()
+  .superRefine((w, ctx) => {
+    // 模式與運動分類必須一致：健走／走路屬 walking，跑步屬 running
+    if (w.intent === "run" && w.sport !== "run") ctx.addIssue({ code: "custom", path: ["intent"], message: "intent run requires sport run" });
+    if ((w.intent === "casual" || w.intent === "brisk") && w.sport !== "walk") ctx.addIssue({ code: "custom", path: ["intent"], message: "walking intents require sport walk" });
+    if (w.goal && w.goal.kind !== "free" && w.goal.target <= 0) ctx.addIssue({ code: "custom", path: ["goal"], message: "goal target must be positive" });
+    if (w.goal && ((w.goal.kind === "time" && w.goal.unit !== "s") || (w.goal.kind === "distance" && w.goal.unit !== "mm"))) ctx.addIssue({ code: "custom", path: ["goal"], message: "goal unit mismatch" });
+  });
 export type WorkoutInput = z.infer<typeof workoutInput>;
+/** 跑步 intent 可由 sport 推導；walking 不自動判定健走（使用者選擇） */
+export const intentOf = (w: Pick<WorkoutInput, "sport" | "intent">) => w.intent ?? (w.sport === "run" ? "run" : null);
 
 export const importBody = z.object({ sessions: z.array(workoutInput).min(1).max(IMPORT_MAX_SESSIONS) }).strict();
 

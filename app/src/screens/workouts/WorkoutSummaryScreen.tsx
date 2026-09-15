@@ -4,11 +4,11 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import type { Lap } from '@/domain/gps/engine';
-import { formatDuration, formatKm, formatPace } from '@/domain/workouts';
+import { formatDuration, formatKm, formatPace, modeLabel } from '@/domain/workouts';
 import { useT, type TKey } from '@/i18n';
 import type { RootParamList } from '@/navigation/types';
 import { LocalWorkoutStore, type SessionMeta } from '@/services/workouts/LocalWorkoutStore';
-import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
+import { goalReached, workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { color, radius, space, Text } from '@/theme';
 
 const store = new LocalWorkoutStore();
@@ -26,6 +26,9 @@ export function WorkoutSummaryScreen() {
   useEffect(reload, [reload]);
 
   const s = meta?.summary;
+  // PG-U-01：目標結果（未達標仍保存，顯示實際完成）；模式標籤
+  const goalMet = !!meta?.goal && !!s && goalReached(meta.goal, s.elapsedMs, s.distanceMm);
+  const goalLabel = meta?.goal ? (meta.goal.kind === 'time' ? t('rec.goal.min', { n: Math.round(meta.goal.target / 60) }) : t('rec.goal.km', { n: meta.goal.target / 1_000_000 })) : '';
   if (!meta || !s) return <Screen testID="workout-summary-screen"><InlineState kind="error" title={t('common.somethingInterrupted')} /></Screen>;
   const isWalk = meta.sport === 'walk';
   const syncNow = async () => {
@@ -62,7 +65,7 @@ export function WorkoutSummaryScreen() {
           {formatKm(String(s.distanceMm))}
         </Text>
         <Text variant="caption" tone="muted">
-          {t(`wo.sport.${meta.sport}` as TKey)} · {new Date(meta.startedAtUtc).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          {modeLabel(t, meta.sport, meta.intent)} · {new Date(meta.startedAtUtc).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
         </Text>
       </View>
       <View style={styles.grid}>
@@ -87,6 +90,11 @@ export function WorkoutSummaryScreen() {
           </Pressable>
         ))}
       </View>
+      {meta.goal && meta.goal.kind !== 'free' ? (
+        <Text variant="bodySmall" tone={goalMet ? 'mint' : 'secondary'} style={styles.mt} testID={`sum-goal-${goalMet ? 'met' : 'missed'}`}>
+          {goalMet ? t('sum.goalMet', { target: goalLabel }) : t('sum.goalMissed', { target: goalLabel })}
+        </Text>
+      ) : null}
       <Surface style={styles.card}>
         {tab === 'splits' ? (
           s.splits.length ? s.splits.map((l) => <LapRow key={`s${l.index}`} l={l} />) : <Text variant="bodySmall" tone="secondary">{t('sum.noLaps')}</Text>
