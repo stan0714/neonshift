@@ -79,6 +79,54 @@ async function writeStored(s: Stored | null): Promise<void> {
 
 let cachedAuthToken: string | null = null;
 
+type Authorized = Awaited<ReturnType<Web3MobileWallet['authorize']>>;
+export const REAUTHORIZE_DELAY_MS = 1500;
+const isAuthFailure = (e: unknown) => {
+  const code = (e as { code?: string | number })?.code;
+  return code === -1 /* ERROR_AUTHORIZATION_FAILED */ || code === 'ERROR_SESSION_CLOSED';
+};
+
+/**
+ * 以保存的 auth_token 重新授權後執行 `op`。錢包已撤銷／清除該 token 時（Phantom 會直接關閉 session，Seeker 錢包回 -1），
+ * 改開一次全新授權讓使用者在錢包確認；回來的帳戶必須與本機 session 相同，否則清除本機 session 並回 SESSION_EXPIRED。
+ * 重試只發生在 authorize 階段失敗時；`op` 已送到錢包後的錯誤原樣拋出，不重送。
+ */
+async function withAuthorizedWallet<T>(stored: Stored, op: (wallet: Web3MobileWallet, auth: Authorized) => Promise<T>): Promise<T> {
+  let authorized = false;
+  const run = (authToken: string | undefined) =>
+    transact(async (wallet: Web3MobileWallet) => {
+      const auth = await wallet.authorize(authToken ? { identity, chain, auth_token: authToken } : { identity, chain });
+      authorized = true;
+      const account = auth.accounts[0];
+      if (!account || base64ToBase58(account.address) !== stored.address) {
+        await writeStored(null);
+        cachedAuthToken = null;
+        throw new WalletError('SESSION_EXPIRED', 'Wallet returned a different account');
+      }
+      cachedAuthToken = auth.auth_token;
+      await writeStored({ ...stored, authToken: auth.auth_token, label: account.label, walletUriBase: auth.wallet_uri_base });
+      return op(wallet, auth);
+    });
+  try {
+    return await run(cachedAuthToken ?? stored.authToken);
+  } catch (e) {
+    if (authorized || !isAuthFailure(e)) throw e;
+    cachedAuthToken = null;
+    // 錢包關閉上一個 session 後仍在收尾（Phantom 會重建本機 WebSocket server）；立刻重開會被一併關掉，先等一下
+    await new Promise((r) => setTimeout(r, REAUTHORIZE_DELAY_MS));
+    try {
+      return await run(undefined);
+    } catch (e2) {
+      if (!authorized && isAuthFailure(e2)) {
+        await writeStored(null);
+        cachedAuthToken = null;
+        throw new WalletError('SESSION_EXPIRED', 'Wallet authorization expired', e2);
+      }
+      throw e2;
+    }
+  }
+}
+
 export const walletService = {
   /** FR-01.1：開啟 MWA 相容錢包並取得使用者選定帳戶 */
   async connect(): Promise<WalletSession> {
@@ -150,16 +198,17 @@ export const walletService = {
     cachedAuthToken = null;
   },
 
-  /** 由錢包簽章並送出交易；回傳 signature（base58）。送出後的確認與冪等由 ChainClient 負責（PG-A-10） */
-  async signAndSendTransaction(tx: Transaction | VersionedTransaction): Promise<string> {
+  /**
+   * 由錢包簽章並送出交易；回傳 signature（base58）。送出後的確認與冪等由 ChainClient 負責（PG-A-10）。
+   * `minContextSlot`：取 blockhash 時的 context slot（Phantom 的 MWA 實作把它當必填，缺少會直接拒絕而不顯示簽章畫面；Seeker 錢包則可選）。
+   */
+  async signAndSendTransaction(tx: Transaction | VersionedTransaction, opts: { minContextSlot?: number } = {}): Promise<string> {
     const stored = await readStored();
     if (!stored) throw new WalletError('SESSION_EXPIRED', 'No wallet session');
     try {
-      const [sig] = await transact(async (wallet: Web3MobileWallet) => {
-        const auth = await wallet.authorize({ identity, chain, auth_token: cachedAuthToken ?? stored.authToken });
-        cachedAuthToken = auth.auth_token;
-        return wallet.signAndSendTransactions({ transactions: [tx] });
-      });
+      const [sig] = await withAuthorizedWallet(stored, (wallet) =>
+        wallet.signAndSendTransactions({ transactions: [tx], ...(opts.minContextSlot !== undefined ? { minContextSlot: opts.minContextSlot } : {}) }),
+      );
       if (!sig) throw new WalletError('REJECTED', 'Transaction not sent');
       return sig;
     } catch (e) {
@@ -172,22 +221,14 @@ export const walletService = {
     const stored = await readStored();
     if (!stored) throw new WalletError('SESSION_EXPIRED', 'No wallet session');
     try {
-      const signed = await transact(async (wallet: Web3MobileWallet) => {
-        const auth = await wallet.authorize({ identity, chain, auth_token: cachedAuthToken ?? stored.authToken });
-        cachedAuthToken = auth.auth_token;
+      const signed = await withAuthorizedWallet(stored, async (wallet, auth) => {
         const [sig] = await wallet.signMessages({ addresses: [auth.accounts[0]!.address], payloads: [message] });
         return sig;
       });
       if (!signed) throw new WalletError('REJECTED', 'Message not signed');
       return signed;
     } catch (e) {
-      const err = mapWalletError(e);
-      if (err.code === 'REJECTED' && (e as { code?: number })?.code === -1) {
-        await writeStored(null);
-        cachedAuthToken = null;
-        throw new WalletError('SESSION_EXPIRED', 'Wallet authorization expired', e);
-      }
-      throw err;
+      throw mapWalletError(e);
     }
   },
 };

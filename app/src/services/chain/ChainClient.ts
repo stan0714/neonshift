@@ -15,11 +15,11 @@ export function getConnection(): Connection {
 
 export type SentTx = { signature: string; blockhash: string; lastValidBlockHeight: number };
 
-export async function buildTransaction(feePayer: PublicKey, instructions: TransactionInstruction[]): Promise<{ tx: Transaction; blockhash: string; lastValidBlockHeight: number }> {
-  const { blockhash, lastValidBlockHeight } = await getConnection().getLatestBlockhash('confirmed');
+export async function buildTransaction(feePayer: PublicKey, instructions: TransactionInstruction[]): Promise<{ tx: Transaction; blockhash: string; lastValidBlockHeight: number; minContextSlot: number }> {
+  const { context, value: { blockhash, lastValidBlockHeight } } = await getConnection().getLatestBlockhashAndContext('confirmed');
   const tx = new Transaction({ feePayer, blockhash, lastValidBlockHeight });
   tx.add(...instructions);
-  return { tx, blockhash, lastValidBlockHeight };
+  return { tx, blockhash, lastValidBlockHeight, minContextSlot: context.slot };
 }
 
 /** 預估費用：簽章費 + 帳戶 rent（若有新帳戶） */
@@ -32,8 +32,8 @@ export async function estimateFeeLamports(feePayer: PublicKey, instructions: Tra
 
 /** 由錢包簽章送出並等待 confirmed；回傳可供冪等查詢的資訊 */
 export async function sendWithWallet(feePayer: PublicKey, instructions: TransactionInstruction[]): Promise<SentTx> {
-  const { tx, blockhash, lastValidBlockHeight } = await buildTransaction(feePayer, instructions);
-  const signature = await walletService.signAndSendTransaction(tx);
+  const { tx, blockhash, lastValidBlockHeight, minContextSlot } = await buildTransaction(feePayer, instructions);
+  const signature = await walletService.signAndSendTransaction(tx, { minContextSlot });
   const result = await getConnection().confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
   if (result.value.err) throw new Error(`Transaction failed: ${JSON.stringify(result.value.err)}`);
   return { signature, blockhash, lastValidBlockHeight };

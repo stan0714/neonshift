@@ -37,7 +37,7 @@ async function writePending(p: PendingTx | null) {
 export class ClaimSubmitter {
   constructor(
     private readonly conn: () => Connection = getConnection,
-    private readonly send: (tx: Parameters<typeof walletService.signAndSendTransaction>[0]) => Promise<string> = (tx) => walletService.signAndSendTransaction(tx),
+    private readonly send: (tx: Parameters<typeof walletService.signAndSendTransaction>[0], opts?: { minContextSlot?: number }) => Promise<string> = (tx, opts) => walletService.signAndSendTransaction(tx, opts),
   ) {}
 
   async receiptExists(receipt: PublicKey): Promise<boolean> {
@@ -47,8 +47,8 @@ export class ClaimSubmitter {
   /** 送出並確認；逾時交給 `resolvePending` 判定 */
   async submit(player: PublicKey, instructions: TransactionInstruction[], receipt: PublicKey, task: { taskDate: number; taskType: number }): Promise<SubmitOutcome> {
     if (await this.receiptExists(receipt)) return { kind: 'already_claimed' };
-    const { tx, blockhash, lastValidBlockHeight } = await buildTransaction(player, instructions);
-    const signature = await this.send(tx);
+    const { tx, blockhash, lastValidBlockHeight, minContextSlot } = await buildTransaction(player, instructions);
+    const signature = await this.send(tx, { minContextSlot });
     const pending: PendingTx = { signature, blockhash, lastValidBlockHeight, receipt: receipt.toBase58(), wallet: player.toBase58(), ...task };
     await writePending(pending);
     return this.resolvePending(pending);

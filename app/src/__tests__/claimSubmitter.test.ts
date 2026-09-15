@@ -4,7 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import { ClaimSubmitter } from '@/services/chain/ClaimSubmitter';
 
 jest.mock('@/services/chain/ChainClient', () => ({
-  buildTransaction: jest.fn(async () => ({ tx: { __tx: true }, blockhash: 'BH', lastValidBlockHeight: 100 })),
+  buildTransaction: jest.fn(async () => ({ tx: { __tx: true }, blockhash: 'BH', lastValidBlockHeight: 100, minContextSlot: 4200 })),
   getConnection: jest.fn(),
 }));
 
