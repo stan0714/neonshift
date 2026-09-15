@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.43（PG-M-04 完成） |
+| 文件版本 | v0.44（PG-V-01 完成） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -258,6 +258,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | DEC-01 | 全部 | 團隊人數、角色與至少 5 FTE 的容量安排（BRD Q-01） | 專案負責人 | 2026-09-10 | OPEN |
 | DEC-02 | PG-I-08、PG-D-02 | SKR integration track 是否接受 tSKR（BRD Q-08） | 專案負責人 | 2026-09-10 | OPEN |
 | DEC-03 | PG-D-06、SD 6.2 | 升級免費後 tSKR 消耗／產出比 ≈ 0（BRD 8.5 目標 ≥ 0.6）：獎金池抽成、退款比例、外觀消耗或改以 runway 為指標（docs/economics/README.md） | 專案負責人 | 2026-09-21 | OPEN |
+| DEC-04 | PG-V-01、PG-V-02 | 睡眠不可用者最高只能 Lv4（步數 700 < Lv5 900）：(a) 接受並明示、(b) 全體一致替代挑戰（跑步 session +50）、(c) Lv5 改 700／7 日（docs/economics/maintenance-sim.md） | 專案負責人 | 2026-09-22 | OPEN |
 
 DEC-02 若判定必須整合主網官方 SKR，PG-I-08 的 tSKR 路線、SA 5.4 與鏈上金庫設計都必須重估；不得在現有四週估算內直接替換。
 
@@ -565,6 +566,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.44 | 2026-09-15 | PG-V-01 完成（WIP）：維持規則 v1 模擬與參數；新增 DEC-04 |
 | v0.43 | 2026-09-15 | PG-M-04 完成（WIP）：活動留念章（報到／完賽、Lv2 報名快照、藝廊 Events） |
 | v0.42 | 2026-09-15 | PG-M-03 完成（WIP）：紀念作品、Milestones 收藏與領取預覽、藝廊首次篩選 |
 | v0.41 | 2026-09-15 | PG-M-01／M-02 完成（WIP）：里程碑判定與穩定 key 鑄造 |
@@ -698,7 +700,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
-| PG-V-01 | 90 天維持情境／經濟模擬與參數定案 | shoe-gameplay 3、4、8 | FR-16 | 2.0 | TODO | 待指派 |
+| PG-V-01 | 90 天維持情境／經濟模擬與參數定案 | shoe-gameplay 3、4、8 | FR-16 | 2.0 | WIP | 2026-09-15：`tools/maintenance-sim/rules.mjs`（規則 v1 純函式：點數／活躍日／結算順序／缺席逐期）＋ 5 組邊界測試；`simulate.mjs` 六情境 98 天 → `docs/economics/maintenance-sim.csv`／`.md`（首次啟用 7／14／28／56 日、四期缺席 Lv5→Lv1、回歸 750→Lv4／900→Lv5 與規格一致；獎勵較舊規則 −3～18%）。**待決 DEC-04：睡眠不可用者最高 Lv4** |
 | PG-V-02 | Active／Highest／週期帳戶、結算及 migration | shoe-gameplay 7；SD 14 | BR-41～43 | 5.0 | TODO | 待指派 |
 | PG-V-03 | 倍率與歷史鑄造／活動／PB 能力快照 | shoe-gameplay 5、7 | FR-16.4、BR-44 | 3.0 | TODO | 待指派 |
 | PG-V-04 | Gear 維持儀表、歷史收藏、現役／歷史榜 | shoe-gameplay 6；Style 21 | FR-16.1～3 | 3.0 | TODO | 待指派 |
