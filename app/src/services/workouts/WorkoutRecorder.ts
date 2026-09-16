@@ -44,6 +44,12 @@ export type RecorderSnapshot = {
   goalReached: boolean;
   /** 完整性旗標（即時；防弊）；無引擎時空陣列 */
   integrityFlags: IntegrityFlag[];
+  /** 即時軌跡（最近 ≤ 600 個接受點；只在記憶體） */
+  path: RawPoint[];
+  /** 最近 5 分鐘速度樣本（m/s） */
+  speedSamples: { monotonicMs: number; speedMs: number }[];
+  /** 最後一點的水平精度（m）；無點 → null */
+  lastAccuracyM: number | null;
 };
 
 type LocationApi = Pick<typeof Location, 'requestForegroundPermissionsAsync' | 'getForegroundPermissionsAsync' | 'startLocationUpdatesAsync' | 'stopLocationUpdatesAsync' | 'hasStartedLocationUpdatesAsync'>;
@@ -172,6 +178,9 @@ export class WorkoutRecorder {
       goal: this.meta?.goal ?? null,
       goalReached: goalReached(this.meta?.goal ?? null, movingMs + pausedMs, e?.distanceMm ?? 0),
       integrityFlags: e ? e.integrity().flags : [],
+      path: e ? e.recentPath() : [],
+      speedSamples: e ? e.recentSpeeds() : [],
+      lastAccuracyM: this.lastAccuracy,
     };
   }
   private pausedTotal() {

@@ -111,6 +111,15 @@ test('開始頁（NRC 版面）：GPS chip 切室內停用 START 並導向匯入
   await act(async () => {});
 });
 
+test('記錄頁：距離 0 時按「計圈」有回應（說明還沒有距離）', async () => {
+  await render(<WorkoutRecordScreen />, { wrapper: Wrapper });
+  expect(recorder.snapshot().distanceMm).toBe(0);
+  await fireEvent.press(screen.getByTestId('record-lap'));
+  await waitFor(() => expect(screen.getByTestId('record-lap-note').props.children).toBe('No distance yet — a lap needs some movement first.'));
+  expect(recorder.snapshot().laps).toHaveLength(0);
+  await act(async () => {});
+});
+
 test('記錄頁：健走顯示速度、時間／距離；目標進度 → 達標提醒一次不自動停止；Lap；Pause 後顯示 Resume／Finish；Finish 需確認 → 摘要頁', async () => {
   jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, b) => b?.find((x) => x.style === 'destructive')?.onPress?.());
   await render(<WorkoutRecordScreen />, { wrapper: Wrapper });
@@ -144,7 +153,10 @@ test('記錄頁：健走顯示速度、時間／距離；目標進度 → 達標
   await fireEvent(screen.getByTestId('record-locked'), 'longPress');
   expect(screen.getByTestId('record-pause')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('record-lap'));
-  await waitFor(() => expect(screen.getByText('Lap 1')).toBeTruthy());
+  await waitFor(() => expect(screen.getByTestId('record-lap-note').props.children).toMatch(/^Lap 1 · 0\.36 km · /)); // 計圈有回應：第 N 圈＋距離＋速度
+  // 即時軌跡（記憶體內最近點）與速度曲線存在
+  expect(screen.getByTestId('record-trace')).toBeTruthy();
+  expect(screen.getByTestId('speed-sparkline')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('record-pause'));
   await waitFor(() => expect(screen.getByTestId('record-resume')).toBeTruthy());
   expect(screen.getAllByText('Paused').length).toBeGreaterThan(0);

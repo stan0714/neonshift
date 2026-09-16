@@ -134,6 +134,11 @@ export class GpsMetricsEngine {
   private clockOffset0: number | null = null;
   private clockDriftMs = 0;
   private motionProbes = { total: 0, mismatched: 0 };
+  // 記錄頁即時視覺化（只在記憶體、不持久化）：最近接受點與 5 秒窗速度樣本
+  private recent: RawPoint[] = [];
+  private speedSamples: { monotonicMs: number; speedMs: number }[] = [];
+  static readonly RECENT_MAX = 600;
+  static readonly SPEED_SAMPLE_WINDOW_MS = 300_000;
   private accepted = 0;
   private stationary = 0;
   private gaps = 0;
@@ -246,6 +251,12 @@ export class GpsMetricsEngine {
     const cur = this.currentSpeedMs();
     if (cur !== null && (this.maxSpeed5s === null || cur > this.maxSpeed5s)) this.maxSpeed5s = cur;
     this.trackIntegrity(p, acc, newSegment);
+    this.recent.push({ seq: p.seq, monotonicMs: p.monotonicMs, utcMs: p.utcMs, lat: p.lat, lon: p.lon, accuracyM: p.accuracyM });
+    if (this.recent.length > GpsMetricsEngine.RECENT_MAX) this.recent.splice(0, this.recent.length - GpsMetricsEngine.RECENT_MAX);
+    if (cur !== null) {
+      this.speedSamples.push({ monotonicMs: p.monotonicMs, speedMs: cur });
+      while (this.speedSamples.length && p.monotonicMs - this.speedSamples[0]!.monotonicMs > GpsMetricsEngine.SPEED_SAMPLE_WINDOW_MS) this.speedSamples.shift();
+    }
     // 界線：在 prev→acc 間插值
     if (distanceMm > 0 && prev) this.crossBoundaries(prev.elapsedMs, prevCum, acc.elapsedMs, this.cumMm);
     return { accepted: true, distanceMm, newSegment, stationary };
@@ -272,6 +283,15 @@ export class GpsMetricsEngine {
       if (this.clockOffset0 === null) this.clockOffset0 = offset;
       else this.clockDriftMs = Math.max(this.clockDriftMs, Math.abs(offset - this.clockOffset0));
     }
+  }
+
+  /** 最近接受點（最多 600 個；即時軌跡用，缺口以時間差在投影時斷線） */
+  recentPath(): RawPoint[] {
+    return this.recent;
+  }
+  /** 最近 5 分鐘的 5 秒窗速度樣本（sparkline 用） */
+  recentSpeeds(): { monotonicMs: number; speedMs: number }[] {
+    return this.speedSamples;
   }
 
   /** 外部時鐘漂移觀測（recorder 以單調時鐘對照牆鐘；點本身的 utc/monotonic 若同源則靠這個） */

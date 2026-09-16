@@ -2,9 +2,11 @@ import { Feather } from '@expo/vector-icons';
 import { StackActions, useNavigation } from '@react-navigation/native';
 import { useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
-import { Alert, BackHandler, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Chip, Screen } from '@/components';
+import { RouteTrace } from '@/components/RouteTrace';
+import { SpeedSparkline } from '@/components/SpeedSparkline';
 import { WorkoutActionFeedback, type WorkoutAction } from '@/components/WorkoutActionMotion';
 import { paceVsAvg, profileOf, speedZone } from '@/domain/modes';
 import { formatDuration, formatPace } from '@/domain/workouts';
@@ -34,7 +36,7 @@ export function WorkoutRecordScreen() {
     setFeedback((f) => ({ action: next, id: (f?.id ?? 0) + 1 }));
     if (useWorkoutPrefs.getState().haptic) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   }, [s.state]);
-  const [lapNote, setLapNote] = useState<string | null>(null);
+  const [lapNote, setLapNote] = useState<{ text: string; tone: 'cyan' | 'warning' } | null>(null);
   const [goalNotified, setGoalNotified] = useState(false);
 
   useEffect(() => {
@@ -77,6 +79,16 @@ export function WorkoutRecordScreen() {
   const recent = [...s.splits, ...s.laps].filter((l) => !l.isPartial).sort((x, y) => y.endElapsedMs - x.endElapsedMs).slice(0, 5);
   const startedAt = new Date(Date.now() - s.elapsedMs).toLocaleTimeString(locale === 'zh-TW' ? 'zh-TW' : 'en', { hour: '2-digit', minute: '2-digit' });
   const goalRatio = s.goal && s.goal.kind !== 'free' && s.goal.target > 0 ? Math.min(1, s.goal.kind === 'time' ? s.elapsedMs / (s.goal.target * 1000) : s.distanceMm / s.goal.target) : 0;
+  /** 計圈：距離為 0 時引擎不建圈，但按鈕必須有回應——說明原因並輕震；成功則顯示第 N 圈＋配速 */
+  const onLap = async () => {
+    const l = await workoutRecorder.lap();
+    if (prefs.haptic) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    if (!l) {
+      setLapNote({ text: t('rec.lapNoDistance'), tone: 'warning' });
+      return;
+    }
+    setLapNote({ text: `${t('rec.lapAdded', { n: l.index })} · ${(l.distanceMm / 1_000_000).toFixed(2)} km · ${s.sport === 'walk' ? `${speedOf(l.paceSPerKm)} km/h` : formatPace(l.paceSPerKm)}`, tone: 'cyan' });
+  };
   const finish = () => {
     Alert.alert(t('rec.finishTitle'), t('rec.finishBody'), [
       { text: t('common.cancel'), style: 'cancel' },
@@ -117,6 +129,8 @@ export function WorkoutRecordScreen() {
           {t('rec.gpsGap')}
         </Text>
       ) : null}
+      {/* 中段可捲動（內容依模式與資料變多）；狀態列與控制列固定 */}
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false} testID="record-body">
       <View style={styles.hero} accessible accessibilityLabel={`${primaryLabel} ${primary === '—' ? t('rec.a11y.none') : primary} ${profile.primary === 'time' ? '' : profile.primary === 'speed' ? t('rec.a11y.kmh') : t('rec.a11y.minPerKm')}`}>
         <View style={styles.modeRow}>
           <Feather name={profile.icon} size={14} color={profile.accent} />
@@ -239,10 +253,20 @@ export function WorkoutRecordScreen() {
         </View>
       ) : null}
       {lapNote ? (
-        <Text variant="bodySmall" tone="cyan" style={styles.center}>
-          {lapNote}
+        <Text variant="bodySmall" tone={lapNote.tone} style={styles.center} testID="record-lap-note">
+          {lapNote.text}
         </Text>
       ) : null}
+      {/* 即時軌跡＋速度曲線（Style 23.6）：只用記憶體內最近接受點與 5 秒窗樣本，不讀磁碟 */}
+      {s.path.length >= 2 ? <RouteTrace points={s.path} height={150} layer={prefs.traceLayer} testID="record-trace" /> : null}
+      <View style={styles.sparkHead}>
+        <Text variant="label" tone="muted" uppercase>{s.sport === 'walk' ? t('rec.spark.speed') : t('rec.spark.pace')}</Text>
+        <Text variant="caption" tone="muted" numeric>
+          {s.lastAccuracyM !== null && s.state === 'recording' ? `${t('rec.gpsAccuracy', { m: Math.round(s.lastAccuracyM) })} · ` : ''}{t('rec.totalTime', { t: formatDuration(String(s.elapsedMs)) })}
+        </Text>
+      </View>
+      <SpeedSparkline samples={s.speedSamples} sport={s.sport} accent={profile.accent} />
+      </ScrollView>
       <View style={styles.controls}>
         {locked ? (
           <Pressable onLongPress={() => setLocked(false)} delayLongPress={1200} accessibilityRole="button" accessibilityLabel={t('rec.lock.unlockA11y')} style={[styles.ctl, styles.ctlSecondary, styles.ctlWide]} testID="record-locked">
@@ -250,7 +274,7 @@ export function WorkoutRecordScreen() {
           </Pressable>
         ) : s.state === 'recording' ? (
           <>
-            <Pressable onPress={() => void workoutRecorder.lap().then((l) => l && setLapNote(t('rec.lapAdded', { n: l.index })))} accessibilityRole="button" accessibilityLabel={t('rec.lap')} style={[styles.ctl, styles.ctlSecondary]} testID="record-lap">
+            <Pressable onPress={() => void onLap()} accessibilityRole="button" accessibilityLabel={t('rec.lap')} style={({ pressed }) => [styles.ctl, styles.ctlSecondary, pressed && styles.ctlPressed]} testID="record-lap">
               <Text variant="title">{t('rec.lap')}</Text>
             </Pressable>
             <Pressable onPress={() => void workoutRecorder.pause()} accessibilityRole="button" accessibilityLabel={t('rec.pause')} style={[styles.ctl, styles.ctlPrimary]} testID="record-pause">
@@ -301,9 +325,13 @@ const styles = StyleSheet.create({
   center: { textAlign: 'center', marginTop: space.xs },
   lockBtn: { marginLeft: 'auto', minHeight: 48, minWidth: 48, alignItems: 'center', justifyContent: 'center' },
   ctlWide: { flex: 1 },
-  controls: { flexDirection: 'row', gap: space.m, marginTop: 'auto', marginBottom: space.l },
+  body: { flex: 1, marginTop: space.xs },
+  bodyContent: { paddingBottom: space.m },
+  controls: { flexDirection: 'row', gap: space.m, marginTop: space.s, marginBottom: space.l },
   ctl: { flex: 1, minHeight: 64, borderRadius: radius.l, alignItems: 'center', justifyContent: 'center', minWidth: layout.minTouchTarget },
   ctlPrimary: { backgroundColor: color.mint },
+  ctlPressed: { opacity: 0.7 },
+  sparkHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: space.m, marginBottom: space.xxs },
   ctlSecondary: { borderWidth: 1, borderColor: color.borderSubtle, backgroundColor: color.surface },
   ctlDanger: { borderWidth: 1, borderColor: color.danger, backgroundColor: color.surface },
   onMint: { color: color.onMint },
