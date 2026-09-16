@@ -34,6 +34,39 @@ function Segmented<T extends string>({ items, value, onChange, testID }: { items
   );
 }
 
+/** 目標可自訂範圍（實機回饋：不應只能選預設）：距離 0.5～100 km（0.1 km 精度、±0.5 步進）、時間 1～600 分（±5 步進） */
+export const GOAL_RANGE = { distKm: { min: 0.5, max: 100, step: 0.5 }, timeMin: { min: 1, max: 600, step: 5 } } as const;
+const clampGoal = (v: number, r: { min: number; max: number }) => Math.min(r.max, Math.max(r.min, v));
+
+/** 預設 Segmented 下方的 −／數值輸入／＋ 列；輸入框失焦或按鈕時才寫回（保留使用者打到一半的字） */
+function Stepper({ value, onChange, range, decimals, unit, testID }: { value: number; onChange: (v: number) => void; range: { min: number; max: number; step: number }; decimals: number; unit: string; testID: string }) {
+  const { t } = useT();
+  const [text, setText] = useState(String(value));
+  const [editing, setEditing] = useState(false);
+  useEffect(() => { if (!editing) setText(decimals ? String(Number(value.toFixed(decimals))) : String(value)); }, [value, editing, decimals]);
+  const commit = () => {
+    setEditing(false);
+    const n = Number(text.replace(/[^0-9.]/g, ''));
+    if (Number.isFinite(n) && n > 0) onChange(clampGoal(Number(n.toFixed(decimals)), range));
+    else setText(String(value));
+  };
+  const bump = (dir: -1 | 1) => onChange(clampGoal(Number((value + dir * range.step).toFixed(decimals)), range));
+  return (
+    <View style={styles.stepper} testID={testID}>
+      <Pressable onPress={() => bump(-1)} disabled={value <= range.min} style={[styles.stepBtn, value <= range.min && styles.stepBtnOff]} accessibilityRole="button" accessibilityLabel={t('rec.goal.decrease')} testID={`${testID}-minus`}>
+        <Feather name="minus" size={22} color={value <= range.min ? color.textMuted : color.textPrimary} />
+      </Pressable>
+      <View style={styles.stepMid}>
+        <TextInput value={text} onChangeText={setText} onFocus={() => setEditing(true)} onBlur={commit} onSubmitEditing={commit} keyboardType={decimals ? 'decimal-pad' : 'number-pad'} maxLength={6} selectTextOnFocus style={styles.stepInput} accessibilityLabel={t('rec.goal.customLabel')} testID={`${testID}-input`} />
+        <Text variant="bodySmall" tone="secondary">{unit}</Text>
+      </View>
+      <Pressable onPress={() => bump(1)} disabled={value >= range.max} style={[styles.stepBtn, value >= range.max && styles.stepBtnOff]} accessibilityRole="button" accessibilityLabel={t('rec.goal.increase')} testID={`${testID}-plus`}>
+        <Feather name="plus" size={22} color={value >= range.max ? color.textMuted : color.textPrimary} />
+      </Pressable>
+    </View>
+  );
+}
+
 type TrackChoice = 'off' | '400' | '200' | 'custom';
 /** 跑道模式圈長（公尺）；自訂值需在 TRACK_LAP_MIN_M～TRACK_LAP_MAX_M 內，否則 null */
 export function trackLapMetersOf(choice: TrackChoice, custom: string): number | null {
@@ -167,8 +200,9 @@ export function WorkoutStartScreen() {
   const changeMode = (m: WorkoutMode) => {
     const next = profileOf(m);
     setMode(m);
-    setTimeMin((v) => snapPreset(v, next.timePresets));
-    setDistKm((v) => snapPreset(v, next.distPresets));
+    // 只在目前值是舊模式的預設時才對齊新模式；使用者自訂的值保留
+    setTimeMin((v) => (profile.timePresets.includes(v) ? snapPreset(v, next.timePresets) : v));
+    setDistKm((v) => (profile.distPresets.includes(v) ? snapPreset(v, next.distPresets) : v));
     setAutoLap(next.autoLapDefault);
   };
   const [units, setUnits] = useState<'km' | 'mi'>('km');
@@ -326,8 +360,18 @@ export function WorkoutStartScreen() {
               </Text>
               {goalKind === g ? <Feather name="check" size={22} color={color.mint} /> : null}
             </Pressable>
-            {g === 'distance' && goalKind === 'distance' ? <Segmented items={profile.distPresets.map((k) => ({ value: String(k), label: t('rec.goal.km', { n: k }) }))} value={String(distKm)} onChange={(v) => setDistKm(Number(v))} testID="start-goal-dist" /> : null}
-            {g === 'time' && goalKind === 'time' ? <Segmented items={profile.timePresets.map((m) => ({ value: String(m), label: t('rec.goal.min', { n: m }) }))} value={String(timeMin)} onChange={(v) => setTimeMin(Number(v))} testID="start-goal-time" /> : null}
+            {g === 'distance' && goalKind === 'distance' ? (
+              <>
+                <Segmented items={profile.distPresets.map((k) => ({ value: String(k), label: t('rec.goal.km', { n: k }) }))} value={String(distKm)} onChange={(v) => setDistKm(Number(v))} testID="start-goal-dist" />
+                <Stepper value={distKm} onChange={setDistKm} range={GOAL_RANGE.distKm} decimals={1} unit={t('rec.goal.unit.km')} testID="start-goal-dist-custom" />
+              </>
+            ) : null}
+            {g === 'time' && goalKind === 'time' ? (
+              <>
+                <Segmented items={profile.timePresets.map((m) => ({ value: String(m), label: t('rec.goal.min', { n: m }) }))} value={String(timeMin)} onChange={(v) => setTimeMin(Number(v))} testID="start-goal-time" />
+                <Stepper value={timeMin} onChange={setTimeMin} range={GOAL_RANGE.timeMin} decimals={0} unit={t('rec.goal.unit.min')} testID="start-goal-time-custom" />
+              </>
+            ) : null}
           </View>
         ))}
         <Text variant="caption" tone="muted" style={styles.mt}>
@@ -369,8 +413,12 @@ export function WorkoutStartScreen() {
           </Text>
           <Switch value={prefs.haptic} onValueChange={(v) => void prefs.set({ haptic: v })} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('rec.cue.haptic')} testID="start-cue-haptic" />
         </View>
-        <Text variant="caption" tone="muted">
-          {t('rec.cue.hint')}
+        <Text variant="label" tone="muted" uppercase style={styles.mt}>
+          {t('rec.cue.every')}
+        </Text>
+        <Segmented items={(['500', '1000', 'half'] as const).map((v) => ({ value: v, label: t(`rec.cue.every.${v}` as TKey) }))} value={prefs.cueEvery} onChange={(v) => void prefs.set({ cueEvery: v })} testID="start-cue-every" />
+        <Text variant="caption" tone="muted" style={styles.mtXs}>
+          {goalKind === 'distance' || prefs.cueEvery !== 'half' ? t('rec.cue.hint') : t('rec.cue.halfNeedsGoal')}
         </Text>
         <Text variant="label" tone="muted" uppercase style={styles.mt}>
           {t('rec.track')}
@@ -401,6 +449,11 @@ export function WorkoutStartScreen() {
 
 const styles = StyleSheet.create({
   mt: { marginTop: space.m },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.s, marginBottom: space.xs },
+  stepBtn: { width: 48, height: 48, borderRadius: radius.m, borderWidth: 1, borderColor: color.borderSubtle, alignItems: 'center', justifyContent: 'center', backgroundColor: color.elevated },
+  stepBtnOff: { opacity: 0.4 },
+  stepMid: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, minHeight: 48, borderWidth: 1, borderColor: color.borderSubtle, borderRadius: radius.m, backgroundColor: color.elevated, paddingHorizontal: space.s },
+  stepInput: { minWidth: 72, textAlign: 'center', color: color.textPrimary, fontSize: 22, fontWeight: '700', paddingVertical: 0 },
   flex: { flex: 1 },
   mtXs: { marginTop: space.xs },
   center: { textAlign: 'center' },

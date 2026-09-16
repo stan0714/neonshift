@@ -162,10 +162,14 @@ export class ApiClient {
 
   // ---------------- 登入（SIWS） ----------------
 
-  /** 取 nonce → 以 MWA 簽訊息 → verify → 保存 token */
-  async signIn(wallet: string): Promise<TokenPair> {
+  /**
+   * 取 nonce → 簽訊息 → verify → 保存 token。
+   * `signer` 預設另開錢包 session 簽；連線流程會傳入同一個 MWA session 的簽章函式（見 WalletService.connect.afterAuthorize），
+   * 讓「連線錢包」與「後端登入」一次完成，之後競技場／藝廊／活動不再要求登入（token 會續期）。
+   */
+  async signIn(wallet: string, signer: (message: Uint8Array) => Promise<Uint8Array> = (m) => walletService.signMessage(m)): Promise<TokenPair> {
     const n = await this.request<NonceResponse>('POST', '/auth/nonce', { wallet }, { auth: false });
-    const sig = await walletService.signMessage(new TextEncoder().encode(n.message));
+    const sig = await signer(new TextEncoder().encode(n.message));
     const pair = await this.request<TokenPair>('POST', '/auth/verify', { message: n.message, signature_b64: Buffer.from(sig).toString('base64') }, { auth: false });
     await writeTokens({ accessToken: pair.access_token, refreshToken: pair.refresh_token, accessExpiresAt: this.now() + pair.expires_in * 1000, wallet: pair.wallet });
     return pair;

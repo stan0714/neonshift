@@ -128,10 +128,29 @@ async function withAuthorizedWallet<T>(stored: Stored, op: (wallet: Web3MobileWa
 }
 
 export const walletService = {
-  /** FR-01.1：開啟 MWA 相容錢包並取得使用者選定帳戶 */
-  async connect(): Promise<WalletSession> {
+  /**
+   * FR-01.1：開啟 MWA 相容錢包並取得使用者選定帳戶。
+   * `afterAuthorize`（可選）在同一個錢包 session 內接著執行（例如後端 SIWS 登入：取 nonce → 簽訊息 → verify），
+   * 使用者只切換一次錢包 App、看到「連線＋簽登入訊息」兩個核准；它失敗（拒簽／後端不通）不影響錢包連線，由呼叫端另行處理。
+   */
+  async connect(opts?: { afterAuthorize?: (address: string, sign: (message: Uint8Array) => Promise<Uint8Array>) => Promise<void> }): Promise<WalletSession> {
     try {
-      const result = await transact(async (wallet: Web3MobileWallet) => wallet.authorize({ identity, chain }));
+      const result = await transact(async (wallet: Web3MobileWallet) => {
+        const auth = await wallet.authorize({ identity, chain });
+        const account = auth.accounts[0];
+        if (account && opts?.afterAuthorize) {
+          try {
+            await opts.afterAuthorize(base64ToBase58(account.address), async (message) => {
+              const [sig] = await wallet.signMessages({ addresses: [account.address], payloads: [message] });
+              if (!sig) throw new WalletError('REJECTED', 'Message not signed');
+              return sig;
+            });
+          } catch {
+            // 登入是附加步驟：拒簽或後端錯誤都不該讓錢包連線失敗
+          }
+        }
+        return auth;
+      });
       const account = result.accounts[0];
       if (!account) throw new WalletError('REJECTED', 'No account authorized');
       const address = base64ToBase58(account.address);

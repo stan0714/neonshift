@@ -140,7 +140,7 @@ export class WorkoutRecorder {
   }
   async runProbe(): Promise<void> {
     if (this.probing || !this.motionProbe || !this.engine || this.state !== 'recording') return;
-    const speed = this.engine.currentSpeedMs();
+    const speed = this.engine.windowSpeedMs();
     if (speed === null || speed < MOTION_PROBE_MIN_SPEED_MS) return; // GPS 沒在動就不用比
     this.probing = true;
     try {
@@ -261,7 +261,7 @@ export class WorkoutRecorder {
   /** 自動暫停判定：只在 recording 且啟用時；5 秒窗速度 < 0.5 m/s 累計 ≥ 10 s → pause('auto') */
   private maybeAutoPause(last: RawPoint | undefined) {
     if (!this.engine || !this.meta?.autoPause || this.state !== 'recording' || !last) return;
-    const speed = this.engine.currentSpeedMs();
+    const speed = this.engine.windowSpeedMs(); // 用未平滑的 5 秒窗：停下要即時反應，顯示用的 EMA 會拖慢
     if (speed === null) return; // 窗不完整（剛開始／缺口）不判定
     const t = this.now();
     if (speed >= AUTO_PAUSE.minSpeedMs) {

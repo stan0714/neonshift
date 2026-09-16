@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import { apiClient } from '@/services/api/ApiClient';
 import { walletService, type WalletError, type WalletSession } from '@/services/wallet/WalletService';
 
 export type WalletStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -23,7 +24,8 @@ export const useWalletStore = create<WalletState>((set) => ({
   async connect() {
     set({ status: 'connecting', error: null });
     try {
-      const session = await walletService.connect();
+      // 連線時順便完成後端 SIWS 登入（同一個錢包 session）；失敗不影響連線，之後需要時再由競技場等頁面補登入
+      const session = await walletService.connect(apiClient.configured ? { afterAuthorize: async (address, sign) => { await apiClient.signIn(address, sign); } } : undefined);
       set({ status: 'connected', session });
       return session;
     } catch (e) {

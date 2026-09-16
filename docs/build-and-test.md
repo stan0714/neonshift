@@ -899,6 +899,7 @@ adb reverse --remove-all
 |---|---|---|
 | `adb devices` 顯示 `unauthorized` | 未接受授權對話框 | 裝置上勾選一律允許；或 `adb kill-server && adb start-server` |
 | App 開啟後停在白畫面 | Metro 沒連上 | `adb reverse tcp:8081 tcp:8081` 後重開 App |
+| 桌面／最近使用出現兩個 NeonShift、切回來變另一個 App | 裝置上還留著改 package 前的舊版 `xyz.neonshift.app`（同名同圖示） | `adb uninstall xyz.neonshift.app`（2026-09-16 已在 Seeker 移除） |
 | Onboarding 卡在「Opening Health Connect…」（release 包） | Android 14+ 的 Health Connect 權限是執行期權限，結果從 `onRequestPermissionsResult` 回來；Expo `registerForActivityResult` 在 release 包不會把它送回 launcher | 已於 2026-09-16 改為 `PermissionAwareActivity.requestPermissions`＋前景保底（`modules/neonshift-health`）；若再發生，看 logcat `NeonshiftHealth` 標籤 |
 | `Unable to load script` | 同上 | 同上，並確認 `npx expo start --dev-client` 在跑 |
 | `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | debug 與 release 簽章不同 | `adb uninstall cc.neonshift.app` 後重裝 |

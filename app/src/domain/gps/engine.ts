@@ -129,6 +129,10 @@ export class GpsMetricsEngine {
   private cumMm = 0;
   private segment = 0;
   private window: Accepted[] = [];
+  /** 顯示用平滑速度（5 秒窗再做 EMA，τ≈8 s）；實機回饋：主數字每秒跳動太快。防弊／最高速度仍用原始 5 秒窗 */
+  private smoothSpeedMs: number | null = null;
+  private smoothAtMono = 0;
+  static readonly SPEED_SMOOTH_TAU_MS = 8000;
   private maxSpeed5s: number | null = null;
   private coveredMs = 0;
   private rejected: Record<RejectReason, number> = { not_finite: 0, out_of_order: 0, duplicate: 0, low_accuracy: 0, speed_spike: 0, paused: 0, not_recording: 0, mock_location: 0 };
@@ -186,6 +190,7 @@ export class GpsMetricsEngine {
     this.state = 'recording';
     this.resumePending = true; // 恢復後從新點重新建段
     this.window = [];
+    this.smoothSpeedMs = null;
     return true;
   }
   elapsedAt(monotonicMs: number) {
@@ -257,8 +262,16 @@ export class GpsMetricsEngine {
       if (acc.monotonicMs - this.window[1]!.monotonicMs >= 5000) this.window.shift();
       else break;
     }
+    const raw = this.windowSpeedMs();
+    if (raw !== null && (this.maxSpeed5s === null || raw > this.maxSpeed5s)) this.maxSpeed5s = raw;
+    if (raw === null || newSegment) this.smoothSpeedMs = raw;
+    else {
+      const dt = Math.max(0, p.monotonicMs - this.smoothAtMono);
+      const alpha = 1 - Math.exp(-dt / GpsMetricsEngine.SPEED_SMOOTH_TAU_MS);
+      this.smoothSpeedMs = this.smoothSpeedMs === null ? raw : this.smoothSpeedMs + alpha * (raw - this.smoothSpeedMs);
+    }
+    this.smoothAtMono = p.monotonicMs;
     const cur = this.currentSpeedMs();
-    if (cur !== null && (this.maxSpeed5s === null || cur > this.maxSpeed5s)) this.maxSpeed5s = cur;
     this.trackIntegrity(p, acc, newSegment);
     this.recent.push({ seq: p.seq, monotonicMs: p.monotonicMs, utcMs: p.utcMs, lat: p.lat, lon: p.lon, accuracyM: p.accuracyM });
     if (this.recent.length > GpsMetricsEngine.RECENT_MAX) this.recent.splice(0, this.recent.length - GpsMetricsEngine.RECENT_MAX);
@@ -325,8 +338,13 @@ export class GpsMetricsEngine {
     return { mockPoints: this.rejected.mock_location, sustainedSpeedEpisodes: this.sustainedEpisodes, gapTeleports: this.gapTeleports, clockDriftMs: this.clockDriftMs, motionProbes: { ...this.motionProbes }, flags };
   }
 
-  /** 最近完整 5 秒連續窗的平均速度（m/s）；窗不完整回 null */
+  /** 顯示用目前速度（m/s）：5 秒窗經 EMA 平滑；窗不完整回 null */
   currentSpeedMs(): number | null {
+    if (this.state !== 'recording' || this.windowSpeedMs() === null) return null;
+    return this.smoothSpeedMs;
+  }
+  /** 最近完整 5 秒連續窗的平均速度（m/s，未平滑；最高速度與防弊用）；窗不完整回 null */
+  windowSpeedMs(): number | null {
     if (this.state !== 'recording' || this.window.length < 2) return null;
     const last = this.window[this.window.length - 1]!;
     const first = this.window[0]!;
@@ -338,9 +356,10 @@ export class GpsMetricsEngine {
     const cumAtT0 = first.cumMm + (second.cumMm - first.cumMm) * Math.min(1, Math.max(0, ratio));
     return (last.cumMm - cumAtT0) / 1000 / 5;
   }
+  /** 顯示用目前配速（s/km），取到 5 秒（如 5:30、5:35），避免每秒個位數跳動 */
   currentPaceSPerKm(): number | null {
     const v = this.currentSpeedMs();
-    return v === null || v < 0.3 ? null : Math.round(1000 / v);
+    return v === null || v < 0.3 ? null : Math.round(1000 / v / 5) * 5;
   }
 
   private crossBoundaries(t0: number, d0: number, t1: number, d1: number) {

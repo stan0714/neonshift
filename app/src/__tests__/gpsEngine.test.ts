@@ -89,7 +89,7 @@ test('最高速度：單點跳點不計；不足 5 秒窗顯示 —；正常窗�
   expect(e.currentPaceSPerKm()).toBeNull();
   run(track({ speedMs: 3, seconds: 10, startSec: 4, startLat: 25 + 12 / M_PER_DEG_LAT, seqStart: 100 }), e);
   expect(e.currentSpeedMs()).toBeCloseTo(3, 1);
-  expect(e.currentPaceSPerKm()).toBe(333);
+  expect(e.currentPaceSPerKm()).toBe(335); // 顯示用配速取到 5 秒
   // 跳點：1 秒內位移 50 m → 拒絕，不進最高速度
   expect(e.addPoint({ seq: 500, monotonicMs: 15_000, utcMs: 0, lat: 25 + (42 + 50) / M_PER_DEG_LAT, lon: 121.5, accuracyM: 5 })).toMatchObject({ accepted: false, reason: 'speed_spike' });
   const s = e.finish(15_000);
@@ -271,4 +271,22 @@ describe('靜止漂移抑制（GPS_RULES_VERSION 3）', () => {
     for (let i = 0; i <= 60; i++) e.addPoint({ seq: i, monotonicMs: i * 1000, utcMs: i * 1000, lat: 25 + (3 * i) / M_PER_DEG_LAT, lon: 121.5, accuracyM: 5, speedMs: 0 });
     expect(e.finish(60_000).distanceMm / 1000).toBeGreaterThan(165);
   });
+});
+
+test('顯示速度平滑（EMA τ 8 s）：速度驟變時顯示值漸進、原始 5 秒窗即時；恢復後重設', () => {
+  const e = new GpsMetricsEngine('run');
+  e.start(0);
+  run(track({ speedMs: 3, seconds: 12 }), e);
+  expect(e.currentSpeedMs()).toBeCloseTo(3, 1);
+  // 突然變 1.5 m/s：5 秒窗約 6 秒後到 1.5，EMA 應仍明顯高於窗值
+  run(track({ speedMs: 1.5, seconds: 6, startSec: 13, startLat: 25 + 36 / M_PER_DEG_LAT, seqStart: 100 }), e);
+  const raw = e.windowSpeedMs()!;
+  const shown = e.currentSpeedMs()!;
+  expect(raw).toBeLessThan(2);
+  expect(shown).toBeGreaterThan(raw + 0.2);
+  expect(shown).toBeLessThan(3);
+  expect(e.currentPaceSPerKm()! % 5).toBe(0);
+  e.pause(20_000);
+  e.resume(30_000);
+  expect(e.currentSpeedMs()).toBeNull();
 });

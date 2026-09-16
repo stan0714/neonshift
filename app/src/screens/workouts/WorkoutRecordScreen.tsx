@@ -55,10 +55,10 @@ export function WorkoutRecordScreen() {
     return () => sub.remove();
   }, [s.state, locked]);
 
-  // PG-U-02：每公里／自訂圈語音或震動提示（預設關閉；背景／通話不搶播）
+  // PG-U-02：距離間隔（500 m／1 km／目標一半）與自訂圈語音或震動提示（預設關閉；背景可播，不補播）
   const prefs = useWorkoutPrefs();
-  useEffect(() => { workoutCues.reset(workoutRecorder.snapshot()); }, []);
-  useEffect(() => { workoutCues.onSnapshot(s, { voice: prefs.voice, haptic: prefs.haptic, locale: locale === 'zh-TW' ? 'zh-TW' : 'en' }); }, [s, prefs.voice, prefs.haptic, locale]);
+  useEffect(() => { workoutCues.reset(workoutRecorder.snapshot(), { voice: prefs.voice, haptic: prefs.haptic, locale: locale === 'zh-TW' ? 'zh-TW' : 'en', cueEvery: prefs.cueEvery }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { workoutCues.onSnapshot(s, { voice: prefs.voice, haptic: prefs.haptic, locale: locale === 'zh-TW' ? 'zh-TW' : 'en', cueEvery: prefs.cueEvery }); }, [s, prefs.voice, prefs.haptic, prefs.cueEvery, locale]);
 
   // 模式樣態（Style 24.6）：走路主數字＝運動時間、健走＝km/h＋建議區間、跑步＝配速＋與平均比較
   const mode = modeOfIntent(s.sport, s.intent) ?? (s.sport === 'run' ? 'run' : 'walk');

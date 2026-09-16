@@ -35,6 +35,23 @@ describe('WalletService（PG-A-06，FR-01）', () => {
     expect(await walletService.hasStoredSession()).toBe(true);
   });
 
+  test('connect＋afterAuthorize：同一個 MWA session 內簽登入訊息；登入失敗（拒簽／後端錯）不影響連線', async () => {
+    const signMessages = jest.fn(async () => [new Uint8Array([9, 9])]);
+    mockTransact.mockImplementationOnce(async (cb) => cb({ authorize: async () => authResult(), signMessages } as never));
+    const seen: string[] = [];
+    let sig: Uint8Array | null = null;
+    const s = await walletService.connect({ afterAuthorize: async (address, sign) => { seen.push(address); sig = await sign(new Uint8Array([1])); } });
+    expect(s.address).toBe(pk.toBase58());
+    expect(seen).toEqual([pk.toBase58()]);
+    expect(signMessages).toHaveBeenCalledWith({ addresses: [b64], payloads: [new Uint8Array([1])] });
+    expect(sig).toEqual(new Uint8Array([9, 9]));
+    // 登入步驟失敗：連線仍成功、token 仍保存
+    mockTransact.mockImplementationOnce(async (cb) => cb({ authorize: async () => authResult('tok-2'), signMessages: async () => { throw new Error('user declined'); } } as never));
+    const s2 = await walletService.connect({ afterAuthorize: async (_a, sign) => { await sign(new Uint8Array([2])); } });
+    expect(s2.address).toBe(pk.toBase58());
+    expect(await walletService.hasStoredSession()).toBe(true);
+  });
+
   test('restore：以保存 token 重新授權並輪替 token', async () => {
     mockStore.set('neonshift.wallet.session.v1', JSON.stringify({ authToken: 'old', address: pk.toBase58(), walletUriBase: 'x' }));
     const authorize = jest.fn(async (p: { auth_token?: string }) => authResult(p.auth_token === 'old' ? 'new' : 'bad'));
