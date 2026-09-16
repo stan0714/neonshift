@@ -682,6 +682,8 @@ ChainIndexer 以 `(signature, event_index)` 冪等寫入，先記錄 `confirmed`
 
 2026-09-14 依 [Android 官方讀取文件](https://developer.android.com/health-and-fitness/health-connect/read-data) 再核對：SPN 查詢 API 的門檻為 extension 11，內建計步則為 20，須分開檢查。所有分頁均須讀完，permission、API 不可用與無資料狀態分開呈現。
 
+2026-09-16 Seeker（Android 16、extension 22）實機：Health Connect「手機追蹤步數」（Devices › 本機 › Allowed to write › Steps）寫入的 `DataOrigin` 為 `com.android.healthconnect.phone.<device-id>`，而 `getCurrentDeviceDataSource()` 反射取值為 null，導致 6,349 步被歸為第三方、App 顯示 0。修正：`HealthReader.classify` 將 `com.android.healthconnect.phone.` 前綴視同 `current_device_spn`（此裝置本身的計步，符合 BR-07／08 的「裝置來源」定義；後端白名單不變）。
+
 ### 5.2 導航結構【對應 style.md 第 2 章】
 
 ```

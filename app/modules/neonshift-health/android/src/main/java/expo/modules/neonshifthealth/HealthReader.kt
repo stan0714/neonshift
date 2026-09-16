@@ -3,6 +3,7 @@ package expo.modules.neonshifthealth
 import android.content.Context
 import android.os.Build
 import android.os.ext.SdkExtensions
+import android.util.Log
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.DistanceRecord
@@ -78,6 +79,8 @@ class HealthReader(private val context: Context) {
       .forEach { buckets.put(JSONArray().put(it.first).put(it.second)) }
     val originsJson = JSONArray()
     origins.values.forEach { originsJson.put(JSONObject().put("package", it.pkg).put("sourceKind", it.kind).put("steps", it.steps).put("records", it.records)) }
+    // 診斷（只有 package 與計數，無個人資料）：實機排查「HC 有步數但 App 顯示 0」用
+    Log.i("NeonshiftHealth", "readSteps total=$total spn=$spn origins=" + origins.values.joinToString { "${it.pkg}:${it.kind}:${it.steps}" })
     return JSONObject()
       .put("total", total)
       .put("dataOrigins", originsJson)
@@ -163,10 +166,18 @@ class HealthReader(private val context: Context) {
       .put("permissions", JSONObject().put("distance", canDistance).put("steps", canSteps).put("activeCalories", canActive).put("totalCalories", canTotal))
   }
 
+  /**
+   * 來源歸因（BR-07／08）：
+   * - `android`：舊版裝置來源。
+   * - `getCurrentDeviceDataSource()` 回報的 SPN。
+   * - `com.android.healthconnect.phone.<device-id>`：Android 16 Health Connect「手機追蹤步數」（Devices › 本機 › Allowed to write › Steps）
+   *   的資料來源；此裝置本身的計步，視同 current_device_spn（Seeker 實機 2026-09-16：6,349 步全在此來源、SPN 查詢回 null，原本被當第三方而顯示 0）。
+   */
   private fun classify(pkg: String, recordingMethod: Int, spn: String?): String = when {
     recordingMethod == Metadata.RECORDING_METHOD_MANUAL_ENTRY -> KIND_MANUAL
     pkg == LEGACY_DEVICE_ORIGIN -> KIND_LEGACY
     spn != null && pkg == spn -> KIND_DEVICE_SPN
+    pkg.startsWith(PHONE_TRACKED_ORIGIN_PREFIX) -> KIND_DEVICE_SPN
     else -> KIND_THIRD_PARTY
   }
 
@@ -201,6 +212,7 @@ class HealthReader(private val context: Context) {
 
   companion object {
     const val LEGACY_DEVICE_ORIGIN = "android"
+    const val PHONE_TRACKED_ORIGIN_PREFIX = "com.android.healthconnect.phone."
     const val KIND_LEGACY = "android_legacy"
     const val KIND_DEVICE_SPN = "current_device_spn"
     const val KIND_MANUAL = "manual"
