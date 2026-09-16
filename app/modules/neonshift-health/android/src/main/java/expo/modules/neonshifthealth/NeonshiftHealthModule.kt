@@ -2,7 +2,12 @@ package expo.modules.neonshifthealth
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
@@ -12,6 +17,8 @@ import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.StepsRecord
+import com.facebook.react.modules.core.PermissionAwareActivity
+import com.facebook.react.modules.core.PermissionListener
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -19,16 +26,16 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import org.json.JSONArray
 import org.json.JSONObject
-import expo.modules.kotlin.activityresult.AppContextActivityResultContract
-import expo.modules.kotlin.activityresult.AppContextActivityResultLauncher
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.functions.Coroutine
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import java.io.Serializable
 import java.time.Instant
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * HealthConnectModule（PG-A-04，SD 5.1、BR-05／07／08、FR-02）。
@@ -44,7 +51,11 @@ class NeonshiftHealthModule : Module() {
 
   private val client: HealthConnectClient by lazy { HealthConnectClient.getOrCreate(context) }
 
-  private lateinit var permissionLauncher: AppContextActivityResultLauncher<PermissionRequest, Set<String>>
+  /** Health Connect 權限請求 contract（只用來建 Intent／解析結果；啟動與回傳自己處理，見 requestPermissions） */
+  private val permissionContract = PermissionController.createRequestPermissionResultContract()
+
+  /** 進行中的權限請求；系統對話框回來（onActivityResult）或 App 回到前景時擇先完成 */
+  private var pendingPermission: CompletableDeferred<Set<String>?>? = null
 
   override fun definition() = ModuleDefinition {
     Name("NeonshiftHealth")
@@ -61,8 +72,29 @@ class NeonshiftHealthModule : Module() {
       "LEGACY_DEVICE_ORIGIN" to LEGACY_DEVICE_ORIGIN
     )
 
-    RegisterActivityContracts {
-      permissionLauncher = registerForActivityResult(PermissionContract())
+    /**
+     * 權限對話框回傳（Activity 結果路徑；只用在 contract 給的不是執行期權限 Intent 時）。
+     * Android 14+ 的 Health Connect 權限是執行期權限：contract 產生的是 REQUEST_PERMISSIONS Intent，結果從
+     * onRequestPermissionsResult 回來，Expo 的 registerForActivityResult 在 release 包不會把它送回 launcher，
+     * JS Promise 永不 resolve（2026-09-16 Seeker 實機）；requestPermissions 改依 Intent 種類分流，
+     * 並以 OnActivityEntersForeground 作保底。
+     */
+    OnActivityResult { _, payload ->
+      if (payload.requestCode != HC_PERMISSION_REQUEST_CODE) return@OnActivityResult
+      val granted = runCatching { permissionContract.parseResult(payload.resultCode, payload.data) }.getOrNull()
+      Log.i(TAG, "permission result: code=${payload.resultCode} granted=${granted?.size}")
+      pendingPermission?.complete(granted)
+    }
+
+    OnActivityEntersForeground {
+      val pending = pendingPermission ?: return@OnActivityEntersForeground
+      // 正常路徑的結果緊接在 resume 之後送達（實機量測 ~2 ms），保底延後半秒讓真正的結果先到
+      Handler(Looper.getMainLooper()).postDelayed({
+        if (!pending.isCompleted) {
+          Log.i(TAG, "permission dialog closed without result; resolving from granted set on resume")
+          pending.complete(null)
+        }
+      }, FOREGROUND_FALLBACK_MS)
     }
 
     /** availability、SDK extension、SPN 支援與目前裝置 SPN（動態取得，不硬編碼） */
@@ -93,12 +125,30 @@ class NeonshiftHealthModule : Module() {
 
     /** 顯示系統權限頁；回傳目前已授予的全部權限（含先前授予） */
     AsyncFunction("requestPermissions") Coroutine { permissions: List<String> ->
-      if (!this@NeonshiftHealthModule::permissionLauncher.isInitialized) {
-        throw CodedException("ERR_HC_LAUNCHER", "permission launcher not ready", null)
+      val activity = appContext.currentActivity ?: throw CodedException("ERR_HC_LAUNCHER", "no current activity", null)
+      pendingPermission?.complete(null)
+      val deferred = CompletableDeferred<Set<String>?>()
+      pendingPermission = deferred
+      val intent = permissionContract.createIntent(activity, permissions.toSet())
+      withContext(Dispatchers.Main) {
+        val runtime = intent.getStringArrayExtra(RequestMultiplePermissions.EXTRA_PERMISSIONS)
+        if (intent.action == RequestMultiplePermissions.ACTION_REQUEST_PERMISSIONS && runtime != null && activity is PermissionAwareActivity) {
+          val listener = PermissionListener { code, names, results ->
+            if (code != HC_PERMISSION_REQUEST_CODE) return@PermissionListener false
+            val granted = names.filterIndexed { i, _ -> results.getOrNull(i) == PackageManager.PERMISSION_GRANTED }.toSet()
+            Log.i(TAG, "runtime permission result: granted=${granted.size}/${names.size}")
+            deferred.complete(granted)
+            true
+          }
+          activity.requestPermissions(runtime, HC_PERMISSION_REQUEST_CODE, listener)
+        } else {
+          activity.startActivityForResult(intent, HC_PERMISSION_REQUEST_CODE)
+        }
       }
-      val granted = permissionLauncher.launch(PermissionRequest(permissions))
-      // 使用者關閉對話框時 contract 可能回空集合，以實際狀態為準
-      if (granted.isEmpty()) client.permissionController.getGrantedPermissions().toList() else granted.toList()
+      val granted = deferred.await()
+      if (pendingPermission === deferred) pendingPermission = null
+      // 使用者關閉對話框、或結果未回到 App 時，以 Health Connect 的實際授權狀態為準
+      if (granted.isNullOrEmpty()) client.permissionController.getGrantedPermissions().toList() else granted.toList()
     }
 
     AsyncFunction("openSettings") {
@@ -173,18 +223,11 @@ class NeonshiftHealthModule : Module() {
     else -> v
   }
 
-  data class PermissionRequest(val permissions: List<String>) : Serializable
-
-  /** 包裝 Health Connect 的權限請求 contract 成 Expo 的 activity-result contract */
-  private class PermissionContract : AppContextActivityResultContract<PermissionRequest, Set<String>> {
-    private val inner = PermissionController.createRequestPermissionResultContract()
-    override fun createIntent(context: Context, input: PermissionRequest): Intent =
-      inner.createIntent(context, input.permissions.toSet())
-    override fun parseResult(input: PermissionRequest, resultCode: Int, intent: Intent?): Set<String> =
-      inner.parseResult(resultCode, intent)
-  }
-
   companion object {
+    private const val TAG = "NeonshiftHealth"
+    /** Health Connect 權限對話框的 request code（OnActivityResult／PermissionListener 依此過濾） */
+    const val HC_PERMISSION_REQUEST_CODE = 0x4E53
+    private const val FOREGROUND_FALLBACK_MS = 500L
     const val LEGACY_DEVICE_ORIGIN = HealthReader.LEGACY_DEVICE_ORIGIN
     const val SPN_QUERY_MIN_EXTENSION = HealthReader.SPN_QUERY_MIN_EXTENSION
     const val DEVICE_STEPS_MIN_EXTENSION = HealthReader.DEVICE_STEPS_MIN_EXTENSION
