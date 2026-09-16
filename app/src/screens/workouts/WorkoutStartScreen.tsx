@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { Animated, Easing, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Line, Path } from 'react-native-svg';
 
 import { Button, InlineState, Screen, Surface } from '@/components';
@@ -49,23 +50,29 @@ export function goalOf(kind: GoalChoice, timeMin: number, distKm: number): Worko
   return FREE_GOAL;
 }
 
-/** 底部面板（Style 24.5）：scrim＋貼底 Surface；關閉走 onRequestClose（返回鍵）與 scrim 點擊 */
-function Sheet({ visible, onClose, title, children, testID }: { visible: boolean; onClose: () => void; title: string; children: React.ReactNode; testID: string }) {
+/**
+ * 底部面板（Style 24.5）：scrim＋貼底 Surface；關閉走 onRequestClose（返回鍵）與 scrim 點擊。
+ * - `footer`（完成／清除）固定在面板底部、永遠可見；只有 body 可捲動（Seeker 實機：按鈕曾被裁掉在畫面外）。
+ * - Modal 以 edge-to-edge 繪製（statusBar／navigationBarTranslucent），否則 Android 16 的手勢列高度不在 Modal 視窗內，面板底部被切；底部再補安全區。
+ */
+function Sheet({ visible, onClose, title, children, footer, testID }: { visible: boolean; onClose: () => void; title: string; children: React.ReactNode; footer?: React.ReactNode; testID: string }) {
   const { t } = useT();
+  const insets = useSafeAreaInsets();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
       <Pressable style={styles.scrim} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.close')} testID={`${testID}-scrim`}>
         <Pressable style={styles.sheetWrap} onPress={() => {}}>
-          <Surface hero style={styles.sheet} testID={testID}>
+          <Surface hero style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, space.m) + space.s }]} testID={testID}>
             <View style={styles.sheetHead}>
               <Text variant="heading2">{title}</Text>
               <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={12} style={styles.sheetClose} testID={`${testID}-close`}>
                 <Feather name="x" size={22} color={color.textSecondary} />
               </Pressable>
             </View>
-            <ScrollView style={styles.sheetBody} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.sheetBody} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} testID={`${testID}-body`}>
               {children}
             </ScrollView>
+            {footer ? <View style={styles.sheetActions}>{footer}</View> : null}
           </Surface>
         </Pressable>
       </Pressable>
@@ -329,7 +336,18 @@ export function WorkoutStartScreen() {
 
       <Countdown mode={mode} visible={counting} voice={prefs.voice} haptic={prefs.haptic} locale={locale === 'zh-TW' ? 'zh-TW' : 'en'} onDone={() => void begin()} onCancel={() => setCounting(false)} />
 
-      <Sheet visible={sheet === 'goal'} onClose={() => setSheet(null)} title={t('rec.goal')} testID="start-goal-sheet">
+      <Sheet
+        visible={sheet === 'goal'}
+        onClose={() => setSheet(null)}
+        title={t('rec.goal')}
+        testID="start-goal-sheet"
+        footer={
+          <>
+            <Button label={t('rec.goal.clear')} variant="secondary" onPress={() => setGoalKind('free')} style={styles.flex} testID="start-goal-clear" />
+            <Button label={t('common.done')} onPress={() => setSheet(null)} style={styles.flex} testID="start-goal-done" />
+          </>
+        }
+      >
         {(['distance', 'time', 'free'] as const).map((g) => (
           <View key={g}>
             <Pressable onPress={() => setGoalKind(g)} style={styles.sheetRow} accessibilityRole="radio" accessibilityState={{ selected: goalKind === g }} testID={`start-goal-${g}`}>
@@ -345,13 +363,15 @@ export function WorkoutStartScreen() {
         <Text variant="caption" tone="muted" style={styles.mt}>
           {t('rec.goalHint')}
         </Text>
-        <View style={styles.sheetActions}>
-          <Button label={t('rec.goal.clear')} variant="secondary" onPress={() => setGoalKind('free')} style={styles.flex} testID="start-goal-clear" />
-          <Button label={t('common.done')} onPress={() => setSheet(null)} style={styles.flex} testID="start-goal-done" />
-        </View>
       </Sheet>
 
-      <Sheet visible={sheet === 'settings'} onClose={() => setSheet(null)} title={t('rec.settings')} testID="start-settings-sheet">
+      <Sheet
+        visible={sheet === 'settings'}
+        onClose={() => setSheet(null)}
+        title={t('rec.settings')}
+        testID="start-settings-sheet"
+        footer={<Button label={t('common.done')} onPress={() => setSheet(null)} style={styles.flex} testID="start-settings-done" />}
+      >
         <Text variant="label" tone="muted" uppercase>
           {t('rec.env')}
         </Text>
@@ -404,9 +424,6 @@ export function WorkoutStartScreen() {
             </>
           ) : null}
         </View>
-        <View style={styles.sheetActions}>
-          <Button label={t('common.done')} onPress={() => setSheet(null)} style={styles.flex} testID="start-settings-done" />
-        </View>
       </Sheet>
     </Screen>
   );
@@ -447,9 +464,9 @@ const styles = StyleSheet.create({
   segmentOn: { backgroundColor: color.mint },
   segmentOnText: { color: color.onMint },
   scrim: { flex: 1, backgroundColor: color.scrim, justifyContent: 'flex-end' },
-  sheetWrap: { width: '100%', maxHeight: '100%' },
-  sheet: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, paddingBottom: space.xxl, maxHeight: '88%' },
-  sheetBody: { flexGrow: 0 },
+  sheetWrap: { width: '100%', maxHeight: '88%' },
+  sheet: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, flexShrink: 1 },
+  sheetBody: { flexGrow: 0, flexShrink: 1 },
   sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xs },
   sheetClose: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   sheetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 56, borderBottomWidth: 1, borderBottomColor: color.borderSubtle },
