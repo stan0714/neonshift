@@ -719,7 +719,29 @@ ls -lh app-release.apk
 
 檢查重點：`sdkVersion:'34'`、權限清單只有預期的六項、憑證指紋與交付清單登記的一致。
 
-### 8.5 版本號管理
+### 8.5 Seeker 實機測試包（dev 金鑰、直連 l1:6080）【2026-09-16】
+
+戶外實測不能靠 Metro（dev client 需要 USB／tunnel），要用內嵌 bundle 的 release 包。正式 release 金鑰（8.1）未建立前，用 **dev 環境專屬測試金鑰**（不是正式金鑰；正式金鑰仍依 8.1 另建並離線備份）：
+
+```bash
+# 只做一次：dev 測試金鑰放 ~/.config/neonshift/dev/（不進 repo；*.keystore、keystore.properties 已 gitignore）
+KD=~/.config/neonshift/dev
+keytool -genkeypair -storetype PKCS12 -keystore $KD/neonshift-dev-test.keystore -alias neonshift-dev -keyalg RSA -keysize 2048 -validity 3650
+printf 'storeFile=%s/neonshift-dev-test.keystore\nstorePassword=<密碼>\nkeyAlias=neonshift-dev\nkeyPassword=<密碼>\n' $KD > $KD/keystore.properties
+chmod 600 $KD/keystore.properties $KD/neonshift-dev-test.keystore
+ln -sfn $KD/keystore.properties app/android/keystore.properties   # build.gradle 支援 storeFile 絕對路徑
+
+# 每次出包（login shell 才有 Node 24）：單 ABI、後端直連 l1:6080（api.neonshift.cc 的 nginx vhost 尚未安裝）
+bash -lc 'APP_ARCHS=arm64-v8a APP_API_URL_OVERRIDE=http://l1.neonshift.cc:6080/v1 scripts/app/build.sh dev release'
+adb uninstall cc.neonshift.app      # 首次由 debug 簽章切換必須先移除（本機運動紀錄與偏好會清空）
+adb install app/android/app/build/outputs/apk/release/app-release.apk
+```
+
+- release 預設 `usesCleartextTraffic=false`；`build.sh` 只在後端 URL 為 `http://` 時以 `-PcleartextTraffic=true` 開啟，release-notes.txt 會標示「已允許明文 HTTP」。**這種包只裝在自己的 Seeker，不對外散布**。api.neonshift.cc 的 nginx vhost 裝好後拿掉 `APP_API_URL_OVERRIDE` 即恢復 https。
+- 之後正式金鑰（8.1）建立時，換簽章仍要 `adb uninstall` 一次。
+- 產物附帶 `release/release-notes.txt`（env、版本、git hash、Program Id、後端）。
+
+### 8.6 版本號管理
 
 每次要給隊友或評審的包都要遞增 `versionCode`，否則裝置會拒絕安裝舊版號。
 
