@@ -169,3 +169,76 @@ test('PG-R-12 跑道等效圈：記錄中即時 floor＋餘數、與摘要一致
   expect(new GpsMetricsEngine('run').trackEquivalent()).toBeNull();
   expect(new GpsMetricsEngine('run', { trackLapMm: 0 }).trackEquivalent()).toBeNull();
 });
+
+describe('完整性／防弊（GPS_RULES_VERSION 2）', () => {
+  test('模擬定位點一律拒絕並標 mock_location；正常點不受影響', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    const t = track({ speedMs: 3, seconds: 20 });
+    t[5] = { ...t[5]!, mocked: true };
+    t[6] = { ...t[6]!, mocked: true };
+    const r = run(t, e);
+    expect(r.filter((x) => x.reason === 'mock_location')).toHaveLength(2);
+    const s = e.finish(20_000);
+    expect(s.integrity).toMatchObject({ mockPoints: 2, flags: ['mock_location'] });
+    expect(s.quality.rejected.mock_location).toBe(2);
+  });
+
+  test('持續超速：跑步 60 秒滑動窗平均 > 6.5 m/s 記一次 episode（單點跳點另計）；3 m/s 不記', () => {
+    const ok = new GpsMetricsEngine('run');
+    ok.start(0);
+    run(track({ speedMs: 3, seconds: 180 }), ok);
+    expect(ok.finish(180_000).integrity).toMatchObject({ sustainedSpeedEpisodes: 0, flags: [] });
+    const fast = new GpsMetricsEngine('run');
+    fast.start(0);
+    run(track({ speedMs: 8, seconds: 180 }), fast); // 8 m/s < 12 m/s 跳點上限，但持續 3 分鐘 ≈ 29 km/h
+    const s = fast.finish(180_000);
+    expect(s.integrity.sustainedSpeedEpisodes).toBe(1);
+    expect(s.integrity.flags).toEqual(['sustained_speed']);
+    // 走路 3 m/s（10.8 km/h）持續也超過 2.8 m/s
+    const walk = new GpsMetricsEngine('walk');
+    walk.start(0);
+    run(track({ speedMs: 3, seconds: 120 }), walk);
+    expect(walk.finish(120_000).integrity.flags).toEqual(['sustained_speed']);
+  });
+
+  test('缺口瞬移：10 秒缺口內位移 500 m（50 m/s）記 gap_teleport；缺口內位移合理則只算缺口', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    run(track({ speedMs: 3, seconds: 10 }), e);
+    run(track({ speedMs: 3, seconds: 10, startSec: 20, startLat: 25 + 530 / M_PER_DEG_LAT, seqStart: 100 }), e);
+    const s = e.finish(30_000);
+    expect(s.quality.gaps).toBe(1);
+    expect(s.integrity).toMatchObject({ gapTeleports: 1, flags: ['gap_teleport'] });
+    const fine = new GpsMetricsEngine('run');
+    fine.start(0);
+    run(track({ speedMs: 3, seconds: 10 }), fine);
+    run(track({ speedMs: 3, seconds: 10, startSec: 20, startLat: 25 + 60 / M_PER_DEG_LAT, seqStart: 100 }), fine);
+    expect(fine.finish(30_000).integrity.flags).toEqual([]);
+  });
+
+  test('時鐘漂移：utc − monotonic 偏移量變化 > 30 s 記 clock_drift', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    const t = track({ speedMs: 3, seconds: 20 });
+    for (let i = 10; i < t.length; i++) t[i] = { ...t[i]!, utcMs: t[i]!.utcMs + 60_000 }; // 中途系統時鐘被調快 60 s
+    run(t, e);
+    const s = e.finish(20_000);
+    expect(s.integrity.clockDriftMs).toBe(60_000);
+    expect(s.integrity.flags).toEqual(['clock_drift']);
+  });
+
+  test('感測器探測：≥ 2 次且過半不一致才記 motion_mismatch', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    run(track({ speedMs: 3, seconds: 10 }), e);
+    e.recordMotionProbe(true);
+    expect(e.integrity().flags).toEqual([]); // 1 次不足
+    e.recordMotionProbe(false);
+    e.recordMotionProbe(false);
+    expect(e.integrity().flags).toEqual([]); // 1/3 不過半
+    e.recordMotionProbe(true);
+    e.recordMotionProbe(true);
+    expect(e.integrity()).toMatchObject({ motionProbes: { total: 5, mismatched: 3 }, flags: ['motion_mismatch'] });
+  });
+});

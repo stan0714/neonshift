@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.35（探索冊） |
+| 文件版本 | v0.36（GPS 防弊分層） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -1103,6 +1103,25 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 同步契約須拒絕非有限數值、負距離／時長、圈界越界及不支援的 sport／版本；伺服器衍生欄位不可由客戶端覆寫。相同 revision 重試返回同結果，過期 revision 回傳衝突，刪除 tombstone 阻止離線舊資料重建。裝置摘要仍屬裝置來源，欄位合法不等於運動真實性已驗證。
 
 Indoor 不啟用 GPS 推算距離，僅接可信裝置／已標記來源；缺來源顯示缺值。背景服務與定位權限依 Android／Expo 實作時官方文件驗證，不假設鎖屏與 process 被殺時持續可用。測試以專章 7 的固定軌跡、圈界、跳點、暫停、恢復及實機證據作 PG-R-10 完成門檻。
+
+### 16.1 GPS 運動防弊（完整性）分層（2026-09-16，GPS 規則 v2／後端規則 v2）
+
+原則：**App 只負責偵測與自報，伺服器負責判定**；任一完整性旗標 → session `needs_review`、`pb_eligible=false`、探索冊任務不計（`QuestService` 只收 `saved`）、里程碑不採用。旗標與計數同時寫入 `client_flags` 與 `extras.integrity`，伺服器取聯集、只承認白名單。
+
+| 層 | 檢查 | 門檻／行為 | 位置 |
+|---|---|---|---|
+| App 點級 | 模擬定位 | `LocationObject.mocked === true` → 點拒絕（`mock_location`）並計數；有任何一點即旗標 | `locationTask` → `GpsMetricsEngine` |
+| App 點級 | 單點跳點 | 與前一接受點速度 > 跑 12／走 4 m/s → 拒絕（既有） | engine |
+| App 段級 | 持續超速 | 60 s 滑動窗平均 > 跑 6.5／走 2.8 m/s 記一次 episode（`sustained_speed`）；針對「勻速搭車」 | engine `INTEGRITY_RULES` |
+| App 段級 | 缺口瞬移 | 缺口（> 5 s 無點）前後位移換算速度超過跳點上限 → `gap_teleport`；針對「關 GPS 移動再開」 | engine |
+| App 時間 | 時鐘漂移 | 牆鐘（`Date.now`）− 單調時鐘（`performance.now`）偏移在記錄中變動 > 30 s → `clock_drift`；針對改系統時間灌時長 | recorder `ingest` |
+| App 感測 | 步態探測 | 記錄中每 3 分鐘（前景、GPS 5 秒窗速度 ≥ 1 m/s 時）用 `NeonshiftSensors` 取 8 s 加速度：計步增量 > 0 或 1～4 Hz 主頻＋RMS ≥ 0.6 視為有步態；≥ 2 次且過半「GPS 在動但無步態」→ `motion_mismatch`；量不到（背景／無感測器）不計 | recorder `runProbe` |
+| 伺服器 | 旗標二線 | 白名單旗標任一 → `needs_review`；未知旗標忽略 | `workouts/schema.derive` |
+| 伺服器 | 自報極值 | `extras.max_speed_5s_kmh` > 跑 36／走 15 → `max_speed_5s_exceeds_cap`；`distance / extras.moving_ms` > 跑 25／走 12 km/h → `moving_speed_exceeds_cap`（含暫停的平均可被長暫停稀釋）；`extras.quality.accepted` < 運動秒數 × 0.2 → `sparse_samples`（partial、不具 PB） | derive |
+| 伺服器 | 錢包行為 | 同錢包既有 session（含同批）時間重疊 → `overlapping_session`；同 UTC 日第 13 筆起 → `daily_cap_exceeded` | `workouts/routes` |
+| 伺服器 | 既有 | 平均速度上限、步頻上限、Total 熱量冒充、手動輸入、GPS 缺口、revision／tombstone 防重放 | derive／store |
+
+未做（記錄為後續）：伺服器端軌跡形狀分析（座標不上傳，設計上不可行）、跨裝置同一錢包同時記錄（需裝置指紋）、人工審核工作流（目前只標記）。門檻需實機校準（walk-run-tracking 4），不視為人體極限宣稱。
 
 ## 17. 運動目標與探索冊契約（新增待實作）
 

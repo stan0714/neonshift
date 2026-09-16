@@ -29,7 +29,7 @@ export function toRawPoints(locations: LocationObject[]): RawPoint[] {
     const ts = l.timestamp;
     if (!Number.isFinite(ts) || ts === lastTs) continue; // 同一 timestamp 的重送不重播
     lastTs = ts;
-    out.push({ seq: seq++, monotonicMs: ts, utcMs: ts, lat: l.coords.latitude, lon: l.coords.longitude, accuracyM: l.coords.accuracy ?? Number.POSITIVE_INFINITY, speedMs: l.coords.speed ?? null });
+    out.push({ seq: seq++, monotonicMs: ts, utcMs: ts, lat: l.coords.latitude, lon: l.coords.longitude, accuracyM: l.coords.accuracy ?? Number.POSITIVE_INFINITY, speedMs: l.coords.speed ?? null, mocked: l.mocked === true });
   }
   return out;
 }

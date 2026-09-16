@@ -1,7 +1,10 @@
 import { randomUUID } from 'expo-crypto';
 import * as Location from 'expo-location';
+import { AppState } from 'react-native';
 
-import { GpsMetricsEngine, type Lap, type RawPoint, type Summary, type TrackEquivalent } from '@/domain/gps/engine';
+import { liveMotion } from '@/services/sensors/LiveMotionService';
+
+import { GpsMetricsEngine, type IntegrityFlag, type Lap, type RawPoint, type Summary, type TrackEquivalent } from '@/domain/gps/engine';
 import { apiClient, type WorkoutGoal, type WorkoutImportInput, type WorkoutIntent } from '@/services/api/ApiClient';
 import { LocalWorkoutStore, type SessionMeta } from './LocalWorkoutStore';
 import { resetLocationSeq, setLocationSink, WORKOUT_LOCATION_TASK } from './locationTask';
@@ -39,10 +42,29 @@ export type RecorderSnapshot = {
   goal: WorkoutGoal | null;
   /** 目標已達（依 elapsed／distance）；UI 只提醒一次，不自動停止 */
   goalReached: boolean;
+  /** 完整性旗標（即時；防弊）；無引擎時空陣列 */
+  integrityFlags: IntegrityFlag[];
 };
 
 type LocationApi = Pick<typeof Location, 'requestForegroundPermissionsAsync' | 'getForegroundPermissionsAsync' | 'startLocationUpdatesAsync' | 'stopLocationUpdatesAsync' | 'hasStartedLocationUpdatesAsync'>;
-type Deps = { store?: LocalWorkoutStore; location?: LocationApi; now?: () => number; sync?: (input: WorkoutImportInput) => Promise<{ sessionId: string | null }>; foreground?: { title: string; body: string } };
+/** 感測器探測：回 true＝機身有步態、false＝沒有、null＝無法量測（無感測器／忙碌／背景） */
+export type MotionProbe = () => Promise<boolean | null>;
+type Deps = { store?: LocalWorkoutStore; location?: LocationApi; now?: () => number; sync?: (input: WorkoutImportInput) => Promise<{ sessionId: string | null }>; foreground?: { title: string; body: string }; motionProbe?: MotionProbe | null; probeIntervalMs?: number; /** 單調時鐘（預設 performance.now）；null＝不做時鐘漂移偵測 */ monotonic?: (() => number) | null };
+
+/** 完整性探測節奏：記錄中每 3 分鐘量一次（前景才量）；GPS 5 秒窗速度 ≥ 1 m/s 才算「GPS 在動」 */
+export const MOTION_PROBE_INTERVAL_MS = 180_000;
+export const MOTION_PROBE_MIN_SPEED_MS = 1.0;
+/** 預設探測：8 秒 50 Hz 加速度取樣；有計步器增量或 1～4 Hz 主頻＋足夠 RMS 視為有步態 */
+export const defaultMotionProbe: MotionProbe = async () => {
+  if (AppState.currentState !== 'active') return null;
+  try {
+    const s = await liveMotion.run(undefined, { durationSeconds: 8, windowSeconds: 4, sampleRateHz: 50 });
+    if (s.stepCounterAvailable && s.stepDelta > 0) return true;
+    return s.accelRms >= 0.6 && s.dominantFreqHz >= 1 && s.dominantFreqHz <= 4;
+  } catch {
+    return null;
+  }
+};
 
 const defaultSync = async (input: WorkoutImportInput) => {
   const r = await apiClient.importWorkouts([input]);
@@ -62,6 +84,13 @@ export class WorkoutRecorder {
   private readonly now: () => number;
   private readonly sync: (input: WorkoutImportInput) => Promise<{ sessionId: string | null }>;
   private readonly foreground: { title: string; body: string };
+  private readonly motionProbe: MotionProbe | null;
+  private readonly probeIntervalMs: number;
+  private probeTimer: ReturnType<typeof setInterval> | null = null;
+  /** 牆鐘 − 單調時鐘 的基準偏移；變動 > 容忍值＝記錄中有人改系統時間（定位點的兩個時間戳同源，無法自證） */
+  private clockOffset0: number | null = null;
+  private readonly monotonic: (() => number) | null;
+  private probing = false;
   private engine: GpsMetricsEngine | null = null;
   private meta: SessionMeta | null = null;
   private state: RecorderState = 'idle';
@@ -78,6 +107,34 @@ export class WorkoutRecorder {
     this.now = deps.now ?? (() => Date.now());
     this.sync = deps.sync ?? defaultSync;
     this.foreground = deps.foreground ?? { title: 'NeonShift is recording', body: 'Your run is being tracked. Routes stay on this phone.' };
+    this.motionProbe = deps.motionProbe === undefined ? defaultMotionProbe : deps.motionProbe;
+    this.probeIntervalMs = deps.probeIntervalMs ?? MOTION_PROBE_INTERVAL_MS;
+    this.monotonic = deps.monotonic === undefined ? (typeof globalThis.performance?.now === 'function' ? () => globalThis.performance.now() : null) : deps.monotonic;
+  }
+
+  /** 完整性探測（防弊）：GPS 顯示在動而機身沒有步態 → 記一次不一致；量不到（背景／無感測器）不計 */
+  private startProbes() {
+    this.stopProbes();
+    if (!this.motionProbe) return;
+    this.probeTimer = setInterval(() => void this.runProbe(), this.probeIntervalMs);
+  }
+  private stopProbes() {
+    if (this.probeTimer) clearInterval(this.probeTimer);
+    this.probeTimer = null;
+  }
+  async runProbe(): Promise<void> {
+    if (this.probing || !this.motionProbe || !this.engine || this.state !== 'recording') return;
+    const speed = this.engine.currentSpeedMs();
+    if (speed === null || speed < MOTION_PROBE_MIN_SPEED_MS) return; // GPS 沒在動就不用比
+    this.probing = true;
+    try {
+      const moving = await this.motionProbe();
+      if (moving === null || !this.engine) return;
+      this.engine.recordMotionProbe(!moving);
+      this.emit();
+    } finally {
+      this.probing = false;
+    }
   }
 
   subscribe(fn: () => void) {
@@ -114,6 +171,7 @@ export class WorkoutRecorder {
       intent: this.meta?.intent ?? null,
       goal: this.meta?.goal ?? null,
       goalReached: goalReached(this.meta?.goal ?? null, movingMs + pausedMs, e?.distanceMm ?? 0),
+      integrityFlags: e ? e.integrity().flags : [],
     };
   }
   private pausedTotal() {
@@ -138,6 +196,7 @@ export class WorkoutRecorder {
     this.engine.start(t);
     this.state = 'recording';
     this.lastPointAt = 0;
+    this.clockOffset0 = null;
     resetLocationSeq(0);
     setLocationSink((pts) => this.ingest(pts));
     await this.location.startLocationUpdatesAsync(WORKOUT_LOCATION_TASK, {
@@ -146,6 +205,7 @@ export class WorkoutRecorder {
       distanceInterval: 0,
       foregroundService: { notificationTitle: this.foreground.title, notificationBody: this.foreground.body, killServiceOnDestroy: false },
     });
+    this.startProbes();
     this.emit();
     return this.meta;
   }
@@ -154,6 +214,11 @@ export class WorkoutRecorder {
   ingest(points: RawPoint[]) {
     if (!this.engine || !this.meta || (this.state !== 'recording' && this.state !== 'paused')) return;
     this.pending.push(...points);
+    if (this.monotonic) {
+      const offset = this.now() - this.monotonic();
+      if (this.clockOffset0 === null) this.clockOffset0 = offset;
+      else this.engine.recordClockDrift(Math.abs(offset - this.clockOffset0));
+    }
     for (const p of points) {
       this.lastPointAt = this.now();
       this.lastAccuracy = p.accuracyM;
@@ -218,6 +283,7 @@ export class WorkoutRecorder {
     if (!this.engine || !this.meta || (this.state !== 'recording' && this.state !== 'paused')) throw new Error('no active session');
     this.state = 'finishing';
     this.emit();
+    this.stopProbes();
     setLocationSink(null);
     try {
       if (await this.location.hasStartedLocationUpdatesAsync(WORKOUT_LOCATION_TASK)) await this.location.stopLocationUpdatesAsync(WORKOUT_LOCATION_TASK);
@@ -230,7 +296,7 @@ export class WorkoutRecorder {
     const summary = this.engine.finish(t);
     this.meta.endedAtUtc = t;
     this.meta.summary = summary;
-    this.meta.status = summary.quality.complete && !this.meta.interrupted ? 'saved' : 'needs_review';
+    this.meta.status = summary.quality.complete && !this.meta.interrupted && summary.integrity.flags.length === 0 ? 'saved' : 'needs_review';
     await this.flush();
     await this.store.writeMeta(this.meta);
     this.state = this.meta.status;
@@ -251,6 +317,7 @@ export class WorkoutRecorder {
     const flags: string[] = [];
     if (s.quality.gaps > 0 || s.quality.coverageRatio < 0.9) flags.push('gps_gap');
     if (meta.interrupted) flags.push('interrupted');
+    flags.push(...(s.integrity?.flags ?? [])); // 完整性旗標原樣上送；後端二次判定，不只信 App
     try {
       const r = await this.sync({
         sport: meta.sport,
@@ -267,7 +334,7 @@ export class WorkoutRecorder {
         distance_mm: s.distanceMm > 0 ? String(s.distanceMm) : null,
         distance_method: s.distanceMm > 0 ? 'gps' : null,
         client_flags: flags,
-        extras: { gps_rules_version: s.rulesVersion, max_speed_5s_kmh: s.maxSpeed5sKmh, splits: s.splits, laps: s.laps, quality: s.quality, track_equivalent: s.trackEquivalent },
+        extras: { gps_rules_version: s.rulesVersion, max_speed_5s_kmh: s.maxSpeed5sKmh, moving_ms: s.movingMs, splits: s.splits, laps: s.laps, quality: s.quality, integrity: s.integrity ?? null, track_equivalent: s.trackEquivalent },
       });
       if (r.sessionId) {
         meta.syncedSessionId = r.sessionId;

@@ -201,6 +201,17 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   expect(screen.queryByTestId('route-trace')).toBeNull();
   expect(useWorkoutPrefs.getState().showRoute).toBe(false);
   await fireEvent(screen.getByTestId('sum-route-toggle'), 'valueChange', true);
+  // 底圖圖層：預設格線；切火星並記住；真實地圖顯示尚未啟用；完整性檢查無旗標
+  await fireEvent(screen.getByTestId('route-trace'), 'layout', { nativeEvent: { layout: { width: 320, height: 220 } } });
+  await waitFor(() => expect(screen.getByTestId('route-trace-layer-grid')).toBeTruthy());
+  await fireEvent.press(screen.getByTestId('sum-route-layer-mars'));
+  await fireEvent(screen.getByTestId('route-trace'), 'layout', { nativeEvent: { layout: { width: 320, height: 220 } } });
+  expect(useWorkoutPrefs.getState().traceLayer).toBe('mars');
+  expect(screen.getByTestId('route-trace-layer-mars')).toBeTruthy();
+  expect(screen.getByTestId('sum-route-layer-geo')).toBeTruthy();
+  // 完整性：健走以 3 m/s（10.8 km/h）持續 2 分鐘 → sustained_speed（防弊）
+  expect(screen.getByTestId('sum-integrity')).toBeTruthy();
+  expect(screen.getByText(/^Sustained speed: 1 stretch/)).toBeTruthy();
   await fireEvent.press(screen.getByTestId('sum-done'));
   expect(mockNav.navigate).toHaveBeenCalledWith('Workouts');
 });

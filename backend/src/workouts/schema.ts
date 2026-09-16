@@ -4,12 +4,22 @@
  */
 import { z } from "zod";
 
-export const WORKOUT_RULES_VERSION = 1;
+export const WORKOUT_RULES_VERSION = 2;
 export const IMPORT_MAX_SESSIONS = 50;
 /** 與每日任務相同的每分鐘步數上限（SA 附錄 A） */
 const STEPS_PER_MINUTE_CAP = 250;
 /** 跑步／健走可信平均速度上限（km/h）；超過標 needs_review，不當作有效紀錄 */
 const MAX_SPEED_KMH = { run: 25, walk: 12 } as const;
+/** 5 秒最高速度上限（km/h；跑 36 ≈ 10 m/s、走 15）；App 自報的 extras.max_speed_5s_kmh 超過即 needs_review */
+const MAX_SPEED_5S_KMH = { run: 36, walk: 15 } as const;
+/** App 完整性旗標（GPS 規則 v2）：伺服器只承認這幾個；任一出現即 needs_review（防弊二線判定，不只信 App 自評） */
+export const INTEGRITY_FLAGS = ["mock_location", "sustained_speed", "gap_teleport", "clock_drift", "motion_mismatch"] as const;
+/** 伺服器側原因：同錢包時間重疊、單日筆數上限、取樣過疏 */
+export const SERVER_REVIEW_REASONS = ["overlapping_session", "daily_cap_exceeded"] as const;
+export const DAILY_SESSION_CAP = 12;
+/** GPS 來源每秒取樣：接受點數低於運動秒數 × 此比例視為取樣過疏（partial，不具 PB 資格） */
+const SPARSE_SAMPLE_RATIO = 0.2;
+const REVIEW_TRIGGERS = new Set<string>(["steps_rate_exceeds_cap", "speed_exceeds_cap", "max_speed_5s_exceeds_cap", "moving_speed_exceeds_cap", ...INTEGRITY_FLAGS, ...SERVER_REVIEW_REASONS]);
 
 const bigIntish = (max: bigint) =>
   z.union([z.number().int().min(0), z.string().regex(/^\d{1,19}$/)]).transform((v, ctx) => {
@@ -64,9 +74,11 @@ export const importBody = z.object({ sessions: z.array(workoutInput).min(1).max(
 
 export type Derived = { elapsedMs: bigint; quality: "complete" | "partial" | "estimated" | "needs_review" | "invalid"; status: "saved" | "needs_review" | "invalid"; pbEligible: boolean; reviewReasons: string[]; distanceMm: bigint | null; distanceMethod: WorkoutInput["distance_method"]; avgPaceSPerKm: number | null; avgSpeedKmh: number | null };
 
-/** 伺服器衍生：經過時間、估算距離、品質與 PB 資格（活動 4／3.2 規則） */
-export function derive(w: WorkoutInput): Derived {
-  const reasons: string[] = [];
+const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+/** 伺服器衍生：經過時間、估算距離、品質與 PB 資格（活動 4／3.2 規則）；`serverReasons` 為 route 層查出的原因（重疊、單日上限） */
+export function derive(w: WorkoutInput, serverReasons: readonly string[] = []): Derived {
+  const reasons: string[] = [...serverReasons];
   const elapsedMs = BigInt(w.ended_at.getTime() - w.started_at.getTime());
   if (elapsedMs <= 0n || w.paused_ms >= elapsedMs) return { elapsedMs, quality: "invalid", status: "invalid", pbEligible: false, reviewReasons: [elapsedMs <= 0n ? "ended_before_start" : "paused_exceeds_elapsed"], distanceMm: null, distanceMethod: null, avgPaceSPerKm: null, avgSpeedKmh: null };
   let distanceMm = w.distance_mm;
@@ -92,10 +104,26 @@ export function derive(w: WorkoutInput): Derived {
   }
   if (w.energy_method === "total" && w.active_energy_mkcal !== null) reasons.push("active_energy_labelled_total");
   for (const f of w.client_flags) if (f === "gps_gap" || f === "partial_permissions") reasons.push(f);
+  // 完整性旗標：client_flags 與 extras.integrity.flags 取聯集（App 任一處帶到就算），只承認白名單
+  const integrityExtra = (w.extras as { integrity?: { flags?: unknown } }).integrity?.flags;
+  const flagged = new Set<string>([...w.client_flags, ...(Array.isArray(integrityExtra) ? integrityExtra.filter((x): x is string => typeof x === "string") : [])]);
+  for (const f of INTEGRITY_FLAGS) if (flagged.has(f)) reasons.push(f);
+  // GPS 來源的自報極值：5 秒最高速度、移動時間平均速度（含暫停的平均可能被長暫停稀釋）、取樣密度
+  if (w.origin === "gps") {
+    const max5s = num((w.extras as { max_speed_5s_kmh?: unknown }).max_speed_5s_kmh);
+    if (max5s !== null && max5s > MAX_SPEED_5S_KMH[w.sport]) reasons.push("max_speed_5s_exceeds_cap");
+    const movingMs = num((w.extras as { moving_ms?: unknown }).moving_ms);
+    if (movingMs !== null && movingMs > 0 && distanceMm !== null && distanceMm > 0n) {
+      const movingKmh = Number(distanceMm) / 1_000_000 / (movingMs / 3_600_000);
+      if (movingKmh > MAX_SPEED_KMH[w.sport] && !reasons.includes("speed_exceeds_cap")) reasons.push("moving_speed_exceeds_cap");
+      const accepted = num((w.extras as { quality?: { accepted?: unknown } }).quality?.accepted);
+      if (accepted !== null && accepted < (movingMs / 1000) * SPARSE_SAMPLE_RATIO) reasons.push("sparse_samples");
+    }
+  }
   const manual = w.origin === "manual";
   if (manual) reasons.push("manual_entry");
   let quality: Derived["quality"];
-  if (reasons.some((r) => r === "steps_rate_exceeds_cap" || r === "speed_exceeds_cap")) quality = "needs_review";
+  if (reasons.some((r) => REVIEW_TRIGGERS.has(r))) quality = "needs_review";
   else if (estimated) quality = "estimated";
   else if (distanceMm === null || reasons.length > 0) quality = "partial";
   else quality = "complete";

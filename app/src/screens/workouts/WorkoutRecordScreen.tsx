@@ -107,6 +107,11 @@ export function WorkoutRecordScreen() {
           <Text variant="label" tone={locked ? 'mint' : 'secondary'}>{locked ? t('rec.lock.locked') : t('rec.lock.lock')}</Text>
         </Pressable>
       </View>
+      {s.integrityFlags.length > 0 ? (
+        <Text variant="caption" tone="warning" style={styles.center} testID="record-integrity">
+          {t('rec.integrity.live', { reason: t(`wo.reason.${s.integrityFlags[0]}` as TKey) })}
+        </Text>
+      ) : null}
       {s.gps === 'searching' && s.state === 'recording' ? (
         <Text variant="caption" tone="warning" style={styles.center} testID="record-gps-gap">
           {t('rec.gpsGap')}

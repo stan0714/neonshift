@@ -2,16 +2,27 @@
  * GpsMetricsEngine（PG-R-04／R-05；walk-run-tracking 4、5；SD 16）。
  * 純計算、可由固定軌跡重播；不碰定位 API、不持久化。內部整數毫米／毫秒；UI 四捨五入不參與比較。
  *
- * 規則（GPS_RULES_VERSION 1）：
+ * 規則（GPS_RULES_VERSION 2；v2 新增完整性／防弊）：
  * - 拒絕：非有限座標、時間倒序／重複、精度 > 20 m、與前一接受點的速度超過上限（跑 12 m/s／走 4 m/s）→ 疑似跳點、暫停中的點。
  * - 連續段：與前一接受點間隔 > 5 s、或暫停後恢復，從新點重新建段；不跨缺口補直線距離。
  * - 抖動：位移小於遲滯門檻的點不累加距離（錨點不前進），避免原地飄移增加里程。
  * - 速度：最近完整 5 秒連續窗的接受距離 ÷ 5；窗不完整（缺口／暫停／剛開始）→ null。最高速度 = 該窗最大值。
  * - Splits：每 splitLengthMm（1,000,000 或 1,609,344）在兩接受點間按距離比例插值時間；一次跨多界線逐一切；跨缺口者標 uncertain；末段 partial。
  * - Laps：手動圈與自訂距離自動圈為獨立序列；暫停時不可按 Lap；零距離／零時間不新增。
+ * - 完整性（INTEGRITY_RULES）：模擬定位點一律拒絕並記數；60 秒滑動窗平均速度超過跑 6.5／走 2.8 m/s 記一次持續超速；
+ *   缺口前後位移換算速度超過跳點上限記一次瞬移；utc−monotonic 偏移變化 > 30 s 記時鐘漂移；感測器探測（由 recorder 餵入）
+ *   ≥ 2 次且過半不一致記 motion_mismatch。任一旗標 → needs_review、不具 PB／任務資格；後端以 client_flags 二次判定，不信任 App 單方。
  */
 
-export const GPS_RULES_VERSION = 1;
+export const GPS_RULES_VERSION = 2;
+/** 完整性（防弊）規則 v2：模擬定位、持續超速、缺口瞬移、時鐘漂移、感測器不一致（後者由 recorder 填入） */
+export const INTEGRITY_RULES = {
+  /** 持續超速：60 秒滑動窗平均速度上限（m/s）；跑步 6.5（≈23 km/h）、走路 2.8（≈10 km/h） */
+  sustainedWindowMs: 60_000,
+  sustainedSpeedMs: { run: 6.5, walk: 2.8 } as const,
+  /** 缺口瞬移：缺口前後位移換算速度超過該模式跳點上限即記一次 */
+  clockDriftToleranceMs: 30_000,
+} as const;
 export const SPLIT_KM_MM = 1_000_000;
 export const SPLIT_MILE_MM = 1_609_344;
 /** PG-R-12 跑道模式可接受的圈長範圍（公尺）：涵蓋 200 m 室內／400 m 標準與較長環道；超出視為輸入錯誤 */
@@ -43,8 +54,11 @@ export const defaultConfig = (sport: Sport, over: Partial<GpsConfig> = {}): GpsC
   ...over,
 });
 
-export type RawPoint = { seq: number; monotonicMs: number; utcMs: number; lat: number; lon: number; accuracyM: number; speedMs?: number | null };
-export type RejectReason = 'not_finite' | 'out_of_order' | 'duplicate' | 'low_accuracy' | 'speed_spike' | 'paused' | 'not_recording';
+export type RawPoint = { seq: number; monotonicMs: number; utcMs: number; lat: number; lon: number; accuracyM: number; speedMs?: number | null; /** Android 模擬定位（LocationObject.mocked） */ mocked?: boolean };
+export type RejectReason = 'not_finite' | 'out_of_order' | 'duplicate' | 'low_accuracy' | 'speed_spike' | 'paused' | 'not_recording' | 'mock_location';
+export type IntegrityFlag = 'mock_location' | 'sustained_speed' | 'gap_teleport' | 'clock_drift' | 'motion_mismatch';
+/** 完整性摘要（防弊）：計數與旗標；旗標非空 → session needs_review、不具 PB 資格、不計探索任務 */
+export type Integrity = { mockPoints: number; sustainedSpeedEpisodes: number; gapTeleports: number; clockDriftMs: number; motionProbes: { total: number; mismatched: number }; flags: IntegrityFlag[] };
 export type PointResult = { accepted: boolean; reason?: RejectReason; distanceMm: number; newSegment: boolean; stationary: boolean };
 
 export type Lap = {
@@ -80,6 +94,7 @@ export type Summary = {
   fastestSplit: Lap | null;
   trackEquivalent: TrackEquivalent | null;
   quality: { accepted: number; rejected: Record<RejectReason, number>; stationary: number; segments: number; gaps: number; coverageRatio: number; complete: boolean };
+  integrity: Integrity;
 };
 
 const R_MM = 6_371_008_800; // 平均地球半徑（mm）
@@ -110,7 +125,15 @@ export class GpsMetricsEngine {
   private window: Accepted[] = [];
   private maxSpeed5s: number | null = null;
   private coveredMs = 0;
-  private rejected: Record<RejectReason, number> = { not_finite: 0, out_of_order: 0, duplicate: 0, low_accuracy: 0, speed_spike: 0, paused: 0, not_recording: 0 };
+  private rejected: Record<RejectReason, number> = { not_finite: 0, out_of_order: 0, duplicate: 0, low_accuracy: 0, speed_spike: 0, paused: 0, not_recording: 0, mock_location: 0 };
+  // 完整性（防弊）
+  private sustainedWindow: { monotonicMs: number; cumMm: number }[] = [];
+  private inSustained = false;
+  private sustainedEpisodes = 0;
+  private gapTeleports = 0;
+  private clockOffset0: number | null = null;
+  private clockDriftMs = 0;
+  private motionProbes = { total: 0, mismatched: 0 };
   private accepted = 0;
   private stationary = 0;
   private gaps = 0;
@@ -167,6 +190,7 @@ export class GpsMetricsEngine {
     if (this.state === 'ready' || this.state === 'finished') return none('not_recording');
     if (this.state === 'paused') return none('paused');
     if (![p.lat, p.lon, p.accuracyM, p.monotonicMs].every(Number.isFinite) || Math.abs(p.lat) > 90 || Math.abs(p.lon) > 180) return none('not_finite');
+    if (p.mocked) return none('mock_location');
     if (p.seq <= this.lastSeq) return none('duplicate');
     if (p.monotonicMs < this.lastMono) return none('out_of_order');
     if (this.last && p.monotonicMs === this.last.monotonicMs) return none('duplicate');
@@ -177,7 +201,12 @@ export class GpsMetricsEngine {
     let stationary = false;
     if (!this.last || this.resumePending || p.monotonicMs - this.last.monotonicMs > this.config.maxGapMs) {
       // 新連續段：不跨缺口補距離
-      if (this.last && !this.resumePending) this.gaps += 1;
+      if (this.last && !this.resumePending) {
+        this.gaps += 1;
+        // 缺口瞬移：缺口期間的位移若超過該模式跳點上限，記一次（不計距離、只作完整性旗標）
+        const gapS = (p.monotonicMs - this.last.monotonicMs) / 1000;
+        if (gapS > 0 && haversineMm(this.last.lat, this.last.lon, p.lat, p.lon) / 1000 / gapS > this.config.maxSpeedMs) this.gapTeleports += 1;
+      }
       this.segment += 1;
       newSegment = true;
       this.resumePending = false;
@@ -216,9 +245,55 @@ export class GpsMetricsEngine {
     }
     const cur = this.currentSpeedMs();
     if (cur !== null && (this.maxSpeed5s === null || cur > this.maxSpeed5s)) this.maxSpeed5s = cur;
+    this.trackIntegrity(p, acc, newSegment);
     // 界線：在 prev→acc 間插值
     if (distanceMm > 0 && prev) this.crossBoundaries(prev.elapsedMs, prevCum, acc.elapsedMs, this.cumMm);
     return { accepted: true, distanceMm, newSegment, stationary };
+  }
+
+  /** 完整性：60 秒滑動窗持續超速（以 episode 計）與時鐘漂移（utc − monotonic 偏移量變化） */
+  private trackIntegrity(p: RawPoint, acc: Accepted, newSegment: boolean) {
+    if (newSegment) {
+      this.sustainedWindow = [];
+      this.inSustained = false;
+    }
+    this.sustainedWindow.push({ monotonicMs: acc.monotonicMs, cumMm: acc.cumMm });
+    while (this.sustainedWindow.length > 2 && acc.monotonicMs - this.sustainedWindow[1]!.monotonicMs >= INTEGRITY_RULES.sustainedWindowMs) this.sustainedWindow.shift();
+    const first = this.sustainedWindow[0]!;
+    const span = acc.monotonicMs - first.monotonicMs;
+    if (span >= INTEGRITY_RULES.sustainedWindowMs) {
+      const avg = (acc.cumMm - first.cumMm) / 1000 / (span / 1000);
+      const over = avg > INTEGRITY_RULES.sustainedSpeedMs[this.sport];
+      if (over && !this.inSustained) this.sustainedEpisodes += 1;
+      this.inSustained = over;
+    }
+    if (Number.isFinite(p.utcMs)) {
+      const offset = p.utcMs - p.monotonicMs;
+      if (this.clockOffset0 === null) this.clockOffset0 = offset;
+      else this.clockDriftMs = Math.max(this.clockDriftMs, Math.abs(offset - this.clockOffset0));
+    }
+  }
+
+  /** 外部時鐘漂移觀測（recorder 以單調時鐘對照牆鐘；點本身的 utc/monotonic 若同源則靠這個） */
+  recordClockDrift(ms: number) {
+    if (Number.isFinite(ms) && ms > this.clockDriftMs) this.clockDriftMs = ms;
+  }
+
+  /** 感測器探測結果（recorder 每隔一段時間量一次；GPS 在動但機身沒有步態＝不一致） */
+  recordMotionProbe(mismatched: boolean) {
+    this.motionProbes.total += 1;
+    if (mismatched) this.motionProbes.mismatched += 1;
+  }
+
+  /** 目前完整性摘要（記錄中亦可讀，供即時提示） */
+  integrity(): Integrity {
+    const flags: IntegrityFlag[] = [];
+    if (this.rejected.mock_location > 0) flags.push('mock_location');
+    if (this.sustainedEpisodes > 0) flags.push('sustained_speed');
+    if (this.gapTeleports > 0) flags.push('gap_teleport');
+    if (this.clockDriftMs > INTEGRITY_RULES.clockDriftToleranceMs) flags.push('clock_drift');
+    if (this.motionProbes.total >= 2 && this.motionProbes.mismatched >= 2 && this.motionProbes.mismatched * 2 >= this.motionProbes.total) flags.push('motion_mismatch');
+    return { mockPoints: this.rejected.mock_location, sustainedSpeedEpisodes: this.sustainedEpisodes, gapTeleports: this.gapTeleports, clockDriftMs: this.clockDriftMs, motionProbes: { ...this.motionProbes }, flags };
   }
 
   /** 最近完整 5 秒連續窗的平均速度（m/s）；窗不完整回 null */
@@ -315,6 +390,7 @@ export class GpsMetricsEngine {
       fastestSplit,
       trackEquivalent: this.trackEquivalent(),
       quality: { accepted: this.accepted, rejected: { ...this.rejected }, stationary: this.stationary, segments: this.segment, gaps: this.gaps, coverageRatio, complete: this.gaps === 0 && coverageRatio >= 0.9 },
+      integrity: this.integrity(),
     };
   }
 }

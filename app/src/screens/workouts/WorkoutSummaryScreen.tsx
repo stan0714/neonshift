@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, Share, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
-import { RouteTrace } from '@/components/RouteTrace';
+import { RouteTrace, TRACE_LAYERS } from '@/components/RouteTrace';
 import { WorkoutActionFeedback } from '@/components/WorkoutActionMotion';
 import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import type { Lap, RawPoint } from '@/domain/gps/engine';
@@ -50,6 +50,7 @@ export function WorkoutSummaryScreen() {
   }, [params.sessionId]);
   const peersLoaded = peers !== null;
   const rejectedTotal = s ? Object.values(s.quality.rejected).reduce((a, b) => a + b, 0) : 0;
+  const integrity = s?.integrity ?? null; // 舊 session（規則 v1）沒有 integrity → 視為未檢查（顯示 ok 但不宣稱）
   const asSummary: WorkoutSummary | null = meta && s ? ({ session_id: meta.syncedSessionId ?? meta.sessionId, sport: meta.sport, intent: meta.intent ?? null, environment: meta.environment, source: { origin: 'gps', source_id: 'cc.neonshift.app/gps', external_record_id: meta.sessionId, source_revision: 1 }, started_at: new Date(meta.startedAtUtc).toISOString(), ended_at: new Date(meta.endedAtUtc ?? meta.startedAtUtc + s.elapsedMs).toISOString(), elapsed_ms: String(s.elapsedMs), paused_ms: String(s.pausedMs), status: 'saved', quality: 'complete', rules_version: s.rulesVersion, review_reasons: [], metrics: { distance: s.distanceMm > 0 ? { value_mm: String(s.distanceMm), method: 'gps' } : null, steps: null, active_energy: null, total_energy: null, avg_pace_s_per_km: s.avgPaceSPerKm, avg_speed_kmh: s.avgSpeedKmh, step_length_mm: null }, pb_eligible: false, possible_duplicate_of: null, extras: {}, revision: 1, imported_at: '', updated_at: '' } as WorkoutSummary) : null;
   const cmp = asSummary && peers ? compareSameCategory(asSummary, peers) : null;
   const sharePreview = asSummary ? shareText(asSummary, shareFields, { mode: modeLabel(t, asSummary.sport, asSummary.intent), app: 'NeonShift' }) : '';
@@ -107,7 +108,23 @@ export function WorkoutSummaryScreen() {
             <Text variant="title">{t('sum.route')}</Text>
             <Switch value={prefs.showRoute} onValueChange={(v) => void prefs.set({ showRoute: v })} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('sum.routeToggle')} testID="sum-route-toggle" />
           </View>
-          {prefs.showRoute ? <RouteTrace points={points ?? []} /> : null}
+          {prefs.showRoute ? <RouteTrace points={points ?? []} layer={prefs.traceLayer} /> : null}
+          {prefs.showRoute ? (
+            <View style={styles.layerRow} accessibilityRole="radiogroup" testID="sum-route-layers">
+              {TRACE_LAYERS.map((l) => (
+                <Pressable key={l} onPress={() => void prefs.set({ traceLayer: l })} accessibilityRole="radio" accessibilityState={{ selected: prefs.traceLayer === l }} style={[styles.layerChip, prefs.traceLayer === l && styles.layerChipOn]} testID={`sum-route-layer-${l}`}>
+                  <Text variant="caption" tone={prefs.traceLayer === l ? undefined : 'secondary'} style={prefs.traceLayer === l && styles.layerChipOnText}>
+                    {t(`sum.layer.${l}` as TKey)}
+                  </Text>
+                </Pressable>
+              ))}
+              <View style={[styles.layerChip, styles.layerChipDisabled]} accessible accessibilityLabel={`${t('sum.layer.geo')} · ${t('sum.layer.geoPending')}`} testID="sum-route-layer-geo">
+                <Text variant="caption" tone="muted">
+                  {t('sum.layer.geo')} · {t('sum.layer.geoPending')}
+                </Text>
+              </View>
+            </View>
+          ) : null}
           <Text variant="caption" tone="muted" style={styles.routeHint}>
             {t('sum.routeHint')}
           </Text>
@@ -171,6 +188,19 @@ export function WorkoutSummaryScreen() {
             ) : null}
             <Text variant="caption" tone="muted">{t('sum.quality.explainGaps')}</Text>
             <Text variant="caption" tone="muted">{t('sum.quality.explainCoverage')}</Text>
+            <Text variant="label" tone="muted" uppercase style={styles.qualityVerdict}>{t('rec.integrity.title')}</Text>
+            {integrity && integrity.flags.length > 0 ? (
+              <View testID="sum-integrity">
+                {integrity.flags.map((f) => (
+                  <Text key={f} variant="bodySmall" tone="warning">
+                    {f === 'mock_location' ? t('rec.integrity.mock_location', { n: integrity.mockPoints }) : f === 'sustained_speed' ? t('rec.integrity.sustained_speed', { n: integrity.sustainedSpeedEpisodes }) : f === 'gap_teleport' ? t('rec.integrity.gap_teleport', { n: integrity.gapTeleports }) : f === 'clock_drift' ? t('rec.integrity.clock_drift', { s: Math.round(integrity.clockDriftMs / 1000) }) : t('rec.integrity.motion_mismatch', { n: integrity.motionProbes.total, m: integrity.motionProbes.mismatched })}
+                  </Text>
+                ))}
+              </View>
+            ) : integrity ? (
+              <Text variant="caption" tone="success" testID="sum-integrity-ok">{t('rec.integrity.ok')}</Text>
+            ) : null}
+            {integrity && integrity.motionProbes.total > 0 ? <Text variant="caption" tone="muted">{t('rec.integrity.probes', { n: integrity.motionProbes.total, m: integrity.motionProbes.mismatched })}</Text> : null}
           </View>
         )}
       </Surface>
@@ -246,5 +276,10 @@ const styles = StyleSheet.create({
   qualityVerdict: { marginTop: space.s, marginBottom: space.xxs },
   routeHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xs },
   routeHint: { marginTop: space.xs },
+  layerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: space.xs },
+  layerChip: { minHeight: 36, paddingHorizontal: space.s, borderRadius: radius.l, borderWidth: 1, borderColor: color.borderSubtle, alignItems: 'center', justifyContent: 'center', backgroundColor: color.surface },
+  layerChipOn: { backgroundColor: color.mint, borderColor: color.mint },
+  layerChipOnText: { color: color.onMint },
+  layerChipDisabled: { opacity: 0.6, borderStyle: 'dashed' },
   mt: { marginTop: space.m },
 });

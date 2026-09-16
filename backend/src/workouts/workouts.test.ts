@@ -56,6 +56,25 @@ describe("derive（活動 4／3.2）", () => {
     expect(derive(parse({ ended_at: "2026-09-13T23:00:00Z" })).status).toBe("invalid");
     expect(derive(parse({ paused_ms: "2000000" })).reviewReasons).toEqual(["paused_exceeds_elapsed"]);
   });
+  it("防弊二線：完整性旗標（client_flags 或 extras.integrity.flags 任一）→ needs_review 且不具 PB；未知旗標忽略；5 秒最高速度／移動時間平均超上限；取樣過疏 partial；伺服器原因", () => {
+    const gps = { origin: "gps", distance_mm: "5000000", distance_method: "gps" };
+    for (const f of ["mock_location", "sustained_speed", "gap_teleport", "clock_drift", "motion_mismatch"]) {
+      const d = derive(parse({ ...gps, client_flags: [f] }));
+      expect([d.quality, d.status, d.pbEligible]).toEqual(["needs_review", "needs_review", false]);
+      expect(d.reviewReasons).toContain(f);
+    }
+    expect(derive(parse({ ...gps, extras: { integrity: { flags: ["mock_location"] } } })).reviewReasons).toContain("mock_location");
+    expect(derive(parse({ ...gps, client_flags: ["totally_unknown"] })).quality).toBe("complete");
+    expect(derive(parse({ ...gps, extras: { max_speed_5s_kmh: 40 } })).reviewReasons).toContain("max_speed_5s_exceeds_cap"); // 跑步 > 36
+    expect(derive(parse({ ...gps, sport: "walk", intent: "brisk", distance_mm: "3000000", extras: { max_speed_5s_kmh: 14 } })).quality).toBe("complete");
+    // 25 分鐘含 15 分鐘暫停：平均含暫停 12 km/h 過關，但移動時間 10 分鐘 5 km ＝ 30 km/h → 超上限
+    expect(derive(parse({ ...gps, paused_ms: "900000", extras: { moving_ms: 600_000 } })).reviewReasons).toContain("moving_speed_exceeds_cap");
+    const sparse = derive(parse({ ...gps, extras: { moving_ms: 1_500_000, quality: { accepted: 100 } } })); // 1500 s 只有 100 點
+    expect([sparse.quality, sparse.pbEligible, sparse.reviewReasons]).toEqual(["partial", false, ["sparse_samples"]]);
+    expect(derive(parse({ ...gps, extras: { moving_ms: 1_500_000, quality: { accepted: 1400 } } })).quality).toBe("complete");
+    expect(derive(parse(gps), ["overlapping_session"]).status).toBe("needs_review");
+    expect(derive(parse(gps), ["daily_cap_exceeded"]).reviewReasons).toEqual(["daily_cap_exceeded"]);
+  });
   it("schema：拒絕非有限／負值／未知 sport／多餘欄位；大整數字串", () => {
     expect(workoutInput.safeParse({ ...base, distance_mm: -1 }).success).toBe(false);
     expect(workoutInput.safeParse({ ...base, sport: "cycle" }).success).toBe(false);
@@ -78,6 +97,26 @@ describe("derive（活動 4／3.2）", () => {
 });
 
 describe("POST /workouts/import、/me/workouts", () => {
+  it("防弊二線（route）：同錢包時間重疊的另一筆 → overlapping_session needs_review；同批重疊亦算；不同錢包不互相影響", async () => {
+    const u = await login();
+    const a = { ...base, external_record_id: "ov-1", distance_mm: "5000000", distance_method: "device" };
+    let r = await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [a] } });
+    expect(r.statusCode).toBe(201);
+    expect(r.json().results[0].session.status).toBe("saved");
+    // 與 ov-1 重疊（00:10～00:30）
+    r = await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [{ ...a, external_record_id: "ov-2", started_at: "2026-09-14T00:10:00Z", ended_at: "2026-09-14T00:30:00Z" }] } });
+    expect(r.json().results[0].session.status).toBe("needs_review");
+    expect(r.json().results[0].session.review_reasons).toContain("overlapping_session");
+    // 不重疊（01:00～01:20）→ saved；同批兩筆互相重疊 → 第二筆標
+    r = await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [{ ...a, external_record_id: "ov-3", started_at: "2026-09-14T01:00:00Z", ended_at: "2026-09-14T01:20:00Z" }, { ...a, external_record_id: "ov-4", started_at: "2026-09-14T01:10:00Z", ended_at: "2026-09-14T01:30:00Z" }] } });
+    expect(r.json().results.map((x: { session: { status: string } }) => x.session.status)).toEqual(["saved", "needs_review"]);
+    // 同一筆重送（同 external_record_id）不會自己跟自己重疊
+    r = await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [a] } });
+    expect(r.json().results[0].outcome).toBe("same");
+    const v = await login();
+    r = await app.inject({ method: "POST", url: "/v1/workouts/import", headers: v.h, payload: { sessions: [a] } });
+    expect(r.json().results[0].session.status).toBe("saved");
+  });
   it("匯入 → 201；同 revision 重送 same 200；舊 revision stale；新 revision 取代（revision+1）；清單／明細；刪除 tombstone 擋重建", async () => {
     const u = await login();
     let r = await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [{ ...base, distance_mm: "5000000", distance_method: "device", steps: 6000, active_energy_mkcal: "320000", energy_method: "device" }] } });

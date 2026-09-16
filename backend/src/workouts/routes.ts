@@ -14,7 +14,7 @@ import { canonicalize, type Json } from "../claim/canonical.js";
 import { ApiError } from "../errors.js";
 import type { Store, WorkoutSession } from "../store/types.js";
 import type { PersonalBestService } from "../pb/service.js";
-import { derive, importBody, WORKOUT_RULES_VERSION, intentOf } from "./schema.js";
+import { DAILY_SESSION_CAP, derive, importBody, WORKOUT_RULES_VERSION, intentOf } from "./schema.js";
 
 const uuid = z.string().uuid();
 const str = (b: bigint | null) => (b === null ? null : b.toString());
@@ -50,8 +50,20 @@ export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthServ
     const wallet = req.auth!.wallet;
     const results = [];
     let created = 0;
+    // 防弊二線（伺服器側）：同錢包既有 session 時間重疊、單日筆數上限；不信任 App 單方判定
+    const recent = await store.listWorkouts(wallet, 200, 0);
+    const batchSeen: { start: number; end: number; ext: string }[] = [];
     for (const w of parsed.data.sessions) {
-      const d = derive(w);
+      const serverReasons: string[] = [];
+      const start = w.started_at.getTime();
+      const end = w.ended_at.getTime();
+      const overlaps = (s: number, e: number) => s < end && e > start;
+      if (recent.some((r) => r.externalRecordId !== w.external_record_id && r.status !== "invalid" && overlaps(r.startedAt.getTime(), r.endedAt.getTime())) || batchSeen.some((b) => b.ext !== w.external_record_id && overlaps(b.start, b.end))) serverReasons.push("overlapping_session");
+      const day = w.started_at.toISOString().slice(0, 10);
+      const sameDay = recent.filter((r) => r.externalRecordId !== w.external_record_id && r.startedAt.toISOString().slice(0, 10) === day).length + batchSeen.filter((b) => b.ext !== w.external_record_id && new Date(b.start).toISOString().slice(0, 10) === day).length;
+      if (sameDay >= DAILY_SESSION_CAP) serverReasons.push("daily_cap_exceeded");
+      batchSeen.push({ start, end, ext: w.external_record_id });
+      const d = derive(w, serverReasons);
       if (d.status === "invalid") { results.push({ external_record_id: w.external_record_id, outcome: "invalid", reasons: d.reviewReasons }); continue; }
       // request hash：來源鍵＋內容（不含伺服器衍生），用於稽核與重放比對
       const hash = createHash("sha256").update(canonicalize(JSON.parse(JSON.stringify({ ...w, started_at: w.started_at.toISOString(), ended_at: w.ended_at.toISOString(), paused_ms: w.paused_ms.toString(), distance_mm: w.distance_mm?.toString() ?? null, active_energy_mkcal: w.active_energy_mkcal?.toString() ?? null, total_energy_mkcal: w.total_energy_mkcal?.toString() ?? null })) as Json)).digest();

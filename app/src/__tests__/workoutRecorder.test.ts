@@ -47,7 +47,8 @@ describe('WorkoutRecorder', () => {
     const now = over.now ?? (() => t);
     const sync = over.sync ?? jest.fn(async () => ({ sessionId: 'server-1' }));
     const store = new LocalWorkoutStore();
-    const rec = new WorkoutRecorder({ store, now, sync });
+    // 測試用假時鐘會跳躍，關掉牆鐘／單調時鐘漂移偵測與感測器探測（另有專門測試）
+    const rec = new WorkoutRecorder({ store, now, sync, monotonic: null, motionProbe: null });
     return { rec, store, sync, tick: (ms: number) => { t += ms; } };
   };
 
@@ -103,14 +104,14 @@ describe('WorkoutRecorder', () => {
 
   test('恢復：另一個 process 的未結束 session 標 recoverable／interrupted，continue 被拒改為結束（以最後一點時間、不補負時間）；discard 清除路線', async () => {
     const storeA = new LocalWorkoutStore();
-    const recA = new WorkoutRecorder({ store: storeA, now: () => 1_000_000, sync: jest.fn(async () => ({ sessionId: null })) });
+    const recA = new WorkoutRecorder({ store: storeA, now: () => 1_000_000, sync: jest.fn(async () => ({ sessionId: null })), monotonic: null, motionProbe: null });
     const meta = await recA.start({ sport: 'run', environment: 'outdoor' });
     recA.ingest(pts(120, 1_000_000)); // 360 m
     await new Promise((r) => setTimeout(r, 0));
     // 新 process
     const storeB = new LocalWorkoutStore();
     const sync: jest.Mock = jest.fn(async () => ({ sessionId: 'server-3' }));
-    const recB = new WorkoutRecorder({ store: storeB, now: () => 2_000_000, sync });
+    const recB = new WorkoutRecorder({ store: storeB, now: () => 2_000_000, sync, monotonic: null, motionProbe: null });
     const list = await recB.markRecoverable();
     expect(list.map((m) => [m.sessionId, m.status, m.interrupted])).toEqual([[meta.sessionId, 'recoverable', true]]);
     const c = await recB.recover(meta.sessionId, 'continue');
@@ -129,20 +130,20 @@ describe('WorkoutRecorder', () => {
 
   test('PG-R-12 跑道模式：trackLapMm 寫入 meta、snapshot 即時等效圈、摘要 extras 帶 track_equivalent；跨 process 恢復沿用圈長；舊 meta 無欄位 → null', async () => {
     const storeA = new LocalWorkoutStore();
-    const recA = new WorkoutRecorder({ store: storeA, now: () => 1_000_000, sync: jest.fn(async () => ({ sessionId: null })) });
+    const recA = new WorkoutRecorder({ store: storeA, now: () => 1_000_000, sync: jest.fn(async () => ({ sessionId: null })), monotonic: null, motionProbe: null });
     const meta = await recA.start({ sport: 'run', environment: 'outdoor', trackLapMm: 400_000 });
     expect(storeA.readMeta(meta.sessionId)?.trackLapMm).toBe(400_000);
     recA.ingest(pts(200, 1_000_000)); // ≈ 600 m
     expect(recA.snapshot().trackEquivalent).toMatchObject({ laps: 1, lapMm: 400_000 });
     await new Promise((r) => setTimeout(r, 0));
     const sync: jest.Mock = jest.fn(async () => ({ sessionId: 'server-7' }));
-    const recB = new WorkoutRecorder({ store: new LocalWorkoutStore(), now: () => 2_000_000, sync });
+    const recB = new WorkoutRecorder({ store: new LocalWorkoutStore(), now: () => 2_000_000, sync, monotonic: null, motionProbe: null });
     await recB.markRecoverable();
     const c = await recB.recover(meta.sessionId, 'continue');
     expect(c.summary!.trackEquivalent).toMatchObject({ laps: 1, lapMm: 400_000 });
     expect((sync.mock.calls[0]![0] as { extras: { track_equivalent: unknown } }).extras.track_equivalent).toMatchObject({ laps: 1, lapMm: 400_000 });
     // 未啟用
-    const recC = new WorkoutRecorder({ store: new LocalWorkoutStore(), now: () => 3_000_000, sync: jest.fn(async () => ({ sessionId: null })) });
+    const recC = new WorkoutRecorder({ store: new LocalWorkoutStore(), now: () => 3_000_000, sync: jest.fn(async () => ({ sessionId: null })), monotonic: null, motionProbe: null });
     await recC.start({ sport: 'walk', environment: 'outdoor' });
     expect(recC.snapshot().trackEquivalent).toBeNull();
     const s = await recC.finish();
@@ -153,5 +154,62 @@ describe('WorkoutRecorder', () => {
     const l = (ts: number, acc: number | null) => ({ timestamp: ts, coords: { latitude: 25, longitude: 121.5, accuracy: acc, speed: null, altitude: null, altitudeAccuracy: null, heading: null } });
     const out = toRawPoints([l(1000, 5), l(1000, 5), l(2000, null)] as never);
     expect(out.map((p) => [p.seq, p.accuracyM])).toEqual([[0, 5], [1, Number.POSITIVE_INFINITY]]);
+  });
+
+  test('完整性探測（防弊）：GPS 在動而機身無步態 → 兩次不一致記 motion_mismatch；結束 needs_review、client_flags 與 extras.integrity 上送；量不到不計', async () => {
+    let t = 1_000_000;
+    const sync = jest.fn(async (_input: unknown) => ({ sessionId: 'server-1' }));
+    const probe = jest.fn<Promise<boolean | null>, []>();
+    const rec = new WorkoutRecorder({ store: new LocalWorkoutStore(), now: () => t, sync, motionProbe: probe, probeIntervalMs: 999_999, monotonic: null });
+    await rec.start({ sport: 'run', environment: 'outdoor' });
+    await rec.runProbe(); // 還沒有 5 秒窗 → 不探測
+    expect(probe).not.toHaveBeenCalled();
+    rec.ingest(pts(30, 1_000_000)); // 3 m/s
+    t += 30_000;
+    probe.mockResolvedValueOnce(null); // 背景／無感測器：不計
+    await rec.runProbe();
+    probe.mockResolvedValueOnce(false);
+    await rec.runProbe();
+    expect(rec.snapshot().integrityFlags).toEqual([]);
+    probe.mockResolvedValueOnce(false);
+    await rec.runProbe();
+    expect(rec.snapshot().integrityFlags).toEqual(['motion_mismatch']);
+    const r = await rec.finish();
+    expect(r.meta.status).toBe('needs_review');
+    expect(r.summary.integrity).toMatchObject({ motionProbes: { total: 2, mismatched: 2 }, flags: ['motion_mismatch'] });
+    const payload = sync.mock.calls[0]![0] as unknown as { client_flags: string[]; extras: { integrity: { flags: string[] } } };
+    expect(payload.client_flags).toContain('motion_mismatch');
+    expect(payload.extras.integrity.flags).toEqual(['motion_mismatch']);
+  });
+
+  test('模擬定位（LocationObject.mocked）→ RawPoint.mocked → 引擎拒絕並標旗；結束 needs_review', async () => {
+    let t = 1_000_000;
+    const rec = new WorkoutRecorder({ store: new LocalWorkoutStore(), now: () => t, sync: jest.fn(async () => ({ sessionId: null })), motionProbe: null, monotonic: null });
+    await rec.start({ sport: 'walk', environment: 'outdoor' });
+    const raw = toRawPoints([{ timestamp: 1_000_000, mocked: true, coords: { latitude: 25, longitude: 121.5, accuracy: 5, altitude: null, altitudeAccuracy: null, heading: null, speed: null } }] as never);
+    expect(raw[0]!.mocked).toBe(true);
+    rec.ingest([...raw, ...pts(10, 1_001_000, 1, 1)]);
+    t += 11_000;
+    expect(rec.snapshot().integrityFlags).toEqual(['mock_location']);
+    const r = await rec.finish();
+    expect(r.meta.status).toBe('needs_review');
+    expect(r.summary.integrity.mockPoints).toBe(1);
+  });
+
+  test('時鐘漂移：記錄中牆鐘相對單調時鐘跳 60 s → clock_drift（needs_review）', async () => {
+    let wall = 1_000_000;
+    let mono = 500;
+    const rec = new WorkoutRecorder({ store: new LocalWorkoutStore(), now: () => wall, sync: jest.fn(async () => ({ sessionId: null })), motionProbe: null, monotonic: () => mono });
+    await rec.start({ sport: 'run', environment: 'outdoor' });
+    rec.ingest(pts(5, 1_000_000));
+    wall += 5_000; mono += 5_000;
+    rec.ingest(pts(5, 1_005_000, 5));
+    expect(rec.snapshot().integrityFlags).toEqual([]);
+    wall += 65_000; mono += 5_000; // 使用者把系統時間調快 60 s
+    rec.ingest(pts(5, 1_070_000, 10));
+    expect(rec.snapshot().integrityFlags).toEqual(['clock_drift']);
+    const r = await rec.finish();
+    expect(r.meta.status).toBe('needs_review');
+    expect(r.summary.integrity.clockDriftMs).toBe(60_000);
   });
 });
