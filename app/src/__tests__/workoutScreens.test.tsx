@@ -78,6 +78,7 @@ test('開始頁（NRC 版面）：GPS chip 切室內停用 START 並導向匯入
   expect(screen.getByTestId('start-goal-value').props.children).toBe('10:00');
   // 設定面板：400 m 自動圈、英里分段；PG-R-12 跑道模式需核對圈長才可開始；自訂值超範圍擋下
   await fireEvent.press(screen.getByTestId('start-settings'));
+  await fireEvent(screen.getByTestId('start-autopause'), 'valueChange', true); // 自動暫停偏好 → session
   await fireEvent.press(screen.getByTestId('start-autolap-400'));
   await fireEvent.press(screen.getByTestId('start-units-mi'));
   await fireEvent.press(screen.getByTestId('start-track-custom'));
@@ -106,6 +107,7 @@ test('開始頁（NRC 版面）：GPS chip 切室內停用 START 並導向匯入
   await waitFor(() => expect(mockNav.navigate).toHaveBeenCalledWith('WorkoutRecord'));
   expect(screen.queryByTestId('start-countdown')).toBeNull();
   expect(recorder.snapshot()).toMatchObject({ state: 'recording', sport: 'walk', intent: 'brisk', goal: { kind: 'time', target: 600, unit: 's', version: 1 }, goalReached: false, trackEquivalent: { laps: 0, remainderMm: 0, lapMm: 400_000 } });
+  expect(useWorkoutPrefs.getState().autoPause).toBe(true);
   expect(useWorkoutPrefs.getState().mode).toBe('brisk'); // 最近模式保存
   expect(loc.startLocationUpdatesAsync).toHaveBeenCalled();
   await act(async () => {});
@@ -207,6 +209,8 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   expect(screen.getByTestId('sum-quality-verdict').props.children).toMatch(/^Not fully measured/); // 時鐘跳 480 s 造成缺口
   expect(screen.getByText(/^Accepted: GPS fixes within 20 m/)).toBeTruthy();
   expect(screen.getByTestId('sum-route')).toBeTruthy();
+  expect(screen.getByText('Moving time')).toBeTruthy();
+  expect(screen.getByText('Paused')).toBeTruthy();
   await waitFor(() => expect(screen.getByTestId('route-trace')).toBeTruthy());
   expect(useWorkoutPrefs.getState().showRoute).toBe(true);
   await fireEvent(screen.getByTestId('sum-route-toggle'), 'valueChange', false);

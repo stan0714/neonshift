@@ -226,7 +226,7 @@ export function WorkoutStartScreen() {
     try {
       const goal = goalOf(goalKind, timeMin, distKm);
       await prefs.set({ mode, goal }); // 最近模式與目標（快速開始用）
-      await workoutRecorder.start({ sport, intent, goal, environment: env, autoLapMm: autoLap === 'off' ? null : Number(autoLap) * 1000, trackLapMm: trackLapM === null ? null : trackLapM * 1000, splitLengthMm: units === 'km' ? SPLIT_KM_MM : SPLIT_MILE_MM });
+      await workoutRecorder.start({ sport, intent, goal, environment: env, autoLapMm: autoLap === 'off' ? null : Number(autoLap) * 1000, trackLapMm: trackLapM === null ? null : trackLapM * 1000, splitLengthMm: units === 'km' ? SPLIT_KM_MM : SPLIT_MILE_MM, autoPause: prefs.autoPause });
       navigation.navigate('WorkoutRecord');
     } catch (e) {
       setErr({ kind: 'generic', message: e instanceof Error ? e.message : String(e) });
@@ -364,6 +364,15 @@ export function WorkoutStartScreen() {
           {t('rec.units')}
         </Text>
         <Segmented items={[{ value: 'km', label: t('rec.units.km') }, { value: 'mi', label: t('rec.units.mi') }]} value={units} onChange={setUnits} testID="start-units" />
+        <View style={styles.row}>
+          <Text variant="bodySmall" style={styles.rowLabel}>
+            {t('rec.autoPause')}
+          </Text>
+          <Switch value={prefs.autoPause} onValueChange={(v) => void prefs.set({ autoPause: v })} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('rec.autoPause')} testID="start-autopause" />
+        </View>
+        <Text variant="caption" tone="muted">
+          {t('rec.autoPause.hint')}
+        </Text>
         <View style={styles.row}>
           <Text variant="bodySmall" style={styles.rowLabel}>
             {t('rec.cue.haptic')}

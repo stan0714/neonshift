@@ -4,7 +4,7 @@ import { cueText, WorkoutCues } from '@/services/workouts/WorkoutCues';
 import type { RecorderSnapshot } from '@/services/workouts/WorkoutRecorder';
 
 const lap = (o: Partial<Lap>): Lap => ({ kind: 'split', index: 1, startElapsedMs: 0, endElapsedMs: 330_000, distanceMm: 1_000_000, durationMs: 330_000, paceSPerKm: 330, isPartial: false, uncertain: false, ...o });
-const snap = (o: Partial<RecorderSnapshot>): RecorderSnapshot => ({ state: 'recording', sessionId: 's', sport: 'run', elapsedMs: 0, movingMs: 0, pausedMs: 0, distanceMm: 0, currentSpeedMs: null, currentPaceSPerKm: null, gps: 'ok', accepted: 0, splits: [], laps: [], trackEquivalent: null, interrupted: false, intent: 'run', goal: null, goalReached: false, integrityFlags: [], path: [], speedSamples: [], lastAccuracyM: null, ...o });
+const snap = (o: Partial<RecorderSnapshot>): RecorderSnapshot => ({ state: 'recording', sessionId: 's', sport: 'run', elapsedMs: 0, movingMs: 0, pausedMs: 0, distanceMm: 0, currentSpeedMs: null, currentPaceSPerKm: null, gps: 'ok', accepted: 0, splits: [], laps: [], trackEquivalent: null, interrupted: false, intent: 'run', goal: null, goalReached: false, integrityFlags: [], path: [], speedSamples: [], lastAccuracyM: null, pauseKind: null, autoPausedMs: 0, ...o });
 
 test('cueText：跑步配速、走路時速、自訂圈；中英', () => {
   expect(cueText(lap({}), 'run', 'zh-TW')).toBe('1 公里，配速 5 分 30 秒');

@@ -23,13 +23,16 @@ export type SessionMeta = {
   autoLapMm: number | null;
   /** PG-R-12 跑道等效圈長（mm；null＝未啟用）；只作距離估算，非過線圈。舊 meta 可能缺此欄位 → 視為 null */
   trackLapMm?: number | null;
+  /** 自動暫停（Style 23.7）：靜止 ≥ 10 s 自動暫停、移動 ≥ 15 m 自動繼續；舊 meta 缺欄位 → false */
+  autoPause?: boolean;
   splitLengthMm: number;
   status: 'recording' | 'paused' | 'recoverable' | 'saved' | 'needs_review' | 'discarded';
   startedAtUtc: number;
   /** 記錄用的單調時基（本 process 的 monotonic 起點對應的 UTC）；跨 process 恢復時改以 UTC 推算並標 interrupted */
   startedMonoMs: number;
   processId: string;
-  pauses: { atMs: number; resumedAtMs: number | null }[];
+  /** kind 缺省＝手動；auto＝自動暫停（摘要分開統計） */
+  pauses: { atMs: number; resumedAtMs: number | null; kind?: 'manual' | 'auto' }[];
   manualLapsAtMs: number[];
   lastSeq: number;
   acceptedCount: number;

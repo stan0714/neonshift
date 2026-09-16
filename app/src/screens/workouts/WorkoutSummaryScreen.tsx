@@ -50,7 +50,8 @@ export function WorkoutSummaryScreen() {
   }, [params.sessionId]);
   const peersLoaded = peers !== null;
   const rejectedTotal = s ? Object.values(s.quality.rejected).reduce((a, b) => a + b, 0) : 0;
-  const integrity = s?.integrity ?? null; // 舊 session（規則 v1）沒有 integrity → 視為未檢查（顯示 ok 但不宣稱）
+  const integrity = s?.integrity ?? null;
+  const autoPausedMs = (meta?.pauses ?? []).filter((p) => p.kind === 'auto').reduce((n, p) => n + ((p.resumedAtMs ?? meta?.endedAtUtc ?? p.atMs) - p.atMs), 0); // 舊 session（規則 v1）沒有 integrity → 視為未檢查（顯示 ok 但不宣稱）
   const asSummary: WorkoutSummary | null = meta && s ? ({ session_id: meta.syncedSessionId ?? meta.sessionId, sport: meta.sport, intent: meta.intent ?? null, environment: meta.environment, source: { origin: 'gps', source_id: 'cc.neonshift.app/gps', external_record_id: meta.sessionId, source_revision: 1 }, started_at: new Date(meta.startedAtUtc).toISOString(), ended_at: new Date(meta.endedAtUtc ?? meta.startedAtUtc + s.elapsedMs).toISOString(), elapsed_ms: String(s.elapsedMs), paused_ms: String(s.pausedMs), status: 'saved', quality: 'complete', rules_version: s.rulesVersion, review_reasons: [], metrics: { distance: s.distanceMm > 0 ? { value_mm: String(s.distanceMm), method: 'gps' } : null, steps: null, active_energy: null, total_energy: null, avg_pace_s_per_km: s.avgPaceSPerKm, avg_speed_kmh: s.avgSpeedKmh, step_length_mm: null }, pb_eligible: false, possible_duplicate_of: null, extras: {}, revision: 1, imported_at: '', updated_at: '' } as WorkoutSummary) : null;
   const cmp = asSummary && peers ? compareSameCategory(asSummary, peers) : null;
   const sharePreview = asSummary ? shareText(asSummary, shareFields, { mode: modeLabel(t, asSummary.sport, asSummary.intent), app: 'NeonShift' }) : '';
@@ -98,6 +99,8 @@ export function WorkoutSummaryScreen() {
       </View>
       <View style={styles.grid}>
         <Stat label={t('sum.elapsed')} value={formatDuration(String(s.elapsedMs))} />
+        <Stat label={t('sum.moving')} value={formatDuration(String(s.movingMs))} />
+        <Stat label={t('sum.pausedStat')} value={s.pausedMs > 0 ? `${formatDuration(String(s.pausedMs))}${autoPausedMs > 0 ? ` (${t('sum.autoPausedShort', { t: formatDuration(String(autoPausedMs)) })})` : ''}` : '—'} />
         <Stat label={isWalk ? t('sum.avgSpeed') : t('sum.avgPace')} value={isWalk ? (s.avgSpeedKmh === null ? '—' : `${s.avgSpeedKmh.toFixed(1)} km/h`) : formatPace(s.avgPaceSPerKm)} />
         <Stat label={t('sum.max5s')} value={s.maxSpeed5sKmh === null ? '—' : `${s.maxSpeed5sKmh.toFixed(1)} km/h`} />
         <Stat label={t('sum.kcal')} value="—" />

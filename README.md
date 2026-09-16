@@ -57,6 +57,7 @@ flowchart LR
 | `docs/pg.md` | 開發項目與進度追蹤（狀態規則：合入 dev 前只標 WIP） |
 | `docs/build-and-test.md` | 環境安裝、實機建置、devnet 部署、賽事操作、Release APK |
 | `docs/store/listing.md` | dApp Store 上架素材與送審檢查表 |
+| [CLOCK IN 提交追蹤](docs/store/clock-in-submission.md) | 參賽交付清單、驗收條件、時程與 Demo 分鏡 |
 
 ## 快速開始
 

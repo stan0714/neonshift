@@ -242,3 +242,33 @@ describe('完整性／防弊（GPS_RULES_VERSION 2）', () => {
     expect(e.integrity()).toMatchObject({ motionProbes: { total: 5, mismatched: 3 }, flags: ['motion_mismatch'] });
   });
 });
+
+describe('靜止漂移抑制（GPS_RULES_VERSION 3）', () => {
+  const prng = (seed: number) => () => { seed = (seed * 1_664_525 + 1_013_904_223) % 4_294_967_296; return seed / 4_294_967_296; };
+  test('放在桌上 30 分鐘：位置在 ±12 m 內隨機漂移、OS 速度 0 → 距離 < 30 m（v2 會累積數百公尺）', () => {
+    const rnd = prng(7);
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    for (let i = 0; i <= 1800; i++) {
+      const acc = 8 + rnd() * 12; // 8～20 m
+      e.addPoint({ seq: i, monotonicMs: i * 1000, utcMs: i * 1000, lat: 25 + ((rnd() - 0.5) * 24) / M_PER_DEG_LAT, lon: 121.5 + ((rnd() - 0.5) * 24) / (M_PER_DEG_LAT * Math.cos((25 * Math.PI) / 180)), accuracyM: acc, speedMs: rnd() * 0.2 });
+    }
+    const s = e.finish(1_800_000);
+    expect(s.distanceMm).toBeLessThan(30_000);
+    expect(s.quality.stationary).toBeGreaterThan(1000); // 其餘為速度跳點拒絕（隨機跳 > 12 m/s）
+  });
+  test('真的在走：1.4 m/s、OS 速度 1.3、精度 12 m → 距離仍正確累積（≈ 168 m／2 min）', () => {
+    const e = new GpsMetricsEngine('walk');
+    e.start(0);
+    for (let i = 0; i <= 120; i++) e.addPoint({ seq: i, monotonicMs: i * 1000, utcMs: i * 1000, lat: 25 + (1.4 * i) / M_PER_DEG_LAT, lon: 121.5, accuracyM: 12, speedMs: 1.3 });
+    const s = e.finish(120_000);
+    expect(s.distanceMm / 1000).toBeGreaterThan(155);
+    expect(s.distanceMm / 1000).toBeLessThanOrEqual(168);
+  });
+  test('OS 速度永遠 0 的裝置：位移超過 3 × 精度仍信位置（跑 3 m/s、精度 5 m）', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    for (let i = 0; i <= 60; i++) e.addPoint({ seq: i, monotonicMs: i * 1000, utcMs: i * 1000, lat: 25 + (3 * i) / M_PER_DEG_LAT, lon: 121.5, accuracyM: 5, speedMs: 0 });
+    expect(e.finish(60_000).distanceMm / 1000).toBeGreaterThan(165);
+  });
+});

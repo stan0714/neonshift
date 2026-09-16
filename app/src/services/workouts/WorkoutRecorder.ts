@@ -4,7 +4,7 @@ import { AppState } from 'react-native';
 
 import { liveMotion } from '@/services/sensors/LiveMotionService';
 
-import { GpsMetricsEngine, type IntegrityFlag, type Lap, type RawPoint, type Summary, type TrackEquivalent } from '@/domain/gps/engine';
+import { GpsMetricsEngine, haversineMm, type IntegrityFlag, type Lap, type RawPoint, type Summary, type TrackEquivalent } from '@/domain/gps/engine';
 import { apiClient, type WorkoutGoal, type WorkoutImportInput, type WorkoutIntent } from '@/services/api/ApiClient';
 import { LocalWorkoutStore, type SessionMeta } from './LocalWorkoutStore';
 import { resetLocationSeq, setLocationSink, WORKOUT_LOCATION_TASK } from './locationTask';
@@ -50,12 +50,19 @@ export type RecorderSnapshot = {
   speedSamples: { monotonicMs: number; speedMs: number }[];
   /** 最後一點的水平精度（m）；無點 → null */
   lastAccuracyM: number | null;
+  /** 暫停中：這次暫停是自動（靜止）還是手動；非暫停 → null */
+  pauseKind: 'manual' | 'auto' | null;
+  /** 本次 session 自動暫停累計（ms；含進行中的那段） */
+  autoPausedMs: number;
 };
 
 type LocationApi = Pick<typeof Location, 'requestForegroundPermissionsAsync' | 'getForegroundPermissionsAsync' | 'startLocationUpdatesAsync' | 'stopLocationUpdatesAsync' | 'hasStartedLocationUpdatesAsync'>;
 /** 感測器探測：回 true＝機身有步態、false＝沒有、null＝無法量測（無感測器／忙碌／背景） */
 export type MotionProbe = () => Promise<boolean | null>;
 type Deps = { store?: LocalWorkoutStore; location?: LocationApi; now?: () => number; sync?: (input: WorkoutImportInput) => Promise<{ sessionId: string | null }>; foreground?: { title: string; body: string }; motionProbe?: MotionProbe | null; probeIntervalMs?: number; /** 單調時鐘（預設 performance.now）；null＝不做時鐘漂移偵測 */ monotonic?: (() => number) | null };
+
+/** 自動暫停（Style 23.7）：5 秒窗速度 < 0.5 m/s 持續 ≥ 10 s → 自動暫停；暫停中任一可用點距暫停位置 ≥ 15 m → 自動繼續 */
+export const AUTO_PAUSE = { minSpeedMs: 0.5, stillMs: 10_000, resumeDistanceM: 15, maxAccuracyM: 20 } as const;
 
 /** 完整性探測節奏：記錄中每 3 分鐘量一次（前景才量）；GPS 5 秒窗速度 ≥ 1 m/s 才算「GPS 在動」 */
 export const MOTION_PROBE_INTERVAL_MS = 180_000;
@@ -97,6 +104,9 @@ export class WorkoutRecorder {
   private clockOffset0: number | null = null;
   private readonly monotonic: (() => number) | null;
   private probing = false;
+  // 自動暫停狀態：靜止起算時間、自動暫停時的錨點（不持久化；跨 process 恢復後重算）
+  private stillSince: number | null = null;
+  private autoPausedAt: { lat: number; lon: number } | null = null;
   private engine: GpsMetricsEngine | null = null;
   private meta: SessionMeta | null = null;
   private state: RecorderState = 'idle';
@@ -181,6 +191,8 @@ export class WorkoutRecorder {
       path: e ? e.recentPath() : [],
       speedSamples: e ? e.recentSpeeds() : [],
       lastAccuracyM: this.lastAccuracy,
+      pauseKind: this.state === 'paused' ? (this.meta?.pauses[this.meta.pauses.length - 1]?.kind ?? 'manual') : null,
+      autoPausedMs: (this.meta?.pauses ?? []).filter((p) => p.kind === 'auto').reduce((n, p) => n + ((p.resumedAtMs ?? this.now()) - p.atMs), 0),
     };
   }
   private pausedTotal() {
@@ -195,17 +207,19 @@ export class WorkoutRecorder {
     return r.granted;
   }
 
-  async start(opts: { sport: 'run' | 'walk'; intent?: WorkoutIntent | null; goal?: WorkoutGoal | null; environment: 'outdoor' | 'indoor'; autoLapMm?: number | null; trackLapMm?: number | null; splitLengthMm?: number }): Promise<SessionMeta> {
+  async start(opts: { sport: 'run' | 'walk'; intent?: WorkoutIntent | null; goal?: WorkoutGoal | null; environment: 'outdoor' | 'indoor'; autoLapMm?: number | null; trackLapMm?: number | null; splitLengthMm?: number; autoPause?: boolean }): Promise<SessionMeta> {
     if (this.state !== 'idle') throw new Error('a session is already active');
     if (opts.environment === 'indoor') throw new Error('indoor sessions do not use GPS'); // Indoor 不啟用 GPS 推算距離
     const t = this.now();
     const sessionId = randomUUID();
-    this.meta = await this.store.create({ sessionId, sport: opts.sport, intent: opts.intent ?? (opts.sport === 'run' ? 'run' : null), goal: opts.goal ?? null, environment: opts.environment, autoLapMm: opts.autoLapMm ?? null, trackLapMm: opts.trackLapMm ?? null, splitLengthMm: opts.splitLengthMm ?? 1_000_000, status: 'recording', startedAtUtc: t, startedMonoMs: t, processId: this.processId });
+    this.meta = await this.store.create({ sessionId, sport: opts.sport, intent: opts.intent ?? (opts.sport === 'run' ? 'run' : null), goal: opts.goal ?? null, environment: opts.environment, autoLapMm: opts.autoLapMm ?? null, trackLapMm: opts.trackLapMm ?? null, autoPause: opts.autoPause ?? false, splitLengthMm: opts.splitLengthMm ?? 1_000_000, status: 'recording', startedAtUtc: t, startedMonoMs: t, processId: this.processId });
     this.engine = new GpsMetricsEngine(opts.sport, engineConfigOf(this.meta));
     this.engine.start(t);
     this.state = 'recording';
     this.lastPointAt = 0;
     this.clockOffset0 = null;
+    this.stillSince = null;
+    this.autoPausedAt = null;
     resetLocationSeq(0);
     setLocationSink((pts) => this.ingest(pts));
     await this.location.startLocationUpdatesAsync(WORKOUT_LOCATION_TASK, {
@@ -228,15 +242,38 @@ export class WorkoutRecorder {
       if (this.clockOffset0 === null) this.clockOffset0 = offset;
       else this.engine.recordClockDrift(Math.abs(offset - this.clockOffset0));
     }
+    let autoResume = false;
     for (const p of points) {
       this.lastPointAt = this.now();
       this.lastAccuracy = p.accuracyM;
+      // 自動暫停中：離暫停位置 ≥ 15 m（且精度可用、非模擬）→ 自動繼續（本批之後的點照常餵引擎）
+      if (this.autoPausedAt && this.state === 'paused' && !p.mocked && p.accuracyM <= AUTO_PAUSE.maxAccuracyM && haversineMm(this.autoPausedAt.lat, this.autoPausedAt.lon, p.lat, p.lon) >= AUTO_PAUSE.resumeDistanceM * 1000) autoResume = true;
       const r = this.engine.addPoint(p);
       if (r.accepted) this.meta.acceptedCount += 1;
       this.meta.lastSeq = Math.max(this.meta.lastSeq, p.seq);
     }
     void this.flush();
+    if (autoResume) void this.resume('auto');
+    else this.maybeAutoPause(points[points.length - 1]);
     this.emit();
+  }
+
+  /** 自動暫停判定：只在 recording 且啟用時；5 秒窗速度 < 0.5 m/s 累計 ≥ 10 s → pause('auto') */
+  private maybeAutoPause(last: RawPoint | undefined) {
+    if (!this.engine || !this.meta?.autoPause || this.state !== 'recording' || !last) return;
+    const speed = this.engine.currentSpeedMs();
+    if (speed === null) return; // 窗不完整（剛開始／缺口）不判定
+    const t = this.now();
+    if (speed >= AUTO_PAUSE.minSpeedMs) {
+      this.stillSince = null;
+      return;
+    }
+    this.stillSince ??= t;
+    if (t - this.stillSince >= AUTO_PAUSE.stillMs) {
+      this.stillSince = null;
+      this.autoPausedAt = { lat: last.lat, lon: last.lon };
+      void this.pause('auto');
+    }
   }
   private async flush() {
     if (this.flushing) return this.flushing;
@@ -252,21 +289,24 @@ export class WorkoutRecorder {
     return this.flushing;
   }
 
-  async pause() {
+  async pause(kind: 'manual' | 'auto' = 'manual') {
     if (this.state !== 'recording' || !this.engine || !this.meta) return false;
     const t = this.now();
     this.engine.pause(t);
-    this.meta.pauses.push({ atMs: t, resumedAtMs: null });
+    if (kind === 'manual') this.autoPausedAt = null; // 手動暫停不會被移動自動解除
+    this.meta.pauses.push({ atMs: t, resumedAtMs: null, kind });
     this.meta.status = 'paused';
     this.state = 'paused';
     await this.store.writeMeta(this.meta);
     this.emit();
     return true;
   }
-  async resume() {
+  async resume(_by: 'manual' | 'auto' = 'manual') {
     if (this.state !== 'paused' || !this.engine || !this.meta) return false;
     const t = this.now();
     this.engine.resume(t);
+    this.autoPausedAt = null;
+    this.stillSince = null;
     const last = this.meta.pauses[this.meta.pauses.length - 1];
     if (last && last.resumedAtMs === null) last.resumedAtMs = t;
     this.meta.status = 'recording';

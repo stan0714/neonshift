@@ -2,10 +2,10 @@
  * GpsMetricsEngine（PG-R-04／R-05；walk-run-tracking 4、5；SD 16）。
  * 純計算、可由固定軌跡重播；不碰定位 API、不持久化。內部整數毫米／毫秒；UI 四捨五入不參與比較。
  *
- * 規則（GPS_RULES_VERSION 2；v2 新增完整性／防弊）：
+ * 規則（GPS_RULES_VERSION 3；v2 完整性／防弊、v3 靜止漂移抑制）：
  * - 拒絕：非有限座標、時間倒序／重複、精度 > 20 m、與前一接受點的速度超過上限（跑 12 m/s／走 4 m/s）→ 疑似跳點、暫停中的點。
  * - 連續段：與前一接受點間隔 > 5 s、或暫停後恢復，從新點重新建段；不跨缺口補直線距離。
- * - 抖動：位移小於遲滯門檻的點不累加距離（錨點不前進），避免原地飄移增加里程。
+ * - 抖動：位移小於遲滯門檻（max(3 m, 0.6 × 精度)）的點不累加距離（錨點不前進）；OS 速度 < 0.3 m/s 且位移 < 3 × 精度也視為靜止（v3），避免原地飄移增加里程。
  * - 速度：最近完整 5 秒連續窗的接受距離 ÷ 5；窗不完整（缺口／暫停／剛開始）→ null。最高速度 = 該窗最大值。
  * - Splits：每 splitLengthMm（1,000,000 或 1,609,344）在兩接受點間按距離比例插值時間；一次跨多界線逐一切；跨缺口者標 uncertain；末段 partial。
  * - Laps：手動圈與自訂距離自動圈為獨立序列；暫停時不可按 Lap；零距離／零時間不新增。
@@ -14,7 +14,7 @@
  *   ≥ 2 次且過半不一致記 motion_mismatch。任一旗標 → needs_review、不具 PB／任務資格；後端以 client_flags 二次判定，不信任 App 單方。
  */
 
-export const GPS_RULES_VERSION = 2;
+export const GPS_RULES_VERSION = 3;
 /** 完整性（防弊）規則 v2：模擬定位、持續超速、缺口瞬移、時鐘漂移、感測器不一致（後者由 recorder 填入） */
 export const INTEGRITY_RULES = {
   /** 持續超速：60 秒滑動窗平均速度上限（m/s）；跑步 6.5（≈23 km/h）、走路 2.8（≈10 km/h） */
@@ -34,8 +34,12 @@ export type GpsConfig = {
   maxAccuracyM: number;
   maxGapMs: number;
   maxSpeedMs: number;
-  /** 遲滯：小於此位移不累加（mm） */
+  /** 遲滯：小於此位移不累加（mm）；實際門檻＝max(jitterFloorMm, accuracyFloorFactor × 精度) */
   jitterFloorMm: number;
+  /** 精度比例遲滯（精度 20 m × 0.6 ＝ 12 m）：精度差時抖動更大 */
+  accuracyFloorFactor: number;
+  /** Doppler 靜止門檻：OS 回報速度 < 此值且位移 < 3 × 精度 → 視為靜止（實機：室內放桌上 1h48 漂移累積 4.39 km） */
+  stillSpeedMs: number;
   splitLengthMm: number;
   /** 自訂距離自動圈（null = 關閉） */
   autoLapMm: number | null;
@@ -48,6 +52,8 @@ export const defaultConfig = (sport: Sport, over: Partial<GpsConfig> = {}): GpsC
   maxGapMs: 5000,
   maxSpeedMs: sport === 'run' ? 12 : 4,
   jitterFloorMm: 3000,
+  accuracyFloorFactor: 0.6,
+  stillSpeedMs: 0.3,
   splitLengthMm: SPLIT_KM_MM,
   autoLapMm: null,
   trackLapMm: null,
@@ -225,7 +231,10 @@ export class GpsMetricsEngine {
       if (dt > 0 && dFromLast / 1000 / dt > this.config.maxSpeedMs) return none('speed_spike');
       const base = this.anchor ?? this.last;
       const dFromAnchor = haversineMm(base.lat, base.lon, p.lat, p.lon);
-      if (dFromAnchor < this.config.jitterFloorMm) {
+      const floorMm = Math.max(this.config.jitterFloorMm, this.config.accuracyFloorFactor * p.accuracyM * 1000);
+      // Doppler 靜止：OS 速度可用且接近 0，而位移仍在精度雜訊範圍內（< 3 × 精度）→ 不累加（位移很大時仍信位置，避免某些裝置永遠回報 0）
+      const dopplerStill = typeof p.speedMs === 'number' && p.speedMs >= 0 && p.speedMs < this.config.stillSpeedMs && dFromAnchor < 3 * p.accuracyM * 1000;
+      if (dFromAnchor < floorMm || dopplerStill) {
         stationary = true;
         this.stationary += 1;
       } else {

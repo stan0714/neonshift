@@ -10,14 +10,15 @@ export const modeOfIntent = (sport: 'run' | 'walk', intent: WorkoutIntent | null
 /** showRoute：摘要頁顯示本機軌跡折線（預設開啟；只在畫面上畫，不上傳） */
 export type TraceLayerPref = 'grid' | 'mars' | 'chain' | 'space';
 /** traceLayer：軌跡底圖（趣味圖層，不含地理資訊；真實地圖待供應商） */
-export type WorkoutPrefs = { mode: WorkoutMode; goal: WorkoutGoal; voice: boolean; haptic: boolean; showRoute: boolean; traceLayer: TraceLayerPref };
+/** autoPause：靜止自動暫停（預設關；Style 23.7） */
+export type WorkoutPrefs = { mode: WorkoutMode; goal: WorkoutGoal; voice: boolean; haptic: boolean; showRoute: boolean; traceLayer: TraceLayerPref; autoPause: boolean };
 export const GOAL_VERSION = 1;
 export const FREE_GOAL: WorkoutGoal = { kind: 'free', target: 0, unit: 's', version: GOAL_VERSION };
 const KEY = 'neonshift.workout.prefs.v1';
-const initial: WorkoutPrefs = { mode: 'run', goal: FREE_GOAL, voice: false, haptic: false, showRoute: true, traceLayer: 'grid' };
+const initial: WorkoutPrefs = { mode: 'run', goal: FREE_GOAL, voice: false, haptic: false, showRoute: true, traceLayer: 'grid', autoPause: false };
 
 type State = WorkoutPrefs & { loaded: boolean; load: () => Promise<WorkoutPrefs>; set: (patch: Partial<WorkoutPrefs>) => Promise<void> };
-const pick = (s: State): WorkoutPrefs => ({ mode: s.mode, goal: s.goal, voice: s.voice, haptic: s.haptic, showRoute: s.showRoute, traceLayer: s.traceLayer });
+const pick = (s: State): WorkoutPrefs => ({ mode: s.mode, goal: s.goal, voice: s.voice, haptic: s.haptic, showRoute: s.showRoute, traceLayer: s.traceLayer, autoPause: s.autoPause });
 
 export const useWorkoutPrefs = create<State>((set, get) => ({
   ...initial,

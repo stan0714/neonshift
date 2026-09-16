@@ -212,4 +212,43 @@ describe('WorkoutRecorder', () => {
     expect(r.meta.status).toBe('needs_review');
     expect(r.summary.integrity.clockDriftMs).toBe(60_000);
   });
+
+  test('自動暫停（Style 23.7）：靜止 ≥ 10 s 自動暫停（kind auto）、移動 ≥ 15 m 自動繼續；手動暫停不被移動解除；未啟用不動作', async () => {
+    let t = 1_000_000;
+    const still = (n: number, startMs: number, seqStart: number, lat: number): RawPoint[] => Array.from({ length: n }, (_, i) => ({ seq: seqStart + i, monotonicMs: startMs + i * 1000, utcMs: startMs + i * 1000, lat, lon: 121.5, accuracyM: 5 }));
+    const rec = new WorkoutRecorder({ store: new LocalWorkoutStore(), now: () => t, sync: jest.fn(async () => ({ sessionId: null })), motionProbe: null, monotonic: null });
+    await rec.start({ sport: 'run', environment: 'outdoor', autoPause: true });
+    rec.ingest(pts(20, 1_000_000)); // 3 m/s 前進 20 s
+    t += 20_000;
+    const lat = 25 + (3 * 19) / M_PER_DEG_LAT;
+    // 原地 6 s：5 秒窗速度降到 0 但不足 10 s → 仍在記錄
+    for (let i = 0; i < 6; i++) { t += 1000; rec.ingest(still(1, t, 100 + i, lat)); }
+    expect(rec.snapshot().state).toBe('recording');
+    // 再原地 8 s → 5 秒窗速度歸零起算滿 10 s → 自動暫停
+    for (let i = 0; i < 8; i++) { t += 1000; rec.ingest(still(1, t, 200 + i, lat)); }
+    expect(rec.snapshot()).toMatchObject({ state: 'paused', pauseKind: 'auto' });
+    // 暫停中小幅移動 5 m 不繼續；移動 20 m → 自動繼續
+    t += 1000; rec.ingest(still(1, t, 300, lat + 5 / M_PER_DEG_LAT));
+    expect(rec.snapshot().state).toBe('paused');
+    t += 1000; rec.ingest(still(1, t, 301, lat + 20 / M_PER_DEG_LAT));
+    expect(rec.snapshot()).toMatchObject({ state: 'recording', pauseKind: null });
+    expect(rec.snapshot().autoPausedMs).toBeGreaterThan(0);
+    // 手動暫停：之後即使移動 100 m 也不自動繼續
+    await rec.pause();
+    t += 1000; rec.ingest(still(1, t, 400, lat + 120 / M_PER_DEG_LAT));
+    expect(rec.snapshot()).toMatchObject({ state: 'paused', pauseKind: 'manual' });
+    await rec.resume();
+    const r = await rec.finish();
+    expect(r.meta.pauses.map((p) => p.kind)).toEqual(['auto', 'manual']);
+    expect(r.meta.autoPause).toBe(true);
+    // 未啟用：靜止 20 s 仍記錄中
+    let t2 = 5_000_000;
+    const off = new WorkoutRecorder({ store: new LocalWorkoutStore(), now: () => t2, sync: jest.fn(async () => ({ sessionId: null })), motionProbe: null, monotonic: null });
+    await off.start({ sport: 'run', environment: 'outdoor' });
+    off.ingest(pts(10, 5_000_000));
+    t2 += 10_000;
+    for (let i = 0; i < 20; i++) { t2 += 1000; off.ingest(still(1, t2, 100 + i, 25 + (3 * 9) / M_PER_DEG_LAT)); }
+    expect(off.snapshot().state).toBe('recording');
+    await off.finish();
+  });
 });

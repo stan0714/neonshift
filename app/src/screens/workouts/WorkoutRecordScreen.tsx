@@ -114,11 +114,16 @@ export function WorkoutRecordScreen() {
     <Screen testID="workout-record-screen">
       <View style={styles.statusRow} accessible accessibilityLabel={`${t(`rec.gps.${s.gps}` as TKey)}, ${s.state === 'paused' ? t('rec.paused') : t('rec.recording')}`} testID="record-status">
         <Chip label={t(`rec.gps.${s.gps}` as TKey)} kind={s.gps === 'ok' ? 'synced' : s.gps === 'poor' ? 'devnet' : 'offline'} />
-        <Chip label={s.state === 'paused' ? t('rec.paused') : t('rec.recording')} kind={s.state === 'paused' ? 'devnet' : 'level'} />
+        <Chip label={s.state === 'paused' ? (s.pauseKind === 'auto' ? t('rec.autoPaused') : t('rec.paused')) : t('rec.recording')} kind={s.state === 'paused' ? 'devnet' : 'level'} />
         <Pressable onPress={() => setLocked(true)} onLongPress={() => setLocked(false)} delayLongPress={1200} accessibilityRole="button" accessibilityLabel={locked ? t('rec.lock.unlockA11y') : t('rec.lock.lockA11y')} hitSlop={8} style={styles.lockBtn} testID={locked ? 'record-unlock' : 'record-lock'}>
           <Text variant="label" tone={locked ? 'mint' : 'secondary'}>{locked ? t('rec.lock.locked') : t('rec.lock.lock')}</Text>
         </Pressable>
       </View>
+      {s.state === 'paused' && s.pauseKind === 'auto' ? (
+        <Text variant="caption" tone="warning" style={styles.center} testID="record-autopause-note">
+          {t('rec.autoPaused.note')}
+        </Text>
+      ) : null}
       {s.integrityFlags.length > 0 ? (
         <Text variant="caption" tone="warning" style={styles.center} testID="record-integrity">
           {t('rec.integrity.live', { reason: t(`wo.reason.${s.integrityFlags[0]}` as TKey) })}
@@ -170,7 +175,7 @@ export function WorkoutRecordScreen() {
           </Text>
           {s.pausedMs > 0 ? (
             <Text variant="caption" tone={s.state === 'paused' ? 'warning' : 'muted'} numeric testID="record-paused">
-              {t('rec.pausedFor', { t: formatDuration(String(s.pausedMs)) })}
+              {s.autoPausedMs > 0 ? `${t('rec.pausedFor', { t: formatDuration(String(s.pausedMs)) })} · ${t('rec.autoPausedFor', { t: formatDuration(String(s.autoPausedMs)) })}` : t('rec.pausedFor', { t: formatDuration(String(s.pausedMs)) })}
             </Text>
           ) : null}
         </View>
