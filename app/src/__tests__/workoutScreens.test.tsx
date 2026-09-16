@@ -53,8 +53,11 @@ test('開始頁（NRC 版面）：GPS chip 切室內停用 START 並導向匯入
   await fireEvent.press(screen.getByTestId('start-go'));
   await waitFor(() => expect(screen.getByTestId('start-permission')).toBeTruthy());
   // PG-U-01：預設模式跑步；改健走（開始後固定於 session）
-  expect(screen.getByTestId('start-mode-hint').props.children).toBe('Run: pace, distance, time.');
+  // 模式樣態（Style 24.6）：跑步主指標配速；改健走 → 主指標時速、健走區間、自動圈預設 1 km、目標預設對齊（10/20/30 分、2/3/5 km）
+  expect(screen.getByText('Main: pace /km')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('start-mode-brisk'));
+  expect(screen.getByText('Main: km/h')).toBeTruthy();
+  expect(screen.getByText(/brisk zone 5\.5–7\.5 km\/h/)).toBeTruthy();
   expect(screen.getByText(/Brisk walk is a mode you choose/)).toBeTruthy();
   // 目標面板：距離 3 km → 大數字 3.00 Kilometers；改時間 10 分 → 10:00 Minutes；Clear → Free
   await fireEvent.press(screen.getByTestId('start-goal-pill'));
@@ -119,6 +122,8 @@ test('記錄頁：健走顯示速度、時間／距離；目標進度 → 達標
   });
   await waitFor(() => expect(screen.getByTestId('record-distance').props.children).toBe('0.36'));
   expect(screen.getByTestId('record-primary').props.children).toBe('10.8'); // 健走：km/h（3 m/s）
+  expect(screen.getByTestId('record-mode').props.children).toBe('Brisk walk');
+  expect(screen.getByTestId('record-zone').props.children.props.children).toMatch(/^Above brisk zone/); // 10.8 km/h > 7.5
   // 10 分鐘目標：120 s 未達；時鐘推到 600 s 後達標提醒（含暫停時間），狀態仍 recording
   clock += 480_000;
   await act(async () => {});

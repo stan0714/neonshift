@@ -4,12 +4,14 @@ import * as Haptics from 'expo-haptics';
 import { Alert, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 
 import { Chip, Screen } from '@/components';
+import { paceVsAvg, profileOf, speedZone } from '@/domain/modes';
 import { formatDuration, formatPace } from '@/domain/workouts';
 import { useT, type TKey } from '@/i18n';
 import { workoutCues } from '@/services/workouts/WorkoutCues';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
-import { useWorkoutPrefs } from '@/state/workoutPrefsStore';
+import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import { color, layout, radius, space, Text } from '@/theme';
+import { Feather } from '@expo/vector-icons';
 import { useRecorder } from './useRecorder';
 
 /**
@@ -45,11 +47,20 @@ export function WorkoutRecordScreen() {
   useEffect(() => { workoutCues.reset(workoutRecorder.snapshot()); }, []);
   useEffect(() => { workoutCues.onSnapshot(s, { voice: prefs.voice, haptic: prefs.haptic, locale: locale === 'zh-TW' ? 'zh-TW' : 'en' }); }, [s, prefs.voice, prefs.haptic, locale]);
 
-  const primary = s.state === 'paused' ? '—' : s.sport === 'walk' ? (s.currentSpeedMs === null ? '—' : (s.currentSpeedMs * 3.6).toFixed(1)) : formatPace(s.currentPaceSPerKm).replace(' /km', '');
+  // 模式樣態（Style 24.6）：走路主數字＝運動時間、健走＝km/h＋建議區間、跑步＝配速＋與平均比較
+  const mode = modeOfIntent(s.sport, s.intent) ?? (s.sport === 'run' ? 'run' : 'walk');
+  const profile = profileOf(mode);
+  const speedKmh = s.currentSpeedMs === null ? null : s.currentSpeedMs * 3.6;
+  const speedText = speedKmh === null ? '—' : speedKmh.toFixed(1);
+  const paceText = formatPace(s.currentPaceSPerKm).replace(' /km', '');
+  const primary = s.state === 'paused' ? '—' : profile.primary === 'time' ? formatDuration(String(s.movingMs)) : profile.primary === 'speed' ? speedText : paceText;
+  const primaryLabel = s.state === 'paused' ? t('rec.paused') : profile.primary === 'time' ? t('rec.movingTime') : profile.primary === 'speed' ? t('rec.speed') : t('rec.pace');
+  const zone = s.state === 'recording' ? speedZone(profile, speedKmh) : null;
   // 平均：距離／運動時間（不含暫停）；不足 50 m 或 10 s 顯示 —
   const avgPace = s.distanceMm >= 50_000 && s.movingMs >= 10_000 ? Math.round(s.movingMs / 1000 / (s.distanceMm / 1_000_000)) : null;
   const speedOf = (sPerKm: number | null) => (sPerKm === null || sPerKm <= 0 ? '—' : (3600 / sPerKm).toFixed(1));
   const avg = s.sport === 'walk' ? speedOf(avgPace) : formatPace(avgPace).replace(' /km', '');
+  const vsAvg = profile.primary === 'pace' && s.state === 'recording' && s.gps !== 'searching' ? paceVsAvg(s.currentPaceSPerKm, avgPace) : null;
   // 最近一段：最新完成的分段或圈（手動／自動）
   const last = [...s.splits, ...s.laps].filter((l) => !l.isPartial).sort((x, y) => y.endElapsedMs - x.endElapsedMs)[0] ?? null;
   const recent = [...s.splits, ...s.laps].filter((l) => !l.isPartial).sort((x, y) => y.endElapsedMs - x.endElapsedMs).slice(0, 5);
@@ -90,22 +101,42 @@ export function WorkoutRecordScreen() {
           {t('rec.gpsGap')}
         </Text>
       ) : null}
-      <View style={styles.hero} accessible accessibilityLabel={`${s.sport === 'walk' ? t('rec.speed') : t('rec.pace')} ${primary === '—' ? t('rec.a11y.none') : primary} ${s.sport === 'walk' ? t('rec.a11y.kmh') : t('rec.a11y.minPerKm')}`}>
+      <View style={styles.hero} accessible accessibilityLabel={`${primaryLabel} ${primary === '—' ? t('rec.a11y.none') : primary} ${profile.primary === 'time' ? '' : profile.primary === 'speed' ? t('rec.a11y.kmh') : t('rec.a11y.minPerKm')}`}>
+        <View style={styles.modeRow}>
+          <Feather name={profile.icon} size={14} color={profile.accent} />
+          <Text variant="label" tone={profile.accentTone} uppercase testID="record-mode">
+            {t(`wo.mode.${mode}` as TKey)}
+          </Text>
+        </View>
         <Text style={styles.big} numeric testID="record-primary" maxFontSizeMultiplier={1.6}>
           {primary}
         </Text>
         <Text variant="label" tone="muted" uppercase>
-          {s.state === 'paused' ? t('rec.paused') : s.sport === 'walk' ? t('rec.speed') : t('rec.pace')}
+          {primaryLabel}
         </Text>
+        {zone ? (
+          <View style={[styles.zoneChip, { borderColor: zone === 'in' ? profile.accent : color.borderSubtle }]} testID="record-zone">
+            <Text variant="caption" tone={zone === 'in' ? profile.accentTone : 'secondary'}>
+              {t(`rec.zone.${zone}` as TKey, { lo: profile.speedZoneKmh![0], hi: profile.speedZoneKmh![1] })}
+            </Text>
+          </View>
+        ) : null}
+        {vsAvg !== null ? (
+          <View style={[styles.zoneChip, { borderColor: vsAvg <= 0 ? profile.accent : color.borderSubtle }]} testID="record-vs-avg">
+            <Text variant="caption" tone={vsAvg <= 0 ? profile.accentTone : 'secondary'}>
+              {vsAvg < -2 ? t('rec.vsAvg.faster', { p: -vsAvg }) : vsAvg > 2 ? t('rec.vsAvg.slower', { p: vsAvg }) : t('rec.vsAvg.same')}
+            </Text>
+          </View>
+        ) : null}
       </View>
       {/* 四格：運動時間（不含暫停）、距離、平均、最近一段；暫停中運動時間停住、顯示已暫停多久 */}
       <View style={styles.grid}>
-        <View style={[styles.tile, s.state === 'paused' && styles.tilePaused]} accessible accessibilityLabel={`${t('rec.a11y.time')} ${formatDuration(String(s.movingMs))}`}>
-          <Text variant="displayM" numeric testID="record-time">
-            {formatDuration(String(s.movingMs))}
+        <View style={[styles.tile, s.state === 'paused' && styles.tilePaused]} accessible accessibilityLabel={profile.primary === 'time' ? `${t('rec.speed')} ${speedText} ${t('rec.a11y.kmh')}` : `${t('rec.a11y.time')} ${formatDuration(String(s.movingMs))}`}>
+          <Text variant="displayM" numeric testID={profile.primary === 'time' ? 'record-speed' : 'record-time'}>
+            {profile.primary === 'time' ? (s.state === 'paused' ? '—' : speedText) : formatDuration(String(s.movingMs))}
           </Text>
           <Text variant="caption" tone="muted" uppercase>
-            {t('rec.movingTime')}
+            {profile.primary === 'time' ? t('rec.speed') : t('rec.movingTime')}
           </Text>
           {s.pausedMs > 0 ? (
             <Text variant="caption" tone={s.state === 'paused' ? 'warning' : 'muted'} numeric testID="record-paused">
@@ -141,7 +172,7 @@ export function WorkoutRecordScreen() {
       {s.goal && s.goal.kind !== 'free' ? (
         <View style={styles.goal}>
           <View style={styles.goalTrack} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(goalRatio * 100) }} testID="record-goal-bar">
-            <View style={[styles.goalFill, { width: `${Math.round(goalRatio * 100)}%` }, s.goalReached && styles.goalFillDone]} />
+            <View style={[styles.goalFill, { width: `${Math.round(goalRatio * 100)}%`, backgroundColor: profile.accent }, s.goalReached && styles.goalFillDone]} />
           </View>
           <Text variant="caption" tone={s.goalReached ? 'mint' : 'muted'} style={styles.center} testID="record-goal">
             {s.goalReached ? t('rec.goalReached') : t('rec.goalProgress', { target: s.goal.kind === 'time' ? t('rec.goal.min', { n: Math.round(s.goal.target / 60) }) : t('rec.goal.km', { n: s.goal.target / 1_000_000 }) })}
@@ -239,7 +270,9 @@ const styles = StyleSheet.create({
   splitName: { flex: 1.2 },
   splitCell: { flex: 1, textAlign: 'right' },
   statusRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.s },
-  hero: { alignItems: 'center', marginTop: space.xl },
+  hero: { alignItems: 'center', marginTop: space.l },
+  modeRow: { flexDirection: 'row', alignItems: 'center', gap: space.xxs, marginBottom: space.xxs },
+  zoneChip: { marginTop: space.xs, paddingHorizontal: space.s, minHeight: 28, justifyContent: 'center', borderRadius: radius.l, borderWidth: 1, backgroundColor: color.surface },
   big: { fontSize: 88, lineHeight: 96, fontWeight: '700', color: color.textPrimary, fontVariant: ['tabular-nums'] },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.xl },
   tile: { width: '48%', flexGrow: 1, minHeight: 88, alignItems: 'center', justifyContent: 'center', paddingVertical: space.s, borderRadius: radius.m, backgroundColor: color.elevated },

@@ -9,6 +9,7 @@ import Svg, { Line, Path } from 'react-native-svg';
 import { Button, InlineState, Screen, Surface } from '@/components';
 import { ShoeHero } from '@/components/ShoeHero';
 import { SPLIT_KM_MM, SPLIT_MILE_MM, TRACK_LAP_MAX_M, TRACK_LAP_MIN_M } from '@/domain/gps/engine';
+import { profileOf, snapPreset } from '@/domain/modes';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useT, type TKey } from '@/i18n';
 import type { WorkoutGoal } from '@/services/api/ApiClient';
@@ -41,8 +42,6 @@ export function trackLapMetersOf(choice: TrackChoice, custom: string): number | 
 }
 
 type GoalChoice = 'free' | 'time' | 'distance';
-const TIME_PRESETS = [10, 20, 30] as const; // 分鐘（可獎勵目標模板初版）
-const DIST_PRESETS = [1, 3, 5] as const; // 公里
 export function goalOf(kind: GoalChoice, timeMin: number, distKm: number): WorkoutGoal {
   if (kind === 'time') return { kind: 'time', target: timeMin * 60, unit: 's', version: GOAL_VERSION };
   if (kind === 'distance') return { kind: 'distance', target: Math.round(distKm * 1_000_000), unit: 'mm', version: GOAL_VERSION };
@@ -74,7 +73,9 @@ function Sheet({ visible, onClose, title, children, testID }: { visible: boolean
 }
 
 /** 背景：抽象街區格線＋一條路線（不畫真實地圖；地圖供應商未定） */
-function Backdrop() {
+function Backdrop({ accent, variant }: { accent: string; variant: 'walk' | 'brisk' | 'run' }) {
+  // 三模式不同路線形狀：走路＝公園小圈、健走＝河濱來回、跑步＝長距離折線
+  const path = variant === 'walk' ? 'M60 230 C40 170 120 130 170 160 S250 230 200 262 S80 280 60 230' : variant === 'brisk' ? 'M20 250 C90 190 140 210 200 150 S280 90 318 60 M318 70 C260 110 220 170 150 200 S60 240 24 262' : 'M28 236 C70 214 96 262 138 232 S206 150 250 168 S300 118 318 96';
   return (
     <Svg width="100%" height="100%" viewBox="0 0 320 320" preserveAspectRatio="xMidYMid slice" style={StyleSheet.absoluteFill} pointerEvents="none">
       {[40, 100, 160, 220, 280].map((y) => (
@@ -83,7 +84,7 @@ function Backdrop() {
       {[30, 90, 150, 210, 270].map((x) => (
         <Line key={`v${x}`} x1={x} y1="0" x2={x - 22} y2="320" stroke={color.borderSubtle} strokeOpacity={0.45} />
       ))}
-      <Path d="M28 236 C70 214 96 262 138 232 S206 150 250 168 S300 118 318 96" fill="none" stroke={color.mint} strokeOpacity={0.28} strokeWidth={3} strokeLinecap="round" />
+      <Path d={path} fill="none" stroke={accent} strokeOpacity={0.32} strokeWidth={3} strokeLinecap="round" />
     </Svg>
   );
 }
@@ -174,8 +175,17 @@ export function WorkoutStartScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const { sport, intent } = modeToSport(mode);
+  const profile = profileOf(mode);
   const [env, setEnv] = useState<'outdoor' | 'indoor'>('outdoor');
-  const [autoLap, setAutoLap] = useState<'off' | '400' | '1000'>('off');
+  const [autoLap, setAutoLap] = useState<'off' | '400' | '1000'>(profile.autoLapDefault);
+  /** 換模式：目標預設值對齊新模式選項、自動圈改為該模式預設 */
+  const changeMode = (m: WorkoutMode) => {
+    const next = profileOf(m);
+    setMode(m);
+    setTimeMin((v) => snapPreset(v, next.timePresets));
+    setDistKm((v) => snapPreset(v, next.distPresets));
+    setAutoLap(next.autoLapDefault);
+  };
   const [units, setUnits] = useState<'km' | 'mi'>('km');
   const [track, setTrack] = useState<TrackChoice>('off');
   const [trackCustom, setTrackCustom] = useState('');
@@ -220,28 +230,42 @@ export function WorkoutStartScreen() {
   const startDisabled = busy || env === 'indoor' || trackBlocked;
   const disabledReason = env === 'indoor' ? t('rec.indoorHint') : trackBlocked ? t('rec.track.blocked') : undefined;
   const goalValue = goalKind === 'distance' ? fmtDist(distKm) : goalKind === 'time' ? fmtTime(timeMin) : t('rec.goal.freeBig');
-  const goalUnit = goalKind === 'distance' ? t('rec.goal.unit.km') : goalKind === 'time' ? t('rec.goal.unit.min') : t('rec.goal.freeHint');
+  const goalUnit = goalKind === 'distance' ? t('rec.goal.unit.km') : goalKind === 'time' ? t('rec.goal.unit.min') : t(`rec.goal.freeHint.${mode}` as TKey);
   const goalA11y = goalKind === 'distance' ? t('rec.goal.km', { n: distKm }) : goalKind === 'time' ? t('rec.goal.min', { n: timeMin }) : t('rec.goal.free');
 
   return (
     <Screen testID="workout-start-screen">
-      <Text variant="displayM">{t(`wo.mode.${mode}` as TKey)}</Text>
+      <View style={styles.titleRow}>
+        <View style={[styles.modeIcon, { borderColor: profile.accent }]}>
+          <Feather name={profile.icon} size={22} color={profile.accent} />
+        </View>
+        <Text variant="displayM">{t(`wo.mode.${mode}` as TKey)}</Text>
+      </View>
       <View style={styles.tabs} accessibilityRole="tablist">
         {(['walk', 'brisk', 'run'] as const).map((m) => (
-          <Pressable key={m} onPress={() => setMode(m)} accessibilityRole="tab" accessibilityState={{ selected: mode === m }} style={styles.tab} testID={`start-mode-${m}`}>
-            <Text variant="title" tone={mode === m ? undefined : 'muted'}>
-              {t(`wo.mode.${m}` as TKey)}
-            </Text>
-            <View style={[styles.tabLine, mode === m && styles.tabLineOn]} />
+          <Pressable key={m} onPress={() => changeMode(m)} accessibilityRole="tab" accessibilityState={{ selected: mode === m }} style={styles.tab} testID={`start-mode-${m}`}>
+            <View style={styles.tabInner}>
+              <Feather name={profileOf(m).icon} size={16} color={mode === m ? profileOf(m).accent : color.textMuted} />
+              <Text variant="title" tone={mode === m ? undefined : 'muted'}>
+                {t(`wo.mode.${m}` as TKey)}
+              </Text>
+            </View>
+            <View style={[styles.tabLine, mode === m && { backgroundColor: profileOf(m).accent }]} />
           </Pressable>
         ))}
       </View>
-      <Text variant="caption" tone="muted" style={styles.mtXs} testID="start-mode-hint">
+      {/* 模式樣態：主指標、目標預設、自動圈、建議區間（Style 24.6） */}
+      <View style={styles.traits} testID="start-mode-hint">
+        <Text variant="caption" tone={profile.accentTone}>{t(`rec.trait.primary.${profile.primary}` as TKey)}</Text>
+        <Text variant="caption" tone="muted"> · {t('rec.trait.autoLap', { v: t(`rec.autoLap.${profile.autoLapDefault}` as TKey) })}</Text>
+        {profile.speedZoneKmh ? <Text variant="caption" tone="muted"> · {t('rec.trait.zone', { lo: profile.speedZoneKmh[0], hi: profile.speedZoneKmh[1] })}</Text> : null}
+      </View>
+      <Text variant="caption" tone="muted" style={styles.mtXs}>
         {t(`rec.modeHint.${mode}` as TKey)}
       </Text>
 
       <Pressable style={styles.hero} onPress={() => setSheet('goal')} accessibilityRole="button" accessibilityLabel={t('rec.goal.a11y', { goal: goalA11y })} accessibilityHint={t('rec.goal.a11yHint')} testID="start-goal-hero">
-        <Backdrop />
+        <Backdrop accent={profile.accent} variant={mode} />
         <Text style={styles.bigNumber} numeric maxFontSizeMultiplier={1.4} testID="start-goal-value">
           {goalValue}
         </Text>
@@ -260,8 +284,8 @@ export function WorkoutStartScreen() {
         <Pressable onPress={() => navigation.navigate('Main', { screen: 'Gear' })} style={styles.roundChip} accessibilityRole="button" accessibilityLabel={t('rec.shoe', { n: shoeLevel })} testID="start-shoe">
           <ShoeHero level={shoeLevel} size={64} badge={false} active={false} />
         </Pressable>
-        <Pressable onPress={() => setEnv(env === 'outdoor' ? 'indoor' : 'outdoor')} style={[styles.roundChip, env === 'outdoor' && styles.roundChipOn]} accessibilityRole="switch" accessibilityState={{ checked: env === 'outdoor' }} accessibilityLabel={t('rec.env.outdoor')} accessibilityHint={t('rec.env.toggleHint')} testID="start-env">
-          <Feather name={env === 'outdoor' ? 'radio' : 'wifi-off'} size={24} color={env === 'outdoor' ? color.mint : color.textMuted} />
+        <Pressable onPress={() => setEnv(env === 'outdoor' ? 'indoor' : 'outdoor')} style={[styles.roundChip, env === 'outdoor' && { borderColor: profile.accent }]} accessibilityRole="switch" accessibilityState={{ checked: env === 'outdoor' }} accessibilityLabel={t('rec.env.outdoor')} accessibilityHint={t('rec.env.toggleHint')} testID="start-env">
+          <Feather name={env === 'outdoor' ? 'radio' : 'wifi-off'} size={24} color={env === 'outdoor' ? profile.accent : color.textMuted} />
           <Text variant="caption" tone={env === 'outdoor' ? 'primary' : 'muted'} testID="start-env-label">
             {env === 'outdoor' ? t('rec.env.gpsOn') : t('rec.env.indoor')}
           </Text>
@@ -306,8 +330,8 @@ export function WorkoutStartScreen() {
               </Text>
               {goalKind === g ? <Feather name="check" size={22} color={color.mint} /> : null}
             </Pressable>
-            {g === 'distance' && goalKind === 'distance' ? <Segmented items={DIST_PRESETS.map((k) => ({ value: String(k), label: t('rec.goal.km', { n: k }) }))} value={String(distKm)} onChange={(v) => setDistKm(Number(v))} testID="start-goal-dist" /> : null}
-            {g === 'time' && goalKind === 'time' ? <Segmented items={TIME_PRESETS.map((m) => ({ value: String(m), label: t('rec.goal.min', { n: m }) }))} value={String(timeMin)} onChange={(v) => setTimeMin(Number(v))} testID="start-goal-time" /> : null}
+            {g === 'distance' && goalKind === 'distance' ? <Segmented items={profile.distPresets.map((k) => ({ value: String(k), label: t('rec.goal.km', { n: k }) }))} value={String(distKm)} onChange={(v) => setDistKm(Number(v))} testID="start-goal-dist" /> : null}
+            {g === 'time' && goalKind === 'time' ? <Segmented items={profile.timePresets.map((m) => ({ value: String(m), label: t('rec.goal.min', { n: m }) }))} value={String(timeMin)} onChange={(v) => setTimeMin(Number(v))} testID="start-goal-time" /> : null}
           </View>
         ))}
         <Text variant="caption" tone="muted" style={styles.mt}>
@@ -378,16 +402,18 @@ const styles = StyleSheet.create({
   center: { textAlign: 'center' },
   countdown: { flex: 1, backgroundColor: color.canvas, alignItems: 'center', justifyContent: 'center', gap: space.xl },
   countdownNumber: { fontSize: 200, lineHeight: 220, fontWeight: '800', fontStyle: 'italic', color: color.mint, fontVariant: ['tabular-nums'], textAlign: 'center' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.s },
+  modeIcon: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: color.surface },
   tabs: { flexDirection: 'row', marginTop: space.s },
   tab: { marginRight: space.l, paddingVertical: space.xs, minHeight: 48, justifyContent: 'center' },
+  tabInner: { flexDirection: 'row', alignItems: 'center', gap: space.xxs },
   tabLine: { height: 2, marginTop: space.xxs, backgroundColor: 'transparent', borderRadius: 1 },
-  tabLineOn: { backgroundColor: color.mint },
+  traits: { flexDirection: 'row', flexWrap: 'wrap', marginTop: space.xs },
   hero: { flex: 1, minHeight: 200, alignItems: 'center', justifyContent: 'center', marginTop: space.s, borderRadius: radius.l, overflow: 'hidden' },
   bigNumber: { fontSize: 88, lineHeight: 96, fontWeight: '800', fontStyle: 'italic', letterSpacing: -2, color: color.textPrimary, fontVariant: ['tabular-nums'], textAlign: 'center' },
   underline: { width: 160, height: 3, backgroundColor: color.textPrimary, marginTop: space.xxs, marginBottom: space.s, borderRadius: 2 },
   chipRow: { flexDirection: 'row', justifyContent: 'center', gap: space.l, marginTop: space.s },
   roundChip: { width: 84, height: 84, borderRadius: 42, backgroundColor: color.surface, borderWidth: 1, borderColor: color.borderSubtle, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  roundChipOn: { borderColor: color.borderActive },
   controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.l },
   sideButton: { width: 64, height: 64, borderRadius: 32, backgroundColor: color.surface, borderWidth: 1, borderColor: color.borderSubtle, alignItems: 'center', justifyContent: 'center' },
   startButton: { width: 168, height: 168, borderRadius: 84, backgroundColor: color.mint, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.m },
