@@ -17,7 +17,7 @@ import { useRecorder } from './useRecorder';
  * Lap／Pause ≥ 48dp；Finish 只在暫停頁並需確認。記錄中不做裝飾動畫。
  */
 export function WorkoutRecordScreen() {
-  const { t } = useT();
+  const { t, locale } = useT();
   const navigation = useNavigation();
   const s = useRecorder();
   const [busy, setBusy] = useState(false);
@@ -41,12 +41,20 @@ export function WorkoutRecordScreen() {
   }, [s.state, locked]);
 
   // PG-U-02：每公里／自訂圈語音或震動提示（預設關閉；背景／通話不搶播）
-  const { locale } = useT();
   const prefs = useWorkoutPrefs();
   useEffect(() => { workoutCues.reset(workoutRecorder.snapshot()); }, []);
   useEffect(() => { workoutCues.onSnapshot(s, { voice: prefs.voice, haptic: prefs.haptic, locale: locale === 'zh-TW' ? 'zh-TW' : 'en' }); }, [s, prefs.voice, prefs.haptic, locale]);
 
-  const primary = s.sport === 'walk' ? (s.currentSpeedMs === null ? '—' : (s.currentSpeedMs * 3.6).toFixed(1)) : formatPace(s.currentPaceSPerKm).replace(' /km', '');
+  const primary = s.state === 'paused' ? '—' : s.sport === 'walk' ? (s.currentSpeedMs === null ? '—' : (s.currentSpeedMs * 3.6).toFixed(1)) : formatPace(s.currentPaceSPerKm).replace(' /km', '');
+  // 平均：距離／運動時間（不含暫停）；不足 50 m 或 10 s 顯示 —
+  const avgPace = s.distanceMm >= 50_000 && s.movingMs >= 10_000 ? Math.round(s.movingMs / 1000 / (s.distanceMm / 1_000_000)) : null;
+  const speedOf = (sPerKm: number | null) => (sPerKm === null || sPerKm <= 0 ? '—' : (3600 / sPerKm).toFixed(1));
+  const avg = s.sport === 'walk' ? speedOf(avgPace) : formatPace(avgPace).replace(' /km', '');
+  // 最近一段：最新完成的分段或圈（手動／自動）
+  const last = [...s.splits, ...s.laps].filter((l) => !l.isPartial).sort((x, y) => y.endElapsedMs - x.endElapsedMs)[0] ?? null;
+  const recent = [...s.splits, ...s.laps].filter((l) => !l.isPartial).sort((x, y) => y.endElapsedMs - x.endElapsedMs).slice(0, 5);
+  const startedAt = new Date(Date.now() - s.elapsedMs).toLocaleTimeString(locale === 'zh-TW' ? 'zh-TW' : 'en', { hour: '2-digit', minute: '2-digit' });
+  const goalRatio = s.goal && s.goal.kind !== 'free' && s.goal.target > 0 ? Math.min(1, s.goal.kind === 'time' ? s.elapsedMs / (s.goal.target * 1000) : s.distanceMm / s.goal.target) : 0;
   const finish = () => {
     Alert.alert(t('rec.finishTitle'), t('rec.finishBody'), [
       { text: t('common.cancel'), style: 'cancel' },
@@ -87,32 +95,92 @@ export function WorkoutRecordScreen() {
           {primary}
         </Text>
         <Text variant="label" tone="muted" uppercase>
-          {s.sport === 'walk' ? t('rec.speed') : t('rec.pace')}
+          {s.state === 'paused' ? t('rec.paused') : s.sport === 'walk' ? t('rec.speed') : t('rec.pace')}
         </Text>
       </View>
-      <View style={styles.secondary}>
-        <View style={styles.metric} accessible accessibilityLabel={`${t('rec.a11y.time')} ${formatDuration(String(s.elapsedMs))}`}>
+      {/* 四格：運動時間（不含暫停）、距離、平均、最近一段；暫停中運動時間停住、顯示已暫停多久 */}
+      <View style={styles.grid}>
+        <View style={[styles.tile, s.state === 'paused' && styles.tilePaused]} accessible accessibilityLabel={`${t('rec.a11y.time')} ${formatDuration(String(s.movingMs))}`}>
           <Text variant="displayM" numeric testID="record-time">
-            {formatDuration(String(s.elapsedMs))}
+            {formatDuration(String(s.movingMs))}
           </Text>
-          <Text variant="caption" tone="muted">
-            {t('rec.time')}
+          <Text variant="caption" tone="muted" uppercase>
+            {t('rec.movingTime')}
           </Text>
+          {s.pausedMs > 0 ? (
+            <Text variant="caption" tone={s.state === 'paused' ? 'warning' : 'muted'} numeric testID="record-paused">
+              {t('rec.pausedFor', { t: formatDuration(String(s.pausedMs)) })}
+            </Text>
+          ) : null}
         </View>
-        <View style={styles.metric} accessible accessibilityLabel={`${t('rec.a11y.distance')} ${(s.distanceMm / 1_000_000).toFixed(2)} ${t('rec.a11y.km')}`}>
+        <View style={styles.tile} accessible accessibilityLabel={`${t('rec.a11y.distance')} ${(s.distanceMm / 1_000_000).toFixed(2)} ${t('rec.a11y.km')}`}>
           <Text variant="displayM" numeric testID="record-distance">
             {(s.distanceMm / 1_000_000).toFixed(2)}
           </Text>
-          <Text variant="caption" tone="muted">
+          <Text variant="caption" tone="muted" uppercase>
             {t('rec.distance')}
+          </Text>
+        </View>
+        <View style={styles.tile}>
+          <Text variant="heading1" numeric testID="record-avg">
+            {avg}
+          </Text>
+          <Text variant="caption" tone="muted" uppercase>
+            {s.sport === 'walk' ? t('rec.avgSpeed') : t('rec.avgPace')}
+          </Text>
+        </View>
+        <View style={styles.tile}>
+          <Text variant="heading1" numeric testID="record-last">
+            {last ? (s.sport === 'walk' ? speedOf(last.paceSPerKm) : formatPace(last.paceSPerKm).replace(' /km', '')) : '—'}
+          </Text>
+          <Text variant="caption" tone="muted" uppercase>
+            {last?.kind === 'split' ? t('rec.lastSplit', { n: last.index }) : last ? t('rec.lastLap', { n: last.index }) : t('rec.lastNone')}
           </Text>
         </View>
       </View>
       {s.goal && s.goal.kind !== 'free' ? (
-        <Text variant="caption" tone={s.goalReached ? 'mint' : 'muted'} style={styles.center} testID="record-goal">
-          {s.goalReached ? t('rec.goalReached') : t('rec.goalProgress', { target: s.goal.kind === 'time' ? t('rec.goal.min', { n: Math.round(s.goal.target / 60) }) : t('rec.goal.km', { n: s.goal.target / 1_000_000 }) })}
-        </Text>
+        <View style={styles.goal}>
+          <View style={styles.goalTrack} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(goalRatio * 100) }} testID="record-goal-bar">
+            <View style={[styles.goalFill, { width: `${Math.round(goalRatio * 100)}%` }, s.goalReached && styles.goalFillDone]} />
+          </View>
+          <Text variant="caption" tone={s.goalReached ? 'mint' : 'muted'} style={styles.center} testID="record-goal">
+            {s.goalReached ? t('rec.goalReached') : t('rec.goalProgress', { target: s.goal.kind === 'time' ? t('rec.goal.min', { n: Math.round(s.goal.target / 60) }) : t('rec.goal.km', { n: s.goal.target / 1_000_000 }) })}
+          </Text>
+        </View>
       ) : null}
+      {/* 最近分段／圈（最多 5 筆，新到舊）；沒有時提示自動分段規則 */}
+      <View style={styles.splits} testID="record-splits">
+        <View style={styles.splitsHead}>
+          <Text variant="label" tone="muted" uppercase>
+            {t('rec.splitsTitle')}
+          </Text>
+          <Text variant="caption" tone="muted">
+            {t(`wo.mode.${s.intent ?? (s.sport === 'run' ? 'run' : 'walk')}` as TKey)} · {t('rec.startedAt', { time: startedAt })}
+          </Text>
+        </View>
+        {recent.length === 0 ? (
+          <Text variant="caption" tone="muted">
+            {t('rec.splitsEmpty')}
+          </Text>
+        ) : (
+          recent.map((l) => (
+            <View key={`${l.kind}-${l.index}`} style={styles.splitRow}>
+              <Text variant="bodySmall" tone="secondary" style={styles.splitName}>
+                {l.kind === 'split' ? t('rec.lastSplit', { n: l.index }) : t('rec.lastLap', { n: l.index })}
+              </Text>
+              <Text variant="bodySmall" numeric style={styles.splitCell}>
+                {(l.distanceMm / 1_000_000).toFixed(2)} km
+              </Text>
+              <Text variant="bodySmall" numeric style={styles.splitCell}>
+                {formatDuration(String(l.durationMs))}
+              </Text>
+              <Text variant="bodySmall" numeric tone={l.uncertain ? 'warning' : 'primary'} style={styles.splitCell}>
+                {s.sport === 'walk' ? `${speedOf(l.paceSPerKm)} km/h` : formatPace(l.paceSPerKm)}
+              </Text>
+            </View>
+          ))
+        )}
+      </View>
       {s.trackEquivalent ? (
         <View style={styles.track} testID="record-track">
           <Text variant="title" numeric testID="record-track-laps">
@@ -165,12 +233,22 @@ export function WorkoutRecordScreen() {
 
 const styles = StyleSheet.create({
   track: { alignItems: 'center', marginTop: space.s },
+  splits: { marginTop: space.m, padding: space.s, borderRadius: radius.m, backgroundColor: color.surface, borderWidth: 1, borderColor: color.borderSubtle },
+  splitsHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.xxs },
+  splitRow: { flexDirection: 'row', alignItems: 'center', minHeight: 32 },
+  splitName: { flex: 1.2 },
+  splitCell: { flex: 1, textAlign: 'right' },
   statusRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.s },
-  hero: { alignItems: 'center', marginTop: space.xl * 2 },
+  hero: { alignItems: 'center', marginTop: space.xl },
   big: { fontSize: 88, lineHeight: 96, fontWeight: '700', color: color.textPrimary, fontVariant: ['tabular-nums'] },
-  secondary: { flexDirection: 'row', justifyContent: 'space-around', marginTop: space.xl },
-  metric: { alignItems: 'center' },
-  center: { textAlign: 'center', marginTop: space.m },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.xl },
+  tile: { width: '48%', flexGrow: 1, minHeight: 88, alignItems: 'center', justifyContent: 'center', paddingVertical: space.s, borderRadius: radius.m, backgroundColor: color.elevated },
+  tilePaused: { borderWidth: 1, borderColor: color.warning },
+  goal: { marginTop: space.m },
+  goalTrack: { height: 6, borderRadius: 3, backgroundColor: color.elevated, overflow: 'hidden' },
+  goalFill: { height: 6, backgroundColor: color.cyan },
+  goalFillDone: { backgroundColor: color.mint },
+  center: { textAlign: 'center', marginTop: space.xs },
   lockBtn: { marginLeft: 'auto', minHeight: 48, minWidth: 48, alignItems: 'center', justifyContent: 'center' },
   ctlWide: { flex: 1 },
   controls: { flexDirection: 'row', gap: space.m, marginTop: 'auto', marginBottom: space.l },

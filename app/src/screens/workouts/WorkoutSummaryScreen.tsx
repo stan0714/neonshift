@@ -3,7 +3,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, Share, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
-import type { Lap } from '@/domain/gps/engine';
+import { RouteTrace } from '@/components/RouteTrace';
+import { useWorkoutPrefs } from '@/state/workoutPrefsStore';
+import type { Lap, RawPoint } from '@/domain/gps/engine';
 import { formatDuration, formatKm, formatPace, modeLabel } from '@/domain/workouts';
 import { useT, type TKey } from '@/i18n';
 import { compareSameCategory, shareText, type ShareFields } from '@/domain/review';
@@ -28,6 +30,15 @@ export function WorkoutSummaryScreen() {
   useEffect(reload, [reload]);
 
   const s = meta?.summary;
+  // 軌跡預覽（預設開啟，可在此關閉並記住）：讀本機加密點，只在畫面上畫折線，不上傳
+  const prefs = useWorkoutPrefs();
+  const [points, setPoints] = useState<RawPoint[] | null>(null);
+  useEffect(() => {
+    if (!prefs.showRoute || meta?.environment === 'indoor') return;
+    let alive = true;
+    store.readPoints(params.sessionId).then((pts) => { if (alive) setPoints(pts); }).catch(() => { if (alive) setPoints([]); });
+    return () => { alive = false; };
+  }, [params.sessionId, prefs.showRoute, meta?.environment]);
   // PG-U-03：同類回顧（伺服器清單）與分享欄位
   const [peers, setPeers] = useState<WorkoutSummary[] | null>(null);
   const [shareFields, setShareFields] = useState<ShareFields>({ date: false, pace: false, mode: true });
@@ -37,6 +48,7 @@ export function WorkoutSummaryScreen() {
     return () => { alive = false; };
   }, [params.sessionId]);
   const peersLoaded = peers !== null;
+  const rejectedTotal = s ? Object.values(s.quality.rejected).reduce((a, b) => a + b, 0) : 0;
   const asSummary: WorkoutSummary | null = meta && s ? ({ session_id: meta.syncedSessionId ?? meta.sessionId, sport: meta.sport, intent: meta.intent ?? null, environment: meta.environment, source: { origin: 'gps', source_id: 'cc.neonshift.app/gps', external_record_id: meta.sessionId, source_revision: 1 }, started_at: new Date(meta.startedAtUtc).toISOString(), ended_at: new Date(meta.endedAtUtc ?? meta.startedAtUtc + s.elapsedMs).toISOString(), elapsed_ms: String(s.elapsedMs), paused_ms: String(s.pausedMs), status: 'saved', quality: 'complete', rules_version: s.rulesVersion, review_reasons: [], metrics: { distance: s.distanceMm > 0 ? { value_mm: String(s.distanceMm), method: 'gps' } : null, steps: null, active_energy: null, total_energy: null, avg_pace_s_per_km: s.avgPaceSPerKm, avg_speed_kmh: s.avgSpeedKmh, step_length_mm: null }, pb_eligible: false, possible_duplicate_of: null, extras: {}, revision: 1, imported_at: '', updated_at: '' } as WorkoutSummary) : null;
   const cmp = asSummary && peers ? compareSameCategory(asSummary, peers) : null;
   const sharePreview = asSummary ? shareText(asSummary, shareFields, { mode: modeLabel(t, asSummary.sport, asSummary.intent), app: 'NeonShift' }) : '';
@@ -88,6 +100,18 @@ export function WorkoutSummaryScreen() {
         <Stat label={t('sum.max5s')} value={s.maxSpeed5sKmh === null ? '—' : `${s.maxSpeed5sKmh.toFixed(1)} km/h`} />
         <Stat label={t('sum.kcal')} value="—" />
       </View>
+      {meta.environment !== 'indoor' ? (
+        <Surface style={styles.card} testID="sum-route">
+          <View style={styles.routeHead}>
+            <Text variant="title">{t('sum.route')}</Text>
+            <Switch value={prefs.showRoute} onValueChange={(v) => void prefs.set({ showRoute: v })} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('sum.routeToggle')} testID="sum-route-toggle" />
+          </View>
+          {prefs.showRoute ? <RouteTrace points={points ?? []} /> : null}
+          <Text variant="caption" tone="muted" style={styles.routeHint}>
+            {t('sum.routeHint')}
+          </Text>
+        </Surface>
+      ) : null}
       {meta.status === 'needs_review' ? <InlineState kind="warning" title={t('sum.needsReview')} testID="sum-needs-review" /> : null}
       <View style={styles.syncRow}>
         <Text variant="caption" tone={meta.syncedSessionId ? 'success' : 'muted'} testID="sum-sync">
@@ -127,11 +151,25 @@ export function WorkoutSummaryScreen() {
             ) : null}
           </>
         ) : (
-          <View style={styles.qualityWrap} testID="sum-quality">
-            <Chip label={t('sum.quality.accepted', { n: s.quality.accepted })} kind="synced" />
-            <Chip label={t('sum.quality.rejected', { n: Object.values(s.quality.rejected).reduce((a, b) => a + b, 0) })} kind="neutral" />
-            <Chip label={t('sum.quality.gaps', { n: s.quality.gaps })} kind={s.quality.gaps ? 'devnet' : 'neutral'} />
-            <Chip label={t('sum.quality.coverage', { p: Math.round(s.quality.coverageRatio * 100) })} kind="neutral" />
+          <View testID="sum-quality">
+            <View style={styles.qualityWrap}>
+              <Chip label={t('sum.quality.accepted', { n: s.quality.accepted })} kind="synced" />
+              <Chip label={t('sum.quality.rejected', { n: rejectedTotal })} kind="neutral" />
+              <Chip label={t('sum.quality.gaps', { n: s.quality.gaps })} kind={s.quality.gaps ? 'devnet' : 'neutral'} />
+              <Chip label={t('sum.quality.coverage', { p: Math.round(s.quality.coverageRatio * 100) })} kind="neutral" />
+            </View>
+            <Text variant="bodySmall" tone={s.quality.complete ? 'success' : 'warning'} style={styles.qualityVerdict} testID="sum-quality-verdict">
+              {s.quality.complete ? t('sum.quality.complete') : t('sum.quality.incomplete')}
+            </Text>
+            <Text variant="caption" tone="muted">{t('sum.quality.explainAccepted')}</Text>
+            <Text variant="caption" tone="muted">{t('sum.quality.explainRejected')}</Text>
+            {rejectedTotal > 0 ? (
+              <Text variant="caption" tone="muted" testID="sum-quality-reasons">
+                {(Object.entries(s.quality.rejected) as [keyof typeof s.quality.rejected, number][]).filter(([, n]) => n > 0).map(([k, n]) => `${t(`sum.quality.reason.${k}` as TKey)} ${n}`).join(' · ')}
+              </Text>
+            ) : null}
+            <Text variant="caption" tone="muted">{t('sum.quality.explainGaps')}</Text>
+            <Text variant="caption" tone="muted">{t('sum.quality.explainCoverage')}</Text>
           </View>
         )}
       </Surface>
@@ -203,5 +241,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   pace: { width: 72, textAlign: 'right' },
   qualityWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  qualityVerdict: { marginTop: space.s, marginBottom: space.xxs },
+  routeHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xs },
+  routeHint: { marginTop: space.xs },
   mt: { marginTop: space.m },
 });

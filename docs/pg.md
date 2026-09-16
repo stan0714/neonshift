@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.55（實機驗收：MWA 相容修正、NRC 版開始頁） |
+| 文件版本 | v0.56（實機回饋：記錄頁、軌跡、GPS 品質） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -207,7 +207,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-A-14 | Gear 頁與成就收藏領取 | Style 12 | FR-05.2 | 1.0 | WIP | 2026-09-14 完成：`GearScreen`（跑鞋 hero＋Level＋XP ring、current／next multiplier、距下一階 XP、My collection 2 欄網格 Claimed／Claimable／Locked、Claim 走 MWA 簽 `claim_collectible`、成功／拒簽／失敗 inline 狀態）；`domain/collectibles.ts`（目錄＋與鏈上 eligible() 一致的資格）、`CollectibleService`（單一 RPC 查 receipt、冪等領取）、`collectibleStore`；Jest 15 案例；Seeker 版面驗證（docs/evidence/2026-09-14-seeker-gear-*.png，程式未部署故全為 Locked）。`EXPO_PUBLIC_DEV_ROUTE=Main` 供未部署時看 tabs |
 | PG-A-15 | Arena 頁三種狀態 | Style 13 | FR-06.1, FR-06.2 | 1.5 | WIP | 2026-09-14 完成：`ArenaScreen`（13.1 UTC／當地時段、質押、人數、規則、最差損失確認框；13.2 名次／步數／回報、排行榜遮罩與本人強調、Settling 標「not final」；13.3 final rank／group／領取、沒收顯示規則版本與申訴管道；Cancelled 退款；無賽事／後端錯誤／需登入三種狀態）；`chain` join／claim_prize／refund_all 指令與 Entry 解碼；`TournamentStepsCollector`（窗口逐日讀 Health Connect → 小時桶）、`TournamentService`（MWA 簽章、冪等）、`arenaStore`；ApiClient tournament 方法；Jest 12；Seeker 版面（需登入狀態）截圖。端到端待 devnet 部署 |
 | PG-A-16 | 錯誤、離線與空狀態 | Style 14 | NFR 可用性 | 1.0 | WIP | 2026-09-14 完成：`OfflineBanner`（expo-network `useOnline`，tabs 頂部「offline · showing cached data」）；Home inline 狀態：Health access is off → Review access、Health data unavailable → Try again、Devnet is taking a break → Retry（說明資料／資金安全）；`InlineState` 新增 `action`／`referenceId`；後端錯誤一律帶 `request_id`，App `ApiError.requestId` → 打卡／刪除失敗顯示 Ref；Arena／Gear 空／錯誤／需登入狀態於 A-14／A-15。Jest 3（共 143）。需重建 dev client（expo-network 原生模組） |
-| PG-A-17 | 跑鞋視覺五階與進化動畫 | Style 16.2 | FR-04.4 | 1.0 | WIP | 2026-09-14：五階向量 `ShoeHero`（Origin／Pulse／Phase／Surge／Zenith，各階有可辨識結構，非只換色；懸浮動畫尊重 Reduce Motion）沿用；新增 `EvolutionReveal`（舊鞋淡出／新鞋放大、motion.celebration 800ms、success haptic 一次、View transaction）與 `levelRevealStore`（記住已看過的等級，重啟不重播；第一次觀察不播）；打卡確認後立即重讀 profile 觸發。Jest 2。精修靜態素材／Lottie 依 SD 12 後續 |
+| PG-A-17 | 跑鞋視覺五階與進化動畫 | Style 16.2 | FR-04.4 | 1.0 | WIP | 2026-09-16 更新：`RewardStage`／`EvolutionReveal`／`NftReveal`＋`nftRevealStore`；NFT 翻卡、光環、粒子與掃光（2.8 s），升等能量擴散、降等冷色收縮（1.8 s）；觀察 coreLevel，涵蓋裝備／PB／里程碑／活動 NFT，新領取成功才排隊揭曉，Reduce Motion 靜態呈現。17 項相關測試通過（2026-09-15）；待實機視覺、低階裝置流暢度及無障礙驗收。Style §25。 |
 | PG-A-18 | App 測試：單元、原生、E2E | SD 7 | — | 1.5 | WIP | 2026-09-14：Jest 148（TaskEngine／UTC、attestation 向量、TxBuilder、ClaimFlow 狀態機、ClaimSubmitter 冪等、WalletService、ApiClient 續期、Health 服務、Bootstrap、onboarding、Home／Gear／Arena／Profile／Activity 畫面、離線／錯誤狀態、reveal）。待補：Android instrumented（四種 dataOrigin、權限撤銷）、Maestro E2E（需 devnet 部署） |
 | PG-A-19 | Health Connect 背景同步（WorkManager）與前景補同步 | SD 5.1 | FR-02.3 | 1.0 | WIP | Kotlin HealthReader 共用＋HealthSyncWorker（WorkManager 15 分鐘、電量限制、背景權限缺失靜默結束）＋HealthCache；JS enable／disable／cache／readCached；啟動有背景權限即排程；Dashboard 先讀快取再前景同步、離線標示；4 測試；實機背景觸發待驗證 |
 | PG-A-20 | Activity history 畫面與歷史 API 串接 | Style 2, 19.1 | FR-03.5 | 0.5 | WIP | 2026-09-14 完成：`/player/history` 併入 finalized ClockedIn 事件的 amount／xp／簽章與 `total_earned`；`ActivityHistoryScreen`（30 天累計收益、筆數、Onchain 比、逐筆 Onchain／Not redeemed 與 explorer 連結；空／錯誤／需登入狀態）；Home「Activity ›」次要入口；Jest 3、vitest 更新；Seeker 截圖 |
@@ -224,9 +224,9 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-D-01 | keystore、簽章設定、Release APK 流程 | Runbook 8 | — | 0.5 | WIP | 2026-09-14：build.gradle 自動讀 `keystore.properties`（gitignore）切換 release 簽章；`scripts/app/build.sh <env> release` 無 keystore 即拒絕、apksigner 驗證非 debug 簽章、輸出 release-notes.txt；Runbook 8.2 更新。待：專案負責人離線產生正式 keystore（8.1）並跑一次 demo release |
 | PG-D-02 | dApp Store 素材、描述、隱私政策 | BRD 14 | NFR 隱私 | 1.5 | WIP | 2026-09-14：`web/privacy/index.html`（與實作一致：裝置端原始資料、30 天保留、刪除流程、鏈上公開資料、權限）；`docs/store/listing.md`（短／長描述、截圖清單、圖示、送審檢查表）。待：部署 neonshift.cc、正式截圖、Publisher Portal 流程 |
 | PG-D-03 | Demo 影片（3 分鐘內） | BRD 14 | — | 1.5 | WIP | 2026-09-14：`docs/store/demo-video.md` 分鏡與旁白（8 段、≤ 3 分鐘）。待 devnet 部署後錄製 |
-| PG-D-04 | Pitch 簡報 | BRD 14 | — | 1.0 | WIP | 2026-09-14：`docs/store/pitch.md` 十頁大綱（問題／方案／產品／SM 整合／技術／防作弊／代幣經濟／測試／路線圖／Ask）。待製作投影片 |
+| PG-D-04 | Pitch 簡報 | BRD 14 | — | 1.0 | WIP | 2026-09-16：更新 `output/fundraising/NeonShift_募資簡報_中文草稿_v1.pptx`（23 頁）、產生程式、HTML 預覽、講稿與來源；加入新手指南／三種動畫、STEPN 教訓、庫存壓力與經濟保護規劃。商業實績、團隊與募資條件仍待補齊；見 `docs/store/pitch.md`。 |
 | PG-D-05 | README 與架構圖 | BRD 14 | — | 0.5 | WIP | 2026-09-14：README 重寫（mermaid 架構圖、信任邊界、repo 結構、快速開始、防作弊摘要） |
-| PG-D-06 | 代幣經濟模擬試算表 | BRD 8.5 | BR-02, BR-16 | 1.0 | WIP | 2026-09-14：`tools/tokenomics/simulate.mjs` → `docs/economics/sim.csv`＋`README.md`；**結論：升級免費後消耗／產出比 ≈ 0，未達 BRD 8.5 ≥ 0.6，列為待決（四個方案）** |
+| PG-D-06 | 代幣經濟模擬試算表 | BRD 8.5 | BR-02, BR-16 | 1.0 | WIP | 2026-09-16：`economics/stepn-risk-review.md`＋`tools/tokenomics/stress.mjs`／`stress.csv`，九組庫存試算與預算／守恆斷言通過；更正降低退款不等於消耗、固定供給不等於永續。未改合約與獎勵配置；經濟保護實作另見 PG-EC，DEC-03 仍 OPEN。 |
 
 ### 7.1 範圍變更規則
 
@@ -258,7 +258,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 |---|---|---|---|---|---|
 | DEC-01 | 全部 | 團隊人數、角色與至少 5 FTE 的容量安排（BRD Q-01） | 專案負責人 | 2026-09-10 | OPEN |
 | DEC-02 | PG-I-08、PG-D-02 | SKR integration track 是否接受 tSKR（BRD Q-08） | 專案負責人 | 2026-09-10 | OPEN |
-| DEC-03 | PG-D-06、SD 6.2 | 升級免費後 tSKR 消耗／產出比 ≈ 0（BRD 8.5 目標 ≥ 0.6）：獎金池抽成、退款比例、外觀消耗或改以 runway 為指標（docs/economics/README.md） | 專案負責人 | 2026-09-21 | OPEN |
+| DEC-03 | PG-D-06、SD 6.2 | 改以遊戲／獎勵解耦、全站已撥款預算、現金與代幣庫存分帳評估（economics/stepn-risk-review.md）；比例／結算週期／切換方案待決。降低輸家退款不是總消耗來源 | 專案負責人 | 2026-09-21 | OPEN |
 | DEC-04 | PG-V-01、PG-V-02 | 睡眠不可用者最高只能 Lv4（步數 700 < Lv5 900）：(a) 接受並明示、(b) 全體一致替代挑戰（跑步 session +50）、(c) Lv5 改 700／7 日（docs/economics/maintenance-sim.md） | 專案負責人 | 2026-09-22 | OPEN |
 
 DEC-02 若判定必須整合主網官方 SKR，PG-I-08 的 tSKR 路線、SA 5.4 與鏈上金庫設計都必須重估；不得在現有四週估算內直接替換。
@@ -567,6 +567,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.56 | 2026-09-16 | 實機回饋：記錄頁運動時間（不含暫停）＋四格＋分段列表；摘要軌跡預覽（本機折線、預設開啟）；GPS 品質說明；3–2–1 倒數（Style 23.3／24.5） |
 | v0.55 | 2026-09-15 | Seeker 實機：MWA／Phantom 相容修正（minContextSlot、token 撤銷重授權）；開始頁改為 NRC 版面、Home 入口區改版（Style 24.5）；起始鞋 claim 實機通過 |
 | v0.54 | 2026-09-15 | devnet 程式升級至含 claim_achievement／維持週期／凍結版本（slot 498753143，649 KB，extend +120,000 bytes；鏈上位元組與本機建置 sha256 一致；舊版 PlayerProfile 0 個、registry pending 0 筆；on-chain IDL 上傳仍失敗，以 repo IDL 為準） |
 | v0.53 | 2026-09-15 | PG-U-05 後端撤銷／多裝置測試（WIP，實機待驗收） |
@@ -746,3 +747,18 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-U-05 | 刪除／更正撤銷、多裝置重試及實機體驗驗收 | sport-experience-gameplay 7 | FR-19.5、BR-58 | 3.0 | WIP | 2026-09-15（後端部分）：刪除／更正撤銷與同 receipt 恢復、同來源重送與第二裝置同 external_record_id 不重複、revision 更正沿用貢獻（vitest quests 7）；離線保存與重試沿用 R-03；歷史收藏與鞋階權限分開（外觀非 NFT）。待：實機體驗驗收（開始到保存成功率、誤觸率、任務參與率） |
 
 新增 5 項，初估 17.0 人天（未含緩衝），需負責人確認；尚無交付日期，不加入原四週承諾。U-01 依賴 R-01／R-03／R-06，U-02／03 接 U-01；U-04 在 R-10 品質規則定案後才可開放獎勵，U-05 驗收全流程後發布。三模式與目標可先交付，探索獎勵由獨立功能開關控制。小隊／跑走交替／走路 NFT 不在本次估算內，另行拆項。
+
+## 20. 新手導覽、揭曉動畫與經濟保護增量（2026-09-16）
+
+本節同步 2026-09-15 的程式與分析成果。WIP 表示尚未通過完整實機驗收；TODO 為規劃，未部署。既有獎勵規則未因分析而變更。追溯：Style §25、SD §18、BRD「2026-09-16 增量」、[經濟風險評估](./economics/stepn-risk-review.md)。
+
+| 編號 | 名稱 | 優先序 | 狀態 | 已完成／驗收與依賴 |
+|---|---|---|---|---|
+| PG-UX-01 | 首次遊戲說明與重看入口 | P1 | WIP | GameGuideScreen：歡迎頁開始冒險 → 指南 → 錢包設定，可直接略過；Profile 重看返回原頁。四大玩法＋首次四步、繁中／英文。型別檢查及指南／i18n／onboarding／profile／launch／smoke 共 23 測試通過（2026-09-15）；待小螢幕、大字、TalkBack 與首次理解度實測 |
+| PG-EC-01 | STEPN 對照、庫存與預算模型 | P0 | WIP | 分析與九組試算完成；現金／留存／作弊與流動性情境待取得資料。現有 30 天模擬不代表長期保證 |
+| PG-EC-02 | 打卡成長與經濟獎勵拆分 | P0 | TODO | 金庫為零仍可記 XP／維持點／streak；獨立領獎 receipt；需合約、attestation、App、防重放及舊紀錄切換共同設計 |
+| PG-EC-03 | 全站期間預算與公平分配 | P0 | TODO | 期前撥款、版本快照、期末合格分數、個人封頂、餘數留庫、逾期／撤銷規則；10 倍帳號及併發下總發放不超預算；依賴 EC-02 與 DEC-03 |
+| PG-EC-04 | 對帳、準備金與告警 | P0 | TODO | 區分可用庫存／承諾未領／回流／再發／永久燒毀／現金支出；不得將自家幣市值當獎品足額準備；依賴 EC-03 |
+| PG-EC-05 | 反作弊、收入及無獎金留存驗證 | P1 | TODO | Sybil 與誤判申訴、D7／D30 對照、收入歸零與獎品集中兌換壓力、贊助實收後承諾獎品；不可撤回既有承諾 |
+
+未提供新增人天、負責人及交付日期；不併入原四週工期。動畫沿用 PG-A-17，不重算一份交付。主網與可交易收益方案須在經濟保護與真實需求驗收後另行評估。

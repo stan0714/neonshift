@@ -53,7 +53,7 @@ def slide(title,kicker='投資人簡報草稿',sub=None,source=None):
  text(s,'NEONSHIFT  /  '+kicker,.72,.32,11,.35,11,MINT,True)
  text(s,title,.72,.93,11.9,.78,30,WHITE,True)
  if sub: text(s,sub,.74,1.83,11.7,.7,16,MUTED)
- text(s,'募資討論稿・2026.09.14｜商業方案／數值假設待確認',.74,7.07,10,.22,9,MUTED)
+ text(s,'募資討論稿・2026.09.16｜商業方案／數值假設待確認',.74,7.07,10,.22,9,MUTED)
  text(s,'%02d'%len(prs.slides),12.02,7.03,.5,.3,12,MINT)
  if source:
   title_,url=SOURCES[source]; text(s,source+'｜'+title_,.74,6.7,11.7,.25,9,MUTED,url=url)
@@ -122,8 +122,30 @@ s=slide('差異來自跨場次經營，而非單一 NFC 功能',kicker='定位�
 cards(s,[('既有替代方案','運動紀錄 App：日常數據\n活動工具：單場交付\n品牌行銷：短期觸及'),('NeonShift 提案','日常任務＋合作活動＋成績冊\n把報到、領取與回訪串連\n提供可衡量合作成果'),('待建立的優勢','穩定交付與主辦方續約\n經同意的跨場參與歷程\n合作密度與品牌辨識')])
 finish(s,'定位','本頁為自家定位分析，不是逐一競品功能研究。NFC、積分與徽章容易被複製，不單獨視為護城河。應把合作續約、交付效率、跨活動回訪視為驗證指標，且不能以鎖住用戶資料建立優勢。')
 
+
+s=slide('讓新玩家看懂玩法，讓努力值得紀念',kicker='產品體驗｜已實作，待實機驗收',sub='新手指南 → 每日任務 → 裝備成長 → 成就收藏；從理解玩法到感受榮耀。')
+cards(s,[('第一次就知道怎麼玩','四張玩法卡＋首次四步\n可略過、個人頁可重看\n繁中／英文同步'),('取得 NFT 的榮耀感','卡背翻轉、金色光環\n粒子與卡面掃光\n新領取成功才揭曉'),('升降等都有回饋','升等：能量擴散與進場\n降等：冷色收縮與下沉\n支援減少動態效果')])
+finish(s,'新手與成就體驗','2026-09-15 自動驗證：動畫相關 17 項、新手與既有流程 23 項測試通過，型別檢查通過；是分次驗證，不當作完整端到端驗收。NftReveal 尚為鞋／徽章展示，非所有 metadata 圖片。低階裝置效能、讀屏與理解度待實機。來源：PG-A-17、PG-UX-01、Style §25。')
+
+s=slide('STEPN 的教訓：獎勵需求不能只靠再投資',kicker='經濟設計｜機制分析，不是價格預測',sub='2022 年官方描述：GST 可增發；升級與鑄鞋消耗代幣；新玩家與擴充裝備帶來購買需求。')
+cards(s,[('需求的脆弱點','若消耗是為了未來賺更多\n收益预期轉弱時\n再投資需求也可能減少'),('已有的不同','免費初始鞋與免費升級\nNFT 作為成就收藏\n探索冊外觀無收益加成'),('仍未解決','固定供給仍可能領完\n單人限額不是全站預算\n競技場不是外部收入')])
+text(s,'來源：STEPN 官方 2022-05-10；市場衝擊另見講稿。上述因果為本案分析。',.76,6.63,11.7,.3,11,MUTED)
+finish(s,'STEPN 對照','歷史機制：https://stepnofficial.medium.com/tokeonomics-at-stepn-ee08604e82f1 。負向循環為本案機制推論，非量化因果歸因。當年另有大盤下跌與中國 GPS 限制衝擊：https://www.coindesk.com/markets/2022/05/29/first-mover-asia-bitcoin-extends-losing-streak-new-lunas-crash-like-old-lunas-stepns-china-dilemma 。不將價格下跌等同 STEPN 停止營運。完整對照 docs/economics/stepn-risk-review.md。')
+
+s=slide('成長越快，越需要全站獎勵預算',kicker='壓力試算｜不是實際鏈上餘額',sub='假設初始金庫 200,000 tSKR；滿階每錢包每天雙任務領 33；無補庫、無回流。')
+for i,(num,label) in enumerate([('60.61 天','100 個合格錢包'),('6.06 天','1,000 個合格錢包'),('0.61 天','10,000 個合格錢包')]):
+ x=.74+i*4.03; rect(s,x,2.85,3.8,2.5);text(s,num,x+.2,3.28,3.4,.8,34,AMBER,True);text(s,label,x+.2,4.42,3.4,.5,18)
+text(s,'公式：200,000 ÷（合格錢包數 × 33）。錢包不等於真人。',.8,5.63,11.6,.4,17)
+text(s,'固定等級庫存試算；不含成長過程、行為、價格或流動性預測。',.8,6.15,11.6,.4,14,MUTED)
+finish(s,'金庫壓力試算','來源：tools/tokenomics/stress.mjs 與 docs/economics/stress.csv；常數來自 Rust，未讀當前 RPC。9 組包含 100／1000／10000 錢包與 Lv1／Lv5／40 日上限。此頁選滿階不含 streak 情境。庫存／日需求為理論比值，按筆領取可能先遇不足，不是保證服務天數。固定供給限制增發，但不保證流通價格或現金價值。')
+
+s=slide('把遊戲成長、獎勵預算與真實收入分開',kicker='經濟保護｜待實作與驗證',sub='驗收目標：沒有新玩家買幣、沒有幣價上漲，遊戲仍能提供核心體驗。')
+cards(s,[('成長不中斷','打卡與代幣轉帳拆分\n金庫為零仍累積進度\n不產生未撥款欠款'),('發放有上限','全站期間預算先撥款\n版本、個人封頂與對帳\n反作弊及撤銷窗口'),('獎品有來源','依實收服務／贊助收入\n或明列的有限補貼\n先保留已承諾履約成本')])
+text(s,'驗證：無獎金留存、10 倍申領、收入歸零。不能承諾幣價不跌。',.76,6.63,11.7,.3,12,AMBER)
+finish(s,'經濟保護路線','PG-EC-02～05 為 TODO，未改現行合約。現況 clock_in 的代幣轉帳失敗會讓 XP 更新一起回滾；不能單靠把獎勵設為零修復。全站日預算 1000、保留 20000／180 天只是報告範例，非定案；真實獎品需實收且已撥款的成本準備。收入不含參賽本金或自家幣升值；保留既有承諾，僅調整未來活動。募資下一阶段需完成這些技術與需求驗收。')
+
 s=slide('目前是原型階段，募資用來取得市場證據',kicker='現況與驗證計畫',sub='依現有專案文件與資產整理；尚未提供可核驗的用戶、營收或合作實績。')
-cards(s,[('已具備','需求與產品設計文件\n專屬 Logo／啟動畫面視覺\n部分程式模組與原型工作'),('下一步驗證','真實任務與活動端到端流程\n主辦方願付價格\n現場交付成本與錯誤率'),('尚待補齊','正式團隊履歷與分工\n已簽合作／意向書\n用戶留存與實收營收')])
+cards(s,[('已具備','需求與產品設計文件\n專屬 Logo／啟動畫面視覺\n新手指南與三種揭曉動畫'),('下一步驗證','真實任務與活動端到端流程\n主辦方願付價格\n現場交付成本與錯誤率'),('尚待補齊','正式團隊履歷與分工\n已簽合作／意向書\n用戶留存與實收營收')])
 finish(s,'現況','不把 PG TODO 或設計圖當成功能上線，不把 BRD 的 500 用戶、30% 留存當成實績。程式存在只能說明原型工作進行中，未在此做完整系統驗收。tSKR 為 devnet 測試代幣，無金錢價值、非官方 SKR。')
 
 s=slide('12 個月，依驗證結果逐階段投入',kicker='募資後里程碑提案',sub='這是商業驗證排程，不取代原黑客松開發時程；各階段目標均未達成。')
@@ -155,6 +177,13 @@ for i,(key,(label,url)) in enumerate(SOURCES.items()):
  text(s,desc,.8,y+.62,11.5,.55,15,MUTED)
 finish(s,'資料來源','\n'.join(k+' '+v[0]+'\n'+v[1] for k,v in SOURCES.items())+'\n所有外部数据查核日期 2026-09-14；本案價格、家數、收入與募資數字皆為自建情境。')
 
+
+s=slide('附錄｜經濟評估的來源與重現方式',kicker='新增來源｜分析完成 2026.09.15，文件同步 2026.09.16')
+items=[('E1｜STEPN 官方，2022-05-10','當時的 GST 供給、消耗與買賣動機。','https://stepnofficial.medium.com/tokeonomics-at-stepn-ee08604e82f1'),('E2｜CoinDesk，2022-05-29','大盤與中國服務限制的背景；不作單一因果歸因。','https://www.coindesk.com/markets/2022/05/29/first-mover-asia-bitcoin-extends-losing-streak-new-lunas-crash-like-old-lunas-stepns-china-dilemma'),('E3｜NeonShift 專案試算','node tools/tokenomics/stress.mjs；九組庫存情境。',None)]
+for i,(label,desc,url) in enumerate(items):
+ y=2.35+i*1.25;text(s,label,.8,y,11.5,.45,21,MINT,True,url=url);text(s,desc,.8,y+.53,11.5,.5,17,MUTED)
+finish(s,'經濟資料來源','E1／E2 網頁於前次分析讀取，2026-09-16 沿用歷史資料；本次未重新查市場即時數據。E3: docs/economics/stepn-risk-review.md、stress.csv、programs/neonshift-core/src/constants.rs、instructions/clock_in.rs、tournament_math.rs。已驗證预算與守恆斷言；未建模價格／流動性／留存。市場來源 S1～S3 沿用 2026-09-14 查核。')
+
 s=slide('附錄｜正式對外前，補齊五項證據',kicker='募資準備清單')
 items=['01  團隊姓名、專長、全職投入與股權結構','02  主辦方访談、試辦意向與可聯絡推薦人','03  示範流程、實機驗收與使用者留存資料','04  定價測試、單場成本與獲客成本','05  募資金額、現金預算、估值及使用條件']
 for i,t in enumerate(items): text(s,t,.85,2.45+i*.69,11.6,.5,21,MINT if i==0 else WHITE)
@@ -171,6 +200,6 @@ prs.core_properties.author='NeonShift'
 target=OUT/'NeonShift_募資簡報_中文草稿_v1.pptx'; prs.save(str(target))
 css='body{margin:0;background:#151925;font-family:"Microsoft JhengHei","PingFang TC",sans-serif}section{width:13.333in;height:7.5in;position:relative;background:#050711;margin:24px auto;overflow:hidden;box-shadow:0 4px 30px #000}section>*{position:absolute;box-sizing:border-box}.text{line-height:1.35;white-space:normal;overflow:hidden}.box{border-radius:12px}img{object-fit:fill}@media print{body{background:white}section{margin:0;page-break-after:always;box-shadow:none}@page{size:13.333in 7.5in;margin:0}}'
 (OUT/'preview.html').write_text('<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><title>NeonShift 中文募資草稿</title><style>'+css+'</style>'+''.join(html_slides)+'</html>',encoding='utf-8')
-(OUT/'講稿與資料來源.md').write_text('# NeonShift 中文募資簡報講稿\n\n2026-09-14。18 頁，16 頁主文＋2 頁附錄。可編輯文字／圖形；視覺稿為 PNG。\n\n'+ '\n\n'.join('## %02d｜%s\n\n%s'%(r['slide'],r['title'],r['notes']) for r in outline),encoding='utf-8')
-(OUT/'sources.json').write_text(json.dumps(SOURCES,ensure_ascii=False,indent=2),encoding='utf-8')
+(OUT/'講稿與資料來源.md').write_text('# NeonShift 中文募資簡報講稿\n\n2026-09-16。23 頁，20 頁主文＋3 頁附錄。可編輯文字／圖形；視覺稿為 PNG。\n\n'+ '\n\n'.join('## %02d｜%s\n\n%s'%(r['slide'],r['title'],r['notes']) for r in outline),encoding='utf-8')
+(OUT/'sources.json').write_text(json.dumps(dict(SOURCES, E1=('STEPN 官方，2022-05-10', 'https://stepnofficial.medium.com/tokeonomics-at-stepn-ee08604e82f1'), E2=('CoinDesk，2022-05-29', 'https://www.coindesk.com/markets/2022/05/29/first-mover-asia-bitcoin-extends-losing-streak-new-lunas-crash-like-old-lunas-stepns-china-dilemma'), E3=('NeonShift 九組庫存試算', 'docs/economics/stress.csv')),ensure_ascii=False,indent=2),encoding='utf-8')
 print('Saved %s slides: %s'%(len(prs.slides),target))

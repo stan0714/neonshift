@@ -18,7 +18,12 @@ export type RecorderSnapshot = {
   state: RecorderState;
   sessionId: string | null;
   sport: 'run' | 'walk';
+  /** 總時間（含暫停）；時間目標以此判定 */
   elapsedMs: number;
+  /** 運動時間（不含暫停；暫停中不再增加）——記錄頁主時間 */
+  movingMs: number;
+  /** 累計暫停時間（暫停中持續增加） */
+  pausedMs: number;
   distanceMm: number;
   currentSpeedMs: number | null;
   currentPaceSPerKm: number | null;
@@ -87,11 +92,15 @@ export class WorkoutRecorder {
     const e = this.engine;
     const t = this.now();
     const gps: RecorderSnapshot['gps'] = this.state !== 'recording' ? 'off' : !this.lastPointAt || t - this.lastPointAt > 10_000 ? 'searching' : this.lastAccuracy !== null && this.lastAccuracy > 20 ? 'poor' : 'ok';
+    const movingMs = e && this.meta ? e.elapsedAt(t) : 0;
+    const pausedMs = e && this.meta && e.status !== 'finished' ? this.pausedTotal() : 0;
     return {
       state: this.state,
       sessionId: this.meta?.sessionId ?? null,
       sport: this.meta?.sport ?? 'run',
-      elapsedMs: e && this.meta ? e.elapsedAt(t) + (e.status === 'finished' ? 0 : this.pausedTotal()) : 0,
+      elapsedMs: movingMs + pausedMs,
+      movingMs,
+      pausedMs,
       distanceMm: e?.distanceMm ?? 0,
       // PG-U-02：定位失效（> 10 s 無點）不持續展示舊速度
       currentSpeedMs: gps === 'searching' ? null : (e?.currentSpeedMs() ?? null),
@@ -104,7 +113,7 @@ export class WorkoutRecorder {
       interrupted: this.meta?.interrupted ?? false,
       intent: this.meta?.intent ?? null,
       goal: this.meta?.goal ?? null,
-      goalReached: goalReached(this.meta?.goal ?? null, e && this.meta ? e.elapsedAt(t) + (e.status === 'finished' ? 0 : this.pausedTotal()) : 0, e?.distanceMm ?? 0),
+      goalReached: goalReached(this.meta?.goal ?? null, movingMs + pausedMs, e?.distanceMm ?? 0),
     };
   }
   private pausedTotal() {

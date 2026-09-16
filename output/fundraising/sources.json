@@ -10,5 +10,17 @@
   "S3": [
     "Solana Mobile｜SKR is Live，2026-07-14",
     "https://solanamobile.com/blog/skr-is-live"
+  ],
+  "E1": [
+    "STEPN 官方，2022-05-10",
+    "https://stepnofficial.medium.com/tokeonomics-at-stepn-ee08604e82f1"
+  ],
+  "E2": [
+    "CoinDesk，2022-05-29",
+    "https://www.coindesk.com/markets/2022/05/29/first-mover-asia-bitcoin-extends-losing-streak-new-lunas-crash-like-old-lunas-stepns-china-dilemma"
+  ],
+  "E3": [
+    "NeonShift 九組庫存試算",
+    "docs/economics/stress.csv"
   ]
 }

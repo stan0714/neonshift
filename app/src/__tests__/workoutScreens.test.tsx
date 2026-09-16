@@ -141,8 +141,18 @@ test('記錄頁：健走顯示速度、時間／距離；目標進度 → 達標
   await waitFor(() => expect(screen.getByText('Lap 1')).toBeTruthy());
   await fireEvent.press(screen.getByTestId('record-pause'));
   await waitFor(() => expect(screen.getByTestId('record-resume')).toBeTruthy());
-  expect(screen.getByText('Paused')).toBeTruthy();
+  expect(screen.getAllByText('Paused').length).toBeGreaterThan(0);
+  // 暫停：運動時間停住（不含暫停）、顯示已暫停時間、主數字 —；健走平均時速依運動時間（0.36 km／600 s ≈ 2.1 km/h）；最近一段＝手動圈 1
+  const movingAtPause = screen.getByTestId('record-time').props.children;
   clock += 5_000;
+  await act(async () => {});
+  await waitFor(() => expect(screen.getByTestId('record-paused').props.children).toBe('paused 0:05'));
+  expect(screen.getByTestId('record-time').props.children).toBe(movingAtPause);
+  expect(screen.getByTestId('record-primary').props.children).toBe('—');
+  expect(screen.getByTestId('record-avg').props.children).toBe('2.1');
+  expect(screen.getByText('avg km/h')).toBeTruthy();
+  expect(screen.getAllByText('lap 1').length).toBe(2); // 最近一段格 ＋ 分段列表
+  expect(screen.getByTestId('record-goal-bar').props.accessibilityValue.now).toBe(100);
   await fireEvent.press(screen.getByTestId('record-finish'));
   await waitFor(() => expect(mockNav.dispatch).toHaveBeenCalled());
   const summaryId = recorder.snapshot().state === 'idle' ? (sync.mock.calls[0]![0] as { external_record_id: string }[])[0]!.external_record_id : '';
@@ -175,6 +185,16 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   expect(screen.getByText('Estimated from GPS distance, not physical line crossings')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('sum-tab-quality'));
   expect(screen.getByText('120 points accepted')).toBeTruthy();
+  // GPS 品質說明：完整量測判定＋各項含意；軌跡卡預設開啟、可關閉並記住
+  expect(screen.getByTestId('sum-quality-verdict').props.children).toMatch(/^Not fully measured/); // 時鐘跳 480 s 造成缺口
+  expect(screen.getByText(/^Accepted: GPS fixes within 20 m/)).toBeTruthy();
+  expect(screen.getByTestId('sum-route')).toBeTruthy();
+  await waitFor(() => expect(screen.getByTestId('route-trace')).toBeTruthy());
+  expect(useWorkoutPrefs.getState().showRoute).toBe(true);
+  await fireEvent(screen.getByTestId('sum-route-toggle'), 'valueChange', false);
+  expect(screen.queryByTestId('route-trace')).toBeNull();
+  expect(useWorkoutPrefs.getState().showRoute).toBe(false);
+  await fireEvent(screen.getByTestId('sum-route-toggle'), 'valueChange', true);
   await fireEvent.press(screen.getByTestId('sum-done'));
   expect(mockNav.navigate).toHaveBeenCalledWith('Workouts');
 });

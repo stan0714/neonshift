@@ -7,14 +7,15 @@ import type { WorkoutGoal, WorkoutIntent } from '@/services/api/ApiClient';
 export type WorkoutMode = 'walk' | 'brisk' | 'run';
 export const modeToSport = (m: WorkoutMode): { sport: 'run' | 'walk'; intent: WorkoutIntent } => (m === 'run' ? { sport: 'run', intent: 'run' } : { sport: 'walk', intent: m === 'brisk' ? 'brisk' : 'casual' });
 export const modeOfIntent = (sport: 'run' | 'walk', intent: WorkoutIntent | null | undefined): WorkoutMode | null => (sport === 'run' ? 'run' : intent === 'brisk' ? 'brisk' : intent === 'casual' ? 'walk' : null);
-export type WorkoutPrefs = { mode: WorkoutMode; goal: WorkoutGoal; voice: boolean; haptic: boolean };
+/** showRoute：摘要頁顯示本機軌跡折線（預設開啟；只在畫面上畫，不上傳） */
+export type WorkoutPrefs = { mode: WorkoutMode; goal: WorkoutGoal; voice: boolean; haptic: boolean; showRoute: boolean };
 export const GOAL_VERSION = 1;
 export const FREE_GOAL: WorkoutGoal = { kind: 'free', target: 0, unit: 's', version: GOAL_VERSION };
 const KEY = 'neonshift.workout.prefs.v1';
-const initial: WorkoutPrefs = { mode: 'run', goal: FREE_GOAL, voice: false, haptic: false };
+const initial: WorkoutPrefs = { mode: 'run', goal: FREE_GOAL, voice: false, haptic: false, showRoute: true };
 
 type State = WorkoutPrefs & { loaded: boolean; load: () => Promise<WorkoutPrefs>; set: (patch: Partial<WorkoutPrefs>) => Promise<void> };
-const pick = (s: State): WorkoutPrefs => ({ mode: s.mode, goal: s.goal, voice: s.voice, haptic: s.haptic });
+const pick = (s: State): WorkoutPrefs => ({ mode: s.mode, goal: s.goal, voice: s.voice, haptic: s.haptic, showRoute: s.showRoute });
 
 export const useWorkoutPrefs = create<State>((set, get) => ({
   ...initial,

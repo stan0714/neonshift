@@ -835,6 +835,12 @@ Lap／Pause 至少 48dp；Finish 置於暫停頁並確認。摘要分 Splits／L
 - **摘要頁** `WorkoutSummary`（無返回）：displayL 距離、四格 elevated 統計（Elapsed、Avg pace／speed、Top speed (5 s avg)、Active kcal — 無裝置值為 —）；needs_review 以 warning InlineState 說明不具 PB 資格；同步狀態列（已同步 success／未同步＋「Sync now」）；Tabs Splits／Laps／Quality：列＝序號、距離、時間、配速＋ Chip（Partial＝neutral、Across a gap＝devnet、Fastest＝synced）；跑道等效以 caption 標「依距離估算」；Quality 為 Chips（接受／拒絕／缺口／涵蓋率）。路線不顯示（地圖供應商未定）。
 - **恢復**：Workouts 清單頂部 warning InlineState「Unfinished workout」＋ Save（secondary）／Discard（danger）。
 
+### 23.3 記錄頁四格、軌跡預覽與 GPS 品質說明（2026-09-16，實機回饋）
+
+- **記錄頁**：主數字（配速／速度；暫停中顯示 —、標籤改「已暫停」）之下改為 2×2 `elevated` 格：**運動時間**（不含暫停，暫停中停住；有暫停紀錄時下方 caption「已暫停 m:ss」，暫停中為 warning 色並加 warning 邊框）、**公里**、**平均配速／平均時速**（距離÷運動時間，< 50 m 或 < 10 s 顯示 —）、**最近一段**（最新完成的分段或圈）。其後：目標進度條（cyan，達標轉 mint）＋一行說明；「分段與圈」卡（標題列右側「模式 · hh:mm 開始」，最近 5 筆：名稱／距離／時間／配速，uncertain 以 warning 色），無資料時說明自動分段規則。總時間（含暫停）不再作為主時間；時間目標仍以含暫停的總時間判定。
+- **摘要頁「軌跡」卡**（統計格之下、室內記錄不顯示）：標題＋「顯示軌跡」Switch（`workoutPrefs.showRoute`，預設開啟、記住選擇）；`RouteTrace`＝深色畫布上的 mint 折線（本機加密點解密後只在畫面投影；精度 > 20 m 的點不畫、> 5 s 缺口斷線）、mint 起點／magenta 終點、淡格線、左下角比例尺（10 m～5 km 擇一）；無可用點顯示說明文字。caption 固定註明「不會上傳、同步或放進分享內容」。**不含底圖**：地圖供應商未定（Google Maps 需金鑰與隱私評估），待決後再疊底圖。
+- **「GPS 品質」tab**（原「品質」）：四個 Chip 之下加判定句（完整量測＝無缺口且涵蓋率 ≥ 90%，success 色；否則 warning 並說明不能刷新個人最佳）與四行 caption 定義（接受＝精度 ≤ 20 m 且速度合理；拒絕＝精度差／速度跳點／重複／亂序／暫停中，並列出各原因數量；缺口＝> 5 s 無可用定位、不補距離；涵蓋率＝運動時間中有可用定位的比例）。
+
 ### 23.1 運動紀錄清單（PG-R-01 實作，2026-09-14）
 
 Home 「Workouts ›」進入 `WorkoutsScreen`：每筆一張 Surface — 標題「Run／Walk（· Indoor）」＋品質 Chip（Measured＝synced／Estimated、Partial＝neutral／Needs review＝devnet 警示色／Invalid＝offline），日期，四格指標（km、time、pace、kcal）以 `elevated` 底色成列；kcal 只有 Total 時顯示「350 kcal (total)」，缺值一律「—」。來源列「Source: Health Connect · <package>」＋步數；待審核原因與「可能重複」以 warning 文字列在指標下方，不合併、不相加。PB eligible 以 level Chip 標示（由後端判定，UI 不自行授予）。刪除為 caption danger 連結，需 Alert 確認並說明只移除 NeonShift 摘要。頂部「Import from Health Connect」secondary Button；原生模組未提供時以 info InlineState 說明，不假裝已匯入。
@@ -878,3 +884,19 @@ Home 「Workouts ›」進入 `WorkoutsScreen`：每筆一張 Surface — 標題
   - **3–2–1 倒數**（2026-09-16）：按 START 先確認定位權限，再以全螢幕 canvas 顯示 200px 斜體 mint 數字 3→2→1（每秒一格；縮放進場，減少動態時不縮放）；每格依偏好震動（Medium impact）與語音報數；點一下任何地方立即開始；返回鍵取消回開始頁、不會開始記錄。倒數結束才呼叫 recorder.start。
   - 開始行為、目標快照、跑道模式門檻、權限引導與室內規則與 23.2／24.1 相同。
 - **Home 入口區**：原「今日」列的四個文字連結（會截斷）改為 (1) 全寬 mint 主按鈕「開始運動」（play 圖示、副標「最近：{模式}」、右側箭頭、medium glow）＋ (2) 四格等寬快捷（圖示＋文字，64dp，surface 底描邊）：運動紀錄／探索冊／藝廊／活動；「今日」標題移到步數／睡眠卡之上。
+
+## 25. 新手指南與成就儀式（2026-09-16）
+
+### 25.1 新手指南（PG-UX-01）
+
+Landing 主 CTA「開始冒險」進 GameGuide。跑鞋主視覺＋日常活動／驗證打卡／裝備成長三步摘要，接四張卡：每日任務、裝備進化與維持、成就 NFT、競技場。末段為錢包／健康權限／初始鞋／首次打卡四步。上方「直接開始」可略過，底部進 WalletConnect；Profile 的「遊戲說明」入口重看後返回原頁。內容不申請權限、不發送交易；支援繁中／英文、垂直捲動與安全區。初始鞋不是 NFT，tSKR 無金錢價值。
+
+### 25.2 三種揭曉（PG-A-17；取代原單一 800ms 進化描述）
+
+- NFT：2.8 秒一次性卡背翻轉、金色環與放射粒子、卡面掃光、名稱和「收下榮耀」。有鞋階時展示對應 ShoeHero，其他收藏使用徽章圖示；不是遠端 NFT 作品圖片預览。
+- 升等：2.8 秒能量擴散、裝備放大與向上進場，顯示舊→新等級及成功震動。
+- 降等：1.8 秒冷色光環收縮、粒子下沉與警示震動，文案鼓勵回歸，不暗示 NFT／XP 被沒收。
+- Reduce Motion：靜態最終卡面與光環；無翻轉、粒子或掃光。動畫不循環；可按確認或系統返回關閉。
+- 僅新 NFT 領取成功排隊；重複已領不播。等級動畫 pending 時 NFT 等待，避免同時彈出。首次觀察等級只記錄，後續啟用等級不同才揭曉。
+
+以上已實作並完成相關自動測試；低階裝置幀率、讀屏、字體放大、視覺節奏仍待實機驗收。
