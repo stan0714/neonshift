@@ -1,9 +1,11 @@
+import { Feather } from '@expo/vector-icons';
 import { StackActions, useNavigation } from '@react-navigation/native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { Alert, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 
 import { Chip, Screen } from '@/components';
+import { WorkoutActionFeedback, type WorkoutAction } from '@/components/WorkoutActionMotion';
 import { paceVsAvg, profileOf, speedZone } from '@/domain/modes';
 import { formatDuration, formatPace } from '@/domain/workouts';
 import { useT, type TKey } from '@/i18n';
@@ -11,18 +13,27 @@ import { workoutCues } from '@/services/workouts/WorkoutCues';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import { color, layout, radius, space, Text } from '@/theme';
-import { Feather } from '@expo/vector-icons';
 import { useRecorder } from './useRecorder';
 
 /**
  * 記錄頁（Style 23）：走路主顯示 km/h、跑步主顯示 min/km；時間／距離次要；GPS 與暫停狀態始終可見；
- * Lap／Pause ≥ 48dp；Finish 只在暫停頁並需確認。記錄中不做裝飾動畫。
+ * Lap／Pause ≥ 48dp；Finish 只在暫停頁並需確認。動作切換播放短暫回饋，穩定記錄中不做循環裝飾動畫。
  */
 export function WorkoutRecordScreen() {
   const { t, locale } = useT();
   const navigation = useNavigation();
   const s = useRecorder();
   const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<{ action: WorkoutAction; id: number } | null>(null);
+  const previousState = useRef(s.state);
+  // 暫停／繼續：播一次模式專屬回饋（Style 23.4）；震動提示開啟時附一次輕震動
+  useEffect(() => {
+    const next: WorkoutAction | null = previousState.current === 'recording' && s.state === 'paused' ? 'pause' : previousState.current === 'paused' && s.state === 'recording' ? 'resume' : null;
+    previousState.current = s.state;
+    if (!next) return;
+    setFeedback((f) => ({ action: next, id: (f?.id ?? 0) + 1 }));
+    if (useWorkoutPrefs.getState().haptic) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  }, [s.state]);
   const [lapNote, setLapNote] = useState<string | null>(null);
   const [goalNotified, setGoalNotified] = useState(false);
 
@@ -77,7 +88,7 @@ export function WorkoutRecordScreen() {
             setBusy(true);
             try {
               const r = await workoutRecorder.finish();
-              navigation.dispatch(StackActions.replace('WorkoutSummary', { sessionId: r.meta.sessionId }));
+              navigation.dispatch(StackActions.replace('WorkoutSummary', { sessionId: r.meta.sessionId, celebrate: true }));
             } finally {
               setBusy(false);
             }
@@ -186,7 +197,7 @@ export function WorkoutRecordScreen() {
             {t('rec.splitsTitle')}
           </Text>
           <Text variant="caption" tone="muted">
-            {t(`wo.mode.${s.intent ?? (s.sport === 'run' ? 'run' : 'walk')}` as TKey)} · {t('rec.startedAt', { time: startedAt })}
+            {t(`wo.mode.${mode}` as TKey)} · {t('rec.startedAt', { time: startedAt })}
           </Text>
         </View>
         {recent.length === 0 ? (
@@ -258,6 +269,7 @@ export function WorkoutRecordScreen() {
           </>
         )}
       </View>
+      {feedback ? <WorkoutActionFeedback key={feedback.id} mode={mode} action={feedback.action} /> : null}
     </Screen>
   );
 }

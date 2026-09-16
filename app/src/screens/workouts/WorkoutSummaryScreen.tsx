@@ -4,7 +4,8 @@ import { Pressable, Share, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import { RouteTrace } from '@/components/RouteTrace';
-import { useWorkoutPrefs } from '@/state/workoutPrefsStore';
+import { WorkoutActionFeedback } from '@/components/WorkoutActionMotion';
+import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import type { Lap, RawPoint } from '@/domain/gps/engine';
 import { formatDuration, formatKm, formatPace, modeLabel } from '@/domain/workouts';
 import { useT, type TKey } from '@/i18n';
@@ -208,6 +209,7 @@ export function WorkoutSummaryScreen() {
         <Button label={t('sum.share.button')} variant="secondary" style={styles.mt} onPress={() => void Share.share({ message: sharePreview }).catch(() => {})} testID="sum-share-button" />
       </Surface>
       <Button label={t('sum.done')} style={styles.mt} onPress={() => navigation.navigate('Workouts')} testID="sum-done" />
+      {params.celebrate ? <WorkoutActionFeedback key={params.sessionId} mode={modeOfIntent(meta.sport, meta.intent) ?? (meta.sport === 'run' ? 'run' : 'walk')} action="finish" /> : null}
     </Screen>
   );
 }

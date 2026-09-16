@@ -841,6 +841,13 @@ Lap／Pause 至少 48dp；Finish 置於暫停頁並確認。摘要分 Splits／L
 - **摘要頁「軌跡」卡**（統計格之下、室內記錄不顯示）：標題＋「顯示軌跡」Switch（`workoutPrefs.showRoute`，預設開啟、記住選擇）；`RouteTrace`＝深色畫布上的 mint 折線（本機加密點解密後只在畫面投影；精度 > 20 m 的點不畫、> 5 s 缺口斷線）、mint 起點／magenta 終點、淡格線、左下角比例尺（10 m～5 km 擇一）；無可用點顯示說明文字。caption 固定註明「不會上傳、同步或放進分享內容」。**不含底圖**：地圖供應商未定（Google Maps 需金鑰與隱私評估），待決後再疊底圖。
 - **「GPS 品質」tab**（原「品質」）：四個 Chip 之下加判定句（完整量測＝無缺口且涵蓋率 ≥ 90%，success 色；否則 warning 並說明不能刷新個人最佳）與四行 caption 定義（接受＝精度 ≤ 20 m 且速度合理；拒絕＝精度差／速度跳點／重複／亂序／暫停中，並列出各原因數量；缺口＝> 5 s 無可用定位、不補距離；涵蓋率＝運動時間中有可用定位的比例）。
 
+### 23.4 三模式動作回饋動畫（2026-09-16）
+
+`components/WorkoutActionMotion.tsx`：`WorkoutActionArt`（250dp 有限長度動畫、依模式主題色：走路＝擴散漣漪＋腳步、健走＝前進箭頭、跑步＝速度線；結束加放射火花；中央 150dp 圓章放圖示或內容）與 `WorkoutActionFeedback`（1.4 s 自動消失的 surface 卡片，`pointerEvents="none"`、標題走 `accessibilityLiveRegion`）。
+
+- 觸發點：倒數每一格（圓章內放倒數數字，標題「輕鬆踏出第一步／跟上自己的節奏／準備起跑」）；記錄頁暫停→「停下腳步，慢慢呼吸」等、繼續→同開始文案（震動提示開啟時附一次輕震動）；摘要頁由結束進入時（`celebrate` 參數，只在 replace 進入時帶）→ 結束文案＋「運動紀錄已儲存在此裝置」。
+- 規則：動畫只做裝飾，不擁有計時、持久化、導航或觸控；播一次即停，卸載即 stop；減少動態時直接顯示終態、不呼叫 Animated；穩定記錄中仍不做循環動畫（23 原則不變）。顏色與間距一律用 token。
+
 ### 23.1 運動紀錄清單（PG-R-01 實作，2026-09-14）
 
 Home 「Workouts ›」進入 `WorkoutsScreen`：每筆一張 Surface — 標題「Run／Walk（· Indoor）」＋品質 Chip（Measured＝synced／Estimated、Partial＝neutral／Needs review＝devnet 警示色／Invalid＝offline），日期，四格指標（km、time、pace、kcal）以 `elevated` 底色成列；kcal 只有 Total 時顯示「350 kcal (total)」，缺值一律「—」。來源列「Source: Health Connect · <package>」＋步數；待審核原因與「可能重複」以 warning 文字列在指標下方，不合併、不相加。PB eligible 以 level Chip 標示（由後端判定，UI 不自行授予）。刪除為 caption danger 連結，需 Alert 確認並說明只移除 NeonShift 摘要。頂部「Import from Health Connect」secondary Button；原生模組未提供時以 info InlineState 說明，不假裝已匯入。

@@ -31,7 +31,7 @@ export type RootParamList = {
   /** GPS 記錄（PG-R-03／R-06，FR-18）：開始 → 記錄 → 摘要 */
   WorkoutStart: undefined;
   WorkoutRecord: undefined;
-  WorkoutSummary: { sessionId: string };
+  WorkoutSummary: { sessionId: string; celebrate?: boolean };
   /** 藝廊（FR-13，Style 12.1）：全站排行與任意玩家公開頁 */
   Gallery: undefined;
   GalleryPlayer: { wallet: string };

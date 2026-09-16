@@ -8,6 +8,7 @@ import Svg, { Line, Path } from 'react-native-svg';
 
 import { Button, InlineState, Screen, Surface } from '@/components';
 import { ShoeHero } from '@/components/ShoeHero';
+import { WorkoutActionArt } from '@/components/WorkoutActionMotion';
 import { SPLIT_KM_MM, SPLIT_MILE_MM, TRACK_LAP_MAX_M, TRACK_LAP_MIN_M } from '@/domain/gps/engine';
 import { profileOf, snapPreset } from '@/domain/modes';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
@@ -96,12 +97,16 @@ export const COUNTDOWN_TICK_MS = 1000;
  * 3–2–1 倒數（Style 24.5；PG-U-01「倒數可跳過」）：點一下任何地方立即開始；返回鍵取消。
  * 每格一次 haptic（震動提示開啟時）與語音（語音提示開啟時）；減少動態時不縮放。
  */
-function Countdown({ visible, voice, haptic, locale, onDone, onCancel }: { visible: boolean; voice: boolean; haptic: boolean; locale: 'zh-TW' | 'en'; onDone: () => void; onCancel: () => void }) {
+function Countdown({ mode, visible, voice, haptic, locale, onDone, onCancel }: { mode: WorkoutMode; visible: boolean; voice: boolean; haptic: boolean; locale: 'zh-TW' | 'en'; onDone: () => void; onCancel: () => void }) {
   const { t } = useT();
   const reduceMotion = useReduceMotion();
   const [n, setN] = useState(COUNTDOWN_FROM);
   const scale = useRef(new Animated.Value(1)).current;
   const done = useRef(false);
+  useEffect(() => {
+    if (reduceMotion) { scale.stopAnimation(); scale.setValue(1); }
+    return () => scale.stopAnimation();
+  }, [reduceMotion, scale]);
   useEffect(() => {
     if (!visible) return;
     done.current = false;
@@ -140,9 +145,12 @@ function Countdown({ visible, voice, haptic, locale, onDone, onCancel }: { visib
   return (
     <Modal visible={visible} transparent={false} animationType="fade" onRequestClose={onCancel} statusBarTranslucent>
       <Pressable style={styles.countdown} onPress={skip} accessibilityRole="button" accessibilityLabel={t('rec.countdown.skip')} accessibilityHint={t('rec.countdown.hint')} testID="start-countdown">
-        <Animated.Text style={[styles.countdownNumber, { transform: [{ scale }] }]} accessibilityLiveRegion="assertive" maxFontSizeMultiplier={1.2} testID="start-countdown-number">
+        <WorkoutActionArt key={`${mode}-${n}`} mode={mode} action="start">
+        <Animated.Text style={[styles.countdownNumber, { color: profileOf(mode).accent, fontSize: 96, lineHeight: 110, transform: [{ scale }] }]} accessibilityLiveRegion="assertive" maxFontSizeMultiplier={1.2} testID="start-countdown-number">
           {n}
         </Animated.Text>
+        </WorkoutActionArt>
+        <Text variant="heading2" style={styles.center}>{t(`rec.motion.${mode}.start` as TKey)}</Text>
         <Text variant="title" tone="secondary" style={styles.center}>
           {t('rec.countdown.skip')}
         </Text>
@@ -319,7 +327,7 @@ export function WorkoutStartScreen() {
       {err?.kind === 'permission' ? <InlineState kind="warning" title={t('rec.permissionTitle')} body={t('rec.permissionBody')} action={{ label: t('rec.permissionOpen'), onPress: () => void Linking.openSettings() }} testID="start-permission" /> : null}
       {err?.kind === 'generic' ? <InlineState kind="error" title={t('rec.err', { message: err.message ?? '' })} testID="start-error" /> : null}
 
-      <Countdown visible={counting} voice={prefs.voice} haptic={prefs.haptic} locale={locale === 'zh-TW' ? 'zh-TW' : 'en'} onDone={() => void begin()} onCancel={() => setCounting(false)} />
+      <Countdown mode={mode} visible={counting} voice={prefs.voice} haptic={prefs.haptic} locale={locale === 'zh-TW' ? 'zh-TW' : 'en'} onDone={() => void begin()} onCancel={() => setCounting(false)} />
 
       <Sheet visible={sheet === 'goal'} onClose={() => setSheet(null)} title={t('rec.goal')} testID="start-goal-sheet">
         {(['distance', 'time', 'free'] as const).map((g) => (

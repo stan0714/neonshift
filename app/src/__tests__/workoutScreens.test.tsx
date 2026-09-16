@@ -123,6 +123,7 @@ test('記錄頁：健走顯示速度、時間／距離；目標進度 → 達標
   await waitFor(() => expect(screen.getByTestId('record-distance').props.children).toBe('0.36'));
   expect(screen.getByTestId('record-primary').props.children).toBe('10.8'); // 健走：km/h（3 m/s）
   expect(screen.getByTestId('record-mode').props.children).toBe('Brisk walk');
+  expect(screen.getByText(/^Brisk walk · started /)).toBeTruthy(); // 分段卡標題列用模式名，不是 intent 代碼
   expect(screen.getByTestId('record-zone').props.children.props.children).toMatch(/^Above brisk zone/); // 10.8 km/h > 7.5
   // 10 分鐘目標：120 s 未達；時鐘推到 600 s 後達標提醒（含暫停時間），狀態仍 recording
   clock += 480_000;
