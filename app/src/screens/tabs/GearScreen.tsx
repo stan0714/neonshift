@@ -1,14 +1,15 @@
 import { Feather } from "@expo/vector-icons";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 
-import { Button, Chip, InlineState, Screen, Surface } from "@/components";
+import { Button, Chip, InlineState, Screen, Sheet, Surface } from "@/components";
 import { ShoeHero } from "@/components/ShoeHero";
 import { Milestones } from "@/screens/workouts/Milestones";
 import { maintenanceView, nextSteps } from "@/domain/maintenance";
 import { freezeActive } from "@/chain/accounts";
-import { shoeSection } from "@/domain/collectibles";
+import { shoeSection, type ShoeSection } from "@/domain/collectibles";
+import type { PlayerProfile } from "@/chain/accounts";
 import { APP_CONFIG } from "@/config/app";
 import { SHOE_PROGRESSION, type ShoeLevel } from "@/config/shoeProgression";
 import {
@@ -40,6 +41,8 @@ export function GearScreen() {
   const session = useWalletStore((s) => s.session);
   const d = useDashboardStore();
   const c = useCollectibleStore();
+  /** 點鞋子開詳情面板（2026-09-16 專案負責人指示）；記 kind 而非物件，資料變動時面板跟著更新 */
+  const [detailKind, setDetailKind] = useState<ShoeLevel | null>(null);
 
   const refresh = useCallback(async () => {
     if (!session) return;
@@ -308,12 +311,27 @@ export function GearScreen() {
                   onClaim={() =>
                     session && void c.claim(session.publicKey, item.kind)
                   }
+                  onPress={() => setDetailKind(item.kind as ShoeLevel)}
                 />
               ))}
             </View>
           </View>
         );
       })}
+      <ShoeDetailSheet
+        kind={detailKind}
+        onClose={() => setDetailKind(null)}
+        profile={d.profile}
+        status={detailKind ? collectibleStatus(d.profile, c.claimed, detailKind) : "locked"}
+        section={detailKind ? shoeSection(d.profile, detailKind) : "locked"}
+        xp={xp}
+        thresholds={thresholds}
+        multiplier={detailKind ? fmtX(multipliers[detailKind - 1]) : ""}
+        claiming={detailKind !== null && c.claiming === detailKind}
+        busy={c.claiming !== null}
+        disabledReason={claimDisabledReason}
+        onClaim={() => session && detailKind && void c.claim(session.publicKey, detailKind)}
+      />
       <Text
         variant="label"
         tone="secondary"
@@ -445,6 +463,78 @@ function Outcome({
   );
 }
 
+type ShoeDetailProps = {
+  kind: ShoeLevel | null;
+  onClose: () => void;
+  profile: PlayerProfile | null;
+  status: CollectibleStatus;
+  section: ShoeSection;
+  xp: number;
+  thresholds: number[];
+  multiplier: string;
+  claiming: boolean;
+  busy: boolean;
+  disabledReason?: string;
+  onClaim: () => void;
+};
+
+/**
+ * 跑鞋詳情面板：鞋階、所需 XP、倍率、解鎖條件，以及「裝備 vs 紀念 NFT」說明（實機回饋：領過初階跑鞋後
+ * 又看到「原點」可領，誤以為同一雙鞋要領兩次）。NFT 可領時 footer 直接領取。
+ */
+function ShoeDetailSheet({ kind, onClose, profile, status, section, xp, thresholds, multiplier, claiming, busy, disabledReason, onClaim }: ShoeDetailProps) {
+  const { t } = useT();
+  if (!kind) return null;
+  const item = COLLECTIBLES.find((x) => x.kind === kind)!;
+  const need = thresholds[kind - 1] ?? 0;
+  const remaining = Math.max(0, need - xp);
+  const rows: { label: string; value: string; testID?: string }[] = [
+    { label: t("gear.detail.stage"), value: `Lv.${kind} · ${stageName(t, kind)}` },
+    { label: t("gear.detail.xp"), value: kind === 1 ? "0 XP" : `${need.toLocaleString()} XP` },
+    { label: t("gear.detail.multiplier"), value: multiplier },
+    { label: t("gear.detail.unlock"), value: collectibleUnlock(t, item) },
+    { label: t("gear.detail.nft"), value: t(`gear.detail.nft.${status}` as TKey), testID: "shoe-detail-nft" },
+  ];
+  return (
+    <Sheet visible onClose={onClose} title={collectibleName(t, item)} testID="shoe-detail" footer={
+      status === "claimable" ? (
+        <Button label={t("gear.claim")} loading={claiming} loadingLabel={t("gear.claiming")} onPress={onClaim} disabled={busy || Boolean(disabledReason)} disabledReason={disabledReason} style={styles.flex} testID="shoe-detail-claim" />
+      ) : (
+        <Button label={t("common.close")} variant="secondary" onPress={onClose} style={styles.flex} testID="shoe-detail-done" />
+      )
+    }>
+      <View style={styles.detailHero}>
+        <ShoeHero level={kind} size={200} active={section !== "locked"} />
+        <View style={styles.levelRow}>
+          <View testID={`shoe-detail-section-${section}`}><Chip label={t(`gear.section.${section}` as TKey)} kind={section === "equipped" ? "level" : section === "achieved" ? "synced" : "neutral"} /></View>
+          {status === "claimed" ? <Chip label={t("gear.claimed")} kind="synced" /> : null}
+        </View>
+        <Text variant="body" tone="secondary" style={styles.center}>
+          {stageDetail(t, kind)}
+        </Text>
+      </View>
+      {rows.map((r) => (
+        <View key={r.label} style={styles.detailRow}>
+          <Text variant="label" tone="muted" uppercase>
+            {r.label}
+          </Text>
+          <Text variant="body" numeric style={styles.detailValue} testID={r.testID}>
+            {r.value}
+          </Text>
+        </View>
+      ))}
+      {section === "locked" && profile ? (
+        <Text variant="caption" tone="secondary" style={styles.sectionNote} testID="shoe-detail-remaining">
+          {t("gear.detail.yourXp", { xp: xp.toLocaleString(), remaining: remaining.toLocaleString() })}
+        </Text>
+      ) : null}
+      <Text variant="caption" tone="muted" style={styles.sectionNote}>
+        {t(kind === 1 ? "gear.detail.starterNote" : "gear.detail.gearNote")}
+      </Text>
+    </Sheet>
+  );
+}
+
 type TileProps = {
   item: Collectible;
   status: CollectibleStatus;
@@ -454,6 +544,8 @@ type TileProps = {
   onClaim: () => void;
   /** PG-V-04：曾經達成（History 標籤；保留完整作品與 Claim 入口） */
   history?: boolean;
+  /** 有給就整張可點（跑鞋 → 詳情面板） */
+  onPress?: () => void;
 };
 
 /** Style 12：Claimed 實圖、Claimable mint border＋Claim、Locked 灰階＋解鎖條件 */
@@ -465,16 +557,19 @@ function Tile({
   busy,
   disabledReason,
   onClaim,
+  onPress,
 }: TileProps) {
   const { t } = useT();
   const locked = status === "locked";
+  const Wrap = onPress ? Pressable : View;
+  const wrapProps = onPress ? { onPress, accessibilityRole: "button" as const, accessibilityLabel: t("gear.detail.a11y", { name: collectibleName(t, item) }), android_ripple: { color: color.borderSubtle }, testID: `collectible-open-${item.kind}` } : {};
   const tint = item.shoeLevel
     ? SHOE_PROGRESSION.stages[item.shoeLevel - 1].tint
     : item.icon === "award"
       ? color.warning
       : color.cyan;
   return (
-    <View style={styles.cell}>
+    <Wrap style={styles.cell} {...wrapProps}>
       <Surface
         active={status === "claimable"}
         level={status === "claimed" ? "elevated" : "surface"}
@@ -517,6 +612,11 @@ function Tile({
         <Text variant="title" numberOfLines={1}>
           {collectibleName(t, item)}
         </Text>
+        {item.shoeLevel ? (
+          <Text variant="caption" tone="muted">
+            {t("gear.nftTag")}
+          </Text>
+        ) : null}
         {history ? (
           <Text variant="label" tone="secondary" uppercase testID={`collectible-history-${item.kind}`}>
             {t("gear.history")}
@@ -545,7 +645,7 @@ function Tile({
           />
         ) : null}
       </Surface>
-    </View>
+    </Wrap>
   );
 }
 
@@ -586,6 +686,11 @@ const styles = StyleSheet.create({
     marginTop: space.xl,
   },
   sectionNote: { marginTop: space.xxs },
+  flex: { flex: 1 },
+  center: { textAlign: "center" },
+  detailHero: { alignItems: "center", gap: space.xs, marginBottom: space.m },
+  detailRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.m, minHeight: 44, borderBottomWidth: 1, borderBottomColor: color.borderSubtle },
+  detailValue: { flexShrink: 1, textAlign: "right" },
   groupTitle: { marginTop: space.m, marginBottom: space.xs },
   grid: {
     flexDirection: "row",

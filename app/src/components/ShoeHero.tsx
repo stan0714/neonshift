@@ -8,11 +8,12 @@ import { color, space, Text } from '@/theme';
 
 export type ShoeHeroProps = { level?: ShoeLevel; size?: number; active?: boolean; /** 右上角 `LV. n` 標籤；縮圖（收藏格）可關閉 */ badge?: boolean };
 
-/** Layered vector shoe; native-driven levitation, with a stable perspective platform. */
+/** Native-driven perspective rocking of the SVG artwork (not a full 3D model). */
 export function ShoeHero({ level = 1, size = 260, active = true, badge = true }: ShoeHeroProps) {
   const reduceMotion = useReduceMotion();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const phase = useRef(new Animated.Value(0)).current;
+  const turn = useRef(new Animated.Value(0)).current;
   const id = useId().replace(/:/g, '');
   const stage = SHOE_PROGRESSION.stages[level - 1];
   const tint = stage.tint;
@@ -25,14 +26,26 @@ export function ShoeHero({ level = 1, size = 260, active = true, badge = true }:
 
   useEffect(() => {
     phase.setValue(0);
+    turn.setValue(0);
     if (reduceMotion || !foreground || !active) return;
     const timing = (toValue: number) => Animated.timing(phase, {
       toValue, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true, isInteraction: false,
     });
     const loop = Animated.loop(Animated.sequence([timing(1), timing(0)]));
+    const rotateTo = (toValue: number, duration: number) => Animated.timing(turn, {
+      toValue, duration, easing: Easing.inOut(Easing.sin), useNativeDriver: true, isInteraction: false,
+    });
+    // Begin and end face-on, so stopping motion restores a neutral presentation.
+    const rotation = Animated.loop(Animated.sequence([
+      rotateTo(1, 1800), rotateTo(-1, 3600), rotateTo(0, 1800),
+    ]));
     loop.start();
-    return () => loop.stop();
-  }, [phase, reduceMotion, foreground, active]);
+    rotation.start();
+    return () => {
+      loop.stop();
+      rotation.stop();
+    };
+  }, [phase, turn, reduceMotion, foreground, active]);
 
   return (
     <View style={{ width: size, maxWidth: '100%', height: size * 0.8 }} accessible accessibilityRole="image" accessibilityLabel={`Level ${level} shoe`} pointerEvents="none">
@@ -57,8 +70,11 @@ export function ShoeHero({ level = 1, size = 260, active = true, badge = true }:
         </Svg>
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, { transform: [
+        { perspective: size * 3 },
         { translateY: phase.interpolate({ inputRange: [0, 1], outputRange: [0, -size * 0.026] }) },
-        { rotate: phase.interpolate({ inputRange: [0, 1], outputRange: ['-2deg', '0deg'] }) },
+        { rotateY: turn.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-22deg', '0deg', '22deg'] }) },
+        { rotateX: turn.interpolate({ inputRange: [-1, 0, 1], outputRange: ['5deg', '0deg', '-5deg'] }) },
+        { rotateZ: turn.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-4deg', '0deg', '4deg'] }) },
       ] }]}>
         <Svg width="100%" height="100%" viewBox="0 0 260 208">
           <Defs>

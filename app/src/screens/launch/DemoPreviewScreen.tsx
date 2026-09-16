@@ -1,4 +1,4 @@
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { StyleSheet, View } from 'react-native';
 
 import { Button, Chip, Screen, Surface, Wordmark } from '@/components';
@@ -13,6 +13,7 @@ import { useT } from '@/i18n';
  * 唯讀 Dashboard 內容待 PG-A-12 完成後以 demo 模式渲染；目前先呈現說明與返回。
  */
 export function DemoPreviewScreen() {
+  const isFocused = useIsFocused();
   const { t } = useT();
   const navigation = useNavigation();
   return (
@@ -33,7 +34,7 @@ export function DemoPreviewScreen() {
       {SHOE_PROGRESSION.stages.map((stage) => (
         <Surface key={stage.level} style={styles.card}>
           <Text variant="heading2">{stageName(t, stage.level)} · {t('common.lv', { n: stage.level })}</Text>
-          <View style={{ alignItems: 'center' }}><ShoeHero level={stage.level} active={false} /></View>
+          <View style={{ alignItems: 'center' }}><ShoeHero level={stage.level} active={isFocused} /></View>
           <Text variant="body">{t('demo.totalXp', { n: stage.xp })}</Text>
           <Text variant="caption" tone="secondary">{stageDetail(t, stage.level)}</Text>
           <Text variant="caption" tone="muted">{stage.xp === 0 ? t('demo.unlockedStart') : t('demo.taskDays', { n: Math.ceil(stage.xp / 150) })}</Text>

@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,6 +27,7 @@ const OUTDATED_MS = 30 * 60 * 1000;
  * 打卡按鈕只在對應任務 ready 時可用；離線／未同步時停用並說明原因（SD 5.3）。
  */
 export function HomeScreen() {
+  const isFocused = useIsFocused();
   const { t, locale } = useT();
   const navigation = useNavigation();
   const { screenPaddingX } = useTheme();
@@ -181,7 +182,7 @@ export function HomeScreen() {
       ) : null}
 
       <Pressable onPress={() => navigation.navigate('Main', { screen: 'Gear' })} style={styles.hero} accessibilityRole="button" accessibilityLabel={t('home.openGear')}>
-        <ShoeHero level={(d.profile?.shoeLevel ?? 1) as 1 | 2 | 3 | 4 | 5} size={200} />
+        <ShoeHero level={(d.profile?.shoeLevel ?? 1) as 1 | 2 | 3 | 4 | 5} size={200} active={isFocused} />
         <Text variant="label" tone="secondary" uppercase style={styles.heroCaption}>
           {t('common.lv', { n: d.profile?.shoeLevel ?? 1 })} · {d.profile ? t('common.xp', { n: Number(d.profile.xp) }) : t('home.noProfile')} · {d.config && d.profile ? `${(d.config.coreMultiplierBps[d.profile.coreLevel - 1] ?? 10_000) / 10_000}×` : '1.0×'}
         </Text>

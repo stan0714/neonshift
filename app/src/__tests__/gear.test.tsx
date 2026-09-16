@@ -47,7 +47,7 @@ describe('PG-A-14 Gear', () => {
     expect(screen.getByText('Reach Lv.3')).toBeTruthy();
     expect(screen.getByLabelText('First Clock-In, claimable')).toBeTruthy();
     expect(screen.getByLabelText('7-Day Streak, locked')).toBeTruthy();
-    expect(screen.getByText(/only pay devnet rent/)).toBeTruthy();
+    expect(screen.getByText(/devnet rent only/)).toBeTruthy();
     await waitFor(() => expect(mockFetchClaimed).toHaveBeenCalled());
   });
 
@@ -88,6 +88,30 @@ describe('PG-A-14 Gear', () => {
     expect(mockClaim).toHaveBeenCalledWith(wallet, 2);
     expect(screen.getByText(/Shoe · Pulse · AssetAdd…/)).toBeTruthy();
     expect(screen.getByLabelText('Shoe · Pulse, claimed')).toBeTruthy();
+  });
+
+  test('點鞋子開詳情面板：鞋階／XP／倍率／解鎖條件／NFT 狀態與裝備說明；可領時面板內可領取', async () => {
+    await render(<GearScreen />, { wrapper: Wrapper });
+    await fireEvent.press(screen.getByTestId('collectible-open-3')); // Phase：locked（level 2，xp 600）
+    expect(screen.getByTestId('shoe-detail')).toBeTruthy();
+    expect(screen.getByText('Lv.3 · Phase')).toBeTruthy();
+    expect(screen.getByText('Side exoskeleton · split sole')).toBeTruthy();
+    expect(screen.getByTestId('shoe-detail-section-locked')).toBeTruthy();
+    expect(screen.getByTestId('shoe-detail-nft').props.children).toBe('Claimable once you reach this stage');
+    expect(screen.getByTestId('shoe-detail-remaining').props.children).toBe('You have 600 XP · 900 XP to go');
+    expect(screen.getByText(/Gear and NFT are separate/)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('shoe-detail-done'));
+    expect(screen.queryByTestId('shoe-detail')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('collectible-open-1')); // Origin：claimed → 初階跑鞋說明
+    expect(screen.getByText(/Your starter shoe was granted/)).toBeTruthy();
+    expect(screen.getByTestId('shoe-detail-nft').props.children).toBe('Already in your wallet');
+    await fireEvent.press(screen.getByTestId('shoe-detail-close'));
+
+    await fireEvent.press(screen.getByTestId('collectible-open-2')); // Pulse：claimable → footer 領取
+    await fireEvent.press(screen.getByTestId('shoe-detail-claim'));
+    await waitFor(() => expect(mockClaim).toHaveBeenCalledWith(wallet, 2));
+    await waitFor(() => expect(screen.getByTestId('shoe-detail-nft').props.children).toBe('Already in your wallet'));
   });
 
   test('拒簽顯示 warning，不改變狀態', async () => {
