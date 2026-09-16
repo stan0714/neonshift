@@ -304,9 +304,7 @@ export function WorkoutRecordScreen() {
       </ScrollView>
       <View style={styles.controls}>
         {locked ? (
-          <Pressable onLongPress={() => setLocked(false)} delayLongPress={1200} accessibilityRole="button" accessibilityLabel={t('rec.lock.unlockA11y')} style={[styles.ctl, styles.ctlSecondary, styles.ctlWide]} testID="record-locked">
-            <Text variant="title">{t('rec.lock.holdToUnlock')}</Text>
-          </Pressable>
+          <View style={[styles.ctl, styles.ctlWide, styles.ctlPlaceholder]} testID="record-locked" />
         ) : s.state === 'recording' ? (
           <>
             <Pressable onPress={() => void onLap()} accessibilityRole="button" accessibilityLabel={t('rec.lap')} style={({ pressed }) => [styles.ctl, styles.ctlSecondary, pressed && styles.ctlPressed]} testID="record-lap">
@@ -334,12 +332,12 @@ export function WorkoutRecordScreen() {
         )}
       </View>
       {locked ? (
-        <View style={styles.lockOverlay} pointerEvents="box-only" accessible accessibilityLabel={t('rec.lock.overlayHint')} testID="record-lock-overlay">
+        <Pressable style={styles.lockOverlay} onPress={() => {}} accessibilityLabel={t('rec.lock.overlayHint')} testID="record-lock-overlay">
           <Pressable onLongPress={() => setLocked(false)} delayLongPress={1200} accessibilityRole="button" accessibilityLabel={t('rec.lock.unlockA11y')} style={styles.lockBar} testID="record-lock-overlay-unlock">
             <Feather name="lock" size={18} color={color.mint} />
             <Text variant="title">{t('rec.lock.holdToUnlock')}</Text>
           </Pressable>
-        </View>
+        </Pressable>
       ) : null}
       {feedback ? <WorkoutActionFeedback key={feedback.id} mode={mode} action={feedback.action} /> : null}
     </Screen>
@@ -385,6 +383,7 @@ const styles = StyleSheet.create({
   lockOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end', zIndex: 20 },
   lockBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, minHeight: 64, marginHorizontal: layout.screenPaddingX, marginBottom: space.l, borderRadius: radius.xl, borderWidth: 1, borderColor: color.mint, backgroundColor: color.surface },
   ctlWide: { flex: 1 },
+  ctlPlaceholder: { opacity: 0 },
   body: { flex: 1, marginTop: space.xs },
   bodyContent: { paddingBottom: space.m },
   controls: { flexDirection: 'row', gap: space.m, marginTop: space.s, marginBottom: space.l },
