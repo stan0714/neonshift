@@ -1,5 +1,5 @@
 /** PG-U-03：模式篩選（走路＋健走合看）、週回顧（本地週一界、同日多筆算一天、不含 deleted）、同類比較（不足 3 筆不比、正＝更快）、分享文字（預設無日期／配速、永不含錢包／座標）。 */
-import { compareSameCategory, dateKey, localWeekStart, matchesMode, shareText, weeklyReview } from '@/domain/review';
+import { compareSameCategory, dateKey, localWeekStart, matchesMode, shareCard, shareText, weeklyReview } from '@/domain/review';
 import type { WorkoutSummary } from '@/services/api/ApiClient';
 
 const w = (o: Partial<WorkoutSummary> & { started_at: string }): WorkoutSummary => ({ session_id: `s-${o.started_at}`, sport: 'run', environment: 'outdoor', source: { origin: 'gps', source_id: 'app', external_record_id: 'x', source_revision: 1 }, ended_at: o.started_at, elapsed_ms: '1500000', paused_ms: '0', status: 'saved', quality: 'complete', rules_version: 1, review_reasons: [], possible_duplicate_of: null, metrics: { distance: { value_mm: '5000000', method: 'gps' }, steps: null, active_energy: null, total_energy: null, avg_pace_s_per_km: 300, avg_speed_kmh: 12, step_length_mm: null }, pb_eligible: true, extras: {}, revision: 1, imported_at: '', updated_at: '', ...o });
@@ -45,4 +45,27 @@ test('shareText：預設不含日期／配速；勾選後加入；含模式標�
   const full = shareText(t, { date: true, pace: true, mode: false }, { mode: 'Run', app: 'NeonShift' });
   expect(full).toMatch(/^5\.00 km · 25:00 · 5:00 \/km · 2026-09-\d{2} · #NeonShift$/);
   expect(full).not.toMatch(/06:30|lat|lon/);
+});
+
+test('shareCard：多行分享卡——模式／距離／時間／運動時間／配速／最高速度／分段與最快分段／計圈／目標／品質／日期；預設不含日期與品質', () => {
+  const t = (k: string, p?: Record<string, string | number>) => `${k}${p ? `(${Object.values(p).join(',')})` : ''}`;
+  const input = { sport: 'run' as const, intent: 'run' as const, startedAt: new Date(2026, 8, 16, 21, 0), elapsedMs: 1_651_000, movingMs: 1_600_000, distanceMm: 5_020_000, avgPaceSPerKm: 329, avgSpeedKmh: 10.9, maxSpeed5sKmh: 12.4, splits: [{ index: 1, paceSPerKm: 331, isPartial: false }, { index: 2, paceSPerKm: 325, isPartial: false }, { index: 3, paceSPerKm: 330, isPartial: false }, { index: 4, paceSPerKm: null, isPartial: true }], lapCount: 2, goal: { kind: 'distance' as const, target: 5_000_000 }, goalMet: true, qualityAccepted: 1500, qualityRejected: 3, autoPausedMs: 20_000 };
+  const text = shareCard(input, { mode: true, pace: true, date: false, splits: true, goal: true, quality: false }, t, { mode: 'Run', app: 'NeonShift', site: 'neonshift.cc' });
+  expect(text.split('\n')).toEqual([
+    '🏃 Run · NeonShift',
+    'share.distance(5.02) · share.time(27:31) · share.moving(26:40)',
+    'share.avgPace(5:29) · share.maxSpeed(12.4)',
+    'share.splits(1k 5:31 · 2k 5:25 · 3k 5:30)',
+    'share.fastest(2,5:25)',
+    'share.laps(2)',
+    'share.goalMet(share.goalKm(5))',
+    '#NeonShift · neonshift.cc',
+  ]);
+  const all = shareCard({ ...input, sport: 'walk', intent: 'brisk', goalMet: false }, { mode: false, pace: true, date: true, splits: false, goal: true, quality: true }, t, { mode: 'Brisk', app: 'NeonShift', site: 'neonshift.cc' });
+  expect(all).toContain('⚡🚶 share.workout · NeonShift');
+  expect(all).toContain('share.avgSpeed(10.9)');
+  expect(all).toContain('share.goalMissed(share.goalKm(5))');
+  expect(all).toContain('share.quality(1500,3) · share.autoPaused(00:20)');
+  expect(all).toContain('2026-09-16');
+  expect(all).not.toMatch(/21:00|lat|lon/);
 });

@@ -71,6 +71,7 @@ jest.mock('expo-network', () => ({
 }));
 
 // PG-R-03：定位／背景任務／檔案系統在 Jest 無原生實作；recorder 測試以注入替代
+jest.mock('expo-keep-awake', () => ({ useKeepAwake: () => {}, activateKeepAwakeAsync: jest.fn(async () => {}), deactivateKeepAwake: jest.fn(async () => {}) }));
 jest.mock('expo-speech', () => ({ speak: jest.fn(), stop: jest.fn() }));
 jest.mock('expo-task-manager', () => ({ defineTask: jest.fn(), isTaskDefined: jest.fn(() => true) }));
 jest.mock('expo-location', () => ({

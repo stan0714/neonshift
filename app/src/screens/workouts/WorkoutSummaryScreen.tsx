@@ -9,7 +9,7 @@ import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import type { Lap, RawPoint } from '@/domain/gps/engine';
 import { formatDuration, formatKm, formatPace, modeLabel } from '@/domain/workouts';
 import { useT, type TKey } from '@/i18n';
-import { compareSameCategory, shareText, type ShareFields } from '@/domain/review';
+import { compareSameCategory, SHARE_CARD_DEFAULT, shareCard, type ShareCardFields } from '@/domain/review';
 import { apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
 import type { RootParamList } from '@/navigation/types';
 import { LocalWorkoutStore, type SessionMeta } from '@/services/workouts/LocalWorkoutStore';
@@ -42,7 +42,7 @@ export function WorkoutSummaryScreen() {
   }, [params.sessionId, prefs.showRoute, meta?.environment]);
   // PG-U-03：同類回顧（伺服器清單）與分享欄位
   const [peers, setPeers] = useState<WorkoutSummary[] | null>(null);
-  const [shareFields, setShareFields] = useState<ShareFields>({ date: false, pace: false, mode: true });
+  const [shareFields, setShareFields] = useState<ShareCardFields>(SHARE_CARD_DEFAULT);
   useEffect(() => {
     let alive = true;
     apiClient.myWorkouts({ limit: 100 }).then((r) => { if (alive) setPeers(r.items); }).catch(() => { if (alive) setPeers([]); });
@@ -54,7 +54,14 @@ export function WorkoutSummaryScreen() {
   const autoPausedMs = (meta?.pauses ?? []).filter((p) => p.kind === 'auto').reduce((n, p) => n + ((p.resumedAtMs ?? meta?.endedAtUtc ?? p.atMs) - p.atMs), 0); // 舊 session（規則 v1）沒有 integrity → 視為未檢查（顯示 ok 但不宣稱）
   const asSummary: WorkoutSummary | null = meta && s ? ({ session_id: meta.syncedSessionId ?? meta.sessionId, sport: meta.sport, intent: meta.intent ?? null, environment: meta.environment, source: { origin: 'gps', source_id: 'cc.neonshift.app/gps', external_record_id: meta.sessionId, source_revision: 1 }, started_at: new Date(meta.startedAtUtc).toISOString(), ended_at: new Date(meta.endedAtUtc ?? meta.startedAtUtc + s.elapsedMs).toISOString(), elapsed_ms: String(s.elapsedMs), paused_ms: String(s.pausedMs), status: 'saved', quality: 'complete', rules_version: s.rulesVersion, review_reasons: [], metrics: { distance: s.distanceMm > 0 ? { value_mm: String(s.distanceMm), method: 'gps' } : null, steps: null, active_energy: null, total_energy: null, avg_pace_s_per_km: s.avgPaceSPerKm, avg_speed_kmh: s.avgSpeedKmh, step_length_mm: null }, pb_eligible: false, possible_duplicate_of: null, extras: {}, revision: 1, imported_at: '', updated_at: '' } as WorkoutSummary) : null;
   const cmp = asSummary && peers ? compareSameCategory(asSummary, peers) : null;
-  const sharePreview = asSummary ? shareText(asSummary, shareFields, { mode: modeLabel(t, asSummary.sport, asSummary.intent), app: 'NeonShift' }) : '';
+  const sharePreview = meta && s
+    ? shareCard(
+        { sport: meta.sport, intent: meta.intent ?? null, startedAt: new Date(meta.startedAtUtc), elapsedMs: s.elapsedMs, movingMs: s.movingMs, distanceMm: s.distanceMm, avgPaceSPerKm: s.avgPaceSPerKm, avgSpeedKmh: s.avgSpeedKmh, maxSpeed5sKmh: s.maxSpeed5sKmh, splits: s.splits.map((x) => ({ index: x.index, paceSPerKm: x.paceSPerKm, isPartial: x.isPartial })), lapCount: s.laps.length, goal: meta.goal ?? null, goalMet: !!meta.goal && goalReached(meta.goal, s.elapsedMs, s.distanceMm), qualityAccepted: s.quality.accepted, qualityRejected: Object.values(s.quality.rejected).reduce((a, b) => a + b, 0), autoPausedMs },
+        shareFields,
+        (k, p) => t(k as TKey, p),
+        { mode: modeLabel(t, meta.sport, meta.intent), app: 'NeonShift', site: 'neonshift.cc' },
+      )
+    : '';
   // PG-U-01：目標結果（未達標仍保存，顯示實際完成）；模式標籤
   const goalMet = !!meta?.goal && !!s && goalReached(meta.goal, s.elapsedMs, s.distanceMm);
   const goalLabel = meta?.goal ? (meta.goal.kind === 'time' ? t('rec.goal.min', { n: Math.round(meta.goal.target / 60) }) : t('rec.goal.km', { n: meta.goal.target / 1_000_000 })) : '';
@@ -230,7 +237,7 @@ export function WorkoutSummaryScreen() {
         <Text variant="caption" tone="muted">
           {t('sum.share.note')}
         </Text>
-        {(['mode', 'pace', 'date'] as const).map((f) => (
+        {(['mode', 'pace', 'splits', 'goal', 'quality', 'date'] as const).map((f) => (
           <View key={f} style={styles.rowBetween}>
             <Text variant="bodySmall">{t(`sum.share.${f}` as TKey)}</Text>
             <Switch value={shareFields[f]} onValueChange={(v) => setShareFields({ ...shareFields, [f]: v })} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t(`sum.share.${f}` as TKey)} testID={`sum-share-${f}`} />

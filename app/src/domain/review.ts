@@ -73,3 +73,71 @@ export function shareText(w: Pick<WorkoutSummary, 'sport' | 'intent' | 'started_
   parts.push(`#${labels.app}`);
   return parts.join(' · ');
 }
+
+/** 分享卡（2026-09-16 實機回饋：原本一行太簡單）。仍不含座標、精確開始時間與錢包；日期／品質需勾選 */
+export type ShareCardFields = ShareFields & { splits: boolean; goal: boolean; quality: boolean };
+export const SHARE_CARD_DEFAULT: ShareCardFields = { mode: true, pace: true, date: false, splits: true, goal: true, quality: false };
+export type ShareCardInput = {
+  sport: 'run' | 'walk';
+  intent?: 'run' | 'brisk' | 'casual' | null;
+  startedAt: Date;
+  elapsedMs: number;
+  movingMs: number;
+  distanceMm: number;
+  avgPaceSPerKm: number | null;
+  avgSpeedKmh: number | null;
+  maxSpeed5sKmh: number | null;
+  /** 每個分段的配速（s/km）；partial 不列 */
+  splits: { index: number; paceSPerKm: number | null; isPartial: boolean }[];
+  lapCount: number;
+  goal: { kind: 'free' | 'time' | 'distance'; target: number } | null;
+  goalMet: boolean;
+  qualityAccepted: number;
+  qualityRejected: number;
+  autoPausedMs: number;
+};
+type ShareT = (key: string, params?: Record<string, string | number>) => string;
+const fmtDur = (ms: number) => {
+  const sec = Math.round(ms / 1000);
+  return `${Math.floor(sec / 3600) ? `${Math.floor(sec / 3600)}:` : ''}${pad(Math.floor((sec % 3600) / 60))}:${pad(sec % 60)}`;
+};
+const fmtPace = (p: number) => `${Math.floor(p / 60)}:${pad(p % 60)}`;
+
+export function shareCard(w: ShareCardInput, fields: ShareCardFields, t: ShareT, labels: { mode: string; app: string; site: string }): string {
+  const emoji = w.sport === 'run' ? '🏃' : w.intent === 'brisk' ? '⚡🚶' : '🚶';
+  const lines: string[] = [];
+  lines.push(`${emoji} ${fields.mode ? labels.mode : t('share.workout')} · ${labels.app}`);
+  const km = (w.distanceMm / 1_000_000).toFixed(2);
+  const main = [t('share.distance', { km }), t('share.time', { t: fmtDur(w.elapsedMs) })];
+  if (w.movingMs > 0 && w.movingMs < w.elapsedMs - 1000) main.push(t('share.moving', { t: fmtDur(w.movingMs) }));
+  lines.push(main.join(' · '));
+  if (fields.pace) {
+    const parts: string[] = [];
+    if (w.sport === 'run' && w.avgPaceSPerKm !== null) parts.push(t('share.avgPace', { p: fmtPace(w.avgPaceSPerKm) }));
+    else if (w.avgSpeedKmh !== null) parts.push(t('share.avgSpeed', { v: w.avgSpeedKmh.toFixed(1) }));
+    if (w.maxSpeed5sKmh !== null) parts.push(t('share.maxSpeed', { v: w.maxSpeed5sKmh.toFixed(1) }));
+    if (parts.length) lines.push(parts.join(' · '));
+  }
+  if (fields.splits) {
+    const full = w.splits.filter((x) => !x.isPartial && x.paceSPerKm !== null) as { index: number; paceSPerKm: number }[];
+    if (full.length) {
+      const shown = full.slice(0, 10).map((x) => `${x.index}k ${fmtPace(x.paceSPerKm)}`).join(' · ');
+      const fastest = full.reduce((a, b) => (b.paceSPerKm < a.paceSPerKm ? b : a));
+      lines.push(t('share.splits', { list: shown + (full.length > 10 ? ' …' : '') }));
+      if (full.length > 1) lines.push(t('share.fastest', { n: fastest.index, p: fmtPace(fastest.paceSPerKm) }));
+    }
+    if (w.lapCount > 0) lines.push(t('share.laps', { n: w.lapCount }));
+  }
+  if (fields.goal && w.goal && w.goal.kind !== 'free') {
+    const target = w.goal.kind === 'time' ? t('share.goalMin', { n: Math.round(w.goal.target / 60) }) : t('share.goalKm', { n: w.goal.target / 1_000_000 });
+    lines.push(w.goalMet ? t('share.goalMet', { target }) : t('share.goalMissed', { target }));
+  }
+  if (fields.quality) {
+    const q = [t('share.quality', { accepted: w.qualityAccepted, rejected: w.qualityRejected })];
+    if (w.autoPausedMs > 0) q.push(t('share.autoPaused', { t: fmtDur(w.autoPausedMs) }));
+    lines.push(q.join(' · '));
+  }
+  if (fields.date) lines.push(dateKey(w.startedAt));
+  lines.push(`#${labels.app} · ${labels.site}`);
+  return lines.join('\n');
+}

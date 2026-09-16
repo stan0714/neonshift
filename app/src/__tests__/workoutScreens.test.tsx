@@ -151,8 +151,10 @@ test('記錄頁：健走顯示速度、時間／距離；目標進度 → 達標
   expect(screen.getByLabelText(/^Distance 0\.36 kilometers$/)).toBeTruthy();
   await fireEvent.press(screen.getByTestId('record-lock'));
   expect(screen.getByTestId('record-locked')).toBeTruthy();
+  expect(screen.getByTestId('record-lock-overlay')).toBeTruthy(); // 全畫面攔截誤觸
   expect(screen.queryByTestId('record-pause')).toBeNull();
-  await fireEvent(screen.getByTestId('record-locked'), 'longPress');
+  await fireEvent(screen.getByTestId('record-lock-overlay-unlock'), 'longPress');
+  expect(screen.queryByTestId('record-lock-overlay')).toBeNull();
   expect(screen.getByTestId('record-pause')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('record-lap'));
   await waitFor(() => expect(screen.getByTestId('record-lap-note').props.children).toMatch(/^Lap 1 · 0\.36 km · /)); // 計圈有回應：第 N 圈＋距離＋速度
@@ -190,9 +192,13 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   expect(screen.getByTestId('sum-goal-met').props.children).toBe('Goal 10 min reached');
   // PG-U-03：同類不足 3 筆不比較；分享預覽預設不含日期／配速，勾選後加入
   await waitFor(() => expect(screen.getByTestId('sum-compare-none')).toBeTruthy());
-  expect(screen.getByTestId('sum-share-preview').props.children).toMatch(/^Brisk walk · 0\.36 km · \d+:\d\d · #NeonShift$/);
+  const preview = screen.getByTestId('sum-share-preview').props.children as string;
+  expect(preview.split('\n')[0]).toBe('⚡🚶 Brisk walk · NeonShift');
+  expect(preview).toMatch(/Distance 0\.36 km · Time \d+:\d\d/);
+  expect(preview).toMatch(/#NeonShift · neonshift\.cc$/);
+  expect(preview).not.toMatch(/lat|lon|AcBU/);
   await fireEvent(screen.getByTestId('sum-share-date'), 'valueChange', true);
-  expect(screen.getByTestId('sum-share-preview').props.children).toMatch(/· \d{4}-\d{2}-\d{2} · #NeonShift$/);
+  expect(screen.getByTestId('sum-share-preview').props.children).toMatch(/\n\d{4}-\d{2}-\d{2}\n#NeonShift · neonshift\.cc$/);
   expect(screen.getByText('—')).toBeTruthy(); // kcal 無裝置值
   expect(screen.getByTestId('sum-sync').props.children).toBe('Synced to your account');
   expect(screen.getByTestId('sum-split-1')).toBeTruthy();

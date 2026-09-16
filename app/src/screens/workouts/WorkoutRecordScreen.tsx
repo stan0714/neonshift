@@ -2,6 +2,8 @@ import { Feather } from '@expo/vector-icons';
 import { StackActions, useNavigation } from '@react-navigation/native';
 import { useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
+import { useKeepAwake } from 'expo-keep-awake';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Alert, BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Chip, Screen } from '@/components';
@@ -49,6 +51,7 @@ export function WorkoutRecordScreen() {
 
   // PG-U-02：操作鎖（明確長按解鎖；不阻擋系統返回——返回後記錄仍由前景服務持續，可自 Workouts 清單回來）
   const [locked, setLocked] = useState(false);
+  useKeepAwake(); // 記錄中螢幕常亮（NRC 同）；離開畫面自動解除
   useEffect(() => {
     // 記錄中未鎖定時攔返回鍵（避免誤觸）；鎖定時放行系統返回（緊急操作不可被阻擋）
     const sub = BackHandler.addEventListener('hardwareBackPress', () => !locked && (s.state === 'recording' || s.state === 'paused'));
@@ -74,11 +77,16 @@ export function WorkoutRecordScreen() {
   const speedOf = (sPerKm: number | null) => (sPerKm === null || sPerKm <= 0 ? '—' : (3600 / sPerKm).toFixed(1));
   const avg = s.sport === 'walk' ? speedOf(avgPace) : formatPace(avgPace).replace(' /km', '');
   const vsAvg = profile.primary === 'pace' && s.state === 'recording' && s.gps !== 'searching' ? paceVsAvg(s.currentPaceSPerKm, avgPace) : null;
+  const onFire = vsAvg !== null && vsAvg < -2 && s.gps === 'ok';
   // 最近一段：最新完成的分段或圈（手動／自動）
   const last = [...s.splits, ...s.laps].filter((l) => !l.isPartial).sort((x, y) => y.endElapsedMs - x.endElapsedMs)[0] ?? null;
   const recent = [...s.splits, ...s.laps].filter((l) => !l.isPartial).sort((x, y) => y.endElapsedMs - x.endElapsedMs).slice(0, 5);
   const startedAt = new Date(Date.now() - s.elapsedMs).toLocaleTimeString(locale === 'zh-TW' ? 'zh-TW' : 'en', { hour: '2-digit', minute: '2-digit' });
-  const goalRatio = s.goal && s.goal.kind !== 'free' && s.goal.target > 0 ? Math.min(1, s.goal.kind === 'time' ? s.elapsedMs / (s.goal.target * 1000) : s.distanceMm / s.goal.target) : 0;
+  const goalCompletion = s.goal && s.goal.kind !== 'free' && s.goal.target > 0 ? (s.goal.kind === 'time' ? s.elapsedMs / (s.goal.target * 1000) : s.distanceMm / s.goal.target) : 0;
+  const goalRatio = Math.min(1, goalCompletion);
+  const goalExtra = s.goal?.kind === 'time'
+    ? formatDuration(String(Math.max(0, s.elapsedMs - s.goal.target * 1000)))
+    : `${(Math.max(0, s.distanceMm - (s.goal?.target ?? 0)) / 1_000_000).toFixed(2)} km`;
   /** 計圈：距離為 0 時引擎不建圈，但按鈕必須有回應——說明原因並輕震；成功則顯示第 N 圈＋配速 */
   const onLap = async () => {
     const l = await workoutRecorder.lap();
@@ -115,7 +123,8 @@ export function WorkoutRecordScreen() {
       <View style={styles.statusRow} accessible accessibilityLabel={`${t(`rec.gps.${s.gps}` as TKey)}, ${s.state === 'paused' ? t('rec.paused') : t('rec.recording')}`} testID="record-status">
         <Chip label={t(`rec.gps.${s.gps}` as TKey)} kind={s.gps === 'ok' ? 'synced' : s.gps === 'poor' ? 'devnet' : 'offline'} />
         <Chip label={s.state === 'paused' ? (s.pauseKind === 'auto' ? t('rec.autoPaused') : t('rec.paused')) : t('rec.recording')} kind={s.state === 'paused' ? 'devnet' : 'level'} />
-        <Pressable onPress={() => setLocked(true)} onLongPress={() => setLocked(false)} delayLongPress={1200} accessibilityRole="button" accessibilityLabel={locked ? t('rec.lock.unlockA11y') : t('rec.lock.lockA11y')} hitSlop={8} style={styles.lockBtn} testID={locked ? 'record-unlock' : 'record-lock'}>
+        <Pressable onPress={() => setLocked(true)} onLongPress={() => setLocked(false)} delayLongPress={1200} accessibilityRole="button" accessibilityLabel={locked ? t('rec.lock.unlockA11y') : t('rec.lock.lockA11y')} hitSlop={8} style={[styles.lockBtn, locked && styles.lockBtnOn]} testID={locked ? 'record-unlock' : 'record-lock'}>
+          <Feather name={locked ? 'lock' : 'unlock'} size={16} color={locked ? color.mint : color.textSecondary} />
           <Text variant="label" tone={locked ? 'mint' : 'secondary'}>{locked ? t('rec.lock.locked') : t('rec.lock.lock')}</Text>
         </Pressable>
       </View>
@@ -136,14 +145,20 @@ export function WorkoutRecordScreen() {
       ) : null}
       {/* 中段可捲動（內容依模式與資料變多）；狀態列與控制列固定 */}
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false} testID="record-body">
-      <View style={styles.hero} accessible accessibilityLabel={`${primaryLabel} ${primary === '—' ? t('rec.a11y.none') : primary} ${profile.primary === 'time' ? '' : profile.primary === 'speed' ? t('rec.a11y.kmh') : t('rec.a11y.minPerKm')}`}>
+      <View style={[styles.hero, onFire && styles.heroFire]} accessible accessibilityLabel={`${primaryLabel} ${primary === '—' ? t('rec.a11y.none') : primary} ${profile.primary === 'time' ? '' : profile.primary === 'speed' ? t('rec.a11y.kmh') : t('rec.a11y.minPerKm')}${onFire ? `, ${t('rec.energy.title')}, ${t('rec.vsAvg.faster', { p: -vsAvg! })}` : ''}`}>
+        {onFire ? <View pointerEvents="none" style={styles.energyBackdrop} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID="record-energy">
+          <LinearGradient colors={[color.warning, color.danger, color.surface]} start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }} style={styles.energyWash} />
+          <Feather name="zap" size={160} color={color.warning} style={styles.energyBolt} />
+          <View style={styles.energyStreak} />
+        </View> : null}
+        {onFire ? <View style={styles.energyLabel}><Feather name="zap" size={16} color={color.warning} /><Text variant="label" tone="warning" uppercase>{t('rec.energy.title')}</Text></View> : null}
         <View style={styles.modeRow}>
           <Feather name={profile.icon} size={14} color={profile.accent} />
           <Text variant="label" tone={profile.accentTone} uppercase testID="record-mode">
             {t(`wo.mode.${mode}` as TKey)}
           </Text>
         </View>
-        <Text style={styles.big} numeric testID="record-primary" maxFontSizeMultiplier={1.6}>
+        <Text style={[styles.big, onFire && styles.bigFire]} numeric testID="record-primary" maxFontSizeMultiplier={1.6}>
           {primary}
         </Text>
         <Text variant="label" tone="muted" uppercase>
@@ -157,8 +172,8 @@ export function WorkoutRecordScreen() {
           </View>
         ) : null}
         {vsAvg !== null ? (
-          <View style={[styles.zoneChip, { borderColor: vsAvg <= 0 ? profile.accent : color.borderSubtle }]} testID="record-vs-avg">
-            <Text variant="caption" tone={vsAvg <= 0 ? profile.accentTone : 'secondary'}>
+          <View style={[styles.zoneChip, { borderColor: onFire ? color.warning : vsAvg <= 0 ? profile.accent : color.borderSubtle }, onFire && styles.energyComparison]} testID="record-vs-avg">
+            <Text variant="caption" tone={onFire ? 'warning' : vsAvg <= 0 ? profile.accentTone : 'secondary'}>
               {vsAvg < -2 ? t('rec.vsAvg.faster', { p: -vsAvg }) : vsAvg > 2 ? t('rec.vsAvg.slower', { p: vsAvg }) : t('rec.vsAvg.same')}
             </Text>
           </View>
@@ -205,7 +220,22 @@ export function WorkoutRecordScreen() {
         </View>
       </View>
       {s.goal && s.goal.kind !== 'free' ? (
-        <View style={styles.goal}>
+        <View style={[styles.goal, s.goalReached && styles.goalAchieved]}>
+          {s.goalReached ? <>
+            <LinearGradient pointerEvents="none" colors={[color.elevated, color.surface]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[StyleSheet.absoluteFill, { borderRadius: radius.l }]} />
+            <View style={styles.achievementHeader} testID="record-goal-achievement">
+              <View style={styles.achievementMedal}><Feather name="award" size={28} color={color.warning} /></View>
+              <View style={styles.achievementCopy}>
+                <Text variant="label" tone="mint" uppercase>{t('rec.goalVictory.eyebrow')}</Text>
+                <Text variant="heading2">{t('rec.goalVictory.title')}</Text>
+              </View>
+              <Feather name="check-circle" size={24} color={color.mint} />
+            </View>
+            <View style={styles.achievementStats}>
+              <View style={styles.achievementCopy}><Text variant="displayM" numeric tone="mint" testID="record-goal-percent">{Math.floor(goalCompletion * 100)}%</Text><Text variant="caption" tone="secondary">{t('rec.goalVictory.completed')}</Text></View>
+              <View style={styles.achievementExtra}><Text variant="heading2" numeric testID="record-goal-extra">+{goalExtra}</Text><Text variant="caption" tone="secondary">{t('rec.goalVictory.extra')}</Text></View>
+            </View>
+          </> : null}
           <View style={styles.goalTrack} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(goalRatio * 100) }} testID="record-goal-bar">
             <View style={[styles.goalFill, { width: `${Math.round(goalRatio * 100)}%`, backgroundColor: profile.accent }, s.goalReached && styles.goalFillDone]} />
           </View>
@@ -303,6 +333,14 @@ export function WorkoutRecordScreen() {
           </>
         )}
       </View>
+      {locked ? (
+        <View style={styles.lockOverlay} pointerEvents="box-only" accessible accessibilityLabel={t('rec.lock.overlayHint')} testID="record-lock-overlay">
+          <Pressable onLongPress={() => setLocked(false)} delayLongPress={1200} accessibilityRole="button" accessibilityLabel={t('rec.lock.unlockA11y')} style={styles.lockBar} testID="record-lock-overlay-unlock">
+            <Feather name="lock" size={18} color={color.mint} />
+            <Text variant="title">{t('rec.lock.holdToUnlock')}</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {feedback ? <WorkoutActionFeedback key={feedback.id} mode={mode} action={feedback.action} /> : null}
     </Screen>
   );
@@ -316,7 +354,21 @@ const styles = StyleSheet.create({
   splitName: { flex: 1.2 },
   splitCell: { flex: 1, textAlign: 'right' },
   statusRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.s },
-  hero: { alignItems: 'center', marginTop: space.l },
+  hero: { alignItems: 'center', marginTop: space.l, paddingVertical: space.s, borderWidth: 1, borderColor: 'transparent', borderRadius: radius.xl },
+  heroFire: { borderColor: color.warning, backgroundColor: color.surface },
+  energyBackdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, overflow: 'hidden', borderRadius: radius.xl },
+  energyWash: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, opacity: 0.16 },
+  energyBolt: { position: 'absolute', right: -space.l, top: space.l, opacity: 0.12, transform: [{ rotate: '12deg' }] },
+  energyStreak: { position: 'absolute', left: space.l, top: space.xl, bottom: space.xl, width: 3, borderRadius: radius.s, backgroundColor: color.warning, opacity: 0.6, transform: [{ rotate: '18deg' }] },
+  energyLabel: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginBottom: space.xs },
+  energyComparison: { backgroundColor: color.surface },
+  bigFire: { color: color.warning },
+  goalAchieved: { borderWidth: 1, borderColor: color.mint, borderRadius: radius.l, padding: space.m },
+  achievementHeader: { flexDirection: 'row', alignItems: 'center', gap: space.s },
+  achievementMedal: { width: 48, height: 48, borderRadius: radius.m, backgroundColor: color.elevated, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: color.warning },
+  achievementCopy: { flex: 1 },
+  achievementStats: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginVertical: space.m },
+  achievementExtra: { flex: 1, alignItems: 'flex-end' },
   modeRow: { flexDirection: 'row', alignItems: 'center', gap: space.xxs, marginBottom: space.xxs },
   zoneChip: { marginTop: space.xs, paddingHorizontal: space.s, minHeight: 28, justifyContent: 'center', borderRadius: radius.l, borderWidth: 1, backgroundColor: color.surface },
   big: { fontSize: 88, lineHeight: 96, fontWeight: '700', color: color.textPrimary, fontVariant: ['tabular-nums'] },
@@ -328,7 +380,10 @@ const styles = StyleSheet.create({
   goalFill: { height: 6, backgroundColor: color.cyan },
   goalFillDone: { backgroundColor: color.mint },
   center: { textAlign: 'center', marginTop: space.xs },
-  lockBtn: { marginLeft: 'auto', minHeight: 48, minWidth: 48, alignItems: 'center', justifyContent: 'center' },
+  lockBtn: { marginLeft: 'auto', minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: space.xxs, paddingHorizontal: space.s, borderRadius: radius.xl, borderWidth: 1, borderColor: color.borderSubtle },
+  lockBtnOn: { borderColor: color.mint },
+  lockOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end', zIndex: 20 },
+  lockBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, minHeight: 64, marginHorizontal: layout.screenPaddingX, marginBottom: space.l, borderRadius: radius.xl, borderWidth: 1, borderColor: color.mint, backgroundColor: color.surface },
   ctlWide: { flex: 1 },
   body: { flex: 1, marginTop: space.xs },
   bodyContent: { paddingBottom: space.m },

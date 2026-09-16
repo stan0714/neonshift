@@ -3,7 +3,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
-import { Animated, Easing, Linking, Modal, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { Animated, Easing, Linking, Modal, PermissionsAndroid, Platform, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 import Svg, { Line, Path } from 'react-native-svg';
 
 import { Button, InlineState, Screen, Sheet } from '@/components';
@@ -11,6 +11,7 @@ import { ShoeHero } from '@/components/ShoeHero';
 import { WorkoutActionArt } from '@/components/WorkoutActionMotion';
 import { SPLIT_KM_MM, SPLIT_MILE_MM, TRACK_LAP_MAX_M, TRACK_LAP_MIN_M } from '@/domain/gps/engine';
 import { profileOf, snapPreset } from '@/domain/modes';
+import { formatDuration } from '@/domain/workouts';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useT, type TKey } from '@/i18n';
 import type { WorkoutGoal } from '@/services/api/ApiClient';
@@ -226,6 +227,10 @@ export function WorkoutStartScreen() {
         setErr({ kind: 'permission' });
         return;
       }
+      // Android 13+：沒有通知權限就看不到「記錄中」常駐通知（實機回饋：退到背景後不知道 App 還在跑）；拒絕仍可記錄
+      if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
+        await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS).catch(() => null);
+      }
       setCounting(true);
     } finally {
       setBusy(false);
@@ -237,6 +242,11 @@ export function WorkoutStartScreen() {
     try {
       const goal = goalOf(goalKind, timeMin, distKm);
       await prefs.set({ mode, goal }); // 最近模式與目標（快速開始用）
+      const modeName = t(`wo.mode.${mode}` as TKey);
+      workoutRecorder.setForegroundText((snap) => ({
+        title: snap.state === 'paused' ? t('rec.notif.paused', { mode: modeName }) : t('rec.notif.recording', { mode: modeName }),
+        body: t('rec.notif.body', { km: (snap.distanceMm / 1_000_000).toFixed(2), time: formatDuration(String(snap.elapsedMs)) }),
+      }));
       await workoutRecorder.start({ sport, intent, goal, environment: env, autoLapMm: autoLap === 'off' ? null : Number(autoLap) * 1000, trackLapMm: trackLapM === null ? null : trackLapM * 1000, splitLengthMm: units === 'km' ? SPLIT_KM_MM : SPLIT_MILE_MM, autoPause: prefs.autoPause });
       navigation.navigate('WorkoutRecord');
     } catch (e) {

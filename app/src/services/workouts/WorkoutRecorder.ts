@@ -59,7 +59,11 @@ export type RecorderSnapshot = {
 type LocationApi = Pick<typeof Location, 'requestForegroundPermissionsAsync' | 'getForegroundPermissionsAsync' | 'startLocationUpdatesAsync' | 'stopLocationUpdatesAsync' | 'hasStartedLocationUpdatesAsync'>;
 /** 感測器探測：回 true＝機身有步態、false＝沒有、null＝無法量測（無感測器／忙碌／背景） */
 export type MotionProbe = () => Promise<boolean | null>;
-type Deps = { store?: LocalWorkoutStore; location?: LocationApi; now?: () => number; sync?: (input: WorkoutImportInput) => Promise<{ sessionId: string | null }>; foreground?: { title: string; body: string }; motionProbe?: MotionProbe | null; probeIntervalMs?: number; /** 單調時鐘（預設 performance.now）；null＝不做時鐘漂移偵測 */ monotonic?: (() => number) | null };
+export type ForegroundText = (s: RecorderSnapshot) => { title: string; body: string };
+/** 前景服務通知的更新間隔：每次更新會重啟定位訂閱（expo-location setOptions），不宜太密 */
+export const NOTIFICATION_UPDATE_MS = 30_000;
+const defaultForegroundText: ForegroundText = (s) => ({ title: s.state === 'paused' ? 'NeonShift · paused' : 'NeonShift is recording', body: `${(s.distanceMm / 1_000_000).toFixed(2)} km · ${Math.floor(s.elapsedMs / 60000)}:${String(Math.floor((s.elapsedMs / 1000) % 60)).padStart(2, '0')} · tap to return` });
+type Deps = { store?: LocalWorkoutStore; location?: LocationApi; now?: () => number; sync?: (input: WorkoutImportInput) => Promise<{ sessionId: string | null }>; foreground?: ForegroundText; motionProbe?: MotionProbe | null; probeIntervalMs?: number; /** 單調時鐘（預設 performance.now）；null＝不做時鐘漂移偵測 */ monotonic?: (() => number) | null };
 
 /** 自動暫停（Style 23.7）：5 秒窗速度 < 0.5 m/s 持續 ≥ 10 s → 自動暫停；暫停中任一可用點距暫停位置 ≥ 15 m → 自動繼續 */
 export const AUTO_PAUSE = { minSpeedMs: 0.5, stillMs: 10_000, resumeDistanceM: 15, maxAccuracyM: 20 } as const;
@@ -96,7 +100,8 @@ export class WorkoutRecorder {
   private readonly location: LocationApi;
   private readonly now: () => number;
   private readonly sync: (input: WorkoutImportInput) => Promise<{ sessionId: string | null }>;
-  private readonly foreground: { title: string; body: string };
+  private foreground: ForegroundText;
+  private lastNotifyAt = 0;
   private readonly motionProbe: MotionProbe | null;
   private readonly probeIntervalMs: number;
   private probeTimer: ReturnType<typeof setInterval> | null = null;
@@ -122,10 +127,31 @@ export class WorkoutRecorder {
     this.location = deps.location ?? Location;
     this.now = deps.now ?? (() => Date.now());
     this.sync = deps.sync ?? defaultSync;
-    this.foreground = deps.foreground ?? { title: 'NeonShift is recording', body: 'Your run is being tracked. Routes stay on this phone.' };
+    this.foreground = deps.foreground ?? defaultForegroundText;
     this.motionProbe = deps.motionProbe === undefined ? defaultMotionProbe : deps.motionProbe;
     this.probeIntervalMs = deps.probeIntervalMs ?? MOTION_PROBE_INTERVAL_MS;
     this.monotonic = deps.monotonic === undefined ? (typeof globalThis.performance?.now === 'function' ? () => globalThis.performance.now() : null) : deps.monotonic;
+  }
+
+  /** 前景通知文案（在地化由畫面提供；記錄中會定期以最新距離／時間更新，點通知回到 App） */
+  setForegroundText(fn: ForegroundText) {
+    this.foreground = fn;
+  }
+  private locationOptions() {
+    const text = this.foreground(this.snapshot());
+    return { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0, foregroundService: { notificationTitle: text.title, notificationBody: text.body, killServiceOnDestroy: false } };
+  }
+  /** 更新前景通知（實機回饋：退到背景後不知道 App 還在記錄）；重新送同一組定位選項即可讓 expo-location 重建通知 */
+  private async refreshForeground(force = false) {
+    if (this.state === 'idle') return;
+    const t = this.now();
+    if (!force && t - this.lastNotifyAt < NOTIFICATION_UPDATE_MS) return;
+    this.lastNotifyAt = t;
+    try {
+      await this.location.startLocationUpdatesAsync(WORKOUT_LOCATION_TASK, this.locationOptions());
+    } catch {
+      // 通知只是輔助；失敗不影響記錄
+    }
   }
 
   /** 完整性探測（防弊）：GPS 顯示在動而機身沒有步態 → 記一次不一致；量不到（背景／無感測器）不計 */
@@ -222,12 +248,8 @@ export class WorkoutRecorder {
     this.autoPausedAt = null;
     resetLocationSeq(0);
     setLocationSink((pts) => this.ingest(pts));
-    await this.location.startLocationUpdatesAsync(WORKOUT_LOCATION_TASK, {
-      accuracy: Location.Accuracy.BestForNavigation,
-      timeInterval: 1000,
-      distanceInterval: 0,
-      foregroundService: { notificationTitle: this.foreground.title, notificationBody: this.foreground.body, killServiceOnDestroy: false },
-    });
+    this.lastNotifyAt = t;
+    await this.location.startLocationUpdatesAsync(WORKOUT_LOCATION_TASK, this.locationOptions());
     this.startProbes();
     this.emit();
     return this.meta;
@@ -256,6 +278,7 @@ export class WorkoutRecorder {
     if (autoResume) void this.resume('auto');
     else this.maybeAutoPause(points[points.length - 1]);
     this.emit();
+    void this.refreshForeground();
   }
 
   /** 自動暫停判定：只在 recording 且啟用時；5 秒窗速度 < 0.5 m/s 累計 ≥ 10 s → pause('auto') */
@@ -299,6 +322,7 @@ export class WorkoutRecorder {
     this.state = 'paused';
     await this.store.writeMeta(this.meta);
     this.emit();
+    void this.refreshForeground(true);
     return true;
   }
   async resume(_by: 'manual' | 'auto' = 'manual') {
@@ -313,6 +337,7 @@ export class WorkoutRecorder {
     this.state = 'recording';
     await this.store.writeMeta(this.meta);
     this.emit();
+    void this.refreshForeground(true);
     return true;
   }
   async lap(): Promise<Lap | null> {

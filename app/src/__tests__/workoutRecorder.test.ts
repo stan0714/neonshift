@@ -252,3 +252,30 @@ describe('WorkoutRecorder', () => {
     await off.finish();
   });
 });
+
+describe('前景通知（實機回饋：退到背景不知道還在記錄）', () => {
+  test('每 30 s 以最新距離／時間重送定位選項更新通知；暫停／繼續立即更新；文案由畫面提供', async () => {
+    let t = 1_000_000;
+    const rec = new WorkoutRecorder({ store: new LocalWorkoutStore(), now: () => t, sync: jest.fn(async () => ({ sessionId: null })), monotonic: null, motionProbe: null });
+    rec.setForegroundText((s) => ({ title: s.state === 'paused' ? 'P' : 'R', body: `${(s.distanceMm / 1_000_000).toFixed(2)} km` }));
+    await rec.start({ sport: 'run', environment: 'outdoor' });
+    expect(loc.startLocationUpdatesAsync).toHaveBeenCalledTimes(1);
+    expect(loc.startLocationUpdatesAsync.mock.calls[0]![1].foregroundService).toMatchObject({ notificationTitle: 'R', notificationBody: '0.00 km' });
+    // 20 s 內不重送
+    for (let i = 0; i < 20; i++) { t += 1000; rec.ingest(pts(1, t, i)); }
+    expect(loc.startLocationUpdatesAsync).toHaveBeenCalledTimes(1);
+    // 滿 30 s → 重送一次，帶最新距離
+    for (let i = 20; i < 31; i++) { t += 1000; rec.ingest(pts(1, t, i)); }
+    expect(loc.startLocationUpdatesAsync).toHaveBeenCalledTimes(2);
+    expect(loc.startLocationUpdatesAsync.mock.calls[1]![1].foregroundService.notificationBody).toMatch(/^0\.\d\d km$/);
+    expect(loc.startLocationUpdatesAsync.mock.calls[1]![1].foregroundService.notificationBody).not.toBe('0.00 km');
+    // 暫停／繼續：不等 30 s
+    t += 1000; await rec.pause();
+    expect(loc.startLocationUpdatesAsync).toHaveBeenCalledTimes(3);
+    expect(loc.startLocationUpdatesAsync.mock.calls[2]![1].foregroundService.notificationTitle).toBe('P');
+    t += 1000; await rec.resume();
+    expect(loc.startLocationUpdatesAsync).toHaveBeenCalledTimes(4);
+    expect(loc.startLocationUpdatesAsync.mock.calls[3]![1].foregroundService.notificationTitle).toBe('R');
+    await rec.finish();
+  });
+});
