@@ -71,7 +71,8 @@ console.log(`owner ${owner.wallet}\nstaff ${staff.wallet}`);
 
 // 組織
 let me = await get("/v1/partner/me", owner.token);
-let org = (me.organizations ?? []).find((o) => o.slug === ORG.slug);
+// /partner/me 早期版本不回 slug：以 slug 或名稱比對，避免重跑時 409 SLUG_TAKEN
+let org = (me.organizations ?? []).find((o) => o.slug === ORG.slug || o.name === ORG.name);
 if (!org) {
   if (!OPS) throw new Error("組織不存在且未提供 OPS_TOKEN（l1 /etc/neonshift/api.env）");
   org = await post("/v1/partner/orgs", { ...ORG, owner_wallet: owner.wallet }, OPS);
