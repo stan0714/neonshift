@@ -52,8 +52,9 @@ export function RevealCeremony({ from, to, explorer = null, preview = false, onC
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel={t('common.dismiss')} testID="reveal-scrim" />
-      {/* Modal 為 edge-to-edge：卡片上下再讓出安全區，否則 Android 16 手勢列會壓在按鈕上 */}
-      <ScrollView contentContainerStyle={[styles.card, { marginTop: space.l + insets.top, marginBottom: space.l + insets.bottom }]} accessibilityViewIsModal testID="evolution-reveal">
+      {/* Modal 為 edge-to-edge：外層先讓出安全區（contentContainer 的 margin 在 Android 不計入可捲範圍），否則手勢列壓住 Close */}
+      <View style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom }} pointerEvents="box-none">
+      <ScrollView contentContainerStyle={styles.card} accessibilityViewIsModal testID="evolution-reveal">
         {preview ? (
           <View style={styles.previewRow} testID="reveal-preview">
             <Chip label={t('common.demo')} kind="level" />
@@ -83,6 +84,7 @@ export function RevealCeremony({ from, to, explorer = null, preview = false, onC
           </Pressable>
         ) : null}
       </ScrollView>
+      </View>
     </Modal>
   );
 }
