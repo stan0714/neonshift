@@ -48,7 +48,8 @@ export type GpsConfig = {
 };
 
 export const defaultConfig = (sport: Sport, over: Partial<GpsConfig> = {}): GpsConfig => ({
-  maxAccuracyM: 20,
+  /** 2026-09-17 實機：無 SIM（無 A-GPS）戶外跑道 14 分鐘精度一直 > 20 m → 全部拒絕、0 km；放寬到 50 m，抖動由 0.6×精度的遲滯門檻抑制 */
+  maxAccuracyM: 50,
   maxGapMs: 5000,
   maxSpeedMs: sport === 'run' ? 12 : 4,
   jitterFloorMm: 3000,

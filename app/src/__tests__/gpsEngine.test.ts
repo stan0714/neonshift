@@ -127,7 +127,7 @@ test('拒絕：非有限座標、精度 > 20 m、seq 重複、時間倒序；未
   expect(e.addPoint({ seq: 0, monotonicMs: 0, utcMs: 0, lat: 25, lon: 121.5, accuracyM: 5 })).toMatchObject({ accepted: false, reason: 'not_recording' });
   e.start(0);
   expect(e.addPoint({ seq: 0, monotonicMs: 0, utcMs: 0, lat: NaN, lon: 121.5, accuracyM: 5 }).reason).toBe('not_finite');
-  expect(e.addPoint({ seq: 1, monotonicMs: 1000, utcMs: 0, lat: 25, lon: 121.5, accuracyM: 35 }).reason).toBe('low_accuracy');
+  expect(e.addPoint({ seq: 1, monotonicMs: 1000, utcMs: 0, lat: 25, lon: 121.5, accuracyM: 65 }).reason).toBe('low_accuracy');
   expect(e.addPoint({ seq: 2, monotonicMs: 2000, utcMs: 0, lat: 25, lon: 121.5, accuracyM: 5 }).accepted).toBe(true);
   expect(e.addPoint({ seq: 2, monotonicMs: 3000, utcMs: 0, lat: 25, lon: 121.5, accuracyM: 5 }).reason).toBe('duplicate');
   expect(e.addPoint({ seq: 3, monotonicMs: 1500, utcMs: 0, lat: 25, lon: 121.5, accuracyM: 5 }).reason).toBe('out_of_order');

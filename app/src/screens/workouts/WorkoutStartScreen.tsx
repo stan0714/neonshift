@@ -1,7 +1,8 @@
 import { Feather } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
+import * as Location from 'expo-location';
 import * as Speech from 'expo-speech';
 import { Animated, Easing, Linking, Modal, PermissionsAndroid, Platform, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 import Svg, { Line, Path } from 'react-native-svg';
@@ -218,6 +219,23 @@ export function WorkoutStartScreen() {
   const [err, setErr] = useState<{ kind: 'permission' | 'generic'; message?: string } | null>(null);
   const [sheet, setSheet] = useState<'goal' | 'settings' | null>(null);
   const [counting, setCounting] = useState(false);
+  // 開始前 GPS 就緒指示（實機回饋：無 SIM 的 Seeker 冷開機定位要 1–2 分鐘，直接開跑會 0 km）：戶外＋頁面聚焦時預熱定位並顯示精度
+  const focused = useIsFocused();
+  const [gpsReady, setGpsReady] = useState<{ acc: number } | null>(null);
+  useEffect(() => {
+    if (env !== 'outdoor' || !focused || counting) { setGpsReady(null); return; }
+    let sub: { remove: () => void } | null = null;
+    let cancelled = false;
+    (async () => {
+      const perm = await Location.getForegroundPermissionsAsync().catch(() => null);
+      if (!perm?.granted || cancelled) return;
+      sub = await Location.watchPositionAsync({ accuracy: Location.Accuracy.BestForNavigation, timeInterval: 2000, distanceInterval: 0 }, (l) => {
+        setGpsReady({ acc: l.coords.accuracy ?? Number.POSITIVE_INFINITY });
+      }).catch(() => null);
+    })();
+    return () => { cancelled = true; sub?.remove(); };
+  }, [env, focused, counting]);
+  const gpsReadyState = env !== 'outdoor' ? null : gpsReady === null ? 'searching' : gpsReady.acc <= 20 ? 'ready' : 'weak';
   const [channel, setChannel] = useState<WorkoutChannelState | null>(null);
 
   /** 按下 START：先確認定位權限，再進 3–2–1 倒數；倒數結束（或點一下略過）才真正開始記錄 */
@@ -324,6 +342,15 @@ export function WorkoutStartScreen() {
           </Text>
         </Pressable>
       </View>
+      {gpsReadyState ? (
+        <View style={styles.gpsReadyRow} testID={`start-gps-${gpsReadyState}`}>
+          <Feather name={gpsReadyState === 'ready' ? 'check-circle' : gpsReadyState === 'weak' ? 'alert-circle' : 'loader'} size={14} color={gpsReadyState === 'ready' ? color.mint : gpsReadyState === 'weak' ? color.warning : color.textMuted} />
+          <Text variant="caption" tone={gpsReadyState === 'ready' ? 'mint' : gpsReadyState === 'weak' ? 'warning' : 'muted'}>
+            {t(`rec.gpsReady.${gpsReadyState}` as TKey, { acc: gpsReady && Number.isFinite(gpsReady.acc) ? String(Math.round(gpsReady.acc)) : '—' })}
+            {gpsReadyState !== 'ready' ? ` · ${t('rec.gpsReady.hint')}` : ''}
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.controls}>
         <Pressable onPress={() => setSheet('settings')} style={styles.sideButton} accessibilityRole="button" accessibilityLabel={t('rec.settings')} testID="start-settings">
@@ -463,6 +490,7 @@ export function WorkoutStartScreen() {
 }
 
 const styles = StyleSheet.create({
+  gpsReadyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, paddingHorizontal: space.l, marginTop: space.xs },
   mt: { marginTop: space.m },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.s, marginBottom: space.xs },
   stepBtn: { width: 48, height: 48, borderRadius: radius.m, borderWidth: 1, borderColor: color.borderSubtle, alignItems: 'center', justifyContent: 'center', backgroundColor: color.elevated },

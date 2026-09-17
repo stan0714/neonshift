@@ -86,6 +86,7 @@ jest.mock('expo-location', () => ({
   startLocationUpdatesAsync: jest.fn(async () => {}),
   stopLocationUpdatesAsync: jest.fn(async () => {}),
   hasStartedLocationUpdatesAsync: jest.fn(async () => true),
+  watchPositionAsync: jest.fn(async () => ({ remove: jest.fn() })),
 }));
 jest.mock('expo-file-system', () => {
   // 記憶體檔案系統：只實作 LocalWorkoutStore 用到的 File／Directory API

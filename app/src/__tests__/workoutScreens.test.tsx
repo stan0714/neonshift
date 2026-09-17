@@ -151,13 +151,22 @@ test('記錄頁：健走顯示速度、時間／距離；目標進度 → 達標
   await waitFor(() => expect(screen.getByText('GPS · searching')).toBeTruthy(), { timeout: 3000 }); // 時鐘已推進 120 s、最後一點在 120 s 前（每秒刷新）
   // PG-U-02：定位失效 → 不展示舊速度、顯示缺口提示；讀屏標籤含單位與狀態；操作鎖：鎖定後控制列只剩長按解鎖、不阻擋返回
   expect(screen.getByTestId('record-primary').props.children).toBe('—');
-  expect(screen.getByTestId('record-gps-gap')).toBeTruthy();
+  expect(screen.getByTestId('record-gps-issue-no_fix')).toBeTruthy(); // ≥ 30 s 無定位 → 明確警示（App 持續嘗試、不自行停止）
+  expect(screen.getByText(/No GPS fix/)).toBeTruthy();
+  expect(screen.getByTestId('record-gps-diag').props.children).toContain('fixes');
   expect(screen.getByTestId('record-status').props.accessibilityLabel).toBe('GPS · searching, Recording');
   expect(screen.getByLabelText(/^Distance 0\.36 kilometers$/)).toBeTruthy();
   await fireEvent.press(screen.getByTestId('record-lock'));
   expect(screen.getByTestId('record-locked')).toBeTruthy();
   expect(screen.getByTestId('record-lock-overlay')).toBeTruthy(); // 全畫面攔截誤觸
   expect(screen.queryByTestId('record-pause')).toBeNull();
+  // 長按解鎖：按下即顯示「繼續按住…」＋進度填滿；放開歸零；滿 1.2 s 解鎖
+  await fireEvent(screen.getByTestId('record-lock-overlay-unlock'), 'pressIn');
+  expect(screen.getByText('Keep holding…')).toBeTruthy();
+  expect(screen.getByTestId('record-lock-hold-fill')).toBeTruthy();
+  await fireEvent(screen.getByTestId('record-lock-overlay-unlock'), 'pressOut');
+  expect(screen.getByText('Hold to unlock')).toBeTruthy();
+  expect(screen.getByTestId('record-lock-overlay')).toBeTruthy();
   await fireEvent(screen.getByTestId('record-lock-overlay-unlock'), 'longPress');
   expect(screen.queryByTestId('record-lock-overlay')).toBeNull();
   expect(screen.getByTestId('record-pause')).toBeTruthy();

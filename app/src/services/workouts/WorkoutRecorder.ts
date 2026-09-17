@@ -50,6 +50,15 @@ export type RecorderSnapshot = {
   speedSamples: { monotonicMs: number; speedMs: number }[];
   /** 最後一點的水平精度（m）；無點 → null */
   lastAccuracyM: number | null;
+  /** 本次收到的定位點總數（含被拒絕的） */
+  fixes: number;
+  /**
+   * 戶外記錄中的 GPS 問題（實機回饋：跑道 14 分鐘 0 km 卻沒有提示）：
+   * - `no_fix`：≥ 30 s 沒有任何定位點（系統定位關閉／室內／剛冷開機）
+   * - `weak`：有點但精度都超過門檻、≥ 60 s 沒有任何點被採用（距離不會累計）
+   * App 會持續嘗試，不會自行停止；非記錄中 → null
+   */
+  gpsIssue: { kind: 'no_fix' | 'weak'; sinceMs: number } | null;
   /** 暫停中：這次暫停是自動（靜止）還是手動；非暫停 → null */
   pauseKind: 'manual' | 'auto' | null;
   /** 本次 session 自動暫停累計（ms；含進行中的那段） */
@@ -60,6 +69,8 @@ type LocationApi = Pick<typeof Location, 'requestForegroundPermissionsAsync' | '
 /** 感測器探測：回 true＝機身有步態、false＝沒有、null＝無法量測（無感測器／忙碌／背景） */
 export type MotionProbe = () => Promise<boolean | null>;
 export type ForegroundText = (s: RecorderSnapshot) => { title: string; body: string };
+/** GPS 問題判定門檻（ms） */
+export const GPS_ISSUE = { noFixMs: 30_000, weakMs: 60_000 } as const;
 /** 前景服務通知的更新間隔：每次更新會重啟定位訂閱（expo-location setOptions），不宜太密 */
 export const NOTIFICATION_UPDATE_MS = 30_000;
 const defaultForegroundText: ForegroundText = (s) => ({ title: s.state === 'paused' ? 'NeonShift · paused' : 'NeonShift is recording', body: `${(s.distanceMm / 1_000_000).toFixed(2)} km · ${Math.floor(s.elapsedMs / 60000)}:${String(Math.floor((s.elapsedMs / 1000) % 60)).padStart(2, '0')} · tap to return` });
@@ -117,6 +128,8 @@ export class WorkoutRecorder {
   private state: RecorderState = 'idle';
   private lastPointAt = 0;
   private lastAccuracy: number | null = null;
+  private lastAcceptedAt = 0;
+  private fixes = 0;
   private listeners = new Set<() => void>();
   private pending: RawPoint[] = [];
   private flushing: Promise<void> | null = null;
@@ -193,6 +206,14 @@ export class WorkoutRecorder {
     const gps: RecorderSnapshot['gps'] = this.state !== 'recording' ? 'off' : !this.lastPointAt || t - this.lastPointAt > 10_000 ? 'searching' : this.lastAccuracy !== null && this.lastAccuracy > 20 ? 'poor' : 'ok';
     const movingMs = e && this.meta ? e.elapsedAt(t) : 0;
     const pausedMs = e && this.meta && e.status !== 'finished' ? this.pausedTotal() : 0;
+    const startedAt = this.meta?.startedMonoMs ?? t;
+    const sinceFix = t - (this.lastPointAt || startedAt);
+    const sinceAccepted = t - (this.lastAcceptedAt || startedAt);
+    const gpsIssue: RecorderSnapshot['gpsIssue'] =
+      this.state !== 'recording' ? null
+      : sinceFix >= GPS_ISSUE.noFixMs ? { kind: 'no_fix', sinceMs: sinceFix }
+      : this.lastAccuracy !== null && this.lastAccuracy > (e?.config.maxAccuracyM ?? 50) && sinceAccepted >= GPS_ISSUE.weakMs ? { kind: 'weak', sinceMs: sinceAccepted }
+      : null;
     return {
       state: this.state,
       sessionId: this.meta?.sessionId ?? null,
@@ -217,6 +238,8 @@ export class WorkoutRecorder {
       path: e ? e.recentPath() : [],
       speedSamples: e ? e.recentSpeeds() : [],
       lastAccuracyM: this.lastAccuracy,
+      fixes: this.fixes,
+      gpsIssue,
       pauseKind: this.state === 'paused' ? (this.meta?.pauses[this.meta.pauses.length - 1]?.kind ?? 'manual') : null,
       autoPausedMs: (this.meta?.pauses ?? []).filter((p) => p.kind === 'auto').reduce((n, p) => n + ((p.resumedAtMs ?? this.now()) - p.atMs), 0),
     };
@@ -243,6 +266,8 @@ export class WorkoutRecorder {
     this.engine.start(t);
     this.state = 'recording';
     this.lastPointAt = 0;
+    this.lastAcceptedAt = 0;
+    this.fixes = 0;
     this.clockOffset0 = null;
     this.stillSince = null;
     this.autoPausedAt = null;
@@ -268,10 +293,11 @@ export class WorkoutRecorder {
     for (const p of points) {
       this.lastPointAt = this.now();
       this.lastAccuracy = p.accuracyM;
+      this.fixes += 1;
       // 自動暫停中：離暫停位置 ≥ 15 m（且精度可用、非模擬）→ 自動繼續（本批之後的點照常餵引擎）
       if (this.autoPausedAt && this.state === 'paused' && !p.mocked && p.accuracyM <= AUTO_PAUSE.maxAccuracyM && haversineMm(this.autoPausedAt.lat, this.autoPausedAt.lon, p.lat, p.lon) >= AUTO_PAUSE.resumeDistanceM * 1000) autoResume = true;
       const r = this.engine.addPoint(p);
-      if (r.accepted) this.meta.acceptedCount += 1;
+      if (r.accepted) { this.meta.acceptedCount += 1; this.lastAcceptedAt = this.now(); }
       this.meta.lastSeq = Math.max(this.meta.lastSeq, p.seq);
     }
     void this.flush();

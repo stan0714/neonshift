@@ -4,14 +4,15 @@ import { useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Alert, BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Animated, BackHandler, Easing, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Chip, Screen } from '@/components';
+import { Chip, InlineState, Screen } from '@/components';
 import { RouteTrace } from '@/components/RouteTrace';
 import { SpeedSparkline } from '@/components/SpeedSparkline';
 import { WorkoutActionFeedback, type WorkoutAction } from '@/components/WorkoutActionMotion';
 import { paceVsAvg, profileOf, speedZone } from '@/domain/modes';
 import { formatDuration, formatPace } from '@/domain/workouts';
+import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useT, type TKey } from '@/i18n';
 import { workoutCues } from '@/services/workouts/WorkoutCues';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
@@ -138,10 +139,25 @@ export function WorkoutRecordScreen() {
           {t('rec.integrity.live', { reason: t(`wo.reason.${s.integrityFlags[0]}` as TKey) })}
         </Text>
       ) : null}
-      {s.gps === 'searching' && s.state === 'recording' ? (
+      {s.gps === 'searching' && s.state === 'recording' && !s.gpsIssue ? (
         <Text variant="caption" tone="warning" style={styles.center} testID="record-gps-gap">
           {t('rec.gpsGap')}
         </Text>
+      ) : null}
+      {/* 定位診斷：一直看得到「收到幾筆／採用幾筆／精度」，0 km 時不用猜（實機回饋：戶外跑道 14 分鐘 0 km 沒有任何提示） */}
+      {s.state === 'recording' ? (
+        <Text variant="caption" tone="muted" style={styles.center} testID="record-gps-diag">
+          {t('rec.gpsDiag', { fixes: s.fixes, accepted: s.accepted, acc: s.lastAccuracyM === null ? '—' : String(Math.round(s.lastAccuracyM)) })}
+        </Text>
+      ) : null}
+      {s.gpsIssue ? (
+        <InlineState
+          kind="warning"
+          title={t(s.gpsIssue.kind === 'no_fix' ? 'rec.gpsIssue.noFixTitle' : 'rec.gpsIssue.weakTitle')}
+          body={t(s.gpsIssue.kind === 'no_fix' ? 'rec.gpsIssue.noFixBody' : 'rec.gpsIssue.weakBody', { s: Math.round(s.gpsIssue.sinceMs / 1000), acc: s.lastAccuracyM === null ? '—' : String(Math.round(s.lastAccuracyM)) })}
+          action={s.gpsIssue.kind === 'no_fix' ? { label: t('rec.gpsIssue.openSettings'), onPress: () => void Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS').catch(() => Linking.openSettings()) } : undefined}
+          testID={`record-gps-issue-${s.gpsIssue.kind}`}
+        />
       ) : null}
       {/* 中段可捲動（內容依模式與資料變多）；狀態列與控制列固定 */}
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false} testID="record-body">
@@ -333,14 +349,46 @@ export function WorkoutRecordScreen() {
       </View>
       {locked ? (
         <Pressable style={styles.lockOverlay} onPress={() => {}} accessibilityLabel={t('rec.lock.overlayHint')} testID="record-lock-overlay">
-          <Pressable onLongPress={() => setLocked(false)} delayLongPress={1200} accessibilityRole="button" accessibilityLabel={t('rec.lock.unlockA11y')} style={styles.lockBar} testID="record-lock-overlay-unlock">
-            <Feather name="lock" size={18} color={color.mint} />
-            <Text variant="title">{t('rec.lock.holdToUnlock')}</Text>
-          </Pressable>
+          <HoldToUnlock onUnlock={() => setLocked(false)} />
         </Pressable>
       ) : null}
       {feedback ? <WorkoutActionFeedback key={feedback.id} mode={mode} action={feedback.action} /> : null}
     </Screen>
+  );
+}
+
+/** 長按解鎖列（實機回饋：按住時看不出「正在 HOLD」）：按下即開始 1.2 s 進度填滿＋文案「繼續按住…」，放開歸零，滿格解鎖並震動 */
+const HOLD_MS = 1200;
+function HoldToUnlock({ onUnlock }: { onUnlock: () => void }) {
+  const { t } = useT();
+  const reduced = useReduceMotion();
+  const progress = useRef(new Animated.Value(0)).current;
+  const [holding, setHolding] = useState(false);
+  const anim = useRef<Animated.CompositeAnimation | null>(null);
+  const start = () => {
+    setHolding(true);
+    void Haptics.selectionAsync().catch(() => {});
+    anim.current?.stop();
+    progress.setValue(0);
+    anim.current = Animated.timing(progress, { toValue: 1, duration: HOLD_MS, easing: Easing.linear, useNativeDriver: false });
+    anim.current.start();
+  };
+  const cancel = () => {
+    setHolding(false);
+    anim.current?.stop();
+    Animated.timing(progress, { toValue: 0, duration: reduced ? 0 : 160, useNativeDriver: false }).start();
+  };
+  const done = () => {
+    setHolding(false);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    onUnlock();
+  };
+  return (
+    <Pressable onPressIn={start} onPressOut={cancel} onLongPress={done} delayLongPress={HOLD_MS} accessibilityRole="button" accessibilityLabel={t('rec.lock.unlockA11y')} accessibilityState={{ busy: holding }} style={[styles.lockBar, holding && styles.lockBarHolding]} testID="record-lock-overlay-unlock">
+      <Animated.View pointerEvents="none" style={[styles.lockFill, { width: progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }]} testID="record-lock-hold-fill" />
+      <Feather name={holding ? 'unlock' : 'lock'} size={18} color={color.mint} />
+      <Text variant="title">{holding ? t('rec.lock.holding') : t('rec.lock.holdToUnlock')}</Text>
+    </Pressable>
   );
 }
 
@@ -381,7 +429,9 @@ const styles = StyleSheet.create({
   lockBtn: { marginLeft: 'auto', minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: space.xxs, paddingHorizontal: space.s, borderRadius: radius.xl, borderWidth: 1, borderColor: color.borderSubtle },
   lockBtnOn: { borderColor: color.mint },
   lockOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end', zIndex: 20 },
-  lockBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, minHeight: 64, marginHorizontal: layout.screenPaddingX, marginBottom: space.l, borderRadius: radius.xl, borderWidth: 1, borderColor: color.mint, backgroundColor: color.surface },
+  lockBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, minHeight: 64, marginHorizontal: layout.screenPaddingX, marginBottom: space.l, borderRadius: radius.xl, borderWidth: 1, borderColor: color.mint, backgroundColor: color.surface, overflow: 'hidden' },
+  lockBarHolding: { borderWidth: 2 },
+  lockFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: color.mint, opacity: 0.28 },
   ctlWide: { flex: 1 },
   ctlPlaceholder: { opacity: 0 },
   body: { flex: 1, marginTop: space.xs },
