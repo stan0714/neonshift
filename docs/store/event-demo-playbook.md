@@ -1,152 +1,108 @@
-# Demo 情境：活動流程與展示手冊（PG-D-03 附件）
+# 合作活動：評審展示與操作手冊
 
-更新：2026-09-17。狀態：dev 環境 fixture 已建立並可操作；主片／活動詳解尚未錄製；Wallet B（Lv.2+）尚未養成。本文件是 [demo-video.md](demo-video.md) 與 [judges-guide.md](judges-guide.md) 引用的角色、資料、狀態與例外的唯一來源。
+更新：2026-09-17。活動模組已有 App／API 實作，PG-E-10 與 PG-M-04 實機端到端驗收仍待完成。本文件是展示準備，不代表已有正式合作或已部署可用 fixture。
 
-## 1. 情境一句話
+入口：[評審指南](judges-guide.md)｜[影片腳本](demo-video.md)｜[提交追蹤](clock-in-submission.md)。
 
-「荒野守護體驗日」：一位每天走路的玩家（Wallet A）在 App 完成當日打卡 → 在裝備頁看到保育跑鞋與盲盒細節款 → 報名測試活動 → 現場向 staff 出示報到碼 → 報到後預留紀念毛巾 → 主辦方發布成績 → 符合資格者領活動留念章。全部在 devnet／dev 後端，不是真實合作活動，沒有捐款。
+## 1. 情境與角色
 
-## 2. 角色與錢包
+使用「荒野守護體驗日」作為**測試活動**：參加者先日常運動，再參加現場活動、取得符合資格的權益與紀念，最後回到日常任務。品牌與保育機構合作尚屬提案，不使用其 Logo 冒充合作。
 
-| 角色 | 錢包 | 由誰持有 | 用途 | 狀態 |
-|---|---|---|---|---|
-| A 參加者（主角） | Seeker 上的 Phantom `AcBU…vbV2` | 專案負責人 | 打卡、報名、報到碼、預留權益、看成績、領章 | 可用；今日步數 6,348（8,000 未達） |
-| B 已升階玩家 | 待養成（可為 A 本人） | 專案負責人 | 展示 Lv.2+ 保育鞋、細節款與升階揭曉 | **未達成**：需 XP ≥ 450（每日步數任務 +100、睡眠 +50；只有步數 → 5 天，步數＋睡眠 → 3 天）。沒有管理員加 XP 指令，也不該有 |
-| S 現場 staff | `B5gsSiLZ3cL1N6AKRHtuJis4GhPQCuFxDNJvyMJc91T7` | 團隊（`~/.config/neonshift/dev/demo/demo-staff.json`） | 報到確認、權益交付（綁 Gate 報到站） | 可用（以腳本或匯入 Phantom 後用 App Staff tools） |
-| O 主辦方 owner／成績 | `4sUmyriePDzJvyr8vm4zPzJP7fVv1fMVJwWHrjrNAZm1` | 團隊（`demo-owner.json`） | 建活動、規則、站點、品項、成績匯入與發布 | 可用（僅腳本） |
+- 參加者 P：自己錢包，報名、呈示代碼、查成績／領取資格。
+- 現場 staff S：另一裝置／錢包，只取得測試活動必要權限，確認報到與交付。
+- 主辦方 O：團隊持有 owner／result_editor／publisher 權限，設定、發布及更正；目前以 API 操作，沒有完成的網頁管理後台。
 
-金鑰只在 `~/.config/neonshift/dev/demo/`，不進 repo、不公開；OPS token 只在 l1 `/etc/neonshift/api.env`。
+合作活動不等於 Arena 質押錦標賽。報名不意味質押 tSKR，也不意味完成健康任務。
 
-## 3. 測試活動 fixture（dev 後端，已建立）
+## 2. 全流程與證據
 
-由 `backend/scripts/demo-event.mjs` 產生，幂等可重跑；產出登錄在 `~/.config/neonshift/dev/demo/fixture.json`。
+| 階段 | 參加者操作 | 主辦方／staff 操作 | 成功證據與重要界線 |
+|---|---|---|---|
+| 發現 | Arena → 合作活動；或已驗證的活動連結 | 發布有時區、容量、規則版本的活動 | 詳情可讀；只有發布中的有效活動可報名 |
+| 報名 | 看規則，選擇是否公開顯示資料，確認報名 | 服務端檢查時窗、容量與接受版本 | 本人報名狀態；公開同意不是強制報名條件；不是鏈上交易 |
+| 到場 | App 內選站點，或 NFC 開啟活動；取得短效 QR／8 碼 | 授權 staff 在 App 輸入代碼確認 | 參加者重載後為已報到；NFC 只提供入口，不自動證明到場；相機掃 QR 未完成 |
+| 權益 | 符合規則才預留，顯示領取碼 | staff 核對並完成實體交付 | 預留、交付分開；現有保留期 15 分鐘，庫存與每人上限依設定；數位徽章與實體物品分開 |
+| 成績 | 查看本人成績與來源 | 測試 CSV → staging／逐列驗證 → publisher 發布；更正需原因 | 主辦方來源、版本與更正紀錄；不能說 GPS 自動成為官方成績 |
+| 活動章 | 檢查資格、公開資料與 rent，MWA 簽署 | 主辦方已開啟章別；必要 registry 同步 | 報到章／完賽章分開；報名時 Lv.2 快照、對應資格及 registry 就緒才可領；成功才附 Explorer |
+| 回訪 | 回看歷程、回到日常運動／鞋款介紹 | 觀察實際報名／到場／領取彙總 | 自動邀請、主題任務綁權益與聯名款為後續規劃，不宣稱現成 |
 
-| 項目 | 值 |
+### 各種資料不能混用
+
+| 資料 | 權威來源 | 展示方式 |
+|---|---|---|
+| 日常健康打卡 | Health Connect 摘要＋後端 attestation＋鏈上程式 | 真實 devnet 交易；不公開原始健康資料 |
+| GPS 即時運動 | 手機運動記錄器 | 運動體驗畫面，不等於官方完賽或健康任務資格 |
+| 報名／報到／庫存 | 活動後端與授權操作 | App 狀態、對帳、稽核；不每一步都要求 Explorer |
+| 活動成績 | 主辦方發布／更正 | 明示來源與版本；不是健康來源驗證 |
+| 活動 NFT | 已核實資格＋registry＋錢包交易 | NFT 確認發行，不使現場運動本身自動可鏈上驗證 |
+| 保育盲盒外觀 | 系列／錢包／等級的固定分配 | App 造型，不是安全隨機抽取、NFT 稀有度或保育捐款 |
+
+## 3. 錄影 fixture 準備（由團隊操作）
+
+依 [建置手冊 §7.8、§7.9](../build-and-test.md)操作 API／registry；不把 access token 或 ops 命令輸出放到公開影片。
+
+1. 記錄 demo API、APK、Commit、Program ID；確認服務可用。
+2. 建立或核實測試組織與測試活動，名稱明示 DEMO。設定 Asia/Taipei 及實際拍攝／評審有效時窗，不直接沿用過期範例日期。
+3. 建立並發布規則版本，確認容量足以讓評審新錢包加入。登錄 slug、event ID、規則 revision。
+4. 建立 check-in 站點；指定 staff 最小權限。現有交付站點權限約束仍有待辦，正式試辦前須補驗收，不能宣稱跨站權限已全部完成。
+5. 配置示範權益、庫存與資格；若拍實體交付，準備真實示範物品，標記非真實品牌贊助。
+6. 活動章需要在報名前決定章別；P 若要領章，先具備報名時 Lv.2 條件。不能先用不合格帳號報名再改資料假裝原有資格。
+7. 用獨立測試成績 CSV，標示測試資料；先驗證錯誤列不能發布，再發布正確版；準備一筆更正例。
+8. NFT 拍攝前確認 registry 同步、鏈上帳戶與 SOL；首次操作卡在 pending 時保留真實狀態，不剪成秒領。
+9. 主片只取已驗收的報名→報到片段；六分鐘片按章節完整展示。時間跳轉、預先建立的資料、不同帳號皆加字幕。
+10. 評審 fixture 與錄影 fixture 分開或留下足夠名額／庫存。不得在有人試用時任意刪除、重設其資料；維護負責人與支援時段登錄於指南。
+
+### Fixture 登錄（尚未建立／驗證）
+
+| 欄位 | 值 |
 |---|---|
-| API | `http://l1.neonshift.cc:6080/v1`（api.neonshift.cc nginx 尚未安裝；提交版 APK 改回 https 後需重跑一次腳本核對） |
-| 組織 | `wild-guardians` · 荒野守護 Wild Guardians（測試主辦方） · `9acb6a7f-846d-41ec-af95-17fe3dd769db` |
-| 活動 | `wild-guardian-day` · `d67d6da9-4a4b-4b75-9702-28ded6dcb5dc` · state `published` · Asia/Taipei |
-| 時窗 | 報名 2026-09-17 → 2026-10-17；活動進行中 2026-09-17 → 2026-10-17（測試用長時窗，任何一天都能彩排；正式版改實際日期） |
-| 規則 v1 | `distance_m 3000`、河濱 3 km 體驗走／跑、成績由主辦方 CSV 發布、教育示範不宣稱合作或捐款 |
-| 站點 | Gate 報到站 `b1d8cd5a-…`（check_in）；Booth 權益攤位 `e38b4169-…`（redemption） |
-| 品項 | 荒野守護紀念毛巾（實體，100 份，需報到）；體驗日數位守護章（digital_badge，需報到） |
-| 留念章 | `badges.check_in = true`、`badges.finish = true`；資格：報名時鞋階 ≥ Lv.2（`EVENT_BADGE_MIN_LEVEL`）＋ 報到／完賽 |
-| NFC | 標籤 `https://neonshift.cc/e/wild-guardian-day?tag=sYKN3BqDmRtJuuWOpDWTuOz8y4dRkdEK`（寫入 NDEF URI 即可；NFC 只開活動，不等於出席證明） |
+| 測試活動 slug／ID／規則 revision | 待填 |
+| 報名與活動起訖／時區 | 待填 |
+| 站點 ID／purpose | 待填 |
+| 測試權益／庫存／領取條件 | 待填 |
+| 報到章／完賽章設定 | 待填 |
+| 參加者／staff 公開地址 | 待填；不放私鑰 |
+| API／APK／Commit | 待填 |
+| registry 狀態／Explorer | 待填 |
+| 支援人／時段／維護期 | 待填 |
 
-重跑／更新：
+## 4. 沒有 NFC、健康資料或 staff 時
 
-```bash
-cd backend
-OPS_TOKEN="$(ssh root@l1.neonshift.cc "grep '^OPS_TOKEN=' /etc/neonshift/api.env | cut -d= -f2-")" \
-  bash -lc 'source ../scripts/env.sh; node scripts/demo-event.mjs http://l1.neonshift.cc:6080'
-```
+- **無 NFC**：使用 Arena → 合作活動 → 詳情 → 顯示報到碼／選站點。NFC App Links 正式指紋未驗收前，不列為唯一入口。
+- **無合格 Health Connect**：可看保育圖鑑、公開活動與規則；一般活動報名不等於每日打卡。NFT 章仍需實際資格，不保證新錢包五分鐘拿到。
+- **無 staff 在場**：評審可走到報到碼，剩餘流程看雙角色補充片或安排團隊支援；不提供公共 owner／ops 密鑰，也不讓參加者替自己報到。
+- **斷線**：不得離線假顯示已報到／已交付。恢復後重查狀態；人工補登需授權與原因。
 
-## 4. 彩排腳本（每步的操作者、畫面、資料來源、可驗證點）
+## 5. 必拍／必驗例外
 
-### 4.1 日常任務與打卡（Wallet A，實機・DEVNET）
-
-| 步 | 操作 | 畫面 | 資料來源 | 驗證 |
-|---|---|---|---|---|
-| 1 | 當日走到 ≥ 8,000 步（Seeker 內建計步 → Health Connect） | Home「今日步數」 | HC `com.android.healthconnect.phone.*`（視同裝置來源） | Home 數字 = HC「Steps」頁 |
-| 2 | Home → 任務卡「打卡」→ 20 秒步態檢查 → 錢包簽章 | 打卡流程 | 後端 attestation → 鏈上 `claim` | Explorer 交易；tSKR +10；XP +100 |
-| 3 | Gear 頁 XP／倍率變化 | Gear | 鏈上 PlayerProfile | XP ring 增加 |
-
-限制：GPS 運動紀錄不是打卡資料來源；沒有睡眠 App 時睡眠任務不會達標（旁白不要說「睡眠也完成」）。
-
-### 4.2 保育跑鞋與盲盒（Wallet B 或 Demo 入口）
-
-| 步 | 操作 | 畫面 | 標籤 |
-|---|---|---|---|
-| 1 | Gear → 點任一跑鞋卡 → 詳情面板（鞋階、XP、倍率、解鎖條件、紀念 NFT 狀態、物種故事） | 詳情 Sheet | Wallet B：`實機・DEVNET`；否則 `預先建立的測試資料`／Demo 入口 |
-| 2 | Lv.2+ 大圖旋轉、細節款（晨曦／暮色／極光） | ShoeHero | 款式是 App 外觀（wallet＋series＋level 固定雜湊），不是 NFT 隨機屬性 |
-| 3 | 升階揭曉（只有真的達到 450 XP 那一次） | EvolutionReveal | 不假演；沒有就用 Demo 入口的鞋款圖鑑 |
-| 4 | 試拆盲盒（示意）：Gear → 未解鎖跑鞋詳情 →「試拆盲盒（示意）」，或 Demo 圖鑑 Lv.2+ 卡片同名按鈕 | RevealCeremony（DEMO 標籤） | 標 `設計示意`：全螢幕 5.6 秒（蓄力→搖晃→爆開→鞋子進場→擺動展示），可「再播一次」；鞋後有物種背影剪影、下方收藏銘牌 `No. 0001`（示意編號）；用系列展示樣式，不揭露細節款、不改等級 |
-
-Wallet B 養成排程：從今天起每天 ≥ 8,000 步並打卡；第 5 個打卡日升 Lv.2（若能補睡眠紀錄則第 3 天）。要在報名「體驗日」**之前**升到 Lv.2，留念章才有資格（報名時快照）。
-
-### 4.3 活動：發現 → 報名（Wallet A，實機）
-
-| 步 | 操作 | 畫面 | 驗證 |
-|---|---|---|---|
-| 1 | Arena → 合作活動 → 「荒野守護體驗日」 | 活動詳情：時區、名額、規則 v1、品項、留念章 | `GET /v1/events/{id}` 同值 |
-| 2 | 報名（接受規則 v1；公開同意可關） | 報名成功、狀態「待報到」 | `GET /v1/events/{id}/registration` |
-
-### 4.4 現場報到（雙角色）
-
-| 步 | 操作者 | 操作 | 驗證 |
-|---|---|---|---|
-| 1 | A | 活動頁「開啟報到碼」→ 120 秒代碼（或 NFC 標籤開啟活動） | 畫面顯示倒數 |
-| 2 | S | 手動輸入代碼：`node scripts/demo-staff.mjs http://l1.neonshift.cc:6080 check-in <code>`（或第二台手機以 staff 錢包用 App Staff tools） | 回 `checked_in` |
-| 3 | A | 重新進入活動頁 → 「已報到」 | `GET …/registration` |
-
-例外要拍：代碼過期重新取得；同一代碼第二次輸入被拒（不是 200）。
-
-### 4.5 權益：預留 → 交付
-
-| 步 | 操作者 | 操作 |
+| 情況 | 應看到的行為 | 證據欄（待補） |
 |---|---|---|
-| 1 | A | 活動頁品項「荒野守護紀念毛巾」→ 預留 → 顯示領取碼（預留 ≠ 已拿到） |
-| 2 | S | `demo-staff.mjs … fulfill <claim_code>` → 狀態「已交付」 |
-| 3 | O | `demo-staff.mjs … status` 對帳：預留／交付／剩餘 |
+| 重複報名／容量用盡 | 不重複占位／額滿提示 |  |
+| 規則更新 | 要求重新確認正確版本 |  |
+| 120 秒代碼過期／已使用 | 拒絕或顯示既有狀態；不重複報到 |  |
+| staff 權限不符 | 拒絕操作，不只隱藏按鈕 |  |
+| 最後一件同時預留 | 庫存不負數、不雙重承諾 |  |
+| 預留逾期／重複交付 | 逾期不能交付；重試不扣兩次庫存 |  |
+| 活動取消 | 說明原因、不可再報名／交付、處理預留 |  |
+| 撤回公開同意／更正成績 | 公開資料依設定更新，更正保留來源與版本 |  |
+| 尚無 NFT 資格／registry 待同步 | 明確原因，不顯示假成功 |  |
 
-### 4.6 成績發布（主辦方）
+以上是驗收清單，不宣稱本次已重新執行。影片可選一至兩個例外，其餘保留測試／實機證據供查閱。
 
-`node scripts/demo-staff.mjs http://l1.neonshift.cc:6080 results <A 的錢包> 1260000 1` → 匯入 CSV（schema v1）並發布 → A 在活動頁看到「本人成績 · 來源 主辦方 · 版本 1」。更正：再跑一次帶新時間，App 顯示新版本與原因。標「活動後／主辦方測試 CSV」。
+## 6. 程式與規格入口
 
-### 4.7 活動留念章（需 Wallet B 資格）
-
-報名時 Lv.2+ ＋ 已報到 → 活動頁「領取報到章」→ 預覽公開內容與 rent → MWA 簽章 → 結果。registry 若待同步，畫面誠實顯示待處理。沒有 Lv.2 錢包就標「未達資格」，不假演。
-
-### 4.8 藝廊：看別人的 NFT 成就（示範玩家，devnet 真實帳戶）
-
-沒有其他真人玩家時，用 `tools/chain-admin` 建三位示範玩家（demo 專屬金鑰 `~/.config/neonshift/dev/demo/demo-player-<n>.json`，不進 repo、不動任何人的錢包）：
-
-```bash
-OPS_TOKEN="$(ssh root@l1.neonshift.cc "grep '^OPS_TOKEN=' /etc/neonshift/api.env | cut -d= -f2-")" \
-  NEONSHIFT_API_URL=http://l1.neonshift.cc:6080/v1 \
-  bash -lc 'source scripts/env.sh; npm --prefix tools/chain-admin run admin -- demo-gallery dev [--dry-run]'
-```
-
-| 玩家 | 內容 | 鏈上／後端 |
+| 主題 | 來源 | 現況 |
 |---|---|---|
-| Runner A | Origin 收藏 ＋ 首 5K、首 10K 兩枚里程碑 NFT（device） | `init_player`、`claim_collectible(1)`；匯入兩筆 gps 摘要 → mint-intent → admin registry → `claim_achievement` |
-| Runner B | Origin ＋ 首 5K 一枚 | 同上，一筆 |
-| Walker C | 只有 Origin（示範「還沒有成就」的玩家頁） | 匯入一筆健走，無里程碑 |
+| 列表／報名 | [EventScreens](../../app/src/screens/events/EventScreens.tsx) | App 已實作；實機待驗收 |
+| 代碼／staff | [CheckInCode](../../app/src/screens/events/CheckInCode.tsx)、[StaffCheckIn](../../app/src/screens/events/StaffCheckInScreen.tsx) | 代碼輸入；相機掃碼未完成 |
+| 預留／交付 | [Perks](../../app/src/screens/events/Perks.tsx)、[後端活動路由](../../backend/src/partner/routes.ts) | 有實作；交付站點約束與實機驗收待補 |
+| 成績／隱私 | [Results](../../app/src/screens/events/Results.tsx)、[CSV](../../backend/src/partner/csv.ts) | API 匯入／發布；主辦方網頁未完成 |
+| 活動章 | [EventBadges](../../app/src/screens/events/EventBadges.tsx)、[資格規則](../../backend/src/milestones/eventBadges.ts) | 有實作；registry／實機端到端待驗收 |
+| 主題任務／下一場／聯名 | [PG](../pg.md)、[系列設計](../design/wild-guardian-shoes.md) | 區分 PG-XD 待辦與既有活動功能 |
 
-流程幂等（帳戶存在即跳過、匯入以 external_record_id 去重、已鑄造不重送）；產出 `~/.config/neonshift/dev/demo/gallery-fixture.json`（錢包、asset、tx）。devnet faucet 限流時腳本會提示手動領 SOL 後重跑。
+## 7. 如何讓評審看見細節
 
-已建立（2026-09-17，devnet；indexer 已列入藝廊）：
-
-| 玩家 | 錢包 | Origin asset | 里程碑 NFT |
-|---|---|---|---|
-| Runner A | `6oqdvDgWEza2u5DcDpst6sMndnzucDwurqoLFq4mR2SK` | `3EEGNhKL…TFkcP` | First Spark（首 5K）`BLy9RAoQ…tbCVa`、Double Horizon（首 10K）`5fWT5Mda…DvyQe` |
-| Runner B | `B665hhT2WBCToqMr48sLibwTSsy7xcUmEX7sBCRb6kF2` | `6xQEANbF…HPip4` | First Spark `AufXgqaG…RVE9x` |
-| Walker C | `HZgy7uuH7eNiob9miJyoGdknSwua57TBrJLb7xKpfNJZ` | `6HxWesMj…SzVqD` | （無） |
-
-這也是 `claim_achievement` 在 devnet 的首批真實鑄造；過程抓到鏈上時鐘落後導致 6040「尚未生效」，後端已加 60 s 寬限（SD 13）。
-
-| 步 | 操作 | 畫面 | 標籤 |
-|---|---|---|---|
-| 1 | Home → Gallery（未登入會出現就地「簽署登入訊息」卡） | 排行：現役榜／歷史榜、搜尋地址前綴 | `實機・DEVNET` |
-| 2 | 點 Runner A → 玩家頁：鞋階、XP、收藏（Origin）、首次里程碑（First Spark／Double Horizon） | 玩家頁 | 玩家是預先建立的示範帳戶，但鏈上資料真實 |
-| 3 | 點作品 → NFT 詳情：系列、原達成者、鑄造日期、來源（裝置）、Explorer 連結 | AchievementDetail | Explorer 可實際打開 |
-| 4 | 點 Walker C → 只有 Origin、成就區為空狀態 | 玩家頁 | 誠實呈現「還沒有成就」 |
-
-限制：示範玩家的里程碑來自匯入的運動**摘要**（距離／時間，不含座標），與真人流程一樣經後端 PB／里程碑判定與 admin registry；沒有 GPS 軌跡可看。PB 作品（fastest_5k 等）需當日 Lv.3，示範玩家沒有。
-
-## 5. 錄影前 checklist
-
-- [ ] 提交版 APK（同 commit、同 API）已裝；Metro 關閉仍可用。
-- [ ] Wallet A 當日未打卡、步數 ≥ 8,000、有 devnet SOL。
-- [ ] Wallet B 已 Lv.2（或明確標示以 Demo 入口替代）。
-- [ ] `demo-event.mjs` 重跑一次核對 state `published`、時窗未過。
-- [ ] 彩排 4.3 → 4.4 → 4.5 一次，留 `status` 輸出與截圖。
-- [ ] `demo-gallery dev` 已跑過、Gallery 列出 Runner A／B 與 Walker C（indexer 抓到事件後）。
-- [ ] 每個鏡頭標籤：`實機・DEVNET`／`預先建立的測試資料`／`設計示意`／`未來規劃`。
-
-## 6. 已知限制（誠實呈現）
-
-- api.neonshift.cc 未安裝 nginx vhost：目前 App 直連 `http://l1:6080`（僅測試包）。
-- Seeker 無 SIM：戶外沒有網路，報名／報到／成績需 Wi-Fi；運動記錄與語音提示可離線。
-- 睡眠任務需有寫入 Health Connect 的睡眠 App；Seeker 目前沒有。
-- 沒有 NFC 出席證明、沒有聯名系列切換、沒有捐款機制；NFT 款式尚無獨立 metadata（見 [荒野守護設計](../design/wild-guardian-shoes.md)）。
+- 主片 2:02–2:42 必須出現活動入口與雙角色確認，片尾說明完整流程入口。
+- 六分鐘片提供上述六階段章節；說明欄放本手冊與評審指南，不只放 QR。
+- 參賽短 Pitch 安排一頁「日常→活動→回訪」，旁邊分列已實作、待實機、未來；26 頁募資版第 5 頁可作活動內容底稿，第 13–15 頁作保育素材。
+- 不把活動收入假設、主題鞋款、保育故事說成已簽合作。要讓評審知道「接下來怎麼用」，也知道「今天能驗證到哪裡」。

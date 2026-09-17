@@ -1,186 +1,168 @@
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef, type ReactNode } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Animated, AppState, Easing, Pressable, StyleSheet, View } from 'react-native';
 
 import { useReduceMotion } from '@/hooks/useReduceMotion';
+import { useT } from '@/i18n';
+import { color, radius, space, Text } from '@/theme';
 
-/**
- * 成長盲盒拆盒時間軸（Style 25.2）。單一 Animated.Value 0→1 走完 `total`，各層以正規化時間切相位：
- *   0–0.29  蓄力：盒子浮現、微幅呼吸、光環自外向內收攏
- *   0.29–0.5 搖晃：越晃越大、盒縫漏光漸亮（輕震兩次）
- *   0.5–0.57 爆開：盒子脹大消散、白光一閃、粒子與光環外擴（重震）
- *   0.5–0.75 揭曉：鞋子從盒中放大進場、光束升起
- *   0.75–1   定格：光束慢轉，鞋子交回 ShoeHero 自行擺動（展示）
- */
-export const UNBOX_TIMELINE = { total: 5600, shakeStart: 1600, shakeMid: 2200, burst: 2800, revealed: 3400 } as const;
-
+/** One finite ceremony; silhouette gets its own beat before the shoe arrives. */
+export const UNBOX_TIMELINE = { total: 5200, shakeStart: 1100, shakeMid: 1800, burst: 2400, revealed: 3500 } as const;
 const T = (ms: number) => ms / UNBOX_TIMELINE.total;
-const SHAKE_FRAMES = 12;
 
 type Props = {
-  /** 目標鞋階主色（光環、盒子、粒子） */
   accent: string;
-  /** 舞台高度；鞋子由外層依寬度決定尺寸 */
   height: number;
-  /** 拆盒結束（revealed）時通知外層，讓文字內容進場、鞋子開始擺動 */
   onRevealed?: () => void;
-  /** 鞋子後方的背景層（物種背影剪影）：爆開後浮現、微微上升 */
   backdrop?: ReactNode;
   children: ReactNode;
 };
 
 export function UnboxStage({ accent, height, onRevealed, backdrop, children }: Props) {
   const reduced = useReduceMotion();
+  const { t } = useT();
   const p = useRef(new Animated.Value(0)).current;
+  const [settled, setSettled] = useState(false);
+  const notified = useRef(false);
+  const callback = useRef(onRevealed);
+  callback.current = onRevealed;
+  const settle = useRef<() => void>(() => {});
 
   useEffect(() => {
-    p.setValue(reduced ? 1 : 0);
-    if (reduced) {
-      onRevealed?.();
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    let animation: Animated.CompositeAnimation | undefined;
+    const notify = () => {
+      if (notified.current) return;
+      notified.current = true;
+      callback.current?.();
+    };
+    const finish = () => {
+      timers.forEach(clearTimeout);
+      animation?.stop();
+      p.setValue(1);
+      setSettled(true);
+      notify();
+    };
+    settle.current = finish;
+    // Returning from background or changing accessibility settings must never replay a box.
+    if (reduced || notified.current || (AppState.currentState === 'background' || AppState.currentState === 'inactive')) {
+      finish();
       return;
     }
-    const animation = Animated.timing(p, { toValue: 1, duration: UNBOX_TIMELINE.total, easing: Easing.linear, useNativeDriver: true });
+    p.setValue(0);
+    animation = Animated.timing(p, { toValue: 1, duration: UNBOX_TIMELINE.total, easing: Easing.linear, useNativeDriver: true, isInteraction: false });
     animation.start();
-    const timer = setTimeout(() => onRevealed?.(), UNBOX_TIMELINE.revealed);
+    for (const [ms, style] of [
+      [UNBOX_TIMELINE.shakeStart, Haptics.ImpactFeedbackStyle.Light],
+      [UNBOX_TIMELINE.shakeMid, Haptics.ImpactFeedbackStyle.Medium],
+      [UNBOX_TIMELINE.burst, Haptics.ImpactFeedbackStyle.Heavy],
+    ] as const) timers.push(setTimeout(() => { void Haptics.impactAsync(style)?.catch(() => {}); }, ms));
+    timers.push(setTimeout(notify, UNBOX_TIMELINE.revealed));
+    timers.push(setTimeout(finish, UNBOX_TIMELINE.total));
+    const sub = AppState.addEventListener('change', state => { if (state === 'background' || state === 'inactive') finish(); });
     return () => {
-      animation.stop();
-      clearTimeout(timer);
+      timers.forEach(clearTimeout);
+      animation?.stop();
+      sub.remove();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduced, p]);
 
+  const still = reduced || settled;
   const at = (inputRange: number[], outputRange: number[]) => p.interpolate({ inputRange, outputRange, extrapolate: 'clamp' });
   const burst = T(UNBOX_TIMELINE.burst);
-  const shakeStart = T(UNBOX_TIMELINE.shakeStart);
-  const revealed = T(UNBOX_TIMELINE.revealed);
-
-  // 搖晃：從 shakeStart 到 burst 之間 12 幀左右交替，幅度由 3° 漸增到 12°
-  const shakeIn: number[] = [0, shakeStart];
-  const shakeOut: string[] = ['0deg', '0deg'];
-  for (let i = 1; i <= SHAKE_FRAMES; i += 1) {
-    const f = i / SHAKE_FRAMES;
-    shakeIn.push(shakeStart + (burst - shakeStart) * f);
-    shakeOut.push(i === SHAKE_FRAMES ? '0deg' : `${(i % 2 ? -1 : 1) * (3 + 9 * f)}deg`);
+  const shake = T(UNBOX_TIMELINE.shakeStart);
+  const reveal = T(UNBOX_TIMELINE.revealed);
+  const shakeIn = [0, shake];
+  const shakeOut = ['0deg', '0deg'];
+  for (let i = 1; i <= 10; i++) {
+    shakeIn.push(shake + (burst - shake) * i / 10);
+    shakeOut.push(i === 10 ? '0deg' : `${(i % 2 ? -1 : 1) * (2 + i * 0.65)}deg`);
   }
-  shakeIn.push(1);
-  shakeOut.push('0deg');
+  shakeIn.push(1); shakeOut.push('0deg');
 
-  const stageStyle = { height };
-  if (reduced) {
-    return (
-      <View style={[s.stage, stageStyle]} testID="unbox-stage">
-        <View pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-          {[0, 1, 2].map((i) => <View key={i} style={[s.ring, { borderColor: accent, opacity: 0.18, transform: [{ scale: 1 + i * 0.18 }] }]} />)}
-        </View>
-        {backdrop ? <View style={s.backdrop}>{backdrop}</View> : null}
-        <View style={s.face}>{children}</View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={[s.stage, stageStyle]} testID="unbox-stage">
-      <View pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        {/* 背景光暈：三層同心圓模擬徑向衰減（expo-linear-gradient 無徑向）；蓄力時暗、爆開後亮起並常駐 */}
-        {[520, 380, 240].map((d, i) => (
-          <Animated.View key={d} style={[s.glow, { width: d, height: d, borderRadius: d / 2, marginTop: -d / 2, marginLeft: -d / 2, backgroundColor: accent, opacity: at([0, shakeStart, burst, burst + 0.06, 1], [0.02, 0.04, 0.05, 0.14, 0.08].map((v) => v * (1 + i * 0.5))) }]} />
-        ))}
-        {/* 光束：爆開後從底座升起並慢轉 */}
-        {[-28, 0, 28].map((deg, i) => (
-          <Animated.View
-            key={deg}
-            style={[s.beam, { opacity: at([0, burst, burst + 0.08, 1], [0, 0, 0.55 - i * 0.12, 0.35]), transform: [
-              { translateY: at([burst, burst + 0.12], [120, 0]) },
-              { rotate: p.interpolate({ inputRange: [burst, 1], outputRange: [`${deg}deg`, `${deg + (i - 1) * 10}deg`], extrapolate: 'clamp' }) },
-              { scaleY: at([burst, burst + 0.15], [0.2, 1]) },
-            ] }]}
-          >
-            <LinearGradient colors={[`${accent}00`, `${accent}66`, `${accent}00`]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
-          </Animated.View>
-        ))}
-        {/* 光環：蓄力自外向內收攏，爆開後外擴淡出 */}
-        {[0, 1, 2].map((i) => (
-          <Animated.View
-            key={i}
-            style={[s.ring, { borderColor: accent, opacity: at([0, shakeStart, burst, burst + 0.15, 1], [0, 0.35, 0.45, 0.6, 0.14]), transform: [
-              { scale: at([0, shakeStart, burst, burst + 0.2], [1.9 + i * 0.2, 1.05 + i * 0.1, 0.95 + i * 0.1, 1.35 + i * 0.22]) },
-              { rotate: `${i * 30}deg` },
-            ] }]}
-          />
-        ))}
-        {/* 粒子：爆開時自盒心射出 */}
-        {Array.from({ length: 32 }, (_, i) => {
-          const angle = (i * Math.PI) / 16;
-          const reach = 150 + (i % 3) * 40;
-          return (
-            <Animated.View
-              key={i}
-              style={[s.spark, { backgroundColor: accent, opacity: at([0, burst, burst + 0.05, burst + 0.3], [0, 0, 1, 0]), transform: [
-                { translateX: at([burst, burst + 0.3], [Math.cos(angle) * 30, Math.cos(angle) * reach]) },
-                { translateY: at([burst, burst + 0.3], [Math.sin(angle) * 30, Math.sin(angle) * reach - 30]) },
-                { rotate: `${i * 37}deg` },
-                { scale: at([burst, burst + 0.3], [1.4, 0.6]) },
-              ] }]}
-            />
-          );
-        })}
-        {/* 白光一閃：圓形自盒心擴散，避免看起來像矩形 */}
-        <Animated.View style={[s.flash, { opacity: at([0, burst, burst + 0.03, burst + 0.1], [0, 0, 0.9, 0]), transform: [{ scale: at([burst, burst + 0.1], [0.3, 1.6]) }] }]} />
-      </View>
-
-      {/* 背影剪影：爆開後從盒心浮現、放大並緩緩上升，停在鞋子後方 */}
-      {backdrop ? (
-        <Animated.View pointerEvents="none" style={[s.backdrop, { opacity: at([0, burst, burst + 0.25], [0, 0, 1]), transform: [
-          { scale: at([burst, burst + 0.3], [0.6, 1]) },
-          { translateY: at([burst, 1], [30, -12]) },
-        ] }]}>
-          {backdrop}
-        </Animated.View>
-      ) : null}
-
-      {/* 盒子：浮現 → 呼吸 → 搖晃（漏光） → 爆開消散 */}
-      <Animated.View
-        pointerEvents="none"
-        testID="reward-stage-box"
-        style={[s.box, { borderColor: accent, opacity: at([0, 0.05, burst, burst + 0.06], [0, 1, 1, 0]), transform: [
-          { scale: at([0, 0.06, 0.18, shakeStart, burst, burst + 0.07], [0.6, 1, 1.03, 1, 1.1, 2.4]) },
-          { rotate: p.interpolate({ inputRange: shakeIn, outputRange: shakeOut, extrapolate: 'clamp' }) },
-        ] }]}
-      >
-        <Feather name="package" size={120} color={accent} />
-        {/* 盒縫漏光：搖晃期間漸亮 */}
-        {(['top', 'bottom', 'left', 'right'] as const).map((edge) => (
-          <Animated.View key={edge} style={[s.leak, s[`leak_${edge}`], { backgroundColor: accent, opacity: at([shakeStart, burst], [0, 1]) }]} />
-        ))}
-      </Animated.View>
-
-      {/* 鞋子：從盒心放大進場 */}
-      <Animated.View
-        style={[s.face, { opacity: at([0, burst, burst + 0.08], [0, 0, 1]), transform: [
-          { scale: at([burst, revealed, revealed + 0.1], [0.45, 1.06, 1]) },
-          { translateY: at([burst, revealed], [36, 0]) },
-        ] }]}
-      >
-        {children}
-      </Animated.View>
+  return <View style={[s.stage, { height }]} testID="unbox-stage">
+    <View pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      {/* Game-like summoning dial; no repeated white-screen flashes. */}
+      {[0, 1, 2].map(i => <Animated.View key={i} style={[s.ring, {
+        borderColor: accent, borderStyle: i === 1 ? 'dashed' : 'solid',
+        opacity: still ? 0.18 : at([0, shake, burst, reveal, 1], [0, 0.22, 0.5, 0.32, 0.18]),
+        transform: [{ scale: still ? 1 + i * 0.17 : at([0, burst, reveal, 1], [1.6 + i * 0.2, 0.75 + i * 0.1, 1.3 + i * 0.17, 1 + i * 0.17]) },
+          { rotate: still ? '0deg' : p.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${i % 2 ? -65 : 65}deg`] }) }],
+      }]} />)}
+      {!still ? Array.from({ length: 20 }, (_, i) => {
+        const angle = i * Math.PI / 10;
+        const reach = Math.min(height * 0.42, 170) + (i % 3) * 10;
+        return <Animated.View key={i} style={[s.spark, { backgroundColor: i % 3 ? accent : color.warning,
+          opacity: at([0, burst, burst + 0.04, 0.92], [0, 0, 0.9, 0]),
+          transform: [{ translateX: at([burst, 0.92], [Math.cos(angle) * 20, Math.cos(angle) * reach]) },
+            { translateY: at([burst, 0.92], [Math.sin(angle) * 20, Math.sin(angle) * reach - 20]) },
+            { rotate: `${i * 41}deg` }, { scale: at([burst, 0.92], [1.5, 0.35]) }],
+        }]} />;
+      }) : null}
+      {!still ? <Animated.View style={[s.burst, { borderColor: accent, opacity: at([burst, burst + 0.08, reveal], [0, 0.75, 0]), transform: [{ scale: at([burst, reveal], [0.2, 1.65]) }] }]} /> : null}
     </View>
-  );
+
+    {/* Species silhouette leads the shoe by 600 ms, then settles behind it. */}
+    {backdrop ? <Animated.View pointerEvents="none" style={[s.backdrop, {
+      opacity: still ? 0.55 : at([0, shake, burst - 0.04, burst, burst + 0.09, reveal, 1], [0, 0.14, 0.22, 0.22, 1, 0.72, 0.55]),
+      transform: [{ scale: still ? 1 : at([0, burst, burst + 0.1, 1], [0.72, 0.8, 1.08, 1]) },
+        { translateY: still ? -10 : at([burst, 1], [12, -10]) }],
+    }]}>{backdrop}</Animated.View> : null}
+
+    {!still ? <Animated.View pointerEvents="none" testID="reward-stage-box" style={[s.crate, {
+      opacity: at([0, 0.07, burst + 0.08, burst + 0.17], [0, 1, 1, 0]),
+      transform: [{ scale: at([0, 0.1, burst, burst + 0.17], [0.65, 1, 1.07, 0.8]) },
+        { translateY: at([burst, burst + 0.17], [0, 55]) },
+        { rotate: p.interpolate({ inputRange: shakeIn, outputRange: shakeOut, extrapolate: 'clamp' }) }],
+    }]}>
+      <LinearGradient colors={[color.elevated, color.surface]} style={[s.boxBody, { borderColor: accent }]}>
+        <View style={[s.boxBand, { backgroundColor: accent }]} />
+        <View style={[s.seal, { borderColor: accent }]}><Feather name="shield" size={42} color={accent} /><Feather name="zap" size={18} color={color.warning} style={s.sealBolt} /></View>
+        <Text variant="label" style={s.brand} tone="secondary">NEONSHIFT</Text>
+      </LinearGradient>
+      {/* A separate lid opens instead of the whole square merely fading away. */}
+      <Animated.View testID="unbox-lid" style={[s.lid, { borderColor: accent, transform: [
+        { translateY: at([burst, burst + 0.14], [0, -115]) },
+        { translateX: at([burst, burst + 0.14], [0, 35]) },
+        { rotate: p.interpolate({ inputRange: [burst, burst + 0.14], outputRange: ['0deg', '24deg'], extrapolate: 'clamp' }) },
+      ] }]}><View style={[s.lidSeam, { backgroundColor: accent }]} /></Animated.View>
+      <Animated.View style={[s.seamGlow, { backgroundColor: accent, opacity: at([shake, burst], [0.1, 0.9]), transform: [{ scaleX: at([shake, burst], [0.3, 1]) }] }]} />
+    </Animated.View> : null}
+
+    <Animated.View style={[s.face, {
+      opacity: still ? 1 : at([0, burst + 0.1, reveal], [0, 0, 1]),
+      transform: [{ scale: still ? 1 : at([burst + 0.1, reveal, reveal + 0.1], [0.5, 1.06, 1]) },
+        { translateY: still ? 0 : at([burst + 0.1, reveal], [48, 0]) }],
+    }]}>{children}</Animated.View>
+
+    <View style={s.hud} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      {still ? <Text variant="label" style={{ color: accent }}>{t('reveal.unbox.ready')}</Text> : <>
+        {(['charge', 'awaken', 'ready'] as const).map((phase, i) => <Animated.View key={phase} style={[s.phase, { opacity: i === 0 ? at([0, shake, burst - 0.05, burst], [1, 1, 1, 0]) : i === 1 ? at([burst - 0.04, burst + 0.03, reveal - 0.04, reveal], [0, 1, 1, 0]) : at([reveal - 0.02, reveal + 0.06], [0, 1]) }]}><Text variant="label" style={{ color: accent }}>{t(`reveal.unbox.${phase}`)}</Text></Animated.View>)}
+      </>}
+    </View>
+    {!still ? <Pressable onPress={() => settle.current()} accessibilityRole="button" accessibilityLabel={t('reveal.unbox.skip')} style={s.skip} testID="unbox-skip"><Text variant="caption" tone="secondary">{t('reveal.unbox.skip')}</Text><Feather name="chevrons-right" size={16} color={color.textSecondary} /></Pressable> : null}
+  </View>;
 }
 
 const s = StyleSheet.create({
-  stage: { width: '100%', alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
-  glow: { position: 'absolute', left: '50%', top: '50%' },
-  beam: { position: 'absolute', width: 90, height: 460, left: '50%', marginLeft: -45, top: '50%', marginTop: -300 },
-  ring: { position: 'absolute', width: 260, height: 260, borderRadius: 130, borderWidth: 1, left: '50%', top: '50%', marginLeft: -130, marginTop: -130 },
-  spark: { position: 'absolute', left: '50%', top: '50%', width: 4, height: 12, borderRadius: 2 },
-  flash: { position: 'absolute', width: 360, height: 360, borderRadius: 180, left: '50%', top: '50%', marginLeft: -180, marginTop: -180, backgroundColor: '#FFFFFF' },
-  box: { position: 'absolute', width: 200, height: 200, borderRadius: 32, borderWidth: 2, backgroundColor: '#171A32', alignItems: 'center', justifyContent: 'center' },
-  leak: { position: 'absolute', borderRadius: 2 },
-  leak_top: { top: -2, left: 40, right: 40, height: 3 },
-  leak_bottom: { bottom: -2, left: 40, right: 40, height: 3 },
-  leak_left: { left: -2, top: 40, bottom: 40, width: 3 },
-  leak_right: { right: -2, top: 40, bottom: 40, width: 3 },
+  stage: { width: '100%', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  ring: { position: 'absolute', width: 240, height: 240, borderRadius: 120, borderWidth: 1, left: '50%', top: '50%', marginLeft: -120, marginTop: -120 },
+  burst: { position: 'absolute', width: 240, height: 240, borderRadius: 120, borderWidth: 5, left: '50%', top: '50%', marginLeft: -120, marginTop: -120 },
+  spark: { position: 'absolute', left: '50%', top: '50%', width: 5, height: 12, borderRadius: 2 },
+  crate: { position: 'absolute', width: 180, height: 158 },
+  boxBody: { position: 'absolute', left: 4, right: 4, top: 30, bottom: 0, borderRadius: radius.m, borderWidth: 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  boxBand: { position: 'absolute', width: 22, top: 0, bottom: 0, opacity: 0.12 },
+  seal: { width: 70, height: 70, borderWidth: 1, borderRadius: radius.l, alignItems: 'center', justifyContent: 'center', backgroundColor: color.surface },
+  sealBolt: { position: 'absolute' },
+  brand: { marginTop: space.xs, letterSpacing: 2 },
+  lid: { position: 'absolute', left: -4, right: -4, top: 7, height: 36, borderWidth: 2, borderRadius: radius.s, backgroundColor: color.elevated },
+  lidSeam: { position: 'absolute', left: 26, right: 26, top: 9, height: 2, opacity: 0.55 },
+  seamGlow: { position: 'absolute', top: 42, left: 2, right: 2, height: 3 },
   backdrop: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   face: { alignItems: 'center', justifyContent: 'center' },
+  hud: { position: 'absolute', bottom: 38, left: 0, right: 0, height: 24, alignItems: 'center' },
+  phase: { position: 'absolute', alignItems: 'center' },
+  skip: { position: 'absolute', bottom: 0, minHeight: 44, paddingHorizontal: space.m, flexDirection: 'row', gap: space.xxs, alignItems: 'center', justifyContent: 'center' },
 });

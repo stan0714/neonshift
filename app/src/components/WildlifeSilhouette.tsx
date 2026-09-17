@@ -6,8 +6,8 @@ import type { ShoeLevel } from '@/config/shoeProgression';
 
 /**
  * 荒野守護物種背影剪影（拆盒揭曉／NFT 揭曉的鞋子背景層）。
- * 亞洲象：正背面（兩片外張的扇形耳、圓背、四柱腿、尾）；玳瑁：由上／後方看的游姿（心形甲殼、鋸齒後緣、長前鰭）；
- * 老虎與遠東豹：背對觀者、回頭側望（圓臀、肩背、側臉、耳、尾）——回頭的側臉讓貓科最好辨認。
+ * 亞洲象：側身行進（大耳、長鼻、圓背與粗腿）；玳瑁：由上／後方看的游姿（心形甲殼、鋸齒後緣、長前鰭）；
+ * 老虎與遠東豹：奔躍側身，圓耳、前伸爪、長尾與虎斑／斷環豹紋；外圍為守護徽記。
  * 單色填色＋深色紋路描邊（虎紋、斷環豹斑、甲片線、象耳摺）；viewBox 200×200，由外層決定尺寸與透明度。
  * 草稿以 SVG 檔在桌面預覽後移植；要換正式美術直接替換四個元件。
  */
@@ -17,10 +17,17 @@ export function WildlifeSilhouette({ level, color, size = 320, opacity = 0.22 }:
   return (
     <View style={{ width: size, height: size, opacity }} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID={`wild-silhouette-${animal.species}`}>
       <Svg width="100%" height="100%" viewBox="0 0 200 200" style={StyleSheet.absoluteFill}>
-        {animal.species === 'elephant' ? <Elephant color={color} /> : null}
+        <G fill="none" stroke={color}>
+          <Circle cx="100" cy="99" r="87" strokeWidth={0.8} strokeOpacity={0.35} />
+          <Path d="M28 55 A84 84 0 0 1 67 20 M133 20 A84 84 0 0 1 172 55 M172 143 A84 84 0 0 1 133 178 M67 178 A84 84 0 0 1 28 143" strokeWidth={2.5} strokeOpacity={0.7} />
+          <Path d="M100 7 l4 8 l-4 8 l-4 -8 Z M12 98 l5 -4 l5 4 l-5 4 Z M178 98 l5 -4 l5 4 l-5 4 Z" strokeWidth={1.5} />
+        </G>
+        <G stroke={color} strokeWidth={0.65} strokeLinejoin="round">
+        {animal.species === 'elephant'  ? <Elephant color={color} /> : null}
         {animal.species === 'hawksbill' ? <Hawksbill color={color} /> : null}
         {animal.species === 'tiger' ? <Tiger color={color} /> : null}
         {animal.species === 'leopard' ? <Leopard color={color} /> : null}
+        </G>
       </Svg>
     </View>
   );
@@ -28,31 +35,19 @@ export function WildlifeSilhouette({ level, color, size = 320, opacity = 0.22 }:
 
 const INK = '#070A16';
 
-/** 亞洲象正背面：扇形大耳（上角高過頭頂、下角收向肩）、頭頂圓弧、寬背、前腿露在後腿外側、尾與尾鬃 */
+/** 亞洲象側身行進：大耳、長鼻、圓背和粗腿，縮小仍能辨識。 */
 function Elephant({ color }: { color: string }) {
-  return (
-    <>
-      <G fill={color}>
-        <Path d="M86 66 C78 50 54 42 40 56 C26 72 26 100 44 114 C56 122 72 116 86 104 Z" />
-        <Path d="M114 66 C122 50 146 42 160 56 C174 72 174 100 156 114 C144 122 128 116 114 104 Z" />
-        <Path d="M80 100 C74 58 126 58 120 100 Z" />
-        <Path d="M46 132 C48 100 72 88 100 88 C128 88 152 100 154 132 C156 146 154 160 150 170 L50 170 C46 160 44 146 46 132 Z" />
-        <Path d="M40 132 H58 V180 C58 186 40 186 40 180 Z" />
-        <Path d="M142 132 H160 V180 C160 186 142 186 142 180 Z" />
-        <Path d="M56 156 H88 V188 C88 194 56 194 56 188 Z" />
-        <Path d="M112 156 H144 V188 C144 194 112 194 112 188 Z" />
-        <Path d="M97.5 150 H102.5 L102 176 C103 184 97 184 98 176 Z" />
-        <Path d="M100 176 C106 178 106 190 100 192 C94 190 94 178 100 176 Z" />
-      </G>
-      <G stroke={INK} strokeOpacity={0.5} strokeWidth={2.5} fill="none" strokeLinecap="round">
-        <Path d="M82 74 C66 66 48 72 42 90" />
-        <Path d="M118 74 C134 66 152 72 158 90" />
-        <Path d="M100 104 V148" />
-        <Path d="M58 172 H88 M112 172 H142" />
-        <Path d="M68 116 C84 110 116 110 132 116" />
-      </G>
-    </>
-  );
+  return <>
+    <G fill={color}>
+      <Path d="M31 104 C21 70 40 47 79 49 C105 45 119 53 131 66 C151 55 172 66 175 84 L177 110 C178 132 167 154 155 149 C145 144 150 134 155 131 C161 125 161 109 157 102 L144 110 L137 135 L128 172 L111 172 L112 130 L95 130 L82 165 L66 165 L72 123 L55 122 L47 159 L30 159 L34 111 Z" />
+      <Path d="M33 76 Q16 87 18 111 L13 119 L12 106 Q12 80 31 68 Z" />
+      <Path d="M132 65 Q103 48 99 77 Q95 106 125 121 Q144 98 132 65 Z" fill={INK} fillOpacity={0.35} />
+    </G>
+    <G fill="none" stroke={INK} strokeOpacity={0.65} strokeWidth={2.5} strokeLinecap="round">
+      <Path d="M127 70 Q111 63 108 80 Q107 97 124 110 M45 80 Q62 65 86 70 M42 145 H49 M113 158 H128" />
+    </G>
+    <Circle cx="156" cy="82" r="2.5" fill={INK} />
+  </>;
 }
 
 /** 玳瑁（游離觀者）：長前鰭向後掃、鷹喙狀頭、心形甲殼與鋸齒後緣、小後鰭、短尾；甲片線描出中央五片與側列 */
@@ -80,60 +75,26 @@ function Hawksbill({ color }: { color: string }) {
   );
 }
 
-/** 老虎背影回頭：肩窄臀圓、側臉朝右（吻部、眼）、兩耳、翹尾捲起；背上四道虎紋、尾環、額紋 */
-function Tiger({ color }: { color: string }) {
-  return (
-    <>
-      <G fill={color}>
-        <Path d="M70 96 C74 86 126 86 130 96 C142 110 148 134 146 152 C144 166 138 172 134 174 L66 174 C62 172 56 166 54 152 C52 134 58 110 70 96 Z" />
-        <Path d="M92 74 C94 90 118 90 122 74 L128 98 L88 98 Z" />
-        <Path d="M90 66 C90 44 112 38 124 44 C134 48 140 58 138 66 L146 70 C154 72 156 82 148 84 L134 84 C126 86 114 88 106 84 C96 80 90 74 90 66 Z" />
-        <Path d="M94 54 L92 34 L108 44 Z" />
-        <Path d="M116 42 L124 26 L132 46 Z" />
-        <Path d="M62 164 H86 V188 C86 194 62 194 62 188 Z" />
-        <Path d="M114 164 H138 V188 C138 194 114 194 114 188 Z" />
-        <Path d="M134 150 C158 146 174 128 174 106 C174 92 168 82 160 84 C156 90 164 96 164 106 C162 124 150 136 130 140 Z" />
-      </G>
-      <G stroke={INK} strokeOpacity={0.6} strokeWidth={3.5} fill="none" strokeLinecap="round">
-        <Path d="M78 104 C90 110 110 110 122 104" />
-        <Path d="M70 120 C88 128 112 128 130 120" />
-        <Path d="M64 138 C86 146 114 146 136 138" />
-        <Path d="M66 156 C86 164 114 164 134 156" />
-        <Path d="M164 92 L172 96 M162 108 L170 112 M152 126 L160 130" />
-        <Path d="M100 52 L104 60 M110 46 L112 54" />
-      </G>
-      <Circle cx="128" cy="62" r="1.8" fill={INK} />
-    </>
-  );
+/** 奔躍的大貓：圓耳、低肩、前伸爪與長尾；虎斑／豹斑和姿態分別識別。 */
+function Cat({ color, leopard = false }: { color: string; leopard?: boolean }) {
+  return <>
+    <G fill={color}>
+      <Path d={leopard
+        ? 'M38 106 Q35 81 65 82 L120 70 Q141 63 154 79 L165 86 L182 89 L184 101 L169 110 L149 103 L139 117 L166 138 L161 151 L128 128 L117 113 L89 121 L61 148 L40 149 L41 139 L64 131 L72 110 L49 119 L29 135 L18 132 L34 114 Z'
+        : 'M35 106 Q31 74 63 72 L116 66 Q137 61 153 78 L167 85 L184 90 L184 104 L167 113 L147 105 L136 115 L169 126 L169 140 L130 135 L114 113 L83 117 L69 142 L44 155 L32 148 L55 131 L60 113 L44 120 L28 140 L14 135 L29 112 Z'} />
+      <Circle cx="143" cy="69" r={leopard ? 7 : 9} />
+      <Circle cx="160" cy="77" r={leopard ? 6 : 7} />
+      <Path d={leopard ? 'M41 92 Q11 80 14 53 Q15 36 33 39 Q21 44 23 57 Q27 75 48 81 Z' : 'M38 86 Q15 85 15 66 Q15 51 6 48 Q30 45 28 63 Q28 72 47 76 Z'} />
+    </G>
+    <Circle cx="169" cy="91" r="2" fill={INK} />
+    <Path d="M177 103 L183 101 M156 103 L164 101" stroke={INK} strokeWidth={2} />
+    {leopard ? <G stroke={INK} strokeWidth={2.4} strokeOpacity={0.75} fill="none">
+      {[[55,92],[72,85],[88,96],[104,82],[119,91],[65,105],[108,106],[140,88]].map(([x,y]) => <Path key={`${x}-${y}`} d={`M${x-4} ${y+2} q-3 -7 4 -7 M${x+4} ${y-1} q3 7 -4 7`} />)}
+      <Path d="M20 59 L27 57 M27 74 L32 68" />
+    </G> : <G fill={INK} fillOpacity={0.72}>
+      <Path d="M52 76 l10 -2 l-4 18 l-8 9 l4 -16 Z M76 72 l10 -1 l-4 18 l-8 10 l4 -18 Z M101 68 l10 -1 l-3 17 l-8 10 l3 -17 Z M119 70 l9 1 l2 13 l-8 11 l1 -14 Z M42 108 l12 -3 l-8 10 Z M82 110 l12 -3 l-6 9 Z M138 78 l6 -4 l6 13 l-6 4 Z" />
+    </G>}
+  </>;
 }
-
-const ROSETTES: [number, number][] = [
-  [88, 106], [112, 104], [78, 122], [100, 120], [124, 124], [86, 138], [112, 136], [96, 154], [122, 152], [78, 156], [40, 184], [52, 166],
-];
-
-/** 遠東豹背影回頭：身形較老虎窄、頭較小、圓耳、長尾垂下向外捲；斷環玫瑰斑散佈背部與尾 */
-function Leopard({ color }: { color: string }) {
-  return (
-    <>
-      <G fill={color}>
-        <Path d="M76 100 C80 90 120 90 124 100 C136 114 140 138 138 156 C136 168 132 174 128 176 L72 176 C68 174 64 168 62 156 C60 138 64 114 76 100 Z" />
-        <Path d="M94 80 C96 94 118 94 122 80 L126 102 L90 102 Z" />
-        <Path d="M92 72 C92 54 108 48 118 52 C126 55 132 62 130 70 L138 73 C144 75 145 83 138 84 L126 84 C118 86 108 86 102 82 C96 78 92 76 92 72 Z" />
-        <Path d="M96 60 C90 48 98 42 106 50 Z" />
-        <Path d="M114 50 C116 38 126 40 124 52 Z" />
-        <Path d="M70 166 H90 V192 C90 198 70 198 70 192 Z" />
-        <Path d="M110 166 H130 V192 C130 198 110 198 110 192 Z" />
-        <Path d="M68 150 C46 156 30 174 34 196 C35 201 43 201 43 196 C42 178 54 166 74 160 Z" />
-      </G>
-      <G stroke={INK} strokeOpacity={0.6} strokeWidth={2.5} fill="none" strokeLinecap="round">
-        {ROSETTES.map(([x, y]) => (
-          <G key={`${x}-${y}`}>
-            <Path d={`M${x - 5} ${y} A5 5 0 0 1 ${x} ${y - 5}`} />
-            <Path d={`M${x + 5} ${y} A5 5 0 0 1 ${x} ${y + 5}`} />
-          </G>
-        ))}
-      </G>
-      <Circle cx="124" cy="64" r="1.6" fill={INK} />
-    </>
-  );
-}
+function Tiger({ color }: { color: string }) { return <Cat color={color} />; }
+function Leopard({ color }: { color: string }) { return <Cat color={color} leopard />; }

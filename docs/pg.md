@@ -810,3 +810,10 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 ### PG-D-04 更新（2026-09-17）
 
 募資簡報另存 `output/fundraising/NeonShift_募資簡報_中文草稿_v2.pptx`，共 26 頁；第 13–15 頁新增荒野守護鞋款示意、三款盲盒細節與保育／聯名路線。同步更新 HTML、講稿、來源與 `docs/store/pitch.md`。v1 保留；區分 App 外觀已實作和未完成的 NFT 獨立款式、系列切換。
+
+### Demo 文件與拆盒體驗更新（2026-09-17）
+
+| 工作 | 狀態 | 證據／後續 |
+|---|---|---|
+| Demo v2、評審入口、活動參與手冊 | WIP | [主影片分鏡](store/demo-video.md)、[評審指南](store/judges-guide.md)、[活動手冊](store/event-demo-playbook.md)；規劃 review 完成，待錄影、fixture 與實機驗收 |
+| 拆盒蓄能、獨立盒蓋、守護剪影、跳過與背景停止 | WIP | UnboxStage／WildlifeSilhouette；待 Android 真機確認剪影辨識、遮擋、幀率與震動強度 |

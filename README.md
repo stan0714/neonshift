@@ -4,6 +4,10 @@ Solana Mobile 健康追蹤 dApp。將每日跑步／健走與睡眠轉化為「�
 
 > **tSKR 是 devnet 測試代幣，無金錢價值，不是官方 SKR。** 目標裝置 Solana Mobile Seeker（Android 14+）；iOS 不在範圍。正式網域 `neonshift.cc`，Android package `cc.neonshift.app`。
 
+## 黑客松評審入口（準備中）
+
+先看 [評審快速指南](docs/store/judges-guide.md)，再依需要閱讀 [Demo 主片／活動詳解腳本](docs/store/demo-video.md)與 [活動參與流程](docs/store/event-demo-playbook.md)。APK、影片與測試活動連結尚待登錄；功能存在不代表實機端到端已驗收。
+
 ## 架構
 
 ```mermaid

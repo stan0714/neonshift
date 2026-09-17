@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Animated, Linking, Modal, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -14,7 +14,7 @@ import { wildlifeOf } from '@/config/shoeCollection';
 import { SHOE_PROGRESSION, type ShoeLevel } from '@/config/shoeProgression';
 import { stageDetail, stageName } from '@/domain/collectibles';
 import { RewardStage } from './RewardStage';
-import { UNBOX_TIMELINE, UnboxStage } from './UnboxStage';
+import { UnboxStage } from './UnboxStage';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useCollectibleStore } from '@/state/collectibleStore';
 import { useDashboardStore } from '@/state/dashboardStore';
@@ -66,19 +66,19 @@ export function RevealCeremony({ from, to, explorer = null, preview = false, onC
   }, [preview, claimed, wallet, to]);
   const edition: EditionState = preview ? 'preview' : !claimed ? 'unclaimed' : editionRow ? editionRow : editionLoading || editionRow === undefined ? 'loading' : 'unavailable';
 
-  // 震動：開場成功／警示；拆盒另有搖晃輕震兩次與爆開重震
-  useEffect(() => {
-    setRevealed(!unbox);
-    content.setValue(unbox ? 0 : 1);
+  // 在子舞台通知立即揭曉前重設；避免背景／減少動態的結果被父層覆蓋。
+  useLayoutEffect(() => {
+    const immediate = !unbox || reduced;
+    setRevealed(immediate);
+    content.setValue(immediate ? 1 : 0);
     void Haptics.notificationAsync(up ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning)?.catch(() => {});
-    if (!unbox || reduced) return;
-    const timers = [
-      setTimeout(() => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)?.catch(() => {}), UNBOX_TIMELINE.shakeStart),
-      setTimeout(() => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)?.catch(() => {}), UNBOX_TIMELINE.shakeMid),
-      setTimeout(() => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)?.catch(() => {}), UNBOX_TIMELINE.burst),
-    ];
-    return () => timers.forEach(clearTimeout);
-  }, [up, unbox, reduced, from, to, take, content]);
+    // Reduced-motion changes settle the current ceremony below; they do not replay it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [up, unbox, from, to, take, content]);
+
+  useEffect(() => {
+    if (reduced) { setRevealed(true); content.stopAnimation(); content.setValue(1); }
+  }, [reduced, content]);
 
   const onRevealed = () => {
     setRevealed(true);
@@ -106,9 +106,9 @@ export function RevealCeremony({ from, to, explorer = null, preview = false, onC
             <Text variant="label" tone="muted" style={styles.levels}>Lv.{from} → Lv.{to}</Text>
           </View>
 
-          {/* 舞台比鞋子高出一截，讓背影的頭／耳露在鞋子上方；剪影往上偏移、鞋子置中偏下 */}
+          {/* 舞台比鞋子高出一截，讓剪影的頭／耳露在鞋子上方；剪影往上偏移、鞋子置中偏下 */}
           {unbox ? (
-            <UnboxStage key={`${from}-${to}-${take}`} accent={accent} height={size * 0.8 + space.xxl * 2 + size * 0.16} onRevealed={onRevealed} backdrop={<View style={{ marginTop: -size * 0.22 }}><WildlifeSilhouette level={to} color={accent} size={size * 1.12} opacity={0.26} /></View>}>
+            <UnboxStage key={`${from}-${to}-${take}`} accent={accent} height={size * 0.8 + space.xxl * 2 + size * 0.16} onRevealed={onRevealed} backdrop={<View style={{ marginTop: -size * 0.12 }}><WildlifeSilhouette level={to} color={accent} size={size * 0.96} opacity={0.65} /></View>}>
               {hero}
             </UnboxStage>
           ) : (

@@ -48,14 +48,14 @@ If your device has no qualifying Health Connect records, use the public previews
 - 沒有健康資料時，可在已具資格的測試情境查看 NFT 領取，**但新錢包不保證有資格**；準備團隊帳號的錄影證據不能冒充評審自己的資產。
 - 使用指南登錄的 Explorer 連結比對錢包、cluster、成功狀態與 App 結果。不需交出私鑰或助記詞。
 
-## 3. 一分鐘理解活动路線
+## 3. 一分鐘理解活動路線
 
 ```mermaid
 flowchart LR
   A[發現活動] --> B[查看規則與報名]
   B --> C[現場取得報到碼]
   C --> D[授權 staff 確認]
-  D --> E[符合条件才預留／領取權益]
+  D --> E[符合條件才預留／領取權益]
   D --> F[主辦方發布成績]
   F --> G[符合資格才領活動紀念章]
   E --> H[個人歷程與日常任務]

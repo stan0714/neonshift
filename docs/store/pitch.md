@@ -38,3 +38,7 @@
 新增第 13–15 頁保育跑鞋、成長盲盒與系列路線，包含 SVG 衍生鞋款示意。v1 原檔保留；v2 為本次輸出。同步更新 HTML、講稿與來源清單。保育來源於 2026-09-17 查核；原市場來源沿用先前查核日期，未重新研究。
 
 重建：先執行 `build_wildlife_assets.py`，再執行 `build_deck.py`（需 python-pptx、cairosvg 與 Cairo）。鞋款設計與實作範圍見 [荒野守護設計](../design/wild-guardian-shoes.md)。
+
+## 參賽展示補充（2026-09-17）
+
+短版參賽 Pitch 應保留一頁「日常運動 → 活動報名／報到 → 權益／成績／收藏 → 回訪」，並標示已實作、待實機與未來規劃。可取募資版第 5 頁與第 13–15 頁素材；本次為文件規劃，不宣稱已另產出短版投影片。片尾、Pitch 與 README 共用 [評審指南](judges-guide.md)，活動細節見 [展示手冊](event-demo-playbook.md)，拍攝依 [Demo v2](demo-video.md)。
