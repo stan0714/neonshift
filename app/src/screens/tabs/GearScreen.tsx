@@ -612,7 +612,7 @@ function Tile({
             />
           ) : null}
         </View>
-        <Text variant="title" numberOfLines={1}>
+        <Text variant="title" numberOfLines={2}>
           {collectibleName(t, item)}
         </Text>
         {item.shoeLevel ? (
