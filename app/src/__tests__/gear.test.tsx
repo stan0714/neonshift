@@ -14,7 +14,7 @@ jest.mock('@/config/app', () => ({ APP_CONFIG: { ...jest.requireActual('@/config
 const mockClaim = jest.fn(async (_w: PublicKey, kind: number) => ({ kind, asset: 'AssetAddr1111', signature: 'sig111', alreadyClaimed: false }));
 const mockFetchClaimed = jest.fn(async () => new Set([1]));
 jest.mock('@/services/chain/CollectibleService', () => ({ collectibleService: { claim: (w: PublicKey, k: number) => mockClaim(w, k), fetchClaimed: () => mockFetchClaimed() } }));
-jest.mock('expo-haptics', () => ({ notificationAsync: jest.fn(), impactAsync: jest.fn(), ImpactFeedbackStyle: { Heavy: 'heavy' }, NotificationFeedbackType: { Success: 'success' } }));
+jest.mock('expo-haptics', () => ({ notificationAsync: jest.fn(), impactAsync: jest.fn(), ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' }, NotificationFeedbackType: { Success: 'success' } }));
 
 const wallet = new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
 const profile = (p: Partial<PlayerProfile>): PlayerProfile => ({ wallet, coreLevel: 2, shoeLevel: 2, xp: BigInt(600), lastTaskDate: 0, streakDays: 1, maxStreakDays: 1, claimedToday: BigInt(0), todayDate: 0, migrated: true, highestLevel: 2, epochAnchor: 0, lastSettledEpoch: 0, epochPoints: 0, epochBitmap: 0, maintenanceRulesVersion: 1, ...p });

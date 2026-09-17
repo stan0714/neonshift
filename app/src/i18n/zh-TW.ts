@@ -385,6 +385,7 @@ export const zhTW: Record<keyof typeof en, string> = {
   'reveal.collect': '收下榮耀',
   'reveal.previewEyebrow': '揭曉示意 · 不改變等級',
   'reveal.previewBody': '達到 Lv.{level} 時會播放這段揭曉，並揭開你的細節款。這裡以系列展示樣式示意，不建立任何紀錄。',
+  'reveal.replay': '再播一次',
   'reveal.downTitle': '裝備階級調整',
   'reveal.downBody': '目前裝備等級已下降，曾經達成的榮耀依然保留。完成每日目標，一步步重返巔峰。',
   'reveal.body': '{detail}。倍率隨等級提升——不收費、不燒毀。到「裝備」領取 Lv.{level} 收藏。',

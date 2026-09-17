@@ -398,6 +398,7 @@ export const en = {
   'reveal.collect': 'Continue',
   'reveal.previewEyebrow': 'Reveal preview · level unchanged',
   'reveal.previewBody': 'This plays when you reach Lv.{level} and unboxes your edition. Shown here in the collection preview style; nothing is recorded.',
+  'reveal.replay': 'Play again',
   'reveal.downTitle': 'GEAR RECALIBRATED',
   'reveal.downBody': 'Your active gear level has decreased. Your achievements stay with you. Complete daily goals to build your way back.',
   'reveal.body': '{detail}. Your multiplier follows your level — no fees, nothing to burn. Claim the Lv.{level} collectible in Gear.',

@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
-import { useEffect } from 'react';
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Linking, Modal, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
@@ -9,17 +9,15 @@ import { ShoeStory } from '@/components/ShoeStory';
 import { ShoeHero } from '@/components/ShoeHero';
 import { APP_CONFIG } from '@/config/app';
 import { wildlifeOf } from '@/config/shoeCollection';
-import type { ShoeLevel } from '@/config/shoeProgression';
+import { SHOE_PROGRESSION, type ShoeLevel } from '@/config/shoeProgression';
 import { stageDetail, stageName } from '@/domain/collectibles';
 import { RewardStage } from './RewardStage';
+import { UNBOX_TIMELINE, UnboxStage } from './UnboxStage';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useDashboardStore } from '@/state/dashboardStore';
 import { useLevelRevealStore } from '@/state/levelRevealStore';
-import { color, radius, space, Text } from '@/theme';
+import { motion, space, Text } from '@/theme';
 import { useT } from '@/i18n';
-
-/** 盒子爆開的時間點（RewardStage `up` 2.8 s × 0.42），此時補一次重擊震動 */
-const BOX_BURST_MS = 2800 * 0.42;
 
 export type RevealCeremonyProps = {
   from: ShoeLevel;
@@ -28,62 +26,103 @@ export type RevealCeremonyProps = {
   explorer?: string | null;
   /**
    * 示意模式（Style 25.2）：從跑鞋詳情或 Demo 圖鑑「試拆盲盒」開啟。帶 DEMO 標籤、用系列展示樣式而非錢包細節款、
-   * 不改等級也不寫入已看過的等級；只用來檢視／錄製揭曉特效。
+   * 不改等級也不寫入已看過的等級；可重播，只用來檢視／錄製揭曉特效。
    */
   preview?: boolean;
   onClose: () => void;
 };
 
-/** 升階／降階揭曉本體；`EvolutionReveal` 依鏈上等級觸發，示意模式由畫面自行掛載。 */
+/** 鞋子尺寸：吃滿寬度（左右各留 24），上限 360 */
+const heroSize = (width: number) => Math.min(width - space.l * 2, 360);
+
+/**
+ * 升階／降階揭曉本體；`EvolutionReveal` 依鏈上等級觸發，示意模式由畫面自行掛載。
+ * 升階（Lv.2–5 皆為荒野守護）走全螢幕拆盒：舞台佔上半、文字在揭曉後才進場，鞋子揭曉後交回 ShoeHero 擺動展示。
+ */
 export function RevealCeremony({ from, to, explorer = null, preview = false, onClose }: RevealCeremonyProps) {
   const { t } = useT();
   const reduced = useReduceMotion();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const up = to > from;
-  const box = up && Boolean(wildlifeOf(to));
+  const unbox = up && Boolean(wildlifeOf(to));
+  const [take, setTake] = useState(0);
+  const [revealed, setRevealed] = useState(!unbox);
+  const content = useRef(new Animated.Value(unbox ? 0 : 1)).current;
+  const accent = SHOE_PROGRESSION.stages[to - 1].tint;
+  const size = heroSize(width);
 
+  // 震動：開場成功／警示；拆盒另有搖晃輕震兩次與爆開重震
   useEffect(() => {
+    setRevealed(!unbox);
+    content.setValue(unbox ? 0 : 1);
     void Haptics.notificationAsync(up ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning)?.catch(() => {});
-    if (!box || reduced) return;
-    const timer = setTimeout(() => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)?.catch(() => {}), BOX_BURST_MS);
-    return () => clearTimeout(timer);
-  }, [up, box, reduced, from, to]);
+    if (!unbox || reduced) return;
+    const timers = [
+      setTimeout(() => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)?.catch(() => {}), UNBOX_TIMELINE.shakeStart),
+      setTimeout(() => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)?.catch(() => {}), UNBOX_TIMELINE.shakeMid),
+      setTimeout(() => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)?.catch(() => {}), UNBOX_TIMELINE.burst),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [up, unbox, reduced, from, to, take, content]);
+
+  const onRevealed = () => {
+    setRevealed(true);
+    Animated.timing(content, { toValue: 1, duration: reduced ? 0 : motion.slow, useNativeDriver: true }).start();
+  };
+
+  const hero = <ShoeHero level={to} size={size} active={revealed && !reduced} badge={false} owner={preview ? null : undefined} />;
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel={t('common.dismiss')} testID="reveal-scrim" />
-      {/* Modal 為 edge-to-edge：外層先讓出安全區（contentContainer 的 margin 在 Android 不計入可捲範圍），否則手勢列壓住 Close */}
+      {/* Modal 為 edge-to-edge：外層先讓出安全區（contentContainer 的 margin 在 Android 不計入可捲範圍） */}
       <View style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom }} pointerEvents="box-none">
-      <ScrollView contentContainerStyle={styles.card} accessibilityViewIsModal testID="evolution-reveal">
-        {preview ? (
-          <View style={styles.previewRow} testID="reveal-preview">
-            <Chip label={t('common.demo')} kind="level" />
-            <Text variant="label" tone="secondary">{t('reveal.previewEyebrow')}</Text>
-          </View>
-        ) : null}
-        <Text variant="label" tone="mint" uppercase>
-          {t(up ? 'common.gearEvolved' : 'reveal.downTitle')}
-        </Text>
-        <RewardStage key={`${from}-${to}`} mode={up ? 'up' : 'down'} box={box}>
-          <Text variant="label">Lv.{from} → Lv.{to}</Text>
-          <ShoeHero level={to} size={200} active={false} badge={false} owner={preview ? null : undefined} />
-        </RewardStage>
-        <Text variant="heading2" style={styles.title}>
-          {t('common.lvDot', { n: to })} · {stageName(t, to)}
-        </Text>
-        <Text variant="bodySmall" tone="secondary" style={styles.body}>
-          {preview ? t('reveal.previewBody', { level: to }) : up ? t('reveal.body', { detail: stageDetail(t, to), level: to }) : t('reveal.downBody')}
-        </Text>
-        {up ? <ShoeStory level={to} preview={preview} /> : null}
-        <Button label={t(preview ? 'common.close' : up ? 'common.nice' : 'common.dismiss')} onPress={onClose} style={styles.btn} testID="reveal-ok" />
-        {explorer ? (
-          <Pressable onPress={() => void Linking.openURL(explorer)} accessibilityRole="link" style={styles.link} testID="reveal-tx">
-            <Text variant="bodySmall" tone="cyan">
-              {t('common.viewTransaction')}
+        <ScrollView contentContainerStyle={styles.content} accessibilityViewIsModal testID="evolution-reveal">
+          <View style={styles.header}>
+            {preview ? (
+              <View style={styles.previewRow} testID="reveal-preview">
+                <Chip label={t('common.demo')} kind="level" />
+                <Text variant="label" tone="secondary">{t('reveal.previewEyebrow')}</Text>
+              </View>
+            ) : null}
+            <Text variant="label" tone="mint" uppercase>
+              {t(up ? 'common.gearEvolved' : 'reveal.downTitle')}
             </Text>
-          </Pressable>
-        ) : null}
-      </ScrollView>
+            <Text variant="label" tone="muted" style={styles.levels}>Lv.{from} → Lv.{to}</Text>
+          </View>
+
+          {unbox ? (
+            <UnboxStage key={`${from}-${to}-${take}`} accent={accent} height={size * 0.8 + space.xxl * 2} onRevealed={onRevealed}>
+              {hero}
+            </UnboxStage>
+          ) : (
+            <RewardStage key={`${from}-${to}`} mode={up ? 'up' : 'down'}>
+              {hero}
+            </RewardStage>
+          )}
+
+          <Animated.View style={[styles.body, { opacity: content, transform: [{ translateY: content.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }]} testID="reveal-content">
+            <Text variant="heading1" style={styles.center}>
+              {t('common.lvDot', { n: to })} · {stageName(t, to)}
+            </Text>
+            <Text variant="body" tone="secondary" style={[styles.center, styles.bodyText]}>
+              {preview ? t('reveal.previewBody', { level: to }) : up ? t('reveal.body', { detail: stageDetail(t, to), level: to }) : t('reveal.downBody')}
+            </Text>
+            {up ? <ShoeStory level={to} preview={preview} /> : null}
+            <Button label={t(preview ? 'common.close' : up ? 'common.nice' : 'common.dismiss')} onPress={onClose} style={styles.btn} testID="reveal-ok" />
+            {preview && unbox ? (
+              <Button label={t('reveal.replay')} variant="secondary" onPress={() => setTake((n) => n + 1)} style={styles.replay} testID="reveal-replay" />
+            ) : null}
+            {explorer ? (
+              <Pressable onPress={() => void Linking.openURL(explorer)} accessibilityRole="link" style={styles.link} testID="reveal-tx">
+                <Text variant="bodySmall" tone="cyan">
+                  {t('common.viewTransaction')}
+                </Text>
+              </Pressable>
+            ) : null}
+          </Animated.View>
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -106,11 +145,15 @@ export function EvolutionReveal() {
 }
 
 const styles = StyleSheet.create({
-  scrim: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: color.scrim },
-  card: { flexGrow: 1, justifyContent: 'center', margin: space.l, backgroundColor: color.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: color.borderActive, padding: space.l, alignItems: 'center' },
-  previewRow: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginBottom: space.s },
-  title: { marginTop: space.s },
-  body: { marginTop: space.xs, textAlign: 'center' },
-  btn: { alignSelf: 'stretch', marginTop: space.m },
+  scrim: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: '#070A16F8' },
+  content: { flexGrow: 1, paddingHorizontal: space.l, paddingTop: space.l, paddingBottom: space.xl },
+  header: { alignItems: 'center', gap: space.xs },
+  previewRow: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginBottom: space.xs },
+  levels: { letterSpacing: 2 },
+  body: { alignItems: 'center', marginTop: space.m },
+  center: { textAlign: 'center' },
+  bodyText: { marginTop: space.s },
+  btn: { alignSelf: 'stretch', marginTop: space.l },
+  replay: { alignSelf: 'stretch', marginTop: space.s },
   link: { marginTop: space.s, minHeight: 48, justifyContent: 'center' },
 });

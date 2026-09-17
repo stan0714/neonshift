@@ -8,7 +8,7 @@ import { useDashboardStore } from '@/state/dashboardStore';
 import { useLevelRevealStore } from '@/state/levelRevealStore';
 import { ThemeProvider } from '@/theme';
 
-jest.mock('expo-haptics', () => ({ notificationAsync: jest.fn(), impactAsync: jest.fn(), ImpactFeedbackStyle: { Heavy: 'heavy' }, NotificationFeedbackType: { Success: 'success', Warning: 'warning' } }));
+jest.mock('expo-haptics', () => ({ notificationAsync: jest.fn(), impactAsync: jest.fn(), ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' }, NotificationFeedbackType: { Success: 'success', Warning: 'warning' } }));
 const Wrapper = ({ children }: PropsWithChildren) => <ThemeProvider>{children}</ThemeProvider>;
 const profile = (shoeLevel: number) => ({ shoeLevel, coreLevel: shoeLevel, xp: BigInt(0), streakDays: 0, maxStreakDays: 0 });
 
@@ -78,7 +78,11 @@ describe('RevealCeremony 示意模式', () => {
     expect(screen.getByTestId('reveal-preview')).toBeTruthy();
     expect(screen.getByText('Lv.5 · Amur Leopard')).toBeTruthy();
     await waitFor(() => expect(screen.queryByTestId('reward-stage-box')).toBeNull());
+    expect(screen.getByTestId('unbox-stage')).toBeTruthy();
     expect(screen.queryByTestId('reveal-tx')).toBeNull();
+    // 示意模式可重播：舞台重新掛載，盒子（Reduce Motion 下仍無）
+    await fireEvent.press(screen.getByTestId('reveal-replay'));
+    expect(screen.getByTestId('unbox-stage')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('reveal-ok'));
     expect(onClose).toHaveBeenCalled();
     expect(useLevelRevealStore.getState().lastSeen).toBe(1);
