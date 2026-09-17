@@ -548,7 +548,6 @@ manifest 的 `consistent=false`（後端名單人數 ≠ 鏈上 `valid − forfe
 ```bash
 deploy/l1/deploy.sh bootstrap        # 第一次（安裝 Node 24／PostgreSQL、系統帳號、/etc/neonshift/*.env 隨機 secret、systemd）
 deploy/l1/deploy.sh                  # 每次更新：rsync backend → npm ci → migration（schema_migrations 一次性）→ 重啟 signer／api → healthz
-ssh root@l1.neonshift.cc 'bash -s' < deploy/l1/nginx-on-l1.sh   # l1 本機 nginx：:80／:443（自簽）→ 127.0.0.1:6080，給 api.neonshift.cc 當源站
 curl -s https://api.neonshift.cc/healthz          # {"status":"ok","env":"dev","cluster_id":1}
 cd backend && npm run smoke -- https://api.neonshift.cc   # healthz／readyz／events／SIWS 登入／event-history／partner/me／logout（唯讀，不留資料）
 ssh root@l1.neonshift.cc 'journalctl -u neonshift-api -n 100 --no-pager'
@@ -596,10 +595,7 @@ OPS_TOKEN=$(ssh root@l1.neonshift.cc 'grep ^OPS_TOKEN= /etc/neonshift/api.env | 
 OPS_TOKEN=… npm --prefix tools/chain-admin run sync-achievements -- dev   # 逐筆 set_achievement_eligibility 並回報
 ```
 
-**api.neonshift.cc（2026-09-17 狀態）**：l1 已裝 nginx（`deploy/l1/nginx-on-l1.sh`，自簽憑證、:80／:443 → 6080，本機 healthz 200），但 l1 對外只開 22／6080，且 Cloudflare 的 `api` 主機名目前回 404（未指向 l1）。兩種接法擇一：
-1. **Cloudflare Tunnel（免開防火牆，建議）**：Zero Trust → Networks → Tunnels → 建立 tunnel，Public hostname `api.neonshift.cc` → `http://localhost:6080`，把「Install and run a connector」的 `cloudflared service install <token>` 指令在 l1 執行；DNS CNAME 由 Cloudflare 自動建立；nginx 可留著不用。
-2. **直連源站**：在主機商／路由開放 l1 的 80／443 → Cloudflare DNS `A api → 104.105.136.214`（橘雲）→ SSL/TLS 模式 Full（自簽可用；Full (strict) 需 Origin CA 憑證換掉 `/etc/nginx/certs/`）。
-接通後：`curl https://api.neonshift.cc/healthz` → 200；App 改用預設 API（`scripts/app/build.sh dev release` 不帶 `APP_API_URL_OVERRIDE`，明文 HTTP 自動關閉）；`backend/scripts/demo-event.mjs https://api.neonshift.cc` 重跑核對。
+**api.neonshift.cc（2026-09-17 狀態）**：l1 只跑 API（:6080），**不裝 nginx**——TLS 與反代一律由前面那台 nginx（`deploy/l1/nginx-api.neonshift.cc.conf`，upstream `l1.neonshift.cc:6080`）負責；Cloudflare 的 `api` 主機名目前回 404，需指向該台 nginx 後才通。接通後：`curl https://api.neonshift.cc/healthz` → 200；App 改用預設 API（`scripts/app/build.sh dev release` 不帶 `APP_API_URL_OVERRIDE`，明文 HTTP 自動關閉）；`backend/scripts/demo-event.mjs https://api.neonshift.cc` 重跑核對。
 
 2026-09-15 已升級（slot 498753143，資料帳戶 660,824 bytes）。`api.neonshift.cc` 尚未通時，chain-admin 可用 SSH tunnel：`ssh -f -N -L 16080:127.0.0.1:6080 root@l1.neonshift.cc` 並以 `NEONSHIFT_API_URL=http://127.0.0.1:16080/v1` 覆寫（任何 env 檔鍵都可用 `NEONSHIFT_<KEY>` 覆寫）。
 
