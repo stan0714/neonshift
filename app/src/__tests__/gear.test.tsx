@@ -120,7 +120,7 @@ describe('PG-A-14 Gear', () => {
     expect(screen.queryByTestId('shoe-detail')).toBeNull();
 
     await fireEvent.press(screen.getByTestId('collectible-open-1')); // Origin：claimed → 初階跑鞋說明＋NFT 編號（鏈上領取順序）
-    await waitFor(() => expect(screen.getByTestId('shoe-detail-edition').props.children).toBe('No. 0012 · 34 claimed'));
+    await waitFor(() => expect(screen.getByTestId('shoe-detail-edition').props.children).toBe('No. 12 · 34 claimed · open edition'));
     expect(mockFetchEdition).toHaveBeenCalledWith(wallet, 1);
     expect(screen.getByText(/Your starter shoe was granted/)).toBeTruthy();
     expect(screen.getByTestId('shoe-detail-nft').props.children).toBe('Already in your wallet');

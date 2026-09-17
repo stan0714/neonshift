@@ -46,7 +46,7 @@ Level 1 保留普通「原點」。Level 2 起，每階結合一種瀕危動物�
 
 ## NFT 編號
 
-- 編號定義：同一 kind 的紀念 NFT 依鏈上 `CollectibleReceipt.claimed_at`（同秒以 asset 位址）排序的領取順序，第 n 位即 `No. n`（四位補零）。App 以單一 `getProgramAccounts`（memcmp discriminator＋kind、dataSlice 40 bytes）現算，不依賴後端；任何人可用同樣方式重算驗證。
+- 編號定義：同一 kind 的紀念 NFT 依鏈上 `CollectibleReceipt.claimed_at`（同秒以 asset 位址）排序的領取順序，第 n 位即 `No. n`。鞋階款不限量（鏈上 `claim_collectible` 無供給上限、每錢包每 kind 一枚），因此不補零、不顯示上限；限量只屬於活動款（`No. 012 / 200`）。App 以單一 `getProgramAccounts`（memcmp discriminator＋kind、dataSlice 40 bytes）現算，不依賴後端；任何人可用同樣方式重算驗證。
 - 呈現：升階揭曉（未領取 → `No. ——`，提示到裝備領取後編號）、NFT 揭曉（領取後立即查）、跑鞋詳情「NFT 編號」列；示意模式為 `No. 0001` 並標示示意。
 - 限制：編號目前只在 App 呈現與可重算，尚未寫入鏈上 metadata（共用 URI）；玩家數大時 `getProgramAccounts` 應改由後端索引提供（gallery_collectibles 已有 slot／signature，可同樣排序）。
 

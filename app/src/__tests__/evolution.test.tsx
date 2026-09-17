@@ -81,8 +81,8 @@ describe('RevealCeremony 示意模式', () => {
     expect(screen.getByTestId('reveal-preview')).toBeTruthy();
     expect(screen.getByText('Lv.5 · Amur Leopard')).toBeTruthy();
     expect(screen.getByTestId('wild-silhouette-leopard', { includeHiddenElements: true })).toBeTruthy();
-    expect(screen.getByTestId('collector-plate-no').props.children).toBe('No. 0001'); // 示意編號
-    expect(screen.getByText(/Sample number/)).toBeTruthy();
+    expect(screen.getByTestId('collector-plate-no').props.children).toBe('No. 1'); // 示意編號（不限量，不補零）
+    expect(screen.getByText(/Sample number · Open edition/)).toBeTruthy();
     await waitFor(() => expect(screen.queryByTestId('reward-stage-box')).toBeNull());
     expect(screen.getByTestId('unbox-stage')).toBeTruthy();
     expect(screen.queryByTestId('reveal-tx')).toBeNull();
