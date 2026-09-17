@@ -58,6 +58,9 @@ describe('EvolutionReveal', () => {
     await waitFor(() => expect(screen.getByTestId('evolution-reveal')).toBeTruthy());
     expect(screen.getByText('Lv.2 · Asian Elephant')).toBeTruthy();
     expect(screen.getByTestId('reward-stage-box')).toBeTruthy(); // Lv.2+ 升階：成長盲盒先拆開
+    expect(screen.getByTestId('wild-silhouette-elephant', { includeHiddenElements: true })).toBeTruthy(); // 物種背影在鞋子後方
+    expect(screen.getByTestId('collector-plate-no').props.children).toBe('No. ——'); // 尚未領取 NFT → 未編號
+    expect(screen.getByText(/once you claim the NFT in Gear/)).toBeTruthy();
     expect(screen.queryByTestId('reveal-preview')).toBeNull();
     expect(screen.getByTestId('reveal-tx')).toBeTruthy();
     const haptics = jest.requireMock('expo-haptics');
@@ -77,6 +80,9 @@ describe('RevealCeremony 示意模式', () => {
     await render(<RevealCeremony from={4} to={5} preview onClose={onClose} />, { wrapper: Wrapper });
     expect(screen.getByTestId('reveal-preview')).toBeTruthy();
     expect(screen.getByText('Lv.5 · Amur Leopard')).toBeTruthy();
+    expect(screen.getByTestId('wild-silhouette-leopard', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.getByTestId('collector-plate-no').props.children).toBe('No. 0001'); // 示意編號
+    expect(screen.getByText(/Sample number/)).toBeTruthy();
     await waitFor(() => expect(screen.queryByTestId('reward-stage-box')).toBeNull());
     expect(screen.getByTestId('unbox-stage')).toBeTruthy();
     expect(screen.queryByTestId('reveal-tx')).toBeNull();

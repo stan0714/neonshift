@@ -44,6 +44,12 @@ Level 1 保留普通「原點」。Level 2 起，每階結合一種瀕危動物�
 
 這次變更為 App 外觀及介紹層；鏈上紀念 NFT 仍沿用既有 kind／URI。`tools/nft-assets/build.mjs` 與既有 `web/nft/` 是舊版紀念作品，未在此變更覆寫或部署。App 提供外觀與 NFT 分開的說明。
 
+## NFT 編號
+
+- 編號定義：同一 kind 的紀念 NFT 依鏈上 `CollectibleReceipt.claimed_at`（同秒以 asset 位址）排序的領取順序，第 n 位即 `No. n`（四位補零）。App 以單一 `getProgramAccounts`（memcmp discriminator＋kind、dataSlice 40 bytes）現算，不依賴後端；任何人可用同樣方式重算驗證。
+- 呈現：升階揭曉（未領取 → `No. ——`，提示到裝備領取後編號）、NFT 揭曉（領取後立即查）、跑鞋詳情「NFT 編號」列；示意模式為 `No. 0001` 並標示示意。
+- 限制：編號目前只在 App 呈現與可重算，尚未寫入鏈上 metadata（共用 URI）；玩家數大時 `getProgramAccounts` 應改由後端索引提供（gallery_collectibles 已有 slot／signature，可同樣排序）。
+
 要讓盲盒款式成為 NFT 的永久屬性，後續須建立每資產的 `series_id / edition / variant` 權威紀錄、不可重抽的分配流程與獨立 metadata URI。現行按 kind 共用 URI 無法表達每錢包不同款式；不能只改共用 JSON 假裝每個 NFT 都有獨立結果。發行新系列時再決定是否使用可驗證隨機來源。
 
 ## 保育內容來源

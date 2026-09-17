@@ -41,6 +41,13 @@ export const entryPda = (tournament: PublicKey, wallet: PublicKey) => PublicKey.
 /** Metaplex Core（SD 11A） */
 export const MPL_CORE_PROGRAM_ID = new PublicKey('CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d');
 
+/** account 的 8-byte Anchor discriminator（getProgramAccounts memcmp 用） */
+export function accountDiscriminator(account: string): Buffer {
+  const acc = (idl as { accounts: { name: string; discriminator: number[] }[] }).accounts.find((a) => a.name === account);
+  if (!acc) throw new Error(`IDL account not found: ${account}`);
+  return Buffer.from(acc.discriminator);
+}
+
 /** 8-byte Anchor discriminator，直接取自 IDL，避免與程式不同步 */
 export function discriminator(instruction: string): Buffer {
   const ix = (idl as { instructions: { name: string; discriminator: number[] }[] }).instructions.find((i) => i.name === instruction);

@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
+import { CollectorPlate, type EditionState } from '@/components/CollectorPlate';
+import { WildlifeSilhouette } from '@/components/WildlifeSilhouette';
 import { ShoeStory } from '@/components/ShoeStory';
 import { ShoeHero } from '@/components/ShoeHero';
 import { APP_CONFIG } from '@/config/app';
@@ -14,7 +16,9 @@ import { stageDetail, stageName } from '@/domain/collectibles';
 import { RewardStage } from './RewardStage';
 import { UNBOX_TIMELINE, UnboxStage } from './UnboxStage';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
+import { useCollectibleStore } from '@/state/collectibleStore';
 import { useDashboardStore } from '@/state/dashboardStore';
+import { useWalletStore } from '@/state/walletStore';
 import { useLevelRevealStore } from '@/state/levelRevealStore';
 import { motion, space, Text } from '@/theme';
 import { useT } from '@/i18n';
@@ -52,6 +56,16 @@ export function RevealCeremony({ from, to, explorer = null, preview = false, onC
   const accent = SHOE_PROGRESSION.stages[to - 1].tint;
   const size = heroSize(width);
 
+  // NFT 編號：示意 → 示意編號；真實揭曉 → 已領取則查鏈上領取順序，未領取則提示到裝備領取
+  const wallet = useWalletStore((s) => s.session?.publicKey ?? null);
+  const claimed = useCollectibleStore((s) => s.claimed.has(to));
+  const editionRow = useCollectibleStore((s) => s.editions[to]);
+  const editionLoading = useCollectibleStore((s) => s.editionLoading[to]);
+  useEffect(() => {
+    if (!preview && claimed && wallet) void useCollectibleStore.getState().loadEdition(wallet, to);
+  }, [preview, claimed, wallet, to]);
+  const edition: EditionState = preview ? 'preview' : !claimed ? 'unclaimed' : editionRow ? editionRow : editionLoading || editionRow === undefined ? 'loading' : 'unavailable';
+
   // 震動：開場成功／警示；拆盒另有搖晃輕震兩次與爆開重震
   useEffect(() => {
     setRevealed(!unbox);
@@ -71,7 +85,7 @@ export function RevealCeremony({ from, to, explorer = null, preview = false, onC
     Animated.timing(content, { toValue: 1, duration: reduced ? 0 : motion.slow, useNativeDriver: true }).start();
   };
 
-  const hero = <ShoeHero level={to} size={size} active={revealed && !reduced} badge={false} owner={preview ? null : undefined} />;
+  const hero = <View style={unbox ? { marginTop: size * 0.12 } : null}><ShoeHero level={to} size={size} active={revealed && !reduced} badge={false} owner={preview ? null : undefined} /></View>;
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
@@ -92,8 +106,9 @@ export function RevealCeremony({ from, to, explorer = null, preview = false, onC
             <Text variant="label" tone="muted" style={styles.levels}>Lv.{from} → Lv.{to}</Text>
           </View>
 
+          {/* 舞台比鞋子高出一截，讓背影的頭／耳露在鞋子上方；剪影往上偏移、鞋子置中偏下 */}
           {unbox ? (
-            <UnboxStage key={`${from}-${to}-${take}`} accent={accent} height={size * 0.8 + space.xxl * 2} onRevealed={onRevealed}>
+            <UnboxStage key={`${from}-${to}-${take}`} accent={accent} height={size * 0.8 + space.xxl * 2 + size * 0.16} onRevealed={onRevealed} backdrop={<View style={{ marginTop: -size * 0.22 }}><WildlifeSilhouette level={to} color={accent} size={size * 1.12} opacity={0.26} /></View>}>
               {hero}
             </UnboxStage>
           ) : (
@@ -109,6 +124,7 @@ export function RevealCeremony({ from, to, explorer = null, preview = false, onC
             <Text variant="body" tone="secondary" style={[styles.center, styles.bodyText]}>
               {preview ? t('reveal.previewBody', { level: to }) : up ? t('reveal.body', { detail: stageDetail(t, to), level: to }) : t('reveal.downBody')}
             </Text>
+            {unbox ? <View style={styles.plate}><CollectorPlate level={to} edition={edition} /></View> : null}
             {up ? <ShoeStory level={to} preview={preview} /> : null}
             <Button label={t(preview ? 'common.close' : up ? 'common.nice' : 'common.dismiss')} onPress={onClose} style={styles.btn} testID="reveal-ok" />
             {preview && unbox ? (
@@ -153,6 +169,7 @@ const styles = StyleSheet.create({
   body: { alignItems: 'center', marginTop: space.m },
   center: { textAlign: 'center' },
   bodyText: { marginTop: space.s },
+  plate: { alignSelf: 'stretch', marginTop: space.m },
   btn: { alignSelf: 'stretch', marginTop: space.l },
   replay: { alignSelf: 'stretch', marginTop: space.s },
   link: { marginTop: space.s, minHeight: 48, justifyContent: 'center' },

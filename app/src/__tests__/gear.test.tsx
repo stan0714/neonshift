@@ -13,7 +13,8 @@ import { ThemeProvider } from '@/theme';
 jest.mock('@/config/app', () => ({ APP_CONFIG: { ...jest.requireActual('@/config/app').APP_CONFIG, programId: '6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA', chainConfigured: true } }));
 const mockClaim = jest.fn(async (_w: PublicKey, kind: number) => ({ kind, asset: 'AssetAddr1111', signature: 'sig111', alreadyClaimed: false }));
 const mockFetchClaimed = jest.fn(async () => new Set([1]));
-jest.mock('@/services/chain/CollectibleService', () => ({ collectibleService: { claim: (w: PublicKey, k: number) => mockClaim(w, k), fetchClaimed: () => mockFetchClaimed() } }));
+const mockFetchEdition = jest.fn(async (_w: PublicKey, kind: number) => ({ kind, edition: 12, total: 34 }));
+jest.mock('@/services/chain/CollectibleService', () => ({ collectibleService: { claim: (w: PublicKey, k: number) => mockClaim(w, k), fetchClaimed: () => mockFetchClaimed(), fetchEdition: (w: PublicKey, k: number) => mockFetchEdition(w, k) } }));
 jest.mock('expo-haptics', () => ({ notificationAsync: jest.fn(), impactAsync: jest.fn(), ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' }, NotificationFeedbackType: { Success: 'success' } }));
 
 const wallet = new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
@@ -30,7 +31,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   useWalletStore.setState({ status: 'connected', session: { address: wallet.toBase58(), publicKey: wallet, walletUriBase: '', label: 'Phantom' }, error: null } as never);
   useDashboardStore.setState({ profile: profile({}), config, syncChain: jest.fn(async () => {}) } as never);
-  useCollectibleStore.setState({ claimed: new Set([1]), loading: false, error: null, claiming: null, outcome: null });
+  useCollectibleStore.setState({ claimed: new Set([1]), loading: false, error: null, claiming: null, outcome: null, editions: {}, editionLoading: {} });
 });
 
 describe('PG-A-14 Gear', () => {
@@ -118,7 +119,9 @@ describe('PG-A-14 Gear', () => {
     await fireEvent.press(screen.getByTestId('shoe-detail-done'));
     expect(screen.queryByTestId('shoe-detail')).toBeNull();
 
-    await fireEvent.press(screen.getByTestId('collectible-open-1')); // Origin：claimed → 初階跑鞋說明
+    await fireEvent.press(screen.getByTestId('collectible-open-1')); // Origin：claimed → 初階跑鞋說明＋NFT 編號（鏈上領取順序）
+    await waitFor(() => expect(screen.getByTestId('shoe-detail-edition').props.children).toBe('No. 0012 · 34 claimed'));
+    expect(mockFetchEdition).toHaveBeenCalledWith(wallet, 1);
     expect(screen.getByText(/Your starter shoe was granted/)).toBeTruthy();
     expect(screen.getByTestId('shoe-detail-nft').props.children).toBe('Already in your wallet');
     await fireEvent.press(screen.getByTestId('shoe-detail-close'));

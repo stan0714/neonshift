@@ -25,10 +25,12 @@ type Props = {
   height: number;
   /** 拆盒結束（revealed）時通知外層，讓文字內容進場、鞋子開始擺動 */
   onRevealed?: () => void;
+  /** 鞋子後方的背景層（物種背影剪影）：爆開後浮現、微微上升 */
+  backdrop?: ReactNode;
   children: ReactNode;
 };
 
-export function UnboxStage({ accent, height, onRevealed, children }: Props) {
+export function UnboxStage({ accent, height, onRevealed, backdrop, children }: Props) {
   const reduced = useReduceMotion();
   const p = useRef(new Animated.Value(0)).current;
 
@@ -71,6 +73,7 @@ export function UnboxStage({ accent, height, onRevealed, children }: Props) {
         <View pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           {[0, 1, 2].map((i) => <View key={i} style={[s.ring, { borderColor: accent, opacity: 0.18, transform: [{ scale: 1 + i * 0.18 }] }]} />)}
         </View>
+        {backdrop ? <View style={s.backdrop}>{backdrop}</View> : null}
         <View style={s.face}>{children}</View>
       </View>
     );
@@ -126,6 +129,16 @@ export function UnboxStage({ accent, height, onRevealed, children }: Props) {
         <Animated.View style={[s.flash, { opacity: at([0, burst, burst + 0.03, burst + 0.1], [0, 0, 0.9, 0]), transform: [{ scale: at([burst, burst + 0.1], [0.3, 1.6]) }] }]} />
       </View>
 
+      {/* 背影剪影：爆開後從盒心浮現、放大並緩緩上升，停在鞋子後方 */}
+      {backdrop ? (
+        <Animated.View pointerEvents="none" style={[s.backdrop, { opacity: at([0, burst, burst + 0.25], [0, 0, 1]), transform: [
+          { scale: at([burst, burst + 0.3], [0.6, 1]) },
+          { translateY: at([burst, 1], [30, -12]) },
+        ] }]}>
+          {backdrop}
+        </Animated.View>
+      ) : null}
+
       {/* 盒子：浮現 → 呼吸 → 搖晃（漏光） → 爆開消散 */}
       <Animated.View
         pointerEvents="none"
@@ -168,5 +181,6 @@ const s = StyleSheet.create({
   leak_bottom: { bottom: -2, left: 40, right: 40, height: 3 },
   leak_left: { left: -2, top: 40, bottom: 40, width: 3 },
   leak_right: { right: -2, top: 40, bottom: 40, width: 3 },
+  backdrop: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   face: { alignItems: 'center', justifyContent: 'center' },
 });

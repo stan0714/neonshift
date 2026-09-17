@@ -6,6 +6,7 @@ import Svg, { Circle } from "react-native-svg";
 import { Button, Chip, InlineState, Screen, Sheet, Surface } from "@/components";
 import { ShoeStory } from "@/components/ShoeStory";
 import { RevealCeremony } from "@/components/EvolutionReveal";
+import { formatEditionNo } from "@/components/CollectorPlate";
 import { ShoeHero } from "@/components/ShoeHero";
 import { Milestones } from "@/screens/workouts/Milestones";
 import { maintenanceView, nextSteps } from "@/domain/maintenance";
@@ -491,9 +492,16 @@ type ShoeDetailProps = {
  */
 function ShoeDetailSheet({ kind, onClose, profile, status, section, xp, thresholds, multiplier, claiming, busy, disabledReason, onClaim, onPreviewReveal }: ShoeDetailProps) {
   const { t } = useT();
+  const wallet = useWalletStore((s) => s.session?.publicKey ?? null);
+  const editionRow = useCollectibleStore((s) => (kind ? s.editions[kind] : undefined));
+  const editionLoading = useCollectibleStore((s) => (kind ? s.editionLoading[kind] : false));
+  useEffect(() => {
+    if (kind && status === "claimed" && wallet) void useCollectibleStore.getState().loadEdition(wallet, kind);
+  }, [status, wallet, kind]);
   if (!kind) return null;
   const item = COLLECTIBLES.find((x) => x.kind === kind)!;
   const need = thresholds[kind - 1] ?? 0;
+  const editionValue = status !== "claimed" ? null : editionRow ? t("nft.editionShort", { no: formatEditionNo(editionRow.edition), total: editionRow.total }) : editionLoading || editionRow === undefined ? t("nft.editionLoading") : t("nft.editionUnavailable");
   const remaining = Math.max(0, need - xp);
   const rows: { label: string; value: string; testID?: string }[] = [
     { label: t("gear.detail.stage"), value: `Lv.${kind} · ${stageName(t, kind)}` },
@@ -501,6 +509,7 @@ function ShoeDetailSheet({ kind, onClose, profile, status, section, xp, threshol
     { label: t("gear.detail.multiplier"), value: multiplier },
     { label: t("gear.detail.unlock"), value: collectibleUnlock(t, item) },
     { label: t("gear.detail.nft"), value: t(`gear.detail.nft.${status}` as TKey), testID: "shoe-detail-nft" },
+    ...(editionValue ? [{ label: t("gear.detail.edition"), value: editionValue, testID: "shoe-detail-edition" }] : []),
   ];
   return (
     <Sheet visible onClose={onClose} title={collectibleName(t, item)} testID="shoe-detail" footer={
