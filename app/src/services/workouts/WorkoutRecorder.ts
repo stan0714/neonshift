@@ -5,7 +5,7 @@ import { AppState } from 'react-native';
 import { liveMotion } from '@/services/sensors/LiveMotionService';
 
 import { GpsMetricsEngine, haversineMm, type IntegrityFlag, type Lap, type RawPoint, type Summary, type TrackEquivalent } from '@/domain/gps/engine';
-import { apiClient, type WorkoutGoal, type WorkoutImportInput, type WorkoutIntent } from '@/services/api/ApiClient';
+import { ApiError, apiClient, type WorkoutGoal, type WorkoutImportInput, type WorkoutIntent } from '@/services/api/ApiClient';
 import { LocalWorkoutStore, type SessionMeta } from './LocalWorkoutStore';
 import { resetLocationSeq, setLocationSink, WORKOUT_LOCATION_TASK } from './locationTask';
 
@@ -97,7 +97,20 @@ export const defaultMotionProbe: MotionProbe = async () => {
 const defaultSync = async (input: WorkoutImportInput) => {
   const r = await apiClient.importWorkouts([input]);
   const first = r.results[0];
-  return { sessionId: first && first.outcome !== 'invalid' ? first.session.session_id : null };
+  // 後端判為 invalid（例：結束早於開始）→ 明確回原因，不再靜默當成「沒同步」
+  if (first && first.outcome === 'invalid') throw new SyncRejected((first as { reasons?: string[] }).reasons ?? []);
+  return { sessionId: first ? first.session.session_id : null };
+};
+/** 後端拒絕匯入（outcome invalid） */
+export class SyncRejected extends Error {
+  constructor(public readonly reasons: string[]) { super(reasons.join(', ') || 'invalid'); }
+}
+/** 同步結果（實機回饋：按「立即同步」沒有任何反應——之前所有錯誤都被吞掉） */
+export type SyncOutcome = { ok: true } | { ok: false; code: 'NO_SESSION' | 'NETWORK_ERROR' | 'REJECTED' | 'UNKNOWN'; message: string };
+const syncOutcomeOf = (e: unknown): SyncOutcome => {
+  if (e instanceof SyncRejected) return { ok: false, code: 'REJECTED', message: e.message };
+  if (e instanceof ApiError) return { ok: false, code: e.code === 'NO_SESSION' ? 'NO_SESSION' : e.code === 'NETWORK_ERROR' ? 'NETWORK_ERROR' : 'UNKNOWN', message: e.message };
+  return { ok: false, code: 'UNKNOWN', message: e instanceof Error ? e.message : String(e) };
 };
 
 /** PG-U-01：目標達成判定（時間用含暫停的 elapsed；距離用接受距離）；free 永不達 */
@@ -401,7 +414,7 @@ export class WorkoutRecorder {
     await this.store.writeMeta(this.meta);
     this.state = this.meta.status;
     this.emit();
-    const synced = await this.syncMeta(this.meta);
+    const synced = (await this.syncMeta(this.meta)).ok;
     const out = { meta: this.meta, summary, synced };
     this.engine = null;
     this.meta = null;
@@ -410,9 +423,20 @@ export class WorkoutRecorder {
     return out;
   }
 
+  /** 已結束但尚未同步到帳號的本機 session（實機回饋：離開摘要頁後就再也找不到、無法補同步） */
+  unsynced(): SessionMeta[] {
+    return this.store.list().filter((m) => (m.status === 'saved' || m.status === 'needs_review') && !m.syncedSessionId && !!m.summary).sort((a, b) => b.startedAtUtc - a.startedAtUtc);
+  }
+  /** 刪除本機 session（未同步的測試紀錄）；記錄中不可刪 */
+  deleteLocal(sessionId: string) {
+    if (this.meta?.sessionId === sessionId) throw new Error('session is active');
+    this.store.delete(sessionId);
+  }
+
   /** 摘要同步（origin gps；不含座標）；冪等：external_record_id = sessionId */
-  async syncMeta(meta: SessionMeta): Promise<boolean> {
-    if (!meta.summary || meta.syncedSessionId) return !!meta.syncedSessionId;
+  async syncMeta(meta: SessionMeta): Promise<SyncOutcome> {
+    if (meta.syncedSessionId) return { ok: true };
+    if (!meta.summary) return { ok: false, code: 'UNKNOWN', message: 'no summary' };
     const s = meta.summary;
     const flags: string[] = [];
     if (s.quality.gaps > 0 || s.quality.coverageRatio < 0.9) flags.push('gps_gap');
@@ -439,12 +463,13 @@ export class WorkoutRecorder {
       if (r.sessionId) {
         meta.syncedSessionId = r.sessionId;
         await this.store.writeMeta(meta);
-        return true;
+        return { ok: true };
       }
-    } catch {
-      /* 離線：保留本機待重試 */
+      return { ok: false, code: 'UNKNOWN', message: 'no session id' };
+    } catch (e) {
+      // 離線／未登入／被拒：保留本機待重試，把原因交給畫面
+      return syncOutcomeOf(e);
     }
-    return false;
   }
 
   /** 恢復未正常結束的 session：同 process 可續錄；跨 process 標 interrupted 只允許結束 */

@@ -28,9 +28,31 @@ export function WorkoutsScreen() {
   const [notice, setNotice] = useState<{ kind: 'success' | 'info' | 'warning'; title: string } | null>(null);
   const navigation = useNavigation();
   const [recoverable, setRecoverable] = useState<SessionMeta[]>([]);
+  const [unsynced, setUnsynced] = useState<SessionMeta[]>([]);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
   useEffect(() => {
     void workoutRecorder.markRecoverable().then(setRecoverable).catch(() => setRecoverable([]));
+    setUnsynced(workoutRecorder.unsynced());
   }, []);
+  const syncLocal = async (m: SessionMeta) => {
+    setSyncingId(m.sessionId);
+    setNotice(null);
+    try {
+      const r = await workoutRecorder.syncMeta(m);
+      if (r.ok) { setNotice({ kind: 'success', title: t('wo.local.synced') }); await load(); }
+      else if (r.code === 'NO_SESSION') setNotice({ kind: 'warning', title: t('wo.local.needSignin') });
+      else setNotice({ kind: 'warning', title: t('wo.local.syncFailed', { message: r.message }) });
+    } finally {
+      setSyncingId(null);
+      setUnsynced(workoutRecorder.unsynced());
+    }
+  };
+  const deleteLocal = (m: SessionMeta) => {
+    Alert.alert(t('wo.local.deleteTitle'), t('wo.local.deleteBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('wo.local.delete'), style: 'destructive', onPress: () => { workoutRecorder.deleteLocal(m.sessionId); setUnsynced(workoutRecorder.unsynced()); } },
+    ]);
+  };
   const recover = async (m: SessionMeta, action: 'finish' | 'discard') => {
     const r = await workoutRecorder.recover(m.sessionId, action);
     setRecoverable((cur) => cur.filter((x) => x.sessionId !== m.sessionId));
@@ -102,6 +124,24 @@ export function WorkoutsScreen() {
         <InlineState key={m.sessionId} kind="warning" title={t('wo.recoverTitle')} body={t('wo.recoverBody')} action={{ label: t('wo.recoverSave'), onPress: () => void recover(m, 'finish') }} secondaryAction={{ label: t('wo.recoverDiscard'), onPress: () => void recover(m, 'discard') }} testID={`workouts-recover-${m.sessionId}`} />
       ))}
       {notice ? <InlineState kind={notice.kind} title={notice.title} testID={`workouts-${notice.kind}`} /> : null}
+      {unsynced.length ? (
+        <Surface style={styles.mt} testID="workouts-unsynced">
+          <Text variant="title">{t('wo.local.title', { n: unsynced.length })}</Text>
+          <Text variant="caption" tone="secondary">{t('wo.local.body')}</Text>
+          {unsynced.map((m) => (
+            <View key={m.sessionId} style={styles.localRow} testID={`workouts-local-${m.sessionId}`}>
+              <Pressable style={styles.flex} onPress={() => navigation.navigate('WorkoutSummary', { sessionId: m.sessionId })} accessibilityRole="button" testID={`workouts-local-open-${m.sessionId}`}>
+                <Text variant="body">{modeLabel(t, m.sport, m.intent)} · {formatKm(String(m.summary?.distanceMm ?? 0))} · {formatDuration(String(m.summary?.elapsedMs ?? 0))}</Text>
+                <Text variant="caption" tone="muted">{new Date(m.startedAtUtc).toLocaleString()}{m.status === 'needs_review' ? ` · ${t('sum.needsReviewShort')}` : ''}</Text>
+              </Pressable>
+              <Button label={t('sum.syncNow')} variant="secondary" onPress={() => void syncLocal(m)} loading={syncingId === m.sessionId} loadingLabel={t('sum.syncing')} testID={`workouts-local-sync-${m.sessionId}`} />
+              <Pressable onPress={() => deleteLocal(m)} accessibilityRole="button" accessibilityLabel={t('wo.local.delete')} hitSlop={8} style={styles.trash} testID={`workouts-local-delete-${m.sessionId}`}>
+                <Text variant="label" tone="danger">{t('wo.local.delete')}</Text>
+              </Pressable>
+            </View>
+          ))}
+        </Surface>
+      ) : null}
       {error ? (
         error.code === 'NO_SESSION' ? (
           <SignInState title={t('act.signin.title')} body={t('act.signin.body')} onSignedIn={load} testID="workouts-signin" />
@@ -199,6 +239,9 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  localRow: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.s },
+  trash: { minHeight: 44, justifyContent: 'center' },
   filters: { flexDirection: 'row', gap: space.xs, marginTop: space.m },
   filter: { minHeight: 36, paddingHorizontal: space.s, borderRadius: radius.m, borderWidth: 1, borderColor: color.borderSubtle, alignItems: 'center', justifyContent: 'center' },
   filterOn: { backgroundColor: color.mint, borderColor: color.mint },

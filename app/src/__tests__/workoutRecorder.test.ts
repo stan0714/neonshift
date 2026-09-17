@@ -98,7 +98,7 @@ describe('WorkoutRecorder', () => {
     expect(store.readMeta(meta.sessionId)).toMatchObject({ status: 'needs_review', syncedSessionId: null });
     expect(r.summary.quality.gaps).toBe(1);
     sync.mockResolvedValueOnce({ sessionId: 'server-2' } as never);
-    expect(await rec.syncMeta(store.readMeta(meta.sessionId)!)).toBe(true);
+    expect((await rec.syncMeta(store.readMeta(meta.sessionId)!)).ok).toBe(true);
     expect((sync.mock.calls[1]![0] as { client_flags: string[] }).client_flags).toContain('gps_gap');
   });
 

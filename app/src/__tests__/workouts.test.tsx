@@ -1,6 +1,6 @@
 /** PG-R-01：Health Connect session → 匯入 payload 映射（運動範圍、單位、Active／Total 分開、不套通用步長）、匯入器分批／不可用、運動紀錄畫面。 */
 import { NavigationContainer } from '@react-navigation/native';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { PropsWithChildren } from 'react';
 import { Alert } from 'react-native';
 
@@ -116,4 +116,31 @@ describe('WorkoutsScreen', () => {
     await waitFor(() => expect(screen.getByTestId('workouts-empty')).toBeTruthy());
     await act(async () => {});
   });
+});
+
+test('本機未同步紀錄：列出（模式／距離／時間）、可同步（未登入 → 提示先登入；成功 → 已同步並從清單移除）、可刪除', async () => {
+  const { workoutRecorder } = jest.requireActual('@/services/workouts/WorkoutRecorder') as typeof import('@/services/workouts/WorkoutRecorder');
+  const meta = { sessionId: 'local-1', sport: 'run', intent: 'run', goal: null, environment: 'outdoor', status: 'saved', startedAtUtc: Date.UTC(2026, 8, 17, 12), startedMonoMs: 0, processId: 'p', pauses: [], manualLapsAtMs: [], lastSeq: 0, acceptedCount: 10, interrupted: false, endedAtUtc: null, syncedSessionId: null, updatedAt: 0, summary: { distanceMm: 1_230_000, elapsedMs: 420_000 } } as never;
+  const unsynced = jest.spyOn(workoutRecorder, 'unsynced').mockReturnValue([meta]);
+  const sync = jest.spyOn(workoutRecorder, 'syncMeta').mockResolvedValueOnce({ ok: false, code: 'NO_SESSION', message: 'Sign in required' });
+  const del = jest.spyOn(workoutRecorder, 'deleteLocal').mockImplementation(() => {});
+  (jest.requireMock('@/services/api/ApiClient') as { apiClient: { myWorkouts: jest.Mock } }).apiClient.myWorkouts.mockResolvedValue({ items: [], rules_version: 1 });
+  await render(<WorkoutsScreen />, { wrapper: Wrapper });
+  expect(screen.getByTestId('workouts-unsynced')).toBeTruthy();
+  expect(screen.getByText(/Run · 1\.23 km · 7:00/)).toBeTruthy();
+  await fireEvent.press(screen.getByTestId('workouts-local-sync-local-1'));
+  await waitFor(() => expect(screen.getByText(/Sign in first/)).toBeTruthy());
+  sync.mockResolvedValueOnce({ ok: true });
+  unsynced.mockReturnValue([]);
+  await fireEvent.press(screen.getByTestId('workouts-local-sync-local-1'));
+  await waitFor(() => expect(screen.queryByTestId('workouts-unsynced')).toBeNull());
+  expect(screen.getByText('Synced to your account')).toBeTruthy();
+  // 刪除：確認對話框 → deleteLocal
+  unsynced.mockReturnValue([meta]);
+  jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, b) => b?.find((x) => x.style === 'destructive')?.onPress?.());
+  await act(async () => {});
+  cleanup();
+  await render(<WorkoutsScreen />, { wrapper: Wrapper });
+  await fireEvent.press(screen.getByTestId('workouts-local-delete-local-1'));
+  expect(del).toHaveBeenCalledWith('local-1');
 });

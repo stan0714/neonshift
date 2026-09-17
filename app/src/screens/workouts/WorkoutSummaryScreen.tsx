@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, Share, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
+import { SignInState } from '@/components/SignInState';
 import { RouteTrace, TRACE_LAYERS } from '@/components/RouteTrace';
 import { WorkoutActionFeedback } from '@/components/WorkoutActionMotion';
 import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
@@ -13,7 +14,7 @@ import { compareSameCategory, SHARE_CARD_DEFAULT, shareCard, type ShareCardField
 import { apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
 import type { RootParamList } from '@/navigation/types';
 import { LocalWorkoutStore, type SessionMeta } from '@/services/workouts/LocalWorkoutStore';
-import { goalReached, workoutRecorder } from '@/services/workouts/WorkoutRecorder';
+import { goalReached, workoutRecorder, type SyncOutcome } from '@/services/workouts/WorkoutRecorder';
 import { color, radius, space, Text } from '@/theme';
 
 const store = new LocalWorkoutStore();
@@ -26,6 +27,7 @@ export function WorkoutSummaryScreen() {
   const [meta, setMeta] = useState<SessionMeta | null>(() => store.readMeta(params.sessionId));
   const [tab, setTab] = useState<'splits' | 'laps' | 'quality'>('splits');
   const [syncing, setSyncing] = useState(false);
+  const [syncOutcome, setSyncOutcome] = useState<SyncOutcome | null>(null);
 
   const reload = useCallback(() => setMeta(store.readMeta(params.sessionId)), [params.sessionId]);
   useEffect(reload, [reload]);
@@ -70,7 +72,8 @@ export function WorkoutSummaryScreen() {
   const syncNow = async () => {
     setSyncing(true);
     try {
-      await workoutRecorder.syncMeta(meta);
+      const r = await workoutRecorder.syncMeta(meta);
+      setSyncOutcome(r);
       reload();
     } finally {
       setSyncing(false);
@@ -145,8 +148,15 @@ export function WorkoutSummaryScreen() {
         <Text variant="caption" tone={meta.syncedSessionId ? 'success' : 'muted'} testID="sum-sync">
           {meta.syncedSessionId ? t('sum.synced') : t('sum.notSynced')}
         </Text>
-        {!meta.syncedSessionId ? <Button label={t('sum.syncNow')} variant="secondary" onPress={() => void syncNow()} loading={syncing} testID="sum-sync-now" /> : null}
+        {!meta.syncedSessionId ? <Button label={t('sum.syncNow')} variant="secondary" onPress={() => void syncNow()} loading={syncing} loadingLabel={t('sum.syncing')} testID="sum-sync-now" /> : null}
       </View>
+      {syncOutcome && !syncOutcome.ok && !meta.syncedSessionId ? (
+        syncOutcome.code === 'NO_SESSION' ? (
+          <SignInState title={t('sum.sync.signinTitle')} body={t('sum.sync.signinBody')} onSignedIn={syncNow} testID="sum-sync-signin" />
+        ) : (
+          <InlineState kind={syncOutcome.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={t(syncOutcome.code === 'NETWORK_ERROR' ? 'sum.sync.offlineTitle' : syncOutcome.code === 'REJECTED' ? 'sum.sync.rejectedTitle' : 'sum.sync.failedTitle')} body={t(syncOutcome.code === 'NETWORK_ERROR' ? 'sum.sync.offlineBody' : syncOutcome.code === 'REJECTED' ? 'sum.sync.rejectedBody' : 'sum.sync.failedBody', { message: syncOutcome.message })} action={syncOutcome.code === 'REJECTED' ? undefined : { label: t('common.tryAgain'), onPress: () => void syncNow(), loading: syncing }} testID={`sum-sync-${syncOutcome.code.toLowerCase()}`} />
+        )
+      ) : null}
       <View style={styles.tabs} accessibilityRole="tablist">
         {(['splits', 'laps', 'quality'] as const).map((k) => (
           <Pressable key={k} onPress={() => setTab(k)} accessibilityRole="tab" accessibilityState={{ selected: tab === k }} style={[styles.tab, tab === k && styles.tabOn]} testID={`sum-tab-${k}`}>

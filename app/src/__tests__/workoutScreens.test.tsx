@@ -10,13 +10,16 @@ import { WorkoutStartScreen } from '@/screens/workouts/WorkoutStartScreen';
 import { WorkoutSummaryScreen } from '@/screens/workouts/WorkoutSummaryScreen';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { useWorkoutPrefs } from '@/state/workoutPrefsStore';
+import { useWalletStore } from '@/state/walletStore';
+import { PublicKey } from '@solana/web3.js';
 import { ThemeProvider } from '@/theme';
 
 jest.mock('expo-crypto', () => { let n = 0; return { randomUUID: () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}` }; });
 const mockNav = { navigate: jest.fn(), dispatch: jest.fn() };
 let mockRoute: { params: Record<string, string> } = { params: {} };
 jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => mockNav, useRoute: () => mockRoute }));
-jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { myWorkouts: jest.fn(async () => ({ items: [], rules_version: 1 })), importWorkouts: jest.fn(async (sessions: { external_record_id: string }[]) => ({ imported: 1, results: sessions.map((s) => ({ external_record_id: s.external_record_id, outcome: 'created', session: { session_id: 'server-9' } })) })) } }));
+jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { myWorkouts: jest.fn(async () => ({ items: [], rules_version: 1 })), importWorkouts: jest.fn(async (sessions: { external_record_id: string }[]) => ({ imported: 1, results: sessions.map((s) => ({ external_record_id: s.external_record_id, outcome: 'created', session: { session_id: 'server-9' } })) })), signIn: jest.fn(async () => ({})) } }));
+const { ApiError: ApiErrorCtor } = jest.requireActual('@/services/api/ApiClient') as { ApiError: new (status: number, code: string, message: string) => Error };
 const sync = (jest.requireMock('@/services/api/ApiClient') as { apiClient: { importWorkouts: jest.Mock } }).apiClient.importWorkouts;
 let clock = 1_000_000;
 jest.spyOn(Date, 'now').mockImplementation(() => clock);
@@ -145,6 +148,7 @@ test('記錄頁：健走顯示速度、時間／距離；目標進度 → 達標
   clock += 480_000;
   await act(async () => {});
   await waitFor(() => expect(screen.getByTestId('record-goal').props.children).toBe('Goal reached — nice! Keep going, or pause and finish.'), { timeout: 3000 });
+  sync.mockRejectedValueOnce(new ApiErrorCtor(401, 'NO_SESSION', 'Sign in required')); // 未登入：Finish 後留在手機、摘要頁可補同步
   expect(recorder.snapshot().state).toBe('recording');
   expect(screen.getByTestId('record-track-laps').props.children).toBe('Lap 0 + 357 m'); // 跑道模式：依距離估算
   expect(screen.getByText('400 m per lap · estimated by distance')).toBeTruthy();
@@ -214,7 +218,16 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   await fireEvent(screen.getByTestId('sum-share-date'), 'valueChange', true);
   expect(screen.getByTestId('sum-share-preview').props.children).toMatch(/\n\d{4}-\d{2}-\d{2}\n#NeonShift · neonshift\.cc$/);
   expect(screen.getByText('—')).toBeTruthy(); // kcal 無裝置值
-  expect(screen.getByTestId('sum-sync').props.children).toBe('Synced to your account');
+  // 實機回饋：「立即同步」按了沒反應——現在會說明原因；未登入 → 就地登入卡，簽完自動同步
+  expect(screen.getByTestId('sum-sync').props.children).toBe('Saved on this phone · not synced yet');
+  sync.mockRejectedValueOnce(new ApiErrorCtor(401, 'NO_SESSION', 'Sign in required'));
+  await fireEvent.press(screen.getByTestId('sum-sync-now'));
+  await waitFor(() => expect(screen.getByTestId('sum-sync-signin')).toBeTruthy());
+  useWalletStore.setState({ status: 'connected', session: { address: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU', publicKey: new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU'), walletUriBase: '', label: 'Phantom' }, error: null } as never);
+  await act(async () => {});
+  await fireEvent.press(screen.getByTestId('sum-sync-signin-btn'));
+  await waitFor(() => expect(screen.getByTestId('sum-sync').props.children).toBe('Synced to your account'));
+  expect(screen.queryByTestId('sum-sync-signin')).toBeNull();
   expect(screen.getByTestId('sum-split-1')).toBeTruthy();
   expect(screen.getByText('Partial')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('sum-tab-laps'));
