@@ -53,7 +53,7 @@ def slide(title,kicker='投資人簡報草稿',sub=None,source=None):
  text(s,'NEONSHIFT  /  '+kicker,.72,.32,11,.35,11,MINT,True)
  text(s,title,.72,.93,11.9,.78,30,WHITE,True)
  if sub: text(s,sub,.74,1.83,11.7,.7,16,MUTED)
- text(s,'募資討論稿・2026.09.16｜商業方案／數值假設待確認',.74,7.07,10,.22,9,MUTED)
+ text(s,'募資討論稿・2026.09.17｜商業方案／數值假設待確認',.74,7.07,10,.22,9,MUTED)
  text(s,'%02d'%len(prs.slides),12.02,7.03,.5,.3,12,MINT)
  if source:
   title_,url=SOURCES[source]; text(s,source+'｜'+title_,.74,6.7,11.7,.25,9,MUTED,url=url)
@@ -127,6 +127,54 @@ s=slide('讓新玩家看懂玩法，讓努力值得紀念',kicker='產品體驗�
 cards(s,[('第一次就知道怎麼玩','四張玩法卡＋首次四步\n可略過、個人頁可重看\n繁中／英文同步'),('取得 NFT 的榮耀感','卡背翻轉、金色光環\n粒子與卡面掃光\n新領取成功才揭曉'),('升降等都有回饋','升等：能量擴散與進場\n降等：冷色收縮與下沉\n支援減少動態效果')])
 finish(s,'新手與成就體驗','2026-09-15 自動驗證：動畫相關 17 項、新手與既有流程 23 項測試通過，型別檢查通過；是分次驗證，不當作完整端到端驗收。NftReveal 尚為鞋／徽章展示，非所有 metadata 圖片。低階裝置效能、讀屏與理解度待實機。來源：PG-A-17、PG-UX-01、Style §25。')
 
+# Wildlife collection: rendered SVG motifs are design illustrations, not device screenshots.
+def wildlife_pic(s,level,variant,x,y,w,h):
+ name=f'lv{level}-{variant}.png'
+ s.shapes.add_picture(str(OUT/'wildlife-assets'/name),Inches(x),Inches(y),width=Inches(w),height=Inches(h))
+ current.append(f'<img style="left:{x}in;top:{y}in;width:{w}in;height:{h}in" src="wildlife-assets/{name}">')
+
+WILDLIFE_SOURCES={
+ 'W1':('WWF｜亞洲象','https://www.worldwildlife.org/species/elephant/asian-elephant/'),
+ 'W2':('WWF｜玳瑁','https://www.worldwildlife.org/species/sea-turtle/hawksbill-turtle/'),
+ 'W3':('WWF｜老虎','https://www.worldwildlife.org/species/tiger/'),
+ 'W4':('WWF｜遠東豹','https://www.worldwildlife.org/species/amur-leopard/')}
+
+s=slide('荒野守護：每次升階，認識一種生命',kicker='跑鞋設計｜App 已實作，待實機美術驗收',sub='Lv.1 保留普通「原點」；Lv.2 起將動物特徵融入鞋款。遊戲等級不代表物種價值或瀕危程度。')
+for i,(name,detail,topic,tint) in enumerate([
+ ('森行・亞洲象','象耳護片 × 象鼻曲線','棲地破碎與人象共存',CYAN),
+ ('潮盾・玳瑁','重疊龜甲 × 鰭狀後跟','珊瑚礁與海龜保護',VIOLET),
+ ('林焰・老虎','漸尖虎斑 × 森林光軌','森林、獵物與反盜獵','FF4FD8'),
+ ('雪影・遠東豹','斷環豹紋 × 冬毛鞋頭','森林廊道與棲地連通',MINT)]):
+ x=.74+i*3.02
+ rect(s,x,2.75,2.8,3.66,line=tint)
+ text(s,f'LV.{i+2}  /  WILD GUARDIANS',x+.15,2.98,2.5,.32,10,tint,True)
+ text(s,name,x+.15,3.43,2.5,.5,20,WHITE,True)
+ wildlife_pic(s,i+2,'dawn',x+.1,4.02,2.6,1.6)
+ text(s,detail,x+.15,5.7,2.5,.32,12,tint)
+ text(s,topic,x+.15,6.09,2.5,.26,11,MUTED)
+text(s,'SVG 設計示意，非實機截圖；數位仿生材質，不使用動物皮毛、象牙或玳瑁。',.76,6.66,11.7,.28,11,MUTED)
+finish(s,'荒野守護跑鞋','首版系列 wild-guardians-v1，保留原等級與 XP 規則；首頁、裝備、藝廊共用動物圖層。鞋圖由既有 SVG 與新動物元素產生，是簡報設計示意而非實機畫面。App 已實作，待實機辨識度與旋轉驗收。物種故事來源 W1–W4，2026-09-17 查核；不宣稱保育合作。規格 docs/design/wild-guardian-shoes.md。')
+
+s=slide('同一階跑鞋，也有屬於你的細節',kicker='成長盲盒｜外觀玩法第一版',sub='達到鞋階 → 揭曉細節款 → 保留個人樣式；從每日進度延伸到收藏與分享。')
+for i,(variant,name,detail,tint) in enumerate([
+ ('dawn','晨曦縫光','金色縫線與動物紋樣',AMBER),
+ ('dusk','暮色紋跡','紫色紋樣與虛線軌',VIOLET),
+ ('aurora','極光軌線','薄荷紋樣與加粗光軌',MINT)]):
+ x=.74+i*4.03
+ rect(s,x,2.76,3.8,3.25,line=tint)
+ text(s,name,x+.2,2.98,3.4,.45,22,tint,True)
+ wildlife_pic(s,4,variant,x+.2,3.57,3.4,2.09)
+ text(s,detail,x+.2,5.64,3.4,.28,13,MUTED)
+text(s,'同錢包固定款式  ·  僅外觀差異  ·  不增加能力  ·  無付費重抽',.8,6.27,11.6,.4,18,MINT,True)
+finish(s,'盲盒微差異','展示同一 Lv.4 老虎的三款細節，並非三個不同能力等級。未解鎖詳情顯示成長盒，升階沿用揭曉流程。現行依系列 ID＋錢包＋等級固定雜湊分配，可預測，非鏈上隨機抽取或稀有度證明；不宣稱精確抽中機率。款式為 App 外觀，與既有鏈上紀念 NFT 分開。重開、重裝與跨裝置同錢包保持相同結果；未建立二級交易或付費重抽。')
+
+s=slide('從收藏一雙鞋，到認識牠的棲地',kicker='保育教育 × 系列延伸',sub='把保育故事放進鞋款介紹與升階時刻；將未來合作建立在可辨識的系列內容上。')
+cards(s,[('現在｜保育介紹','中英雙語物種故事\n棲地、威脅與一個小行動\n附可開啟的 WWF 來源'),('下一步｜系列共創','品牌／創作者聯名提案\n主題鞋面與活動收藏\n授權、合作與切換待完成'),('未來｜資產與成效','獨立款式 NFT metadata\n可追溯的款式取得紀錄\n回訪與閱讀成效待驗證')],y=2.65,h=3.38)
+for i,(key,(label,url)) in enumerate(WILDLIFE_SOURCES.items()):
+ text(s,label,.8+i*3.02,6.23,2.8,.3,11,MINT,url=url)
+text(s,'保育資料查核：2026.09.17；目前沒有已成立的保育合作、捐款或聯名。',.8,6.68,11.6,.27,11,MUTED)
+finish(s,'保育教育與系列路線','已完成 App 故事卡、來源連結及系列識別；聯名發行、系列切換、NFT 獨立款式 metadata 尚未實作。現在的共用 kind URI 無法表示每個錢包的獨立款式，需先完成每資產權威紀錄。保育行動為教育建議，不表示 WWF 授權或合作；未承諾任何捐款。未來衡量故事閱讀、來源開啟與回訪，尚無實績。\n'+'\n'.join(k+' '+v[0]+' '+v[1] for k,v in WILDLIFE_SOURCES.items()))
+
 s=slide('STEPN 的教訓：獎勵需求不能只靠再投資',kicker='經濟設計｜機制分析，不是價格預測',sub='2022 年官方描述：GST 可增發；升級與鑄鞋消耗代幣；新玩家與擴充裝備帶來購買需求。')
 cards(s,[('需求的脆弱點','若消耗是為了未來賺更多\n收益预期轉弱時\n再投資需求也可能減少'),('已有的不同','免費初始鞋與免費升級\nNFT 作為成就收藏\n探索冊外觀無收益加成'),('仍未解決','固定供給仍可能領完\n單人限額不是全站預算\n競技場不是外部收入')])
 text(s,'來源：STEPN 官方 2022-05-10；市場衝擊另見講稿。上述因果為本案分析。',.76,6.63,11.7,.3,11,MUTED)
@@ -145,7 +193,7 @@ text(s,'驗證：無獎金留存、10 倍申領、收入歸零。不能承諾幣
 finish(s,'經濟保護路線','PG-EC-02～05 為 TODO，未改現行合約。現況 clock_in 的代幣轉帳失敗會讓 XP 更新一起回滾；不能單靠把獎勵設為零修復。全站日預算 1000、保留 20000／180 天只是報告範例，非定案；真實獎品需實收且已撥款的成本準備。收入不含參賽本金或自家幣升值；保留既有承諾，僅調整未來活動。募資下一阶段需完成這些技術與需求驗收。')
 
 s=slide('目前是原型階段，募資用來取得市場證據',kicker='現況與驗證計畫',sub='依現有專案文件與資產整理；尚未提供可核驗的用戶、營收或合作實績。')
-cards(s,[('已具備','需求與產品設計文件\n專屬 Logo／啟動畫面視覺\n新手指南與三種揭曉動畫'),('下一步驗證','真實任務與活動端到端流程\n主辦方願付價格\n現場交付成本與錯誤率'),('尚待補齊','正式團隊履歷與分工\n已簽合作／意向書\n用戶留存與實收營收')])
+cards(s,[('已具備','需求與產品設計文件\n品牌視覺與揭曉動畫\n保育跑鞋與成長盲盒外觀'),('下一步驗證','真實任務與活動端到端流程\n主辦方願付價格\n現場交付成本與錯誤率'),('尚待補齊','正式團隊履歷與分工\n已簽合作／意向書\n用戶留存與實收營收')])
 finish(s,'現況','不把 PG TODO 或設計圖當成功能上線，不把 BRD 的 500 用戶、30% 留存當成實績。程式存在只能說明原型工作進行中，未在此做完整系統驗收。tSKR 為 devnet 測試代幣，無金錢價值、非官方 SKR。')
 
 s=slide('12 個月，依驗證結果逐階段投入',kicker='募資後里程碑提案',sub='這是商業驗證排程，不取代原黑客松開發時程；各階段目標均未達成。')
@@ -197,9 +245,9 @@ for s in prs.slides:
 prs.core_properties.title='NeonShift 中文募資簡報｜討論草稿'
 prs.core_properties.subject='合作活動、運動參與、產業規模與商業驗證'
 prs.core_properties.author='NeonShift'
-target=OUT/'NeonShift_募資簡報_中文草稿_v1.pptx'; prs.save(str(target))
+target=OUT/'NeonShift_募資簡報_中文草稿_v2.pptx'; prs.save(str(target))
 css='body{margin:0;background:#151925;font-family:"Microsoft JhengHei","PingFang TC",sans-serif}section{width:13.333in;height:7.5in;position:relative;background:#050711;margin:24px auto;overflow:hidden;box-shadow:0 4px 30px #000}section>*{position:absolute;box-sizing:border-box}.text{line-height:1.35;white-space:normal;overflow:hidden}.box{border-radius:12px}img{object-fit:fill}@media print{body{background:white}section{margin:0;page-break-after:always;box-shadow:none}@page{size:13.333in 7.5in;margin:0}}'
 (OUT/'preview.html').write_text('<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><title>NeonShift 中文募資草稿</title><style>'+css+'</style>'+''.join(html_slides)+'</html>',encoding='utf-8')
-(OUT/'講稿與資料來源.md').write_text('# NeonShift 中文募資簡報講稿\n\n2026-09-16。23 頁，20 頁主文＋3 頁附錄。可編輯文字／圖形；視覺稿為 PNG。\n\n'+ '\n\n'.join('## %02d｜%s\n\n%s'%(r['slide'],r['title'],r['notes']) for r in outline),encoding='utf-8')
-(OUT/'sources.json').write_text(json.dumps(dict(SOURCES, E1=('STEPN 官方，2022-05-10', 'https://stepnofficial.medium.com/tokeonomics-at-stepn-ee08604e82f1'), E2=('CoinDesk，2022-05-29', 'https://www.coindesk.com/markets/2022/05/29/first-mover-asia-bitcoin-extends-losing-streak-new-lunas-crash-like-old-lunas-stepns-china-dilemma'), E3=('NeonShift 九組庫存試算', 'docs/economics/stress.csv')),ensure_ascii=False,indent=2),encoding='utf-8')
+(OUT/'講稿與資料來源.md').write_text('# NeonShift 中文募資簡報講稿\n\n2026-09-17。26 頁，23 頁主文＋3 頁附錄。可編輯文字／圖形；視覺稿為 PNG。\n\n'+ '\n\n'.join('## %02d｜%s\n\n%s'%(r['slide'],r['title'],r['notes']) for r in outline),encoding='utf-8')
+(OUT/'sources.json').write_text(json.dumps(dict(SOURCES, **WILDLIFE_SOURCES, E1=('STEPN 官方，2022-05-10', 'https://stepnofficial.medium.com/tokeonomics-at-stepn-ee08604e82f1'), E2=('CoinDesk，2022-05-29', 'https://www.coindesk.com/markets/2022/05/29/first-mover-asia-bitcoin-extends-losing-streak-new-lunas-crash-like-old-lunas-stepns-china-dilemma'), E3=('NeonShift 九組庫存試算', 'docs/economics/stress.csv')),ensure_ascii=False,indent=2),encoding='utf-8')
 print('Saved %s slides: %s'%(len(prs.slides),target))

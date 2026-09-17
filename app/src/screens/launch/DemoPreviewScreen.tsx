@@ -2,6 +2,7 @@ import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { StyleSheet, View } from 'react-native';
 
 import { Button, Chip, Screen, Surface, Wordmark } from '@/components';
+import { ShoeStory } from '@/components/ShoeStory';
 import { ShoeHero } from '@/components/ShoeHero';
 import { SHOE_PROGRESSION } from '@/config/shoeProgression';
 import { space, Text } from '@/theme';
@@ -34,7 +35,8 @@ export function DemoPreviewScreen() {
       {SHOE_PROGRESSION.stages.map((stage) => (
         <Surface key={stage.level} style={styles.card}>
           <Text variant="heading2">{stageName(t, stage.level)} · {t('common.lv', { n: stage.level })}</Text>
-          <View style={{ alignItems: 'center' }}><ShoeHero level={stage.level} active={isFocused} /></View>
+          <View style={{ alignItems: 'center' }}><ShoeHero owner={null} level={stage.level} active={isFocused} /></View>
+          <ShoeStory level={stage.level} preview />
           <Text variant="body">{t('demo.totalXp', { n: stage.xp })}</Text>
           <Text variant="caption" tone="secondary">{stageDetail(t, stage.level)}</Text>
           <Text variant="caption" tone="muted">{stage.xp === 0 ? t('demo.unlockedStart') : t('demo.taskDays', { n: Math.ceil(stage.xp / 150) })}</Text>

@@ -2,14 +2,19 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Animated, AppState, Easing, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Stop } from 'react-native-svg';
 
+import { WildlifeShoePattern } from './WildlifeShoePattern';
+import { shoeVariant } from '@/config/shoeCollection';
+import { useWalletStore } from '@/state/walletStore';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { SHOE_PROGRESSION, type ShoeLevel } from '@/config/shoeProgression';
 import { color, space, Text } from '@/theme';
 
-export type ShoeHeroProps = { level?: ShoeLevel; size?: number; active?: boolean; /** 右上角 `LV. n` 標籤；縮圖（收藏格）可關閉 */ badge?: boolean };
+export type ShoeHeroProps = { owner?: string | null; level?: ShoeLevel; size?: number; active?: boolean; /** 右上角 `LV. n` 標籤；縮圖（收藏格）可關閉 */ badge?: boolean };
 
 /** Native-driven perspective rocking of the SVG artwork (not a full 3D model). */
-export function ShoeHero({ level = 1, size = 260, active = true, badge = true }: ShoeHeroProps) {
+export function ShoeHero({ level = 1, size = 260, active = true, badge = true, owner }: ShoeHeroProps) {
+  const wallet = useWalletStore(s => s.session?.publicKey.toString() ?? null);
+  const variant = shoeVariant(owner === undefined ? wallet : owner, level);
   const reduceMotion = useReduceMotion();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const phase = useRef(new Animated.Value(0)).current;
@@ -129,6 +134,7 @@ export function ShoeHero({ level = 1, size = 260, active = true, badge = true }:
             <Path d="M61 151 L88 155 L86 160 L60 156 Z M154 154 L178 151 L177 157 L153 160 Z" fill={stage.material} stroke={tint} />
             <Path d="M93 155 H145" stroke={stage.accent} strokeDasharray="3 4" />
           </G> : null}
+          <WildlifeShoePattern level={level} variant={variant} tint={tint} />
           {/* N / forward-shift panel and restrained luminous piping. */}
           <Path d="M125 124 L136 103 L144 105 L150 117 L157 106 L166 109 L153 130 L145 128 L139 116 L133 126 Z" fill={paint('energy')} />
           <Path d="M36 125 Q104 148 214 131" fill="none" stroke={tint} strokeOpacity={0.12} strokeWidth={7} />

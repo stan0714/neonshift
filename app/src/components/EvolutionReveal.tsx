@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Linking, Modal, Pressable, ScrollView, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/Button';
+import { ShoeStory } from '@/components/ShoeStory';
 import { ShoeHero } from '@/components/ShoeHero';
 import { APP_CONFIG } from '@/config/app';
 import { stageDetail, stageName } from '@/domain/collectibles';
@@ -49,6 +50,7 @@ export function EvolutionReveal() {
         <Text variant="bodySmall" tone="secondary" style={styles.body}>
           {p.to > p.from ? t('reveal.body', { detail: stageDetail(t, p.to), level: p.to }) : t('reveal.downBody')}
         </Text>
+        {p.to > p.from ? <ShoeStory level={p.to} /> : null}
         <Button label={t(p.to > p.from ? 'common.nice' : 'common.dismiss')} onPress={() => void reveal.acknowledge()} style={styles.btn} testID="reveal-ok" />
         {explorer ? (
           <Pressable onPress={() => void Linking.openURL(explorer)} accessibilityRole="link" style={styles.link} testID="reveal-tx">

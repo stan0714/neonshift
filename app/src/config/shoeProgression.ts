@@ -4,14 +4,14 @@ export type ShoeLevel = 1 | 2 | 3 | 4 | 5;
 
 /** Design defaults for preview only; live rewards and levels must come from chain Config/Profile. */
 export const SHOE_PROGRESSION = {
-  version: 1,
+  version: 2,
   xpPerClaim: { steps: 100, sleep: 50 },
   stages: [
     { level: 1, name: 'Origin', xp: 0, tint: color.textSecondary, accent: color.textMuted, material: color.elevated, detail: 'Graphite mesh · single light rail' },
-    { level: 2, name: 'Pulse', xp: 450, tint: color.cyan, accent: color.mint, material: color.borderSubtle, detail: 'Twin rails · reinforced heel' },
-    { level: 3, name: 'Phase', xp: 1500, tint: color.violet, accent: color.cyan, material: color.elevated, detail: 'Side exoskeleton · split sole' },
-    { level: 4, name: 'Surge', xp: 3600, tint: color.magenta, accent: color.violet, material: color.borderSubtle, detail: 'Heel fins · energy chamber' },
-    { level: 5, name: 'Zenith', xp: 7500, tint: color.mint, accent: color.violet, material: color.textMuted, detail: 'Pearl armor · floating sole pods' },
+    { level: 2, name: 'Asian Elephant', xp: 450, tint: color.cyan, accent: color.mint, material: color.borderSubtle, detail: 'Ear-shaped guard · trunk seam' },
+    { level: 3, name: 'Hawksbill', xp: 1500, tint: color.violet, accent: color.cyan, material: color.elevated, detail: 'Overlapping scutes · flipper heel' },
+    { level: 4, name: 'Tiger', xp: 3600, tint: color.magenta, accent: color.violet, material: color.borderSubtle, detail: 'Tiger stripes · forest accents' },
+    { level: 5, name: 'Amur Leopard', xp: 7500, tint: color.mint, accent: color.violet, material: color.textMuted, detail: 'Broken rosettes · winter-coat panels' },
   ],
 } as const;
 

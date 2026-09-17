@@ -56,7 +56,7 @@ describe('EvolutionReveal', () => {
     expect(screen.queryByTestId('evolution-reveal')).toBeNull();
     useDashboardStore.setState({ profile: profile(2) } as never);
     await waitFor(() => expect(screen.getByTestId('evolution-reveal')).toBeTruthy());
-    expect(screen.getByText('Lv.2 · Pulse')).toBeTruthy();
+    expect(screen.getByText('Lv.2 · Asian Elephant')).toBeTruthy();
     expect(screen.getByTestId('reveal-tx')).toBeTruthy();
     const haptics = jest.requireMock('expo-haptics');
     expect(haptics.notificationAsync).toHaveBeenCalledTimes(1);

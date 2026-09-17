@@ -79,7 +79,7 @@ describe('GalleryPlayerScreen', () => {
     api.galleryPlayer.mockResolvedValue({ player: player(B, 1, { shoe_level: 3, xp: '1600' }), is_you: false, collectibles: [{ kind: 1, asset: 'A', signature: 's', claimed_at: '2026-09-10T00:00:00Z' }, { kind: 102, asset: 'B', signature: 's2', claimed_at: '2026-09-12T00:00:00Z' }] });
     await render(<GalleryPlayerScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('gallery-player-hero')).toBeTruthy());
-    expect(screen.getByText('Lv.3 · Phase')).toBeTruthy();
+    expect(screen.getByText('Lv.3 · Hawksbill')).toBeTruthy();
     expect(screen.getByText('1,600')).toBeTruthy();
     expect(screen.getByText('3d')).toBeTruthy();
     expect(screen.getByText('7d')).toBeTruthy();

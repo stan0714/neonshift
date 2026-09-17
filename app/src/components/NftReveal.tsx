@@ -30,6 +30,7 @@ export function NftReveal() {
       </RewardStage>
       <Text variant="heading2" style={s.title}>{t('reveal.nftTitle')}</Text>
       <Text variant="bodySmall" tone="secondary" style={s.body}>{t('reveal.nftBody')}</Text>
+      {item?.shoeLevel && item.shoeLevel > 1 ? <Text variant="caption" tone="muted" style={s.body}>{t('wild.cosmetic')}</Text> : null}
       <Button label={t('reveal.collect')} onPress={dismiss} style={s.button} testID="nft-reveal-ok" />
     </ScrollView>
   </Modal>;

@@ -30,7 +30,7 @@ export function GameGuideScreen() {
         <Button label={t(onboarding ? 'guide.skip' : 'common.back')} variant="secondary" onPress={onboarding ? start : () => navigation.goBack()} testID="guide-exit" />
       </View>
       <LinearGradient colors={['#173C38', '#18233D', '#111522']} style={styles.hero}>
-        <ShoeHero level={2} size={210} active={false} badge={false} />
+        <ShoeHero owner={null} level={2} size={210} active={false} badge={false} />
         <Text variant="heading1" accessibilityRole="header" style={styles.center}>{t('guide.title')}</Text>
         <Text variant="body" tone="secondary" style={styles.lead}>{t('guide.intro')}</Text>
         <View style={styles.loop}>

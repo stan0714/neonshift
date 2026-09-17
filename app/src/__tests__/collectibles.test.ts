@@ -51,7 +51,7 @@ describe('domain/collectibles（與鏈上 eligible() 一致）', () => {
 
   test('目錄：五階跑鞋名稱對齊 Style 16.2，kind 不重複', () => {
     const en = (k: Parameters<typeof translate>[1], p?: Record<string, string | number>) => translate('en', k, p);
-    expect(COLLECTIBLES.filter((c) => c.group === 'shoe').map((c) => collectibleName(en, c))).toEqual(['Shoe · Origin', 'Shoe · Pulse', 'Shoe · Phase', 'Shoe · Surge', 'Shoe · Zenith']);
+    expect(COLLECTIBLES.filter((c) => c.group === 'shoe').map((c) => collectibleName(en, c))).toEqual(['Shoe · Origin', 'Shoe · Asian Elephant', 'Shoe · Hawksbill', 'Shoe · Tiger', 'Shoe · Amur Leopard']);
     const zh = (k: Parameters<typeof translate>[1], p?: Record<string, string | number>) => translate('zh-TW', k, p);
     expect(collectibleName(zh, COLLECTIBLES[0]!)).toBe('跑鞋 · 原點');
     expect(new Set(COLLECTIBLES.map((c) => c.kind)).size).toBe(COLLECTIBLES.length);

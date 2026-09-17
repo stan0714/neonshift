@@ -185,7 +185,7 @@ export function GalleryPlayerScreen() {
               </View>
               <Chip label={p.rank ? `#${p.rank}` : t('gal.unranked')} kind="level" />
             </View>
-            <ShoeHero level={lvl(p.shoe_level)} size={220} />
+            <ShoeHero owner={p.wallet} level={lvl(p.shoe_level)} size={220} />
             <Text variant="title">
               {t('common.lvDot', { n: p.shoe_level })} · {stageName(t, lvl(p.shoe_level))}
             </Text>
@@ -314,7 +314,7 @@ export function GalleryPlayerScreen() {
               return (
                 <View key={c.kind} style={styles.cell}>
                   <Surface level="elevated" style={styles.tile} testID={`gallery-collectible-${c.kind}`}>
-                    <View style={styles.tileArt}>{item?.shoeLevel ? <ShoeHero level={item.shoeLevel} size={110} badge={false} /> : <Feather name={item?.icon ?? 'award'} size={36} color={color.warning} />}</View>
+                    <View style={styles.tileArt}>{item?.shoeLevel ? <ShoeHero owner={p.wallet} level={item.shoeLevel} size={110} badge={false} /> : <Feather name={item?.icon ?? 'award'} size={36} color={color.warning} />}</View>
                     <Text variant="title" numberOfLines={1}>
                       {item ? collectibleName(t, item) : t('gal.collectibleN', { n: c.kind })}
                     </Text>

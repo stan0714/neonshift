@@ -36,14 +36,14 @@ beforeEach(() => {
 describe('PG-A-14 Gear', () => {
   test('等級、倍率、距下一階 XP 與三種收藏狀態', async () => {
     await render(<GearScreen />, { wrapper: Wrapper });
-    expect(screen.getByText('Pulse')).toBeTruthy();
+    expect(screen.getByText('Asian Elephant')).toBeTruthy();
     expect(screen.getByText(/600 XP · 900 XP to Lv\.3/)).toBeTruthy();
     expect(screen.getByText('1.1×')).toBeTruthy(); // core level 2
     expect(screen.getByText('1.25×')).toBeTruthy();
     expect(screen.getByText('1,500 XP')).toBeTruthy();
     expect(screen.getByLabelText('Shoe · Origin, claimed')).toBeTruthy();
-    expect(screen.getByLabelText('Shoe · Pulse, claimable')).toBeTruthy();
-    expect(screen.getByLabelText('Shoe · Phase, locked')).toBeTruthy();
+    expect(screen.getByLabelText('Shoe · Asian Elephant, claimable')).toBeTruthy();
+    expect(screen.getByLabelText('Shoe · Hawksbill, locked')).toBeTruthy();
     expect(screen.getByText('Reach Lv.3')).toBeTruthy();
     expect(screen.getByLabelText('First Clock-In, claimable')).toBeTruthy();
     expect(screen.getByLabelText('7-Day Streak, locked')).toBeTruthy();
@@ -65,8 +65,8 @@ describe('PG-A-14 Gear', () => {
     expect(screen.getByTestId('gear-shoes-achieved')).toBeTruthy();
     expect(screen.getByTestId('gear-shoes-locked')).toBeTruthy();
     expect(screen.getByTestId('collectible-history-4')).toBeTruthy(); // Lv4 曾經達成
-    expect(screen.getByLabelText('Shoe · Surge, claimable')).toBeTruthy(); // 依歷史最高可補領
-    expect(screen.getByLabelText('Shoe · Zenith, locked')).toBeTruthy();
+    expect(screen.getByLabelText('Shoe · Tiger, claimable')).toBeTruthy(); // 依歷史最高可補領
+    expect(screen.getByLabelText('Shoe · Amur Leopard, locked')).toBeTruthy();
     await waitFor(() => expect(mockFetchClaimed).toHaveBeenCalled());
   });
 
@@ -86,17 +86,21 @@ describe('PG-A-14 Gear', () => {
     await fireEvent.press(screen.getByTestId('claim-2'));
     await waitFor(() => expect(screen.getByTestId('collectible-success')).toBeTruthy());
     expect(mockClaim).toHaveBeenCalledWith(wallet, 2);
-    expect(screen.getByText(/Shoe · Pulse · AssetAdd…/)).toBeTruthy();
-    expect(screen.getByLabelText('Shoe · Pulse, claimed')).toBeTruthy();
+    expect(screen.getByText(/Shoe · Asian Elephant · AssetAdd…/)).toBeTruthy();
+    expect(screen.getByLabelText('Shoe · Asian Elephant, claimed')).toBeTruthy();
   });
 
   test('點鞋子開詳情面板：鞋階／XP／倍率／解鎖條件／NFT 狀態與裝備說明；可領時面板內可領取', async () => {
     await render(<GearScreen />, { wrapper: Wrapper });
-    await fireEvent.press(screen.getByTestId('collectible-open-3')); // Phase：locked（level 2，xp 600）
+    await fireEvent.press(screen.getByTestId('collectible-open-3')); // Hawksbill：locked（level 2，xp 600）
     expect(screen.getByTestId('shoe-detail')).toBeTruthy();
-    expect(screen.getByText('Lv.3 · Phase')).toBeTruthy();
-    expect(screen.getByText('Side exoskeleton · split sole')).toBeTruthy();
+    expect(screen.getByText('Lv.3 · Hawksbill')).toBeTruthy();
+    expect(screen.getByText('Overlapping shell panels · flipper-shaped heel')).toBeTruthy();
     expect(screen.getByTestId('shoe-detail-section-locked')).toBeTruthy();
+    expect(screen.getByTestId('shoe-growth-box')).toBeTruthy();
+    expect(screen.getByTestId('shoe-story-3')).toBeTruthy();
+    expect(screen.getByText(/Eretmochelys imbricata/)).toBeTruthy();
+    expect(screen.queryByText(/^Your finish/)).toBeNull();
     expect(screen.getByTestId('shoe-detail-nft').props.children).toBe('Claimable once you reach this stage');
     expect(screen.getByTestId('shoe-detail-remaining').props.children).toBe('You have 600 XP · 900 XP to go');
     expect(screen.getByText(/Gear and NFT are separate/)).toBeTruthy();
@@ -108,7 +112,7 @@ describe('PG-A-14 Gear', () => {
     expect(screen.getByTestId('shoe-detail-nft').props.children).toBe('Already in your wallet');
     await fireEvent.press(screen.getByTestId('shoe-detail-close'));
 
-    await fireEvent.press(screen.getByTestId('collectible-open-2')); // Pulse：claimable → footer 領取
+    await fireEvent.press(screen.getByTestId('collectible-open-2')); // Asian Elephant：claimable → footer 領取
     await fireEvent.press(screen.getByTestId('shoe-detail-claim'));
     await waitFor(() => expect(mockClaim).toHaveBeenCalledWith(wallet, 2));
     await waitFor(() => expect(screen.getByTestId('shoe-detail-nft').props.children).toBe('Already in your wallet'));
@@ -136,6 +140,6 @@ describe('PG-A-14 Gear', () => {
     await render(<GearScreen />, { wrapper: Wrapper });
     expect(screen.getByText(/9,000 XP · Max level/)).toBeTruthy();
     expect(screen.getByText('1.6×')).toBeTruthy();
-    expect(screen.getByLabelText('Shoe · Zenith, claimable')).toBeTruthy();
+    expect(screen.getByLabelText('Shoe · Amur Leopard, claimable')).toBeTruthy();
   });
 });

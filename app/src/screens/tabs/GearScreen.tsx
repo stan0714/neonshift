@@ -4,6 +4,7 @@ import { Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 
 import { Button, Chip, InlineState, Screen, Sheet, Surface } from "@/components";
+import { ShoeStory } from "@/components/ShoeStory";
 import { ShoeHero } from "@/components/ShoeHero";
 import { Milestones } from "@/screens/workouts/Milestones";
 import { maintenanceView, nextSteps } from "@/domain/maintenance";
@@ -504,7 +505,7 @@ function ShoeDetailSheet({ kind, onClose, profile, status, section, xp, threshol
       )
     }>
       <View style={styles.detailHero}>
-        <ShoeHero level={kind} size={200} active={section !== "locked"} />
+        {kind > 1 && section === "locked" ? <View style={{ padding: space.xl, alignItems: "center", gap: space.s }} testID="shoe-growth-box"><Feather name="package" size={80} color={color.violet} /><Text variant="title">{t("wild.sealed")}</Text></View> : <ShoeHero level={kind} size={200} active={section !== "locked"} />}
         <View style={styles.levelRow}>
           <View testID={`shoe-detail-section-${section}`}><Chip label={t(`gear.section.${section}` as TKey)} kind={section === "equipped" ? "level" : section === "achieved" ? "synced" : "neutral"} /></View>
           {status === "claimed" ? <Chip label={t("gear.claimed")} kind="synced" /> : null}
@@ -513,6 +514,7 @@ function ShoeDetailSheet({ kind, onClose, profile, status, section, xp, threshol
           {stageDetail(t, kind)}
         </Text>
       </View>
+      <ShoeStory level={kind} locked={section === "locked"} />
       {rows.map((r) => (
         <View key={r.label} style={styles.detailRow}>
           <Text variant="label" tone="muted" uppercase>
@@ -580,6 +582,7 @@ function Tile({
         <View style={styles.tileArt}>
           {item.shoeLevel ? (
             <ShoeHero
+              owner={locked ? null : undefined}
               level={item.shoeLevel}
               size={120}
               active={status !== "locked"}

@@ -796,3 +796,17 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 本次將原 sport-experience-gameplay §6 的小隊候選正式拆為第二批 TODO，優先序依本節；僅限邀請制合作，BRD 原排除的公開社交動態牆、聊天、好友網路仍不納入。小隊試辦預設為 2～4 人／7 天／各 3 活躍日，參數可在試辦前版本化調整；不得追溯改當期已接受契約。權益首版採明示限量資格，保證獎品模式需先完成接受時庫存預留。
 
 資料核對：DeStreet 是 Renaissance DAOs & Communities 第二名；SolPlay 的 Radar 得獎說法未獲官方名單確認；首屆活動年份與得獎頁現有日期呈現不一致。正式文案採已核對來源，不宣稱「所有得獎作品都無彈窗」或「零抽成等於免審查」。
+
+
+## 2026-09-17：保育跑鞋與成長盲盒
+
+| ID | 工作 | 狀態 | 證據／後續 |
+|---|---|---|---|
+| PG-WILD-01 | Level 2–5 動物 SVG 元素、雙語名稱、保育故事 | WIP | ShoeHero／WildlifeShoePattern／ShoeStory；待實機美術驗收 |
+| PG-WILD-02 | 固定外觀分配、成長盲盒展示、系列識別 | WIP | shoeCollection；未包含鏈上隨機抽取、NFT 獨立款式 metadata 或系列切換 |
+
+完整範圍、來源與驗收：[荒野守護設計](design/wild-guardian-shoes.md)。
+
+### PG-D-04 更新（2026-09-17）
+
+募資簡報另存 `output/fundraising/NeonShift_募資簡報_中文草稿_v2.pptx`，共 26 頁；第 13–15 頁新增荒野守護鞋款示意、三款盲盒細節與保育／聯名路線。同步更新 HTML、講稿、來源與 `docs/store/pitch.md`。v1 保留；區分 App 外觀已實作和未完成的 NFT 獨立款式、系列切換。
