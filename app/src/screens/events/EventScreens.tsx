@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, RefreshControl, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
+import { SignInState } from '@/components/SignInState';
 import type { RootParamList } from '@/navigation/types';
 import { ApiError, apiClient, type EventRegistration, type PartnerEventView, type TagState } from '@/services/api/ApiClient';
 
@@ -249,7 +250,7 @@ export function EventDetailScreen() {
               {window !== 'closed' && reg?.status !== 'checked_in' ? <Button label={t('ev.cancel.ok')} variant="danger" style={styles.mt} onPress={cancel} loading={busy} disabled={busy} /> : null}
             </Surface>
           ) : needsSignIn ? (
-            <InlineState kind="info" title={t('ev.signin.title')} body={t('ev.signin.body')} testID="event-signin" />
+            <SignInState title={t('ev.signin.title')} body={t('ev.signin.body')} onSignedIn={load} testID="event-signin" />
           ) : window === 'open' && event.rules ? (
             <Surface style={styles.card} testID="event-register">
               <View style={styles.rowBetween}>

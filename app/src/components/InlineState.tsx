@@ -15,7 +15,7 @@ const icon: Record<Kind, { name: React.ComponentProps<typeof Feather>['name']; t
   success: { name: 'check-circle', tint: color.success },
 };
 
-type Props = { kind: Kind; title: string; body?: string; testID?: string; /** Style 14 的行動（例如 `Try again`／`Review access`） */ action?: { label: string; onPress: () => void; loading?: boolean }; /** 次要行動（例如丟棄），danger 樣式 */ secondaryAction?: { label: string; onPress: () => void }; /** generic error 的 reference ID */ referenceId?: string };
+type Props = { kind: Kind; title: string; body?: string; testID?: string; /** Style 14 的行動（例如 `Try again`／`Review access`） */ action?: { label: string; onPress: () => void; loading?: boolean; loadingLabel?: string; disabled?: boolean; disabledReason?: string; testID?: string }; /** 次要行動（例如丟棄），danger 樣式 */ secondaryAction?: { label: string; onPress: () => void }; /** generic error 的 reference ID */ referenceId?: string };
 
 /** Style 14：inline 狀態說明「發生什麼、資料是否安全、下一步」；不用只顯示錯誤碼。 */
 export function InlineState({ kind, title, body, testID, action, secondaryAction, referenceId }: Props) {
@@ -38,7 +38,7 @@ export function InlineState({ kind, title, body, testID, action, secondaryAction
           Ref {referenceId}
         </Text>
       ) : null}
-      {action ? <Button label={action.label} variant="secondary" style={styles.action} onPress={action.onPress} loading={action.loading ?? false} /> : null}
+      {action ? <Button label={action.label} variant="secondary" style={styles.action} onPress={action.onPress} loading={action.loading ?? false} loadingLabel={action.loadingLabel} disabled={action.disabled} disabledReason={action.disabledReason} testID={action.testID} /> : null}
       {secondaryAction ? <Button label={secondaryAction.label} variant="danger" style={styles.action} onPress={secondaryAction.onPress} /> : null}
     </Surface>
   );

@@ -5,6 +5,7 @@ import { Pressable, RefreshControl, StyleSheet, TextInput, View } from 'react-na
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import { ShoeHero } from '@/components/ShoeHero';
+import { SignInState } from '@/components/SignInState';
 import { SHOE_PROGRESSION, type ShoeLevel } from '@/config/shoeProgression';
 import { COLLECTIBLES, collectibleName, stageName } from '@/domain/collectibles';
 import type { RootParamList } from '@/navigation/types';
@@ -21,7 +22,7 @@ const lvl = (n: number) => Math.min(5, Math.max(1, n)) as ShoeLevel;
 
 function ErrorState({ err, retry, loading }: { err: Err; retry: () => void; loading: boolean }) {
   const { t } = useT();
-  if (err.code === 'NO_SESSION') return <InlineState kind="info" title={t('gal.signin.title')} body={t('gal.signin.body')} testID="gallery-signin" />;
+  if (err.code === 'NO_SESSION') return <SignInState title={t('gal.signin.title')} body={t('gal.signin.body')} onSignedIn={retry} testID="gallery-signin" />;
   return <InlineState kind={err.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={err.code === 'NETWORK_ERROR' ? t('common.devnetBreak') : t('common.somethingInterrupted')} body={t('gal.errBody', { message: err.message })} referenceId={err.ref} action={{ label: t('common.tryAgain'), onPress: retry, loading }} testID="gallery-error" />;
 }
 

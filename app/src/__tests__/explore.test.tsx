@@ -11,8 +11,9 @@ import { ThemeProvider } from '@/theme';
 jest.mock('expo-crypto', () => ({ randomUUID: () => '11111111-2222-4333-8444-555555555555' }));
 const mockNav = { navigate: jest.fn() };
 jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => mockNav }));
-jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { quests: jest.fn(), acceptQuest: jest.fn(), claimQuest: jest.fn() } }));
-const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'quests' | 'acceptQuest' | 'claimQuest', jest.Mock>;
+jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { quests: jest.fn(), acceptQuest: jest.fn(), claimQuest: jest.fn(), signIn: jest.fn() } }));
+const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'quests' | 'acceptQuest' | 'claimQuest' | 'signIn', jest.Mock>;
+const { ApiError } = jest.requireActual('@/services/api/ApiClient');
 const Wrapper = ({ children }: PropsWithChildren) => (
   <ThemeProvider>
     <NavigationContainer>{children}</NavigationContainer>
@@ -33,6 +34,19 @@ test('未登入提示', async () => {
   await render(<ExploreScreen />, { wrapper: Wrapper });
   await act(async () => {});
   expect(screen.getByTestId('explore-signin')).toBeTruthy();
+});
+
+test('後端 NO_SESSION：顯示就地登入卡（不是錯誤＋Try again）；簽完重新載入', async () => {
+  api.quests.mockRejectedValueOnce(new ApiError(401, 'NO_SESSION', 'Sign in required'));
+  api.quests.mockResolvedValueOnce({ templates, enrollments: [], cosmetics: [], rules });
+  api.signIn.mockResolvedValueOnce({});
+  await render(<ExploreScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByTestId('explore-signin')).toBeTruthy());
+  expect(screen.queryByTestId('explore-error')).toBeNull();
+  await fireEvent.press(screen.getByTestId('explore-signin-btn'));
+  await waitFor(() => expect(screen.queryByTestId('explore-signin')).toBeNull());
+  expect(api.signIn).toHaveBeenCalledWith(wallet.toBase58());
+  expect(screen.getByTestId('explore-book')).toBeTruthy();
 });
 
 test('格子、進度、接受 timed_goal（選 30 分、時區、冪等 key）、可開啟 → claim → 已收藏；GPS 未開放註記', async () => {

@@ -97,6 +97,33 @@ Wallet B 養成排程：從今天起每天 ≥ 8,000 步並打卡；第 5 個打
 
 報名時 Lv.2+ ＋ 已報到 → 活動頁「領取報到章」→ 預覽公開內容與 rent → MWA 簽章 → 結果。registry 若待同步，畫面誠實顯示待處理。沒有 Lv.2 錢包就標「未達資格」，不假演。
 
+### 4.8 藝廊：看別人的 NFT 成就（示範玩家，devnet 真實帳戶）
+
+沒有其他真人玩家時，用 `tools/chain-admin` 建三位示範玩家（demo 專屬金鑰 `~/.config/neonshift/dev/demo/demo-player-<n>.json`，不進 repo、不動任何人的錢包）：
+
+```bash
+OPS_TOKEN="$(ssh root@l1.neonshift.cc "grep '^OPS_TOKEN=' /etc/neonshift/api.env | cut -d= -f2-")" \
+  NEONSHIFT_API_URL=http://l1.neonshift.cc:6080/v1 \
+  bash -lc 'source scripts/env.sh; npm --prefix tools/chain-admin run admin -- demo-gallery dev [--dry-run]'
+```
+
+| 玩家 | 內容 | 鏈上／後端 |
+|---|---|---|
+| Runner A | Origin 收藏 ＋ 首 5K、首 10K 兩枚里程碑 NFT（device） | `init_player`、`claim_collectible(1)`；匯入兩筆 gps 摘要 → mint-intent → admin registry → `claim_achievement` |
+| Runner B | Origin ＋ 首 5K 一枚 | 同上，一筆 |
+| Walker C | 只有 Origin（示範「還沒有成就」的玩家頁） | 匯入一筆健走，無里程碑 |
+
+流程幂等（帳戶存在即跳過、匯入以 external_record_id 去重、已鑄造不重送）；產出 `~/.config/neonshift/dev/demo/gallery-fixture.json`（錢包、asset、tx）。devnet faucet 限流時腳本會提示手動領 SOL 後重跑。
+
+| 步 | 操作 | 畫面 | 標籤 |
+|---|---|---|---|
+| 1 | Home → Gallery（未登入會出現就地「簽署登入訊息」卡） | 排行：現役榜／歷史榜、搜尋地址前綴 | `實機・DEVNET` |
+| 2 | 點 Runner A → 玩家頁：鞋階、XP、收藏（Origin）、首次里程碑（First Spark／Double Horizon） | 玩家頁 | 玩家是預先建立的示範帳戶，但鏈上資料真實 |
+| 3 | 點作品 → NFT 詳情：系列、原達成者、鑄造日期、來源（裝置）、Explorer 連結 | AchievementDetail | Explorer 可實際打開 |
+| 4 | 點 Walker C → 只有 Origin、成就區為空狀態 | 玩家頁 | 誠實呈現「還沒有成就」 |
+
+限制：示範玩家的里程碑來自匯入的運動**摘要**（距離／時間，不含座標），與真人流程一樣經後端 PB／里程碑判定與 admin registry；沒有 GPS 軌跡可看。PB 作品（fastest_5k 等）需當日 Lv.3，示範玩家沒有。
+
 ## 5. 錄影前 checklist
 
 - [ ] 提交版 APK（同 commit、同 API）已裝；Metro 關閉仍可用。
@@ -104,6 +131,7 @@ Wallet B 養成排程：從今天起每天 ≥ 8,000 步並打卡；第 5 個打
 - [ ] Wallet B 已 Lv.2（或明確標示以 Demo 入口替代）。
 - [ ] `demo-event.mjs` 重跑一次核對 state `published`、時窗未過。
 - [ ] 彩排 4.3 → 4.4 → 4.5 一次，留 `status` 輸出與截圖。
+- [ ] `demo-gallery dev` 已跑過、Gallery 列出 Runner A／B 與 Walker C（indexer 抓到事件後）。
 - [ ] 每個鏡頭標籤：`實機・DEVNET`／`預先建立的測試資料`／`設計示意`／`未來規劃`。
 
 ## 6. 已知限制（誠實呈現）

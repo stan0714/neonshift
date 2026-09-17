@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
+import { SignInState } from '@/components/SignInState';
 import { formatDuration, formatKcal, formatKm, formatPace, qualityKind, modeLabel } from '@/domain/workouts';
 import { useT, type TKey } from '@/i18n';
 import { localTimeZone, matchesMode, weeklyReview, type ModeFilter } from '@/domain/review';
@@ -103,7 +104,7 @@ export function WorkoutsScreen() {
       {notice ? <InlineState kind={notice.kind} title={notice.title} testID={`workouts-${notice.kind}`} /> : null}
       {error ? (
         error.code === 'NO_SESSION' ? (
-          <InlineState kind="info" title={t('act.signin.title')} body={t('act.signin.body')} testID="workouts-signin" />
+          <SignInState title={t('act.signin.title')} body={t('act.signin.body')} onSignedIn={load} testID="workouts-signin" />
         ) : (
           <InlineState kind="error" title={t('common.somethingInterrupted')} body={t('wo.err', { message: error.message })} referenceId={error.ref} action={{ label: t('common.tryAgain'), onPress: () => void load(), loading }} testID="workouts-error" />
         )

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
+import { SignInState } from '@/components/SignInState';
 import { useT, type TKey } from '@/i18n';
 import { ApiError, apiClient, type QuestEnrollmentView, type QuestsResponse } from '@/services/api/ApiClient';
 import { useWalletStore } from '@/state/walletStore';
@@ -77,7 +78,13 @@ export function ExploreScreen() {
     <Screen scroll testID="explore-screen" refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} tintColor={color.mint} />}>
       <Text variant="bodySmall" tone="secondary">{t('explore.intro')}</Text>
       <Text variant="caption" tone="muted" style={styles.mtXs}>{t('explore.separate')}</Text>
-      {err ? <InlineState kind="error" title={t('common.somethingInterrupted')} body={err.message} action={{ label: t('common.tryAgain'), onPress: () => void load(), loading }} testID="explore-error" /> : null}
+      {err ? (
+        err.code === 'NO_SESSION' ? (
+          <SignInState title={t('explore.signin.title')} body={t('explore.signin.body')} onSignedIn={load} testID="explore-signin" />
+        ) : (
+          <InlineState kind={err.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={err.code === 'NETWORK_ERROR' ? t('common.devnetBreak') : t('common.somethingInterrupted')} body={err.message} action={{ label: t('common.tryAgain'), onPress: () => void load(), loading }} testID="explore-error" />
+        )
+      ) : null}
       {notice ? <InlineState kind={notice.kind} title={notice.title} body={notice.body} testID={`explore-${notice.kind}`} /> : null}
 
       <Text variant="label" tone="muted" uppercase style={styles.mt}>{t('explore.book')}</Text>

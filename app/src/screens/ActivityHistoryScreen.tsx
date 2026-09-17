@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { InlineState, Screen, Surface } from '@/components';
+import { SignInState } from '@/components/SignInState';
 import { APP_CONFIG } from '@/config/app';
 import { ApiError, apiClient, type HistoryResponse } from '@/services/api/ApiClient';
 import { formatTskr } from '@/state/dashboardStore';
@@ -54,7 +55,7 @@ export function ActivityHistoryScreen() {
 
       {error ? (
         error.code === 'NO_SESSION' ? (
-          <InlineState kind="info" title={t('act.signin.title')} body={t('act.signin.body')} testID="activity-signin" />
+          <SignInState title={t('act.signin.title')} body={t('act.signin.body')} onSignedIn={load} testID="activity-signin" />
         ) : (
           <InlineState kind={error.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={error.code === 'NETWORK_ERROR' ? t('common.devnetBreak') : t('common.somethingInterrupted')} body={t('act.errBody', { message: error.message })} referenceId={error.ref} action={{ label: t('common.tryAgain'), onPress: () => void load(), loading }} testID="activity-error" />
         )
