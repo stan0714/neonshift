@@ -15,6 +15,7 @@ import { formatDuration } from '@/domain/workouts';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useT, type TKey } from '@/i18n';
 import type { WorkoutGoal } from '@/services/api/ApiClient';
+import { ensureWorkoutChannel, type WorkoutChannelState } from '@/services/workouts/notificationChannel';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { useDashboardStore } from '@/state/dashboardStore';
 import { FREE_GOAL, GOAL_VERSION, modeToSport, useWorkoutPrefs, type WorkoutMode } from '@/state/workoutPrefsStore';
@@ -217,6 +218,7 @@ export function WorkoutStartScreen() {
   const [err, setErr] = useState<{ kind: 'permission' | 'generic'; message?: string } | null>(null);
   const [sheet, setSheet] = useState<'goal' | 'settings' | null>(null);
   const [counting, setCounting] = useState(false);
+  const [channel, setChannel] = useState<WorkoutChannelState | null>(null);
 
   /** 按下 START：先確認定位權限，再進 3–2–1 倒數；倒數結束（或點一下略過）才真正開始記錄 */
   const go = async () => {
@@ -231,6 +233,8 @@ export function WorkoutStartScreen() {
       if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
         await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS).catch(() => null);
       }
+      // 頻道先以 DEFAULT 建好，常駐通知才會有狀態列圖示、不落在靜音區；被使用者靜音或關閉通知 → 提示（仍可記錄）
+      setChannel(ensureWorkoutChannel({ name: t('rec.notif.channelName'), description: t('rec.notif.channelDesc') }));
       setCounting(true);
     } finally {
       setBusy(false);
@@ -346,6 +350,7 @@ export function WorkoutStartScreen() {
       ) : null}
       {env === 'indoor' ? <InlineState kind="info" title={t('rec.indoorHint')} action={{ label: t('wo.import'), onPress: () => navigation.navigate('Workouts') }} testID="start-indoor" /> : null}
       {err?.kind === 'permission' ? <InlineState kind="warning" title={t('rec.permissionTitle')} body={t('rec.permissionBody')} action={{ label: t('rec.permissionOpen'), onPress: () => void Linking.openSettings() }} testID="start-permission" /> : null}
+      {channel && (channel.silenced || !channel.appNotificationsEnabled) ? <InlineState kind="warning" title={t('rec.notif.silencedTitle')} body={t(channel.appNotificationsEnabled ? 'rec.notif.silencedBody' : 'rec.notif.disabledBody')} action={{ label: t('rec.permissionOpen'), onPress: () => void Linking.openSettings() }} testID="start-notif-silenced" /> : null}
       {err?.kind === 'generic' ? <InlineState kind="error" title={t('rec.err', { message: err.message ?? '' })} testID="start-error" /> : null}
 
       <Countdown mode={mode} visible={counting} voice={prefs.voice} haptic={prefs.haptic} locale={locale === 'zh-TW' ? 'zh-TW' : 'en'} onDone={() => void begin()} onCancel={() => setCounting(false)} />

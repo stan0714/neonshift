@@ -11,13 +11,13 @@ import type { ShoeLevel } from '@/config/shoeProgression';
  * 單色填色＋深色紋路描邊（虎紋、斷環豹斑、甲片線、象耳摺）；viewBox 200×200，由外層決定尺寸與透明度。
  * 草稿以 SVG 檔在桌面預覽後移植；要換正式美術直接替換四個元件。
  */
-export function WildlifeSilhouette({ level, color, size = 320, opacity = 0.22 }: { level: ShoeLevel; color: string; size?: number; opacity?: number }) {
+export function WildlifeSilhouette({ level, color, size = 320, opacity = 0.16 }: { level: ShoeLevel; color: string; size?: number; opacity?: number }) {
   const animal = wildlifeOf(level);
   if (!animal) return null;
   return (
     <View style={{ width: size, height: size, opacity }} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID={`wild-silhouette-${animal.species}`}>
       <Svg width="100%" height="100%" viewBox="0 0 200 200" style={StyleSheet.absoluteFill}>
-        <G fill="none" stroke={color}>
+        <G fill="none" stroke={color} opacity={0.45}>
           <Circle cx="100" cy="99" r="87" strokeWidth={0.8} strokeOpacity={0.35} />
           <Path d="M28 55 A84 84 0 0 1 67 20 M133 20 A84 84 0 0 1 172 55 M172 143 A84 84 0 0 1 133 178 M67 178 A84 84 0 0 1 28 143" strokeWidth={2.5} strokeOpacity={0.7} />
           <Path d="M100 7 l4 8 l-4 8 l-4 -8 Z M12 98 l5 -4 l5 4 l-5 4 Z M178 98 l5 -4 l5 4 l-5 4 Z" strokeWidth={1.5} />

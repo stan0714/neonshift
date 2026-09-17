@@ -56,7 +56,7 @@ describe('WorkoutRecorder', () => {
     const { rec, store, sync, tick } = mk();
     await expect(rec.start({ sport: 'run', environment: 'indoor' })).rejects.toThrow(/indoor/);
     const meta = await rec.start({ sport: 'run', environment: 'outdoor' });
-    expect(loc.startLocationUpdatesAsync).toHaveBeenCalledWith('neonshift-workout-location', expect.objectContaining({ foregroundService: expect.objectContaining({ notificationTitle: expect.any(String) }) }));
+    expect(loc.startLocationUpdatesAsync).toHaveBeenCalledWith('neonshift-workout-location-v3', expect.objectContaining({ foregroundService: expect.objectContaining({ notificationTitle: expect.any(String) }) }));
     await expect(rec.start({ sport: 'walk', environment: 'outdoor' })).rejects.toThrow(/already/);
     rec.ingest(pts(200, 1_000_000)); // 600 m
     await new Promise((r) => setTimeout(r, 0));

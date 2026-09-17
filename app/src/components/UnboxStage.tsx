@@ -6,7 +6,7 @@ import { Animated, AppState, Easing, Pressable, StyleSheet, View } from 'react-n
 
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useT } from '@/i18n';
-import { color, radius, space, Text } from '@/theme';
+import { color, space, Text } from '@/theme';
 
 /** One finite ceremony; silhouette gets its own beat before the shoe arrives. */
 export const UNBOX_TIMELINE = { total: 5200, shakeStart: 1100, shakeMid: 1800, burst: 2400, revealed: 3500 } as const;
@@ -106,8 +106,8 @@ export function UnboxStage({ accent, height, onRevealed, backdrop, children }: P
 
     {/* Species silhouette leads the shoe by 600 ms, then settles behind it. */}
     {backdrop ? <Animated.View pointerEvents="none" style={[s.backdrop, {
-      opacity: still ? 0.55 : at([0, shake, burst - 0.04, burst, burst + 0.09, reveal, 1], [0, 0.14, 0.22, 0.22, 1, 0.72, 0.55]),
-      transform: [{ scale: still ? 1 : at([0, burst, burst + 0.1, 1], [0.72, 0.8, 1.08, 1]) },
+      opacity: still ? 0.32 : at([0, shake, burst - 0.04, burst, burst + 0.09, reveal, 1], [0, 0.06, 0.12, 0.12, 0.4, 0.35, 0.32]),
+      transform: [{ scale: still ? 1 : at([0, burst, burst + 0.1, 1], [0.92, 0.96, 1, 1]) },
         { translateY: still ? -10 : at([burst, 1], [12, -10]) }],
     }]}>{backdrop}</Animated.View> : null}
 
@@ -117,17 +117,27 @@ export function UnboxStage({ accent, height, onRevealed, backdrop, children }: P
         { translateY: at([burst, burst + 0.17], [0, 55]) },
         { rotate: p.interpolate({ inputRange: shakeIn, outputRange: shakeOut, extrapolate: 'clamp' }) }],
     }]}>
-      <LinearGradient colors={[color.elevated, color.surface]} style={[s.boxBody, { borderColor: accent }]}>
-        <View style={[s.boxBand, { backgroundColor: accent }]} />
-        <View style={[s.seal, { borderColor: accent }]}><Feather name="shield" size={42} color={accent} /><Feather name="zap" size={18} color={color.warning} style={s.sealBolt} /></View>
+      <LinearGradient colors={['#493226', '#241B1B']} style={s.boxBody}>
+        {[28, 57].map(top => <View key={top} style={[s.plank, { top }]} />)}
+        {[22, 150].map(left => <View key={left} style={[s.boxBand, { left }]}>
+          {[12, 64].map(top => <View key={top} style={[s.rivet, { top }]} />)}
+        </View>)}
+        <View style={s.bottomRail} />
         <Text variant="label" style={s.brand} tone="secondary">NEONSHIFT</Text>
       </LinearGradient>
-      {/* A separate lid opens instead of the whole square merely fading away. */}
-      <Animated.View testID="unbox-lid" style={[s.lid, { borderColor: accent, transform: [
-        { translateY: at([burst, burst + 0.14], [0, -115]) },
-        { translateX: at([burst, burst + 0.14], [0, 35]) },
-        { rotate: p.interpolate({ inputRange: [burst, burst + 0.14], outputRange: ['0deg', '24deg'], extrapolate: 'clamp' }) },
-      ] }]}><View style={[s.lidSeam, { backgroundColor: accent }]} /></Animated.View>
+      {/* Arched lid, matching metal straps and a lock travel together when opened. */}
+      <Animated.View testID="unbox-lid" style={[s.lid, { transform: [
+        { translateY: at([burst, burst + 0.14], [0, -105]) },
+        { translateX: at([burst, burst + 0.14], [0, 22]) },
+        { rotate: p.interpolate({ inputRange: [burst, burst + 0.14], outputRange: ['0deg', '18deg'], extrapolate: 'clamp' }) },
+      ] }]}>
+        <LinearGradient colors={['#72513A', '#35241E']} style={s.lidShell}>
+          <View style={s.lidSeam} />
+          {[26, 154].map(left => <View key={left} style={[s.lidBand, { left }]}><View style={[s.rivet, { top: 29 }]} /></View>)}
+        </LinearGradient>
+        <View style={s.lidRail} />
+        <View style={s.seal}><Feather name="lock" size={23} color={color.warning} /><View style={[s.lockGem, { backgroundColor: accent }]} /></View>
+      </Animated.View>
       <Animated.View style={[s.seamGlow, { backgroundColor: accent, opacity: at([shake, burst], [0.1, 0.9]), transform: [{ scaleX: at([shake, burst], [0.3, 1]) }] }]} />
     </Animated.View> : null}
 
@@ -151,15 +161,21 @@ const s = StyleSheet.create({
   ring: { position: 'absolute', width: 240, height: 240, borderRadius: 120, borderWidth: 1, left: '50%', top: '50%', marginLeft: -120, marginTop: -120 },
   burst: { position: 'absolute', width: 240, height: 240, borderRadius: 120, borderWidth: 5, left: '50%', top: '50%', marginLeft: -120, marginTop: -120 },
   spark: { position: 'absolute', left: '50%', top: '50%', width: 5, height: 12, borderRadius: 2 },
-  crate: { position: 'absolute', width: 180, height: 158 },
-  boxBody: { position: 'absolute', left: 4, right: 4, top: 30, bottom: 0, borderRadius: radius.m, borderWidth: 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  boxBand: { position: 'absolute', width: 22, top: 0, bottom: 0, opacity: 0.12 },
-  seal: { width: 70, height: 70, borderWidth: 1, borderRadius: radius.l, alignItems: 'center', justifyContent: 'center', backgroundColor: color.surface },
-  sealBolt: { position: 'absolute' },
-  brand: { marginTop: space.xs, letterSpacing: 2 },
-  lid: { position: 'absolute', left: -4, right: -4, top: 7, height: 36, borderWidth: 2, borderRadius: radius.s, backgroundColor: color.elevated },
-  lidSeam: { position: 'absolute', left: 26, right: 26, top: 9, height: 2, opacity: 0.55 },
-  seamGlow: { position: 'absolute', top: 42, left: 2, right: 2, height: 3 },
+  crate: { position: 'absolute', width: 204, height: 158 },
+  boxBody: { position: 'absolute', left: 4, right: 4, top: 63, bottom: 0, borderRadius: 9, borderWidth: 2, borderColor: '#AC8850', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' },
+  plank: { position: 'absolute', left: 0, right: 0, height: 2, backgroundColor: '#170F10', opacity: 0.6 },
+  boxBand: { position: 'absolute', width: 20, top: 0, bottom: 0, backgroundColor: '#95733F', borderColor: '#C6A56C', borderLeftWidth: 2, borderRightWidth: 2 },
+  rivet: { position: 'absolute', left: 5, width: 6, height: 6, borderRadius: 3, backgroundColor: '#E0C18A', borderWidth: 1, borderColor: '#634922' },
+  bottomRail: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 9, backgroundColor: '#95733F', borderTopWidth: 1, borderColor: '#C6A56C' },
+  seal: { position: 'absolute', top: 50, left: 83, width: 38, height: 47, borderWidth: 2, borderColor: '#D1AD69', borderRadius: 7, alignItems: 'center', justifyContent: 'center', backgroundColor: '#34291E' },
+  lockGem: { position: 'absolute', bottom: 5, width: 5, height: 5, borderRadius: 2 },
+  brand: { marginBottom: 17, fontSize: 9, letterSpacing: 1.5, color: '#C6AD89' },
+  lid: { position: 'absolute', left: 0, right: 0, top: 0, height: 70 },
+  lidShell: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, borderTopLeftRadius: 49, borderTopRightRadius: 49, borderBottomLeftRadius: 5, borderBottomRightRadius: 5, borderWidth: 2, borderColor: '#C6A56C', overflow: 'hidden' },
+  lidBand: { position: 'absolute', width: 20, top: 0, bottom: 0, backgroundColor: '#95733F', borderColor: '#C6A56C', borderLeftWidth: 2, borderRightWidth: 2 },
+  lidSeam: { position: 'absolute', left: 8, right: 8, top: 35, height: 2, backgroundColor: '#251B16', opacity: 0.45 },
+  lidRail: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 9, borderRadius: 3, backgroundColor: '#AC8850', borderWidth: 1, borderColor: '#D1AD69' },
+  seamGlow: { position: 'absolute', top: 70, left: 6, right: 6, height: 2 },
   backdrop: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   face: { alignItems: 'center', justifyContent: 'center' },
   hud: { position: 'absolute', bottom: 38, left: 0, right: 0, height: 24, alignItems: 'center' },

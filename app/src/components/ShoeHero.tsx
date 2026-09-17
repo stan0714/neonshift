@@ -11,7 +11,7 @@ import { color, space, Text } from '@/theme';
 
 export type ShoeHeroProps = { owner?: string | null; level?: ShoeLevel; size?: number; active?: boolean; /** 右上角 `LV. n` 標籤；縮圖（收藏格）可關閉 */ badge?: boolean };
 
-/** Native-driven perspective rocking of the SVG artwork (not a full 3D model). */
+/** Gentle planar motion keeps the SVG shoe rigid and its proportions unchanged. */
 export function ShoeHero({ level = 1, size = 260, active = true, badge = true, owner }: ShoeHeroProps) {
   const wallet = useWalletStore(s => s.session?.publicKey.toString() ?? null);
   const variant = shoeVariant(owner === undefined ? wallet : owner, level);
@@ -75,11 +75,8 @@ export function ShoeHero({ level = 1, size = 260, active = true, badge = true, o
         </Svg>
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, { transform: [
-        { perspective: size * 3 },
         { translateY: phase.interpolate({ inputRange: [0, 1], outputRange: [0, -size * 0.026] }) },
-        { rotateY: turn.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-22deg', '0deg', '22deg'] }) },
-        { rotateX: turn.interpolate({ inputRange: [-1, 0, 1], outputRange: ['5deg', '0deg', '-5deg'] }) },
-        { rotateZ: turn.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-4deg', '0deg', '4deg'] }) },
+        { rotateZ: turn.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-2deg', '0deg', '2deg'] }) },
       ] }]}>
         <Svg width="100%" height="100%" viewBox="0 0 260 208">
           <Defs>

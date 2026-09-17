@@ -139,7 +139,7 @@ export class WorkoutRecorder {
   }
   private locationOptions() {
     const text = this.foreground(this.snapshot());
-    return { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0, foregroundService: { notificationTitle: text.title, notificationBody: text.body, killServiceOnDestroy: false } };
+    return { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0, foregroundService: { notificationTitle: text.title, notificationBody: text.body, notificationColor: '#2EEAC6', killServiceOnDestroy: false } };
   }
   /** 更新前景通知（實機回饋：退到背景後不知道 App 還在記錄）；重新送同一組定位選項即可讓 expo-location 重建通知 */
   private async refreshForeground(force = false) {

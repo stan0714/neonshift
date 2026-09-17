@@ -33,7 +33,7 @@ export function NftReveal() {
       <Text variant="label" style={s.gold}>{t('reveal.nftEyebrow')}</Text>
       <RewardStage key={reward.id} mode="nft">
         <Text variant="caption" style={s.gold}>NEONSHIFT · NFT</Text>
-        {shoeLevel ? <View style={s.backdrop}><WildlifeSilhouette level={shoeLevel} color={SHOE_PROGRESSION.stages[shoeLevel - 1].tint} size={200} opacity={0.2} /></View> : null}
+        {shoeLevel ? <View style={s.backdrop}><WildlifeSilhouette level={shoeLevel} color={SHOE_PROGRESSION.stages[shoeLevel - 1].tint} size={200} opacity={0.12} /></View> : null}
         {item?.shoeLevel ? <ShoeHero level={item.shoeLevel} size={180} active={false} badge={false} /> : <View style={s.medal}><Feather name={item?.icon ?? 'award'} size={84} color="#FFD781" /></View>}
         <Text variant="label" style={s.title}>{title}</Text>
       </RewardStage>

@@ -108,7 +108,7 @@ export function RevealCeremony({ from, to, explorer = null, preview = false, onC
 
           {/* 舞台比鞋子高出一截，讓剪影的頭／耳露在鞋子上方；剪影往上偏移、鞋子置中偏下 */}
           {unbox ? (
-            <UnboxStage key={`${from}-${to}-${take}`} accent={accent} height={size * 0.8 + space.xxl * 2 + size * 0.16} onRevealed={onRevealed} backdrop={<View style={{ marginTop: -size * 0.12 }}><WildlifeSilhouette level={to} color={accent} size={size * 0.96} opacity={0.65} /></View>}>
+            <UnboxStage key={`${from}-${to}-${take}`} accent={accent} height={size * 0.8 + space.xxl * 2 + size * 0.16} onRevealed={onRevealed} backdrop={<View style={{ marginTop: -size * 0.12 }}><WildlifeSilhouette level={to} color={accent} size={size * 0.96} opacity={0.4} /></View>}>
               {hero}
             </UnboxStage>
           ) : (

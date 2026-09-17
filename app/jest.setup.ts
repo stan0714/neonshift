@@ -35,6 +35,11 @@ jest.mock('./modules/neonshift-health/src/NeonshiftHealthModule', () => ({
   },
 }));
 
+jest.mock('./modules/neonshift-notify/src/NeonshiftNotifyModule', () => ({
+  __esModule: true,
+  default: { ensureChannel: jest.fn(() => ({ importance: 3, silenced: false, appNotificationsEnabled: true })) },
+}));
+
 jest.mock('./modules/neonshift-sensors/src/NeonshiftSensorsModule', () => ({
   __esModule: true,
   default: {

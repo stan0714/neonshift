@@ -99,8 +99,13 @@ test('開始頁（NRC 版面）：GPS chip 切室內停用 START 並導向匯入
   expect(useWorkoutPrefs.getState().voice).toBe(true);
   await fireEvent.press(screen.getByTestId('start-cue-voice'));
   // 3–2–1 倒數：按 START 先進倒數（顯示 3、尚未開始記錄）；點一下倒數畫面略過 → 立即開始
+  // 常駐通知頻道：按 START 時以 DEFAULT 建立（同 id 給 expo-location 用）；被靜音 → 顯示提示（仍可記錄）
+  const notify = jest.requireMock('../../modules/neonshift-notify/src/NeonshiftNotifyModule').default as { ensureChannel: jest.Mock };
+  notify.ensureChannel.mockReturnValueOnce({ importance: 2, silenced: true, appNotificationsEnabled: true });
   await fireEvent.press(screen.getByTestId('start-go'));
   await waitFor(() => expect(screen.getByTestId('start-countdown-number').props.children).toBe(3));
+  expect(notify.ensureChannel).toHaveBeenCalledWith(expect.objectContaining({ id: 'neonshift-workout-location-v3', scopedToPackage: true, importance: 'default' }));
+  expect(screen.getByTestId('start-notif-silenced')).toBeTruthy();
   expect(recorder.snapshot().state).toBe('idle');
   await fireEvent.press(screen.getByTestId('start-go'));
   await fireEvent.press(screen.getByTestId('start-countdown'));
