@@ -5,6 +5,7 @@ import Svg, { Circle } from "react-native-svg";
 
 import { Button, Chip, InlineState, Screen, Sheet, Surface } from "@/components";
 import { ShoeStory } from "@/components/ShoeStory";
+import { RevealCeremony } from "@/components/EvolutionReveal";
 import { ShoeHero } from "@/components/ShoeHero";
 import { Milestones } from "@/screens/workouts/Milestones";
 import { maintenanceView, nextSteps } from "@/domain/maintenance";
@@ -44,6 +45,7 @@ export function GearScreen() {
   const c = useCollectibleStore();
   /** 點鞋子開詳情面板（2026-09-16 專案負責人指示）；記 kind 而非物件，資料變動時面板跟著更新 */
   const [detailKind, setDetailKind] = useState<ShoeLevel | null>(null);
+  const [previewLevel, setPreviewLevel] = useState<ShoeLevel | null>(null);
 
   const refresh = useCallback(async () => {
     if (!session) return;
@@ -332,7 +334,9 @@ export function GearScreen() {
         busy={c.claiming !== null}
         disabledReason={claimDisabledReason}
         onClaim={() => session && detailKind && void c.claim(session.publicKey, detailKind)}
+        onPreviewReveal={setPreviewLevel}
       />
+      {previewLevel ? <RevealCeremony from={(previewLevel - 1) as ShoeLevel} to={previewLevel} preview onClose={() => setPreviewLevel(null)} /> : null}
       <Text
         variant="label"
         tone="secondary"
@@ -477,13 +481,15 @@ type ShoeDetailProps = {
   busy: boolean;
   disabledReason?: string;
   onClaim: () => void;
+  /** 未解鎖的 Lv.2+：試拆盲盒（示意揭曉，Style 25.2） */
+  onPreviewReveal: (level: ShoeLevel) => void;
 };
 
 /**
  * 跑鞋詳情面板：鞋階、所需 XP、倍率、解鎖條件，以及「裝備 vs 紀念 NFT」說明（實機回饋：領過初階跑鞋後
  * 又看到「原點」可領，誤以為同一雙鞋要領兩次）。NFT 可領時 footer 直接領取。
  */
-function ShoeDetailSheet({ kind, onClose, profile, status, section, xp, thresholds, multiplier, claiming, busy, disabledReason, onClaim }: ShoeDetailProps) {
+function ShoeDetailSheet({ kind, onClose, profile, status, section, xp, thresholds, multiplier, claiming, busy, disabledReason, onClaim, onPreviewReveal }: ShoeDetailProps) {
   const { t } = useT();
   if (!kind) return null;
   const item = COLLECTIBLES.find((x) => x.kind === kind)!;
@@ -505,7 +511,7 @@ function ShoeDetailSheet({ kind, onClose, profile, status, section, xp, threshol
       )
     }>
       <View style={styles.detailHero}>
-        {kind > 1 && section === "locked" ? <View style={{ padding: space.xl, alignItems: "center", gap: space.s }} testID="shoe-growth-box"><Feather name="package" size={80} color={color.violet} /><Text variant="title">{t("wild.sealed")}</Text></View> : <ShoeHero level={kind} size={200} active={section !== "locked"} />}
+        {kind > 1 && section === "locked" ? <View style={{ padding: space.xl, alignItems: "center", gap: space.s }} testID="shoe-growth-box"><Feather name="package" size={80} color={color.violet} /><Text variant="title">{t("wild.sealed")}</Text><Button label={t("wild.previewReveal")} variant="secondary" onPress={() => onPreviewReveal(kind)} testID="shoe-detail-preview-reveal" /></View> : <ShoeHero level={kind} size={200} active={section !== "locked"} />}
         <View style={styles.levelRow}>
           <View testID={`shoe-detail-section-${section}`}><Chip label={t(`gear.section.${section}` as TKey)} kind={section === "equipped" ? "level" : section === "achieved" ? "synced" : "neutral"} /></View>
           {status === "claimed" ? <Chip label={t("gear.claimed")} kind="synced" /> : null}

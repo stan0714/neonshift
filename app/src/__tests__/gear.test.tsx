@@ -14,7 +14,7 @@ jest.mock('@/config/app', () => ({ APP_CONFIG: { ...jest.requireActual('@/config
 const mockClaim = jest.fn(async (_w: PublicKey, kind: number) => ({ kind, asset: 'AssetAddr1111', signature: 'sig111', alreadyClaimed: false }));
 const mockFetchClaimed = jest.fn(async () => new Set([1]));
 jest.mock('@/services/chain/CollectibleService', () => ({ collectibleService: { claim: (w: PublicKey, k: number) => mockClaim(w, k), fetchClaimed: () => mockFetchClaimed() } }));
-jest.mock('expo-haptics', () => ({ notificationAsync: jest.fn(), NotificationFeedbackType: { Success: 'success' } }));
+jest.mock('expo-haptics', () => ({ notificationAsync: jest.fn(), impactAsync: jest.fn(), ImpactFeedbackStyle: { Heavy: 'heavy' }, NotificationFeedbackType: { Success: 'success' } }));
 
 const wallet = new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
 const profile = (p: Partial<PlayerProfile>): PlayerProfile => ({ wallet, coreLevel: 2, shoeLevel: 2, xp: BigInt(600), lastTaskDate: 0, streakDays: 1, maxStreakDays: 1, claimedToday: BigInt(0), todayDate: 0, migrated: true, highestLevel: 2, epochAnchor: 0, lastSettledEpoch: 0, epochPoints: 0, epochBitmap: 0, maintenanceRulesVersion: 1, ...p });
@@ -104,6 +104,17 @@ describe('PG-A-14 Gear', () => {
     expect(screen.getByTestId('shoe-detail-nft').props.children).toBe('Claimable once you reach this stage');
     expect(screen.getByTestId('shoe-detail-remaining').props.children).toBe('You have 600 XP · 900 XP to go');
     expect(screen.getByText(/Gear and NFT are separate/)).toBeTruthy();
+    // 試拆盲盒（示意）：DEMO 標籤、盒子層、系列展示樣式、無交易連結；關閉後不改任何狀態
+    await fireEvent.press(screen.getByTestId('shoe-detail-preview-reveal'));
+    expect(screen.getByTestId('evolution-reveal')).toBeTruthy();
+    expect(screen.getByTestId('reveal-preview')).toBeTruthy();
+    expect(screen.getByTestId('reward-stage-box')).toBeTruthy();
+    expect(screen.getByText('Lv.2 → Lv.3')).toBeTruthy();
+    expect(screen.getByText('Collection preview')).toBeTruthy();
+    expect(screen.queryByTestId('reveal-tx')).toBeNull();
+    await fireEvent.press(screen.getByTestId('reveal-ok'));
+    expect(screen.queryByTestId('evolution-reveal')).toBeNull();
+    expect(screen.getByTestId('shoe-detail')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('shoe-detail-done'));
     expect(screen.queryByTestId('shoe-detail')).toBeNull();
 

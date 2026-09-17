@@ -60,6 +60,7 @@ OPS_TOKEN="$(ssh root@l1.neonshift.cc "grep '^OPS_TOKEN=' /etc/neonshift/api.env
 | 1 | Gear → 點任一跑鞋卡 → 詳情面板（鞋階、XP、倍率、解鎖條件、紀念 NFT 狀態、物種故事） | 詳情 Sheet | Wallet B：`實機・DEVNET`；否則 `預先建立的測試資料`／Demo 入口 |
 | 2 | Lv.2+ 大圖旋轉、細節款（晨曦／暮色／極光） | ShoeHero | 款式是 App 外觀（wallet＋series＋level 固定雜湊），不是 NFT 隨機屬性 |
 | 3 | 升階揭曉（只有真的達到 450 XP 那一次） | EvolutionReveal | 不假演；沒有就用 Demo 入口的鞋款圖鑑 |
+| 4 | 試拆盲盒（示意）：Gear → 未解鎖跑鞋詳情 →「試拆盲盒（示意）」，或 Demo 圖鑑 Lv.2+ 卡片同名按鈕 | RevealCeremony（DEMO 標籤） | 標 `設計示意`：盒子搖晃→爆開→鞋子進場，用系列展示樣式，不揭露細節款、不改等級 |
 
 Wallet B 養成排程：從今天起每天 ≥ 8,000 步並打卡；第 5 個打卡日升 Lv.2（若能補睡眠紀錄則第 3 天）。要在報名「體驗日」**之前**升到 Lv.2，留念章才有資格（報名時快照）。
 

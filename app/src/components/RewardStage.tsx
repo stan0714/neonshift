@@ -4,8 +4,11 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 
-/** A finite ceremony: charge, reveal, then settle. All moving layers use the native driver. */
-export function RewardStage({ mode, children }: { mode: 'nft' | 'up' | 'down'; children: ReactNode }) {
+/**
+ * A finite ceremony: charge, reveal, then settle. All moving layers use the native driver.
+ * `box`（成長盲盒，Lv.2+ 升階）：前 40% 盒子搖晃、脹大後爆開消失，鞋子接著從盒中放大進場；Reduce Motion 直接顯示鞋子。
+ */
+export function RewardStage({ mode, children, box = false }: { mode: 'nft' | 'up' | 'down'; children: ReactNode; box?: boolean }) {
   const reduced = useReduceMotion();
   const p = useRef(new Animated.Value(0)).current;
   const down = mode === 'down';
@@ -27,6 +30,14 @@ export function RewardStage({ mode, children }: { mode: 'nft' | 'up' | 'down'; c
       })}
     </View>
     {mode === 'nft' && !reduced ? <Animated.View style={[s.back, { borderColor: accent, opacity: interpolate([1, 1, 0, 0], [0, 0.39, 0.4, 1]), transform: [{ perspective: 900 }, { rotateY: p.interpolate({ inputRange: [0, 0.4, 1], outputRange: ['0deg', '90deg', '90deg'] }) }] }]}><Feather name="hexagon" size={88} color={accent} /><View style={s.backSeal}><Feather name="star" size={30} color={accent} /></View></Animated.View> : null}
+    {box && mode === 'up' && !reduced ? (
+      <Animated.View pointerEvents="none" testID="reward-stage-box" style={[s.box, { borderColor: accent, opacity: interpolate([1, 1, 1, 0], [0, 0.3, 0.42, 0.5]), transform: [
+        { scale: interpolate([0.85, 1, 1.06, 1.9], [0, 0.3, 0.42, 0.5]) },
+        { rotate: p.interpolate({ inputRange: [0, 0.08, 0.14, 0.2, 0.26, 0.32, 0.38, 0.42, 1], outputRange: ['0deg', '-5deg', '5deg', '-8deg', '8deg', '-11deg', '11deg', '0deg', '0deg'] }) },
+      ] }]}>
+        <Feather name="package" size={96} color={accent} />
+      </Animated.View>
+    ) : null}
     <Animated.View style={[s.face, mode === 'nft' && { borderColor: accent, borderWidth: 1, backgroundColor: '#12172C' }, { opacity: reduced ? 1 : interpolate([0, 0, 1, 1], [0, 0.39, 0.58, 1]), transform: [{ perspective: 900 }, { rotateY: mode === 'nft' && !reduced ? p.interpolate({ inputRange: [0, 0.4, 0.72, 1], outputRange: ['-90deg', '-90deg', '0deg', '0deg'] }) : '0deg' }, { scale: reduced ? 1 : interpolate(down ? [1.12, 1] : [0.7, 1.08, 1], down ? [0, 1] : [0, 0.75, 1]) }, { translateY: reduced ? 0 : interpolate(down ? [-35, 0] : [30, 0]) }] }]}>
       <LinearGradient colors={down ? ['#32395155', '#11182700'] : [`${accent}33`, '#8D64FF22', '#11182700']} style={StyleSheet.absoluteFill} />
       {children}
@@ -39,6 +50,7 @@ const s = StyleSheet.create({
   ring: { position: 'absolute', width: 220, height: 220, borderRadius: 110, borderWidth: 1, top: 45, left: '50%', marginLeft: -110 },
   spark: { position: 'absolute', left: '50%', top: '50%', width: 3, height: 10, borderRadius: 2 },
   face: { width: 218, height: 266, borderRadius: 22, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', padding: 12 },
+  box: { position: 'absolute', width: 168, height: 168, borderRadius: 28, borderWidth: 2, backgroundColor: '#171A32', alignItems: 'center', justifyContent: 'center' },
   back: { position: 'absolute', width: 218, height: 266, borderRadius: 22, borderWidth: 2, backgroundColor: '#171A32', alignItems: 'center', justifyContent: 'center' },
   backSeal: { position: 'absolute' },
   shine: { position: 'absolute', top: -50, bottom: -50, width: 75 },

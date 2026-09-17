@@ -3,12 +3,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import * as SecureStore from 'expo-secure-store';
 import type { PropsWithChildren } from 'react';
 
-import { EvolutionReveal } from '@/components/EvolutionReveal';
+import { EvolutionReveal, RevealCeremony } from '@/components/EvolutionReveal';
 import { useDashboardStore } from '@/state/dashboardStore';
 import { useLevelRevealStore } from '@/state/levelRevealStore';
 import { ThemeProvider } from '@/theme';
 
-jest.mock('expo-haptics', () => ({ notificationAsync: jest.fn(), NotificationFeedbackType: { Success: 'success', Warning: 'warning' } }));
+jest.mock('expo-haptics', () => ({ notificationAsync: jest.fn(), impactAsync: jest.fn(), ImpactFeedbackStyle: { Heavy: 'heavy' }, NotificationFeedbackType: { Success: 'success', Warning: 'warning' } }));
 const Wrapper = ({ children }: PropsWithChildren) => <ThemeProvider>{children}</ThemeProvider>;
 const profile = (shoeLevel: number) => ({ shoeLevel, coreLevel: shoeLevel, xp: BigInt(0), streakDays: 0, maxStreakDays: 0 });
 
@@ -57,11 +57,31 @@ describe('EvolutionReveal', () => {
     useDashboardStore.setState({ profile: profile(2) } as never);
     await waitFor(() => expect(screen.getByTestId('evolution-reveal')).toBeTruthy());
     expect(screen.getByText('Lv.2 · Asian Elephant')).toBeTruthy();
+    expect(screen.getByTestId('reward-stage-box')).toBeTruthy(); // Lv.2+ 升階：成長盲盒先拆開
+    expect(screen.queryByTestId('reveal-preview')).toBeNull();
     expect(screen.getByTestId('reveal-tx')).toBeTruthy();
     const haptics = jest.requireMock('expo-haptics');
     expect(haptics.notificationAsync).toHaveBeenCalledTimes(1);
     await fireEvent.press(screen.getByTestId('reveal-ok'));
     await waitFor(() => expect(screen.queryByTestId('evolution-reveal')).toBeNull());
     expect(useLevelRevealStore.getState().lastSeen).toBe(2);
+  });
+});
+
+describe('RevealCeremony 示意模式', () => {
+  test('Demo 圖鑑「試拆盲盒」：DEMO 標籤、不寫入已看過等級；Reduce Motion 下沒有盒子層', async () => {
+    const { AccessibilityInfo } = jest.requireActual('react-native');
+    jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
+    useLevelRevealStore.setState({ lastSeen: 1, loaded: true });
+    const onClose = jest.fn();
+    await render(<RevealCeremony from={4} to={5} preview onClose={onClose} />, { wrapper: Wrapper });
+    expect(screen.getByTestId('reveal-preview')).toBeTruthy();
+    expect(screen.getByText('Lv.5 · Amur Leopard')).toBeTruthy();
+    await waitFor(() => expect(screen.queryByTestId('reward-stage-box')).toBeNull());
+    expect(screen.queryByTestId('reveal-tx')).toBeNull();
+    await fireEvent.press(screen.getByTestId('reveal-ok'));
+    expect(onClose).toHaveBeenCalled();
+    expect(useLevelRevealStore.getState().lastSeen).toBe(1);
+    expect(await SecureStore.getItemAsync('neonshift.shoe.lastSeenLevel.v1')).toBeNull();
   });
 });
