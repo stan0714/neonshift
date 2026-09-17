@@ -115,6 +115,16 @@ OPS_TOKEN="$(ssh root@l1.neonshift.cc "grep '^OPS_TOKEN=' /etc/neonshift/api.env
 
 流程幂等（帳戶存在即跳過、匯入以 external_record_id 去重、已鑄造不重送）；產出 `~/.config/neonshift/dev/demo/gallery-fixture.json`（錢包、asset、tx）。devnet faucet 限流時腳本會提示手動領 SOL 後重跑。
 
+已建立（2026-09-17，devnet；indexer 已列入藝廊）：
+
+| 玩家 | 錢包 | Origin asset | 里程碑 NFT |
+|---|---|---|---|
+| Runner A | `6oqdvDgWEza2u5DcDpst6sMndnzucDwurqoLFq4mR2SK` | `3EEGNhKL…TFkcP` | First Spark（首 5K）`BLy9RAoQ…tbCVa`、Double Horizon（首 10K）`5fWT5Mda…DvyQe` |
+| Runner B | `B665hhT2WBCToqMr48sLibwTSsy7xcUmEX7sBCRb6kF2` | `6xQEANbF…HPip4` | First Spark `AufXgqaG…RVE9x` |
+| Walker C | `HZgy7uuH7eNiob9miJyoGdknSwua57TBrJLb7xKpfNJZ` | `6HxWesMj…SzVqD` | （無） |
+
+這也是 `claim_achievement` 在 devnet 的首批真實鑄造；過程抓到鏈上時鐘落後導致 6040「尚未生效」，後端已加 60 s 寬限（SD 13）。
+
 | 步 | 操作 | 畫面 | 標籤 |
 |---|---|---|---|
 | 1 | Home → Gallery（未登入會出現就地「簽署登入訊息」卡） | 排行：現役榜／歷史榜、搜尋地址前綴 | `實機・DEVNET` |

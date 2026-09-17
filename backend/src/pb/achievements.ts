@@ -17,7 +17,7 @@ import type { AuthService } from "../auth/service.js";
 import { canonicalize, type Json } from "../claim/canonical.js";
 import type { AppConfig } from "../config.js";
 import { ApiError } from "../errors.js";
-import { ACHIEVEMENT_MAX_TTL_SECONDS, ACHIEVEMENT_VERSION, CATEGORY_CODE, CLASS_CODE, encodeAchievement, type AchievementProof } from "../lib/achievement.js";
+import { ACHIEVEMENT_MAX_TTL_SECONDS, ACHIEVEMENT_VERSION, CHAIN_CLOCK_SKEW_SECONDS, CATEGORY_CODE, CLASS_CODE, encodeAchievement, type AchievementProof } from "../lib/achievement.js";
 import { MILESTONE_RULES_MAJOR, type MilestoneCandidate, type MilestoneResolution } from "../milestones/compute.js";
 import { EVENT_BADGE_RULES_MAJOR, eventBadgeKeyOf, eventBadgeView, type EventBadgeResolution, type EventBadgeService } from "../milestones/eventBadges.js";
 import type { MilestoneService } from "../milestones/service.js";
@@ -232,7 +232,7 @@ export class AchievementService {
     if (achievement.status === "minted") return { ...base, status: "minted" as const, proof: null };
     if (achievement.status !== "approved") return { ...base, status: achievement.status, proof: null };
     if (!this.config.PROGRAM_ID) throw new ApiError(503, "CHAIN_UNAVAILABLE", "PROGRAM_ID not configured");
-    const issuedAt = Math.floor(this.now().getTime() / 1000);
+    const issuedAt = Math.floor(this.now().getTime() / 1000) - CHAIN_CLOCK_SKEW_SECONDS; // 鏈上時鐘落後寬限
     const proof: AchievementProof = {
       version: ACHIEVEMENT_VERSION, programId: Buffer.from(bs58.decode(this.config.PROGRAM_ID)), clusterId: this.config.CLUSTER_ID, wallet: Buffer.from(bs58.decode(wallet)), achievementId: Buffer.from(achievement.achievementId, "hex"),
       category: CATEGORY_CODE[achievement.category as keyof typeof CATEGORY_CODE], verificationClass: CLASS_CODE[achievement.verificationClass], sourceRevision: achievement.sourceRevision, rulesVersion: achievement.rulesMajor, metadataHash: achievement.metadataHash,

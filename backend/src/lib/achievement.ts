@@ -6,6 +6,11 @@ export const ACHIEVEMENT_DOMAIN = Buffer.from("NEONSHIFT_ACHIEVEMENT_V1", "ascii
 export const ACHIEVEMENT_LEN = 194;
 export const ACHIEVEMENT_VERSION = 1;
 export const ACHIEVEMENT_MAX_TTL_SECONDS = 900;
+/**
+ * 鏈上 `Clock::unix_timestamp` 常落後牆上時間數秒（devnet 實測拆盒示範：證明簽出 1 秒內送鏈 → 6040「尚未生效」）。
+ * 簽發時把 issued_at 往前撥這段寬限，expiry 仍以 issued_at＋TTL 計，鏈上 ttl 檢查不變，有效期實際縮短同秒數。
+ */
+export const CHAIN_CLOCK_SKEW_SECONDS = 60;
 
 /** 1..=6 PB（PG-R-08）；7..=11 首次里程碑（PG-M-02）；與 Rust CATEGORY_* 一致 */
 export const CATEGORY_CODE = { fastest_1k: 1, fastest_5k: 2, fastest_10k: 3, fastest_half: 4, fastest_marathon: 5, longest_run: 6, first_5k: 7, first_10k: 8, first_half: 9, first_marathon: 10, first_finish: 11, event_check_in: 12, event_finish: 13 } as const;
