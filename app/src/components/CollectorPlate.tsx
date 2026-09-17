@@ -43,14 +43,13 @@ export function CollectorPlate({ level, edition, supply = 'open', compact = fals
     : t('nft.editionUnavailable');
   return (
     <View style={[styles.plate, { borderColor: `${stage.tint}66` }, compact && styles.compact]} testID={`collector-plate-${level}`}>
+      {/* 系列與編號各占一行，不與鞋階／供給擠同一列（實機：右欄擠出框外） */}
+      <Text variant="label" tone="mint">{animal ? t('wild.series') : t('col.shoe')}</Text>
       <View style={styles.row}>
-        <Text variant="label" tone="mint">{animal ? t('wild.series') : t('col.shoe')}</Text>
-        <Text variant="label" tone="muted" style={styles.right}>{t('nft.plate.stage', { n: level, total: SHOE_PROGRESSION.stages.length })} · {supplyText}</Text>
-      </View>
-      <View style={styles.row}>
-        <Text variant="title">{stageName(t, level)}</Text>
+        <Text variant="title" style={styles.name}>{stageName(t, level)}</Text>
         <Text variant={compact ? 'title' : 'heading2'} numeric style={{ color: stage.tint }} testID="collector-plate-no">{no}</Text>
       </View>
+      <Text variant="label" tone="muted">{t('nft.plate.stage', { n: level, total: SHOE_PROGRESSION.stages.length })} · {supplyText}</Text>
       <Text variant="caption" tone="secondary" testID="collector-plate-caption">{caption}</Text>
     </View>
   );
@@ -60,5 +59,5 @@ const styles = StyleSheet.create({
   plate: { alignSelf: 'stretch', borderWidth: 1, borderRadius: radius.l, backgroundColor: color.surface, padding: space.m, gap: space.xs },
   compact: { padding: space.s },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.s },
-  right: { flexShrink: 1, textAlign: 'right' },
+  name: { flexShrink: 1 },
 });
