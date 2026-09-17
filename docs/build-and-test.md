@@ -595,7 +595,7 @@ OPS_TOKEN=$(ssh root@l1.neonshift.cc 'grep ^OPS_TOKEN= /etc/neonshift/api.env | 
 OPS_TOKEN=… npm --prefix tools/chain-admin run sync-achievements -- dev   # 逐筆 set_achievement_eligibility 並回報
 ```
 
-**api.neonshift.cc（2026-09-17 狀態）**：l1 只跑 API（:6080），**不裝 nginx**——TLS 與反代一律由前面那台 nginx（`deploy/l1/nginx-api.neonshift.cc.conf`，upstream `l1.neonshift.cc:6080`）負責；Cloudflare 的 `api` 主機名目前回 404，需指向該台 nginx 後才通。接通後：`curl https://api.neonshift.cc/healthz` → 200；App 改用預設 API（`scripts/app/build.sh dev release` 不帶 `APP_API_URL_OVERRIDE`，明文 HTTP 自動關閉）；`backend/scripts/demo-event.mjs https://api.neonshift.cc` 重跑核對。
+**api.neonshift.cc（2026-09-17 已接通）**：l1 只跑 API（:6080），**不裝 nginx**——TLS 與反代由前面那台 nginx（`deploy/l1/nginx-api.neonshift.cc.conf`，upstream `l1.neonshift.cc:6080`，Let's Encrypt 憑證）經 Cloudflare 橘雲提供；`curl https://api.neonshift.cc/healthz` → 200。Seeker 測試包改用預設 API（`APP_ARCHS=arm64-v8a scripts/app/build.sh dev release`，不帶 `APP_API_URL_OVERRIDE`，明文 HTTP 關閉），`demo-event.mjs https://api.neonshift.cc` 已核對（state published）。
 
 2026-09-15 已升級（slot 498753143，資料帳戶 660,824 bytes）。`api.neonshift.cc` 尚未通時，chain-admin 可用 SSH tunnel：`ssh -f -N -L 16080:127.0.0.1:6080 root@l1.neonshift.cc` 並以 `NEONSHIFT_API_URL=http://127.0.0.1:16080/v1` 覆寫（任何 env 檔鍵都可用 `NEONSHIFT_<KEY>` 覆寫）。
 
