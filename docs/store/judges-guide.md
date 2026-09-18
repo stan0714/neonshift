@@ -1,10 +1,10 @@
 # NeonShift｜評審快速入口 / Reviewer guide
 
-更新：2026-09-17。**準備中：APK、影片與測試活動尚未在本文件登錄可用版本。** 這是可隨提交版本補齊的入口，不代表現在已可完成所有操作。
+更新：2026-09-18。**準備中：APK、影片與測試活動尚未在本文件登錄可用版本。** 這是可隨提交版本補齊的入口，不代表現在已可完成所有操作。
 
 ## Start here (English)
 
-NeonShift connects daily movement, Solana devnet clock-ins, conservation-inspired shoe progression, and event participation. Start with the three-minute product video, then install the matching Android APK. The six-minute event walkthrough explains registration, staff check-in, benefits and organizer-sourced results.
+NeonShift connects daily movement, Solana devnet clock-ins, conservation-inspired shoe progression, and event participation. Start with the English product video (target: 2 minutes 50 seconds; maximum: 3 minutes), then install the matching Android APK. The written event walkthrough explains registration, staff check-in, benefits and organizer-sourced results.
 
 **Current scope:** event App/API code exists, but a complete device-tested event flow is still pending. Staff currently enters a code; NFC opens an event and is not proof of attendance. Shoe finishes are deterministic cosmetic App appearances, not randomized NFT traits. tSKR is a valueless devnet test token, not official SKR. No real partner event or donation is claimed.
 
@@ -18,9 +18,9 @@ If your device has no qualifying Health Connect records, use the public previews
 |---|---|
 | 提交 APK／版本／SHA-256 | 待發布、待驗收 |
 | GitHub Release／Commit | 待登錄 |
-| 主片 3:00 | 待錄製；[腳本](demo-video.md) |
-| 活動詳解 6:00 | 待錄製；[活動手冊](event-demo-playbook.md) |
-| 參賽 Pitch PDF | 待整理；現有 [26 頁募資工作稿](../../output/fundraising/NeonShift_募資簡報_中文草稿_v2.pptx)是參考材料，不等同精簡參賽版 |
+| 英文主片 2:50，最多 3:00 | 待錄製／配音；[六段腳本](demo-video.md)／[英文旁白](demo-voiceover-en.txt)／[AI 配音建議](demo-ai-voice-guide.md) |
+| 活動文字詳解 | [活動手冊](event-demo-playbook.md)；不再要求六分鐘補充影片 |
+| 參賽 Pitch PDF | 待整理；現有 [34 頁募資工作稿 v3](../../output/fundraising/NeonShift_募資簡報_中文草稿_v3.pptx)是參考材料，不等同精簡參賽版 |
 | 測試活動 slug／有效日期／timezone | 待建立或核實；不能將範例 slug 當現存活動 |
 | Demo API／Program ID／Explorer 證據 | 待依提交 APK 登錄 |
 | Devnet SOL／必要測試資源取得方式 | 待提供評審可重現的方法；不依賴不穩定 faucet 的唯一入口 |
@@ -40,7 +40,7 @@ If your device has no qualifying Health Connect records, use the public previews
 2. **1:00–2:00**：從歡迎頁 Demo 入口查看鞋款圖鑑與保育故事。這是系列展示，不表示已取得鞋款或 NFT。
 3. **2:00–3:00**：若要操作個人資料，連自己的測試錢包並完成 App 所需登入；沒有錢包可先看公開內容。拒絕簽章不應顯示成功。
 4. **3:00–4:00**：Arena → 合作活動 → 已登錄的測試活動，查看時區、名額、規則、權益與來源。需發布有效 fixture 才能測試。
-5. **4:00–5:00**：有有效 session 時可報名並開啟報到碼；沒有 staff 協助就停在「待報到」，不可宣稱自行完成現場驗證。後續用六分鐘片與手冊查驗。
+5. **4:00–5:00**：有有效 session 時可報名並開啟報到碼；沒有 staff 協助就停在「待報到」，不可宣稱自行完成現場驗證。後續用活動手冊查驗。
 
 ### 想驗證真正鏈上操作
 

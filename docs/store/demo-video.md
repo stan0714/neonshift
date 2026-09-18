@@ -1,82 +1,139 @@
-# CLOCK IN Demo 影片規劃 v2（PG-D-03）
+# CLOCK IN 國際參賽影片腳本 v3（PG-D-03）
 
-更新：2026-09-17。狀態：腳本 review 完成；尚未錄製、未完成提交 APK 實機驗收。此版取代原八段分鏡；本文件為影片時間軸唯一維護來源。
+更新：2026-09-18。狀態：英文旁白、分鏡與配音製作建議已整理；尚未生成正式語音、錄製或完成提交 APK 實機驗收。本文件為影片時間軸唯一來源，取代 v2 的 3:00 主片＋6:00 詳解規劃。
 
-## 1. Review 結論與定位
+**成片目標 2:50，包含片頭、轉場、片尾；使用者要求上限 3:00。** 英文旁白＋英文字幕，中文僅供團隊製作。主片必須獨立說清產品，不依賴另一支長片。活動深度內容改由 [活動手冊](event-demo-playbook.md)承接。
 
-主張：**NeonShift 把每天的運動，連成可驗證的成長、保育收藏與下一場活動。**
+交付素材：[純英文配音稿](demo-voiceover-en.txt)／[AI 配音製作指南](demo-ai-voice-guide.md)。純稿六個段落依序對應下方六個章節；不要把中文指示、時間碼或標籤送進配音文字欄。
 
-原版三分鐘同時展示 onboarding、打卡、NFT、競技場報名與領獎、藝廊、測試終端及架構，會壓縮真實操作，亦未讓評審理解活動參與。改為：
+## 1. 國際評審應記住的三件事
 
-- **主片 3:00**：手機體驗 → 一筆真實鏈上打卡 → 保育跑鞋 → 活動參與預覽 → 下一步。
-- **活動詳解 6:00**：雙角色完成報名、報到、權益、成績與可選活動章；附章節索引。
-- **文字指南**：[評審入口](judges-guide.md)提供五分鐘試用；[活動流程與展示手冊](event-demo-playbook.md)提供角色、狀態、資料來源及驗收細節。
+1. **Mobile-first movement:** 在手機上完成日常運動、任務與成長，先讓人看懂為何會回來。
+2. **A verifiable milestone:** 用一筆實際 devnet 打卡展示 Solana 的用途；鏈上記錄申領，不替所有運動行為背書。
+3. **Progress with purpose:** 荒野守護跑鞋把成長連到保育學習，再提出在地社群合作方向。
 
-三分鐘與六分鐘都是本案製作建議，非已確認的官方長度。延伸影片為補充連結，不取代四項必交物；不假設評審一定看完或表單一定接受多個影片欄位。主片本身須能獨立說清價值和已實作證據。
+片尾主張：**“Move for yourself. Move together for nature.”** 中文意涵為「為自己而動，為棲地同行」。用易懂的自然英文傳達，不把中文口號逐字翻成生硬句子。
 
-官方公告列回訪／產品契合、UX、創新、展示四個評估方向；本案分鏡是對應這些方向的編排建議，不宣稱官方權重。[本屆公告](https://solanamobile.com/blog/clock-in-the-solana-mobile-hackathon)（2026-09-17 重查）。
+影片採產品實際操作為主，搭配短標題及重點放大；不塞入募資金額、市場規模、終端測試清單或完整競技場結算。品牌動畫最多 2 秒且包含在第一段內。保育段優先拍 App 中的鞋款及故事，野生動物空拍／素材影片不能取代產品證據。
 
-| 評估方向 | 主片證據 | 深入內容 |
-|---|---|---|
-| 回訪與產品契合 | 每日進度、保育收藏、下一場活動 | 活動後歷程與商業假設；不虛構留存 |
-| UX | 實機配速／達標、錢包切換、狀態更新 | 無 NFC 路徑、取消／失敗恢復 |
-| 創新 | 健康任務＋保育外觀＋活動體驗的串連 | 哪些資料可驗證、由誰提供 |
-| 展示 | 一筆交易完整因果與活動雙角色片段 | APK、來源檔、交易與測試紀錄索引 |
+官方公告要求展示 App 使用的 Demo，列出回訪／產品契合、UX、創新及展示等評估方向。本片依這些方向安排，未假設權重。本次查閱公告仍未確認正式影片秒數或 AI 配音條款；3:00 是本次使用者硬上限，若完整表單更短則另行縮短。[本屆官方公告](https://solanamobile.com/blog/clock-in-the-solana-mobile-hackathon)（2026-09-18 查閱）。
 
-## 2. 主片時間軸：3:00
+## 2. 六段時間軸與剪輯預算
 
-| 時間 | 畫面／操作 | 旁白重點 | 證據與限制 |
-|---|---|---|---|
-| 0:00–0:12 | 手持 Seeker；首頁與一句產品定位 | 「讓每天的運動，連到成長、保育收藏與下一場活動。」 | 實機畫面；不以品牌動畫取代產品 |
-| 0:12–0:30 | 一段已錄下的戶外運動：配速超越平均、目標完成卡 | 「即時回饋讓每次進步看得見。」 | 標「先前運動片段」；本次平均不是歷史最佳；GPS 記錄不等於健康打卡證明 |
-| 0:30–0:48 | MWA 連接／授權，返回 App | 「用自己的錢包參與。」 | 保留使用者確認；不展示助記詞；首次登入需要更久則從其他段挪秒數 |
-| 0:48–1:40 | 合格 Health Connect 摘要 → Clock in → 必要驗證／簽名 → 成功 → Explorer | 「摘要經後端驗證，鏈上記錄打卡結果並防止重領。」 | 一筆真實 devnet 交易，地址／cluster／狀態一致；不可把 GPS 畫面說成 Health Connect 資料來源 |
-| 1:40–2:02 | 裝備 Lv.2+ 拆盒片段（約 5.2 秒）、旋轉鞋款、細節款與物種介紹 | 「升階認識一種瀕危動物，同階也有自己的細節。」 | 若切換預備帳號標示；未真升階就展示已解鎖詳情；使用「試拆盲盒」須標示 DEMO preview，不假演升階；款式是 App 外觀，非隨機 NFT 屬性 |
-| 2:02–2:42 | 活動詳情／報名結果 → 參加者代碼 → staff 輸入 → 參加者已報到 | 「同一個 App，從日常運動走到活動現場。」 | 使用測試活動；兩角色同框或標示切換。40 秒只展示這一小段閉環，不塞入所有活動操作 |
-| 2:42–3:00 | 活動全流程圖＋現在／下一步；收尾指向評審指南 | 「後續可銜接權益、主辦方成績與活動收藏；完整流程見詳解。」 | 已驗收／待驗收／規劃分開。尚無聯名、捐款或合作實績；補充片入口可讀 |
+全稿 **288 個英文單字**，連字詞算一字；125–135 words per minute 的純朗讀估計約 128–138 秒，剩餘約 32–42 秒供停頓與操作證據。這是算術估計，不是已合成音訊的實測。
 
-主片不再安排終端測試畫面、完整競技場結算、完整 NFT 領取與長架構講解。競技場是鏈上錦標賽，合作活動是另一條流程，不共用「報名」一詞就當作相同產品。
+| 段落／英文章節標題 | 成片區間 | 字數 | 單段音檔上限（含停頓） | 畫面與剪輯 |
+|---|---|---:|---:|---|
+| 01 · MOVE WITH PURPOSE | 0:00–0:18 | 35 | 17 秒 | 戶外起步 2–3 秒 → 手持 Seeker → 英文首頁；用產品畫面建立問題與定位 |
+| 02 · SEE YOUR PROGRESS | 0:18–0:43 | 42 | 22 秒 | 預先錄製的配速／運動摘要 → 每日目標 → 原點跑鞋與等級進度；結尾留畫面閱讀 |
+| 03 · VERIFY A MILESTONE | 0:43–1:29 | 71 | 38 秒 | Health Connect 任務摘要 → 打卡 → 實際錢包授權／簽署 → 成功 → 同筆 Explorer；保留約 8 秒操作空間 |
+| 04 · DISCOVER WILD GUARDIANS | 1:29–2:03 | 57 | 29 秒 | 已解鎖動物鞋 → 鞋面細節 → 物種故事與可採取行動；最多展示兩種，留約 5 秒讀故事 |
+| 05 · CONNECT WITH COMMUNITY | 2:03–2:29 | 45 | 23 秒 | 測試活動詳情 → 報名 → 參加者代碼／staff 輸入並排 → 狀態；未驗收則用明示流程示意 |
+| 06 · BUILD WHAT COMES NEXT | 2:29–2:50 | 38 | 19 秒 | `NEXT: LOCAL PILOTS` → 已有產品／下一步分欄 → 主張與評審入口；末尾至少 2 秒靜止 |
 
-### 主片可直接使用的英文字幕摘要
+每段章節標題疊在第一個產品鏡頭 1–2 秒，不新增黑底片頭段。單段音檔超出時先刪冗詞或重配，不靠連續快切、刪除操作結果或大幅加速英語解決。若第 03 段操作需要更多時間，可借用第 02／04 段展示時間，成片仍以 2:50 為目標、3:00 為硬上限。
 
-- “Turn daily movement into progress, conservation-inspired collectibles, and your next event.”
-- “This is a real Solana devnet clock-in transaction.”
-- “Shoe finishes are cosmetic App appearances, separate from commemorative NFT traits.”
-- “Demo event: participant code → authorized staff confirmation → checked-in status.”
-- “See the reviewer guide for the full event walkthrough and current limitations.”
+## 3. 逐段旁白、中文意涵與證據
 
-字幕需依實際拍到的行為調整；不得將預設資料說成真實運動。
+### 01｜0:00–0:18 · MOVE WITH PURPOSE
 
-## 3. 活動詳解時間軸：6:00
+**English voiceover**
 
-| 時間 | 章節 | 必拍畫面／講解 |
-|---|---|---|
-| 0:00–0:30 | 情境與角色 | 「荒野守護體驗日」測試場；參加者、staff、主辦方三角色；非真實合作活動 |
-| 0:30–1:15 | 發現與報名 | Arena → 合作活動 → 詳情、規則版本、容量、公開同意選項 → 報名成功 |
-| 1:15–2:25 | 現場報到 | 開啟活動／選站點 → 120 秒代碼 → staff 手動輸入 → 參加者重新進入或重載確認。NFC 另拍實機入口；未驗收就用 App 內入口 |
-| 2:25–3:20 | 權益預留與交付 | 查看規則／庫存 → 預留 → 顯示領取碼 → staff 交付 → 狀態更新；說明預留不等於已拿到實物 |
-| 3:20–4:15 | 成績發布 | 標「活動後／主辦方測試 CSV」；API staging／發布結果片段 → App 本人成績、來源與版本。沒有管理後台就不畫成現有後台 |
-| 4:15–5:00 | 活動紀念章 | 符合報名等級快照、主辦方開啟章別、報到／完賽條件 → 預覽公開內容與 rent → MWA → 結果。若 registry 尚待同步，誠實顯示待處理，另補已驗收交易例 |
-| 5:00–5:30 | 隱私與恢復 | 公開同意關閉／更正原因；示範一個過期代碼重新取得或重複核銷被拒絕的例子 |
-| 5:30–6:00 | 回訪與系列 | 活動歷程 → 回到日常任務；聯名系列／主題任務綁權益為規劃圖，標示尚未實作 |
+> What keeps us moving after the first few days? NeonShift turns everyday movement into visible progress, wildlife-inspired shoes, and a reason to return. Built for Solana Mobile, it connects personal achievement with a wider purpose.
 
-若成績發布、registry 同步需等待，以章節切換說明經過時間；不要用剪輯暗示參加者操作即自動完賽或即時鑄造。無法在六分鐘內清楚呈現時，優先保留報到／交付的可驗證性，將 API 細節留在手冊。
+**中文意涵**：幾天過後，什麼讓我們持續運動？NeonShift 把每日運動轉成看得見的成長、野生動物主題跑鞋，以及再次回來的理由。它為 Solana Mobile 打造，將個人成就連到更大的意義。
 
-## 4. 錄製前準備與停止條件
+**畫面文字**：`Daily movement. Visible progress.`；NeonShift 品牌名。不要宣稱已證明留存提升；這裡在說明產品設計目的。
 
-- 使用與提交一致的已簽章 APK、commit、demo API 與 chain 環境；關閉 Metro 後仍可用。PG-I 的 WIP 記載不能作為部署完成證明。
-- 錢包 A：當日尚未 clock-in、有合格 Health Connect 原始來源與摘要、有測試 SOL；確認 UTC 任務日。
-- 錢包 B：已解鎖保育鞋階；若展示活動章，在報名當時具 Lv.2 資格。不能事後任意提升帳號來冒充原報名快照。
-- 錢包 S：僅測試活動授權 staff；主辦方 owner／publisher 由團隊持有，不能公開 ops token、私鑰或無限制權限。
-- 活動、站點、規則、庫存、成績、章別及 registry 準備見 [手冊](event-demo-playbook.md)。錄影前重查活動時窗，避免 fixture 日期已過。
-- Health Connect 不足時不能用手動步數偽裝通過來源驗證；可另標示預覽，但真實鏈上主線需有獨立可驗證片段。
-- 本片不必先持有 50 tSKR；該條件屬原競技場示範。主片只準備實際交易需要的 SOL／帳戶條件。
-- 錢包授權、challenge 簽名與交易簽署依實際次數呈現。可剪短等待，保留每個簽署目的與成敗。
-- 每個鏡頭使用四種標籤之一：`實機・DEVNET`、`預先建立的測試資料`、`設計示意`、`未來規劃`；搭配英文字幕。
-- **拍攝門檻**：打卡鏈上主線、demo 環境與活動雙角色報到各至少彩排成功一次並留證據。活動未通過時用「原型流程示意・待端到端驗收」替換該段，主片不得說活動已可正式營運；不得為了填秒數造假。
+### 02｜0:18–0:43 · SEE YOUR PROGRESS
 
-## 5. 交付與評審入口
+**English voiceover**
 
-主片說明欄與 README 同時連到 [評審指南](judges-guide.md)，指南再連 APK、主片、六分鐘片、Pitch 與 [活動細節](event-demo-playbook.md)。不要只放影片末端 QR，評審可能正在同一支手機看影片；同時提供可點連結。連結未完成前保留「待發布」，不能貼無效的正式網址。
+> Start with a walk or a run. Follow your pace, complete daily goals, and build your progress over time. Your starter shoes and level upgrades are free. Each session adds to a journey you can see, rather than another number to forget.
 
-活動詳解與主片共用同一個公開入口；實際影片 URL、APK 版本、交易與 fixture 編號填入 [提交追蹤第 9 節](clock-in-submission.md#9-最終交付登錄)。錄製待辦維持在該文件，避免多份勾選表互相矛盾。
+**中文意涵**：從健走或跑步開始，看見配速、完成每日目標、逐步累積成長。初始鞋與升級免費，每次運動都成為個人歷程的一部分。
+
+**畫面文字**：`Free starter shoes · Free level upgrades`。使用先前運動錄影時加 `Previously recorded workout`；配速超越的是「本次平均」就不得改寫成歷史最佳。GPS 運動頁與 Health Connect 任務驗證分開切鏡，避免暗示 GPS 軌跡就是申領依據。
+
+### 03｜0:43–1:29 · VERIFY A MILESTONE
+
+**English voiceover**
+
+> Here is a real clock-in on Solana devnet. NeonShift checks a qualifying activity summary from Android Health Connect. I approve the request in my wallet, and the app confirms the result. We can open the transaction in the explorer. Raw health records stay on the phone; they are not published onchain. The prototype uses test tokens with no monetary value. The blockchain records the claim, not every step of the run.
+
+**中文意涵**：展示一筆 Solana devnet 真實打卡。App 將合格 Health Connect 摘要交由後端驗證，使用者在錢包確認，再查看鏈上結果。原始健康紀錄留在手機，測試幣無金錢價值；鏈上證明的是申領紀錄。
+
+**畫面文字**：`REAL DEVICE · DEVNET`、`Health summary → validation → wallet approval → claim`；看到幣額時加 `tSKR: test token · no monetary value · not official SKR`。錢包若需多次簽名，保留各自目的，不把它剪成保證一次點擊完成。
+
+**拍攝門檻**：這段英文只在提交 APK 真正成功完成打卡、且 Explorer 的錢包／cluster／交易一致時使用。尚未錄到時保留待拍，不能用動畫配上 “real clock-in”。如剪短網路等待，加 `Wait time shortened`，保留前後因果。不要將錢包彈窗上的個人訊息或健康摘要之外的敏感資料公開。
+
+### 04｜1:29–2:03 · DISCOVER WILD GUARDIANS
+
+**English voiceover**
+
+> As you level up, discover Wild Guardians: shoes inspired by threatened wildlife, from the Asian elephant to the hawksbill turtle. Each design introduces an animal, the pressures on its habitat, and a small action you can take. These personal finishes are cosmetic. They connect your progress with a story worth remembering, and a world worth caring about.
+
+**中文意涵**：升階時認識荒野守護鞋款，以亞洲象與玳瑁為例，理解動物、棲地壓力與小行動。個人細節款是外觀，用故事讓成長值得記住。
+
+**畫面文字**：`Wild Guardians`、`Cosmetic shoe finishes`、`Learn about habitats`。若沒有真實升階素材，拍已解鎖鞋款詳情；試拆畫面加 `DEMO PREVIEW`，切帳號加 `Prepared demo account`。不要稱為隨機 NFT、付費抽獎或保育收益權。鞋款細節與鏈上紀念 NFT 分開，這 34 秒不額外塞 NFT 鑄造流程。
+
+### 05｜2:03–2:29 · CONNECT WITH COMMUNITY
+
+**English voiceover**
+
+> The journey also reaches beyond solo exercise. This event prototype previews registration and staff-confirmed check-in. Participants show a code; authorized staff confirm attendance. Event participation connects back to your personal journey. Our next step is to test this experience with local communities and conservation partners.
+
+**中文意涵**：體驗從個人運動延伸到社群。展示活動原型的報名與工作人員確認報到，下一步才是在地社群與保育方試辦。
+
+**畫面文字**：`EVENT PROTOTYPE · TEST DATA`；兩角色清楚標 `PARTICIPANT`／`AUTHORIZED STAFF`。此處的 event check-in 是現場報到，與第 03 段 daily clock-in 不同；不用同一動畫暗示兩者都直接上鏈。
+
+**未驗收時的替代畫面**：以 `WORKFLOW PREVIEW · DEVICE VALIDATION PENDING` 標示四格流程示意；維持 “prototype previews” 旁白，不合成 UI 成功畫面、不宣稱活動已營運。已通過双角色彩排才放真實操作。NFC 不是出席證明，staff 相機掃碼不是目前可用流程。
+
+### 06｜2:29–2:50 · BUILD WHAT COMES NEXT
+
+**English voiceover**
+
+> Our direction is simple: move for yourself, move together for nature. We plan to fund useful event services through paying partners, with conservation contributions tracked separately. NeonShift brings movement, meaningful progress, and conservation learning into one mobile experience.
+
+**中文意涵**：共同方向是為自己而動、一起為自然前進。未來以付費合作支持活動服務，保育款項獨立追蹤；產品將運動、成長與保育學習放進同一個手機體驗。
+
+**畫面文字**：`NEXT: LOCAL PILOTS`、`Planned: paid event services + separate conservation reporting`；片尾 `Move for yourself. Move together for nature.`、`APK · Source · Reviewer guide — links in description`。網址未發布前不要造正式入口；正式成片說明欄必須有可點連結，QR 只是補充。
+
+目前沒有已成立的保育合作、捐款或本案減碳實績。片尾使用 “plan”，不說已能自動捐款、每一步減碳或已拯救物種。完整提案見 [永續研究](../sustainability-direction.md)。
+
+## 4. 英文配音與字幕的製作決策
+
+首選 **ElevenLabs Multilingual v2** 搭配一位清楚、自然、偏中性美式口音的成年聲線；全片同一人。這是本案對穩定產品敘事的選擇，不是所有服務的音質排名。希望更有表情時可 A/B 試聽 Eleven v3；需要精細控制停頓及發音時可考慮 Azure AI Speech。選型依據、設定及發音表見 [配音指南](demo-ai-voice-guide.md)。
+
+旁白以 125–135 wpm 為起點，溫暖、有精神但不喊口號。英文 UI 優先；若提交版只能拍到中文 UI，用英文小標註解，不把尚未實作的英文介面覆蓋成「實機」。對國際評審只燒錄英文字幕，中文另做內部版本，避免雙語字幕遮住 App。
+
+字幕依最終音檔重新對齊：最多兩行，每行約 32–42 字元，單句可拆成多個 cue，不把 20 秒的整段放成一張字幕。使用深色半透明底、足夠對比，避免遮住按鈕、錢包確認及交易狀態。英文字句與旁白一致；畫面限制標籤是額外資訊，不能用小字推翻旁白。
+
+不預先提供假裝已精準對齊的 SRT。先鎖定六段音檔，再按聲音生成字幕並人工核對 NeonShift、Solana、Health Connect、Wild Guardians 與 devnet。
+
+## 5. 錄製與輸出驗收
+
+- 使用與提交一致的簽章 APK、commit、demo API 與 chain 環境。關閉 Metro 後仍可用，記錄裝置、OS 及版本。
+- 當日尚未打卡、具有合格 Health Connect 來源、有足夠 devnet SOL；確認 UTC 任務日。不以手動步數偽造來源，不需為本片準備競技場的 50 tSKR 質押。
+- 預備已解鎖保育鞋的帳號，切換時標示。測試活動、授權 staff 與有效時窗依 [活動手冊](event-demo-playbook.md)建立，私鑰與管理 token 不出鏡。
+- 每個產品鏡頭清楚分類：`REAL DEVICE · DEVNET`／`TEST DATA`／`WORKFLOW PREVIEW`／`PLANNED`；分類可按段落持續顯示，不必每秒重複。
+- 先以六段旁白建立 2:50 時間線，再嵌入操作素材；畫面證據更長時調整文字，不能暗示失敗操作成功。
+- 建議 1920×1080、30 fps、H.264＋AAC；直式 App 用單機大圖配側邊短註解，需要時放大局部。字幕以手機橫看仍可讀為準。
+- 播放檢查：英文母語或熟悉英語者核對自然度；未參與開發者在一遍內說出產品用途、Solana 用途、已做／規劃差異。不能只問「好不好看」。
+- 量測**最後匯出的影音檔**，包含尾端黑畫面與音訊尾巴，必須 ≤180 秒；建議維持約 170 秒。字數估計及剪輯軟體工作區長度都不代替成片驗證。
+
+若本機有 ffprobe，可讀取實際時長（下列檔名是待產生的成片）：
+
+```sh
+ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 NeonShift_CLOCKIN_EN.mp4
+```
+
+## 6. 交付與狀態
+
+目前完成：六段英文旁白、中文製作說明、時間／字數預算、配音建議與證據限制。尚未完成：AI 語音、最終聲線試聽、錄影、SRT、混音、成片及實機驗收。本文件不是影片已完成的證明。
+
+成片說明欄可用：
+
+> NeonShift connects daily movement, wildlife-inspired progression, and event participation on Solana Mobile. This demo includes a Solana devnet clock-in and an event prototype. Test tokens have no monetary value. Local conservation pilots and paid partnerships are planned. AI-generated narration; product footage and prototype labels identify the demo context. APK, source code, and reviewer guide: [replace with published links before submission].
+
+上段的 devnet 宣稱只在第 03 段證據完成後使用；AI 配音使用與揭露依本屆完整規則再核對。不要發布括號佔位文字。最終版本、聲線／模型、成片時長、交易、APK 與 URL 統一登錄 [提交追蹤](clock-in-submission.md#9-最終交付登錄)。

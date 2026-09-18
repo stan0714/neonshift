@@ -6,7 +6,7 @@ Solana Mobile 健康追蹤 dApp。將每日跑步／健走與睡眠轉化為「�
 
 ## 黑客松評審入口（準備中）
 
-先看 [評審快速指南](docs/store/judges-guide.md)，再依需要閱讀 [Demo 主片／活動詳解腳本](docs/store/demo-video.md)與 [活動參與流程](docs/store/event-demo-playbook.md)。APK、影片與測試活動連結尚待登錄；功能存在不代表實機端到端已驗收。
+先看 [評審快速指南](docs/store/judges-guide.md)，再依需要閱讀 [三分鐘內英文 Demo 腳本](docs/store/demo-video.md)與 [活動參與流程](docs/store/event-demo-playbook.md)。APK、影片與測試活動連結尚待登錄；功能存在不代表實機端到端已驗收。
 
 ## 架構
 
@@ -54,6 +54,8 @@ flowchart LR
 
 | 文件 | 用途 |
 |---|---|
+| [永續研究與共同方向](docs/sustainability-direction.md) | 運動 × 保育 × Solana、營運模式、成果驗證與 90 天試辦提案 |
+| [中文募資簡報 v3](output/fundraising/NeonShift_募資簡報_中文草稿_v3.pptx)／[網頁預覽](output/fundraising/preview.html) | 2026-09-18 更新永續與保育方向；含講稿與來源，策略與數值待驗證 |
 | `docs/brd-detailed.md` | 業務需求 |
 | `docs/sa.md` | 系統分析（業務規則 BR-*） |
 | `docs/sd.md` | 系統設計（帳戶、指令、API、結算協議、藝廊） |

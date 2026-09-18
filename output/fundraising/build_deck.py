@@ -53,7 +53,7 @@ def slide(title,kicker='投資人簡報草稿',sub=None,source=None):
  text(s,'NEONSHIFT  /  '+kicker,.72,.32,11,.35,11,MINT,True)
  text(s,title,.72,.93,11.9,.78,30,WHITE,True)
  if sub: text(s,sub,.74,1.83,11.7,.7,16,MUTED)
- text(s,'募資討論稿・2026.09.17｜商業方案／數值假設待確認',.74,7.07,10,.22,9,MUTED)
+ text(s,'募資討論稿・2026.09.18｜永續策略／商業與數值假設待驗證',.74,7.07,10,.22,9,MUTED)
  text(s,'%02d'%len(prs.slides),12.02,7.03,.5,.3,12,MINT)
  if source:
   title_,url=SOURCES[source]; text(s,source+'｜'+title_,.74,6.7,11.7,.25,9,MUTED,url=url)
@@ -72,12 +72,12 @@ def cards(s,items,y=2.75,h=3.35):
   text(s,head,x+.23,y+.79,w-.46,.58,22,WHITE,True)
   text(s,body,x+.23,y+1.55,w-.46,h-1.7,17,MUTED)
 
-s=slide('讓每一次運動，連結下一次參與',kicker='品牌 × 活動 × 持續參與')
+s=slide('為自己而動，為棲地同行',kicker='運動 × 保育 × 可持續合作')
 text(s,'NeonShift 賽博躍遷',.75,2.1,7,.7,34,MINT,True)
-text(s,'把日常健康任務、現場活動與個人成績，\n串成可持續經營的運動關係。',.75,3.1,7,1.1,24)
+text(s,'把日常運動、在地保育與合作活動，\n串成能持續參與、可查核的行動。',.75,3.1,7,1.1,24)
 text(s,'從 Solana Mobile 社群切入\n面向跑團、主辦方與運動品牌的合作平台',.75,4.6,6.6,1,18,MUTED)
 pic(s,'neonshift-splash-v1.png',9.5,1.8,2.15,4.66)
-finish(s,'投資主張','產品定位提案：運動參與與活動合作平台。從 Android／Seeker 原型切入。畫面為設計稿，不代表正式上線。募資金額、團隊與實績尚待補齊。')
+finish(s,'投資主張','2026-09-18 策略提案：日常運動 × 在地保育參與 × 可查核合作成果。共同主張「為自己而動，為棲地同行」。從 Android／Seeker 原型切入，優先試辦品牌付費的四週行動季；SOL 指 Solana／SOL 生態。畫面為設計稿，保育合作、付費客戶與成果尚待驗證。完整研究：docs/sustainability-direction.md。')
 
 s=slide('活動結束後，關係不應歸零',sub='待訪談驗證的三個痛點：參與者難持續、主辦方難回訪、品牌難衡量。')
 cards(s,[('參與者','健康紀錄與活動成績分散\n缺乏回到下一次活動的理由'),('活動主辦方','宣傳、報到、發放與成績分開\n難追蹤跨場次參與'),('合作品牌','一次曝光之後缺少後續連結\n需要看見到場與實際領取')])
@@ -175,6 +175,13 @@ for i,(key,(label,url)) in enumerate(WILDLIFE_SOURCES.items()):
 text(s,'保育資料查核：2026.09.17；目前沒有已成立的保育合作、捐款或聯名。',.8,6.68,11.6,.27,11,MUTED)
 finish(s,'保育教育與系列路線','已完成 App 故事卡、來源連結及系列識別；聯名發行、系列切換、NFT 獨立款式 metadata 尚未實作。現在的共用 kind URI 無法表示每個錢包的獨立款式，需先完成每資產權威紀錄。保育行動為教育建議，不表示 WWF 授權或合作；未承諾任何捐款。未來衡量故事閱讀、來源開啟與回訪，尚無實績。\n'+'\n'.join(k+' '+v[0]+' '+v[1] for k,v in WILDLIFE_SOURCES.items()))
 
+sustainability=json.loads((OUT/'sustainability_slides.json').read_text(encoding='utf-8'))
+for item in sustainability['slides']:
+ s=slide(item['title'],kicker=item['kicker'],sub=item['sub'])
+ cards(s,item['cards'],y=2.65,h=3.55)
+ text(s,item['footer'],.8,6.52,11.65,.4,12,MUTED)
+ finish(s,item['short_title'],item['notes']+'\n研究與來源：docs/sustainability-direction.md；2026-09-18。')
+
 s=slide('STEPN 的教訓：獎勵需求不能只靠再投資',kicker='經濟設計｜機制分析，不是價格預測',sub='2022 年官方描述：GST 可增發；升級與鑄鞋消耗代幣；新玩家與擴充裝備帶來購買需求。')
 cards(s,[('需求的脆弱點','若消耗是為了未來賺更多\n收益预期轉弱時\n再投資需求也可能減少'),('已有的不同','免費初始鞋與免費升級\nNFT 作為成就收藏\n探索冊外觀無收益加成'),('仍未解決','固定供給仍可能領完\n單人限額不是全站預算\n競技場不是外部收入')])
 text(s,'來源：STEPN 官方 2022-05-10；市場衝擊另見講稿。上述因果為本案分析。',.76,6.63,11.7,.3,11,MUTED)
@@ -232,6 +239,12 @@ for i,(label,desc,url) in enumerate(items):
  y=2.35+i*1.25;text(s,label,.8,y,11.5,.45,21,MINT,True,url=url);text(s,desc,.8,y+.53,11.5,.5,17,MUTED)
 finish(s,'經濟資料來源','E1／E2 網頁於前次分析讀取，2026-09-16 沿用歷史資料；本次未重新查市場即時數據。E3: docs/economics/stepn-risk-review.md、stress.csv、programs/neonshift-core/src/constants.rs、instructions/clock_in.rs、tournament_math.rs。已驗證预算與守恆斷言；未建模價格／流動性／留存。市場來源 S1～S3 沿用 2026-09-14 查核。')
 
+s=slide('附錄｜SOL 永續與保育研究來源',kicker='第一手來源｜查閱日期 2026.09.18',sub='技術與框架事實有來源；客戶需求、定價、任務與成效門檻均為本案提案。')
+for i,(key,(label,url)) in enumerate(sustainability['sources'].items()):
+ text(s,key+'  '+label,.8,2.65+i*.46,11.6,.35,15,MINT,url=url)
+text(s,'C1 為 2023 年歷史報告；C0 動態值未讀取。舊市場／物種來源保留原查核日期。',.8,6.38,11.6,.45,12,MUTED)
+finish(s,'永續與保育資料來源','\n'.join(k+' '+v[0]+'\n'+v[1] for k,v in sustainability['sources'].items())+'\n完整研究、假設與限制：docs/sustainability-direction.md。新增來源查閱於 2026-09-18；不代表機構合作或認證。')
+
 s=slide('附錄｜正式對外前，補齊五項證據',kicker='募資準備清單')
 items=['01  團隊姓名、專長、全職投入與股權結構','02  主辦方访談、試辦意向與可聯絡推薦人','03  示範流程、實機驗收與使用者留存資料','04  定價測試、單場成本與獲客成本','05  募資金額、現金預算、估值及使用條件']
 for i,t in enumerate(items): text(s,t,.85,2.45+i*.69,11.6,.5,21,MINT if i==0 else WHITE)
@@ -243,11 +256,11 @@ for s in prs.slides:
   assert sh.left+sh.width<=prs.slide_width+10
   assert sh.top+sh.height<=prs.slide_height+10
 prs.core_properties.title='NeonShift 中文募資簡報｜討論草稿'
-prs.core_properties.subject='合作活動、運動參與、產業規模與商業驗證'
+prs.core_properties.subject='為自己而動，為棲地同行｜Solana、永續營運與保育合作'
 prs.core_properties.author='NeonShift'
-target=OUT/'NeonShift_募資簡報_中文草稿_v2.pptx'; prs.save(str(target))
+target=OUT/'NeonShift_募資簡報_中文草稿_v3.pptx'; prs.save(str(target))
 css='body{margin:0;background:#151925;font-family:"Microsoft JhengHei","PingFang TC",sans-serif}section{width:13.333in;height:7.5in;position:relative;background:#050711;margin:24px auto;overflow:hidden;box-shadow:0 4px 30px #000}section>*{position:absolute;box-sizing:border-box}.text{line-height:1.35;white-space:normal;overflow:hidden}.box{border-radius:12px}img{object-fit:fill}@media print{body{background:white}section{margin:0;page-break-after:always;box-shadow:none}@page{size:13.333in 7.5in;margin:0}}'
 (OUT/'preview.html').write_text('<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><title>NeonShift 中文募資草稿</title><style>'+css+'</style>'+''.join(html_slides)+'</html>',encoding='utf-8')
-(OUT/'講稿與資料來源.md').write_text('# NeonShift 中文募資簡報講稿\n\n2026-09-17。26 頁，23 頁主文＋3 頁附錄。可編輯文字／圖形；視覺稿為 PNG。\n\n'+ '\n\n'.join('## %02d｜%s\n\n%s'%(r['slide'],r['title'],r['notes']) for r in outline),encoding='utf-8')
-(OUT/'sources.json').write_text(json.dumps(dict(SOURCES, **WILDLIFE_SOURCES, E1=('STEPN 官方，2022-05-10', 'https://stepnofficial.medium.com/tokeonomics-at-stepn-ee08604e82f1'), E2=('CoinDesk，2022-05-29', 'https://www.coindesk.com/markets/2022/05/29/first-mover-asia-bitcoin-extends-losing-streak-new-lunas-crash-like-old-lunas-stepns-china-dilemma'), E3=('NeonShift 九組庫存試算', 'docs/economics/stress.csv')),ensure_ascii=False,indent=2),encoding='utf-8')
+(OUT/'講稿與資料來源.md').write_text('# NeonShift 中文募資簡報講稿\n\n2026-09-18。%d 頁，%d 頁主文＋4 頁附錄。可編輯文字／圖形；視覺稿為 PNG。\n\n新增永續研究見 [共同方向與研究](../../docs/sustainability-direction.md)。\n\n'%(len(prs.slides),len(prs.slides)-4)+ '\n\n'.join('## %02d｜%s\n\n%s'%(r['slide'],r['title'],r['notes']) for r in outline),encoding='utf-8')
+(OUT/'sources.json').write_text(json.dumps(dict(SOURCES, **WILDLIFE_SOURCES, **sustainability['sources'], E1=('STEPN 官方，2022-05-10', 'https://stepnofficial.medium.com/tokeonomics-at-stepn-ee08604e82f1'), E2=('CoinDesk，2022-05-29', 'https://www.coindesk.com/markets/2022/05/29/first-mover-asia-bitcoin-extends-losing-streak-new-lunas-crash-like-old-lunas-stepns-china-dilemma'), E3=('NeonShift 九組庫存試算', 'docs/economics/stress.csv')),ensure_ascii=False,indent=2),encoding='utf-8')
 print('Saved %s slides: %s'%(len(prs.slides),target))
