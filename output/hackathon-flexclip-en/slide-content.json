@@ -1,0 +1,50 @@
+[
+  {
+    "slide": 1,
+    "title": "Move with purpose",
+    "time": "0:00–0:18",
+    "voiceover": "What keeps us moving after the first few days? NeonShift turns everyday movement into visible progress, wildlife-inspired shoes, and a reason to return. Built for Solana Mobile, it connects personal achievement with a wider purpose.",
+    "production_notes": "目前為 2026-09-14 早期實機截圖，含尚未配置鏈上程式的狀態；不是交易證據。正式影片以提交 APK 首頁錄影替換。前 2 秒可加戶外起步，包含在 18 秒內。",
+    "image": "slides/01.png"
+  },
+  {
+    "slide": 2,
+    "title": "See your progress",
+    "time": "0:18–0:43",
+    "voiceover": "Start with a walk or a run. Follow your pace, complete daily goals, and build your progress over time. Your starter shoes and level upgrades are free. Each session adds to a journey you can see, rather than another number to forget.",
+    "production_notes": "右側為舊版 Gear UI，尚非 Wild Guardians 系列。正式影片替換為本次提交版本：運動頁 → 每日目標 → 等級進度。GPS 運動追蹤不等同 Health Connect 申領依據。",
+    "image": "slides/02.png"
+  },
+  {
+    "slide": 3,
+    "title": "Verify a milestone",
+    "time": "0:43–1:29",
+    "voiceover": "NeonShift connects qualifying daily activity with a claim on Solana devnet. An activity summary from Android Health Connect is checked before you approve the claim in your wallet. The resulting transaction can be viewed in the explorer. Raw health records stay on your phone; they are not published onchain. The prototype uses test tokens with no monetary value. The blockchain records the claim, not every step of your run.",
+    "production_notes": "本頁為流程圖，非已成功交易。正式影片以合格摘要 → 打卡 → 錢包確認 → 成功 → 同筆 Explorer 實錄覆蓋中間流程區。僅證據完成後改為 REAL DEVICE · DEVNET；縮短等待需標 Wait time shortened。",
+    "image": "slides/03.png"
+  },
+  {
+    "slide": 4,
+    "title": "Discover Wild Guardians",
+    "time": "1:29–2:03",
+    "voiceover": "As you level up, discover Wild Guardians: shoes inspired by threatened wildlife, from the Asian elephant to the hawksbill turtle. Each design introduces an animal, the pressures on its habitat, and a small action you can take. These personal finishes are cosmetic. They connect your progress with a story worth remembering, and a world worth caring about.",
+    "production_notes": "本頁使用專案既有設計圖。正式影片補已解鎖鞋款、鞋面特寫與物種故事卡；圖不可冒充實機。使用試拆時標 DEMO PREVIEW，切帳號標 Prepared demo account。不稱隨機 NFT、付費抽獎或保育收益權。",
+    "image": "slides/04.png"
+  },
+  {
+    "slide": 5,
+    "title": "Connect with community",
+    "time": "2:03–2:29",
+    "voiceover": "The journey also reaches beyond solo exercise. This event prototype previews registration and staff-confirmed check-in. Participants show a code; authorized staff confirm attendance. Event participation connects back to your personal journey. Our next step is to test this experience with local communities and conservation partners.",
+    "production_notes": "雙角色流程示意。完成提交 APK 端到端驗收後替換為報名 → 出示代碼 → 授權 staff 輸入 → 狀態確認，保留 TEST DATA 標示。不可改成 staff 相機掃碼或暗示 NFC 為出席證明；活動報到不等同每日鏈上打卡。",
+    "image": "slides/05.png"
+  },
+  {
+    "slide": 6,
+    "title": "Build what comes next",
+    "time": "2:29–2:50",
+    "voiceover": "Our direction is simple: move for yourself, move together for nature. We plan to fund useful event services through paying partners, with conservation contributions tracked separately. NeonShift brings movement, meaningful progress, and conservation learning into one mobile experience.",
+    "production_notes": "最後至少靜止 2 秒。正式發布 APK、原始碼與評審指南後，才在影片說明欄與片尾加可點連結／QR。現有投影片不放未發布連結或佔位網址；尚無已確認合作、捐款或減碳實績。",
+    "image": "slides/06.png"
+  }
+]

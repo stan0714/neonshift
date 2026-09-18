@@ -1,0 +1,44 @@
+# NeonShift｜英文黑客松影片投影片包
+
+建立日期：2026-09-18。獨立製作資料夾；未修改 App 或既有募資簡報。
+
+## 交付內容
+
+| 檔案 | 用途 |
+|---|---|
+| [NeonShift_Hackathon_EN.pptx](NeonShift_Hackathon_EN.pptx) | 6 頁英文簡報，16:9；文字、流程框與图片可編輯；備忘稿含英文旁白與中文製作說明 |
+| [NeonShift_Hackathon_EN.pdf](NeonShift_Hackathon_EN.pdf) | 六頁靜態閱讀版；圖片式 PDF |
+| [slides/](slides/) | 01–06.png，1920×1080，可作 FlexClip 場景底圖 |
+| [overview.jpg](overview.jpg) | 六頁總覽 |
+| [preview.html](preview.html) | 離線預覽；需保留 slides 子資料夾 |
+| [production-plan.md](production-plan.md) | 時間軸、FlexClip 組裝方式、素材與補錄清單 |
+| [storyboard.md](storyboard.md) | 逐頁英文文案、完整旁白、中文分鏡與狀態 |
+| [voiceover-en.txt](voiceover-en.txt) | 僅含英文旁白；六段對應六頁，可逐段貼入配音工具 |
+| [assets/](assets/) | 本包使用的原始專案素材副本 |
+| [slide-content.json](slide-content.json) | 結構化旁白、時間與製作註記 |
+| [build_deck.py](build_deck.py) | 重建腳本，需 python-pptx、Pillow 與 Arial 或 DejaVu Sans |
+
+## 建議從這裡開始
+
+1. 開啟 PPTX 或 PDF 審稿；查看 overview.jpg 快速掌握六頁。
+2. 把 slides/01.png 到 06.png 依序匯入影片專案；以 production-plan.md 分配時間。
+3. 依 voiceover-en.txt 分六段製作旁白，加入英文字幕。
+4. 補入提交 APK 的真實操作錄影、實際交易與發布連結，最後量測影片時長。
+
+投影片與 PNG 共用相同版面座標。PNG/PDF 是腳本直接繪製的配套輸出，並非 PowerPoint 的匯出截圖；不同簡報軟體的字型排版可能略有差異。用 PNG 剪片可固定外觀。
+
+## 完成範圍
+
+已產出投影片、PDF、1080p 圖片、旁白文字與規劃文件。未生成語音、錄製 App、製作最終影片或完成提交 APK 驗收。時間表是剪輯目標，非實測片長；上限 3 分鐘沿用本次製作方向，不宣稱為已查核的賽事官方限制。
+
+舊實機圖已標 EARLY BUILD／EARLY GEAR UI；第 3、5 頁為明示流程示意；第 4 頁為鞋款設計素材。所有計畫中的試辦與合作均使用 planned／next，不暗示已營運。
+
+## 重建
+
+```sh
+python3 -m venv /tmp/neonshift-deck-venv
+/tmp/neonshift-deck-venv/bin/pip install -r requirements.txt
+/tmp/neonshift-deck-venv/bin/python build_deck.py
+```
+
+以上在本資料夾執行。重建會覆寫簡報、配套視覺、JSON 與純英文旁白；如手改 PPTX，請另存新檔。storyboard.md 與 production-plan.md 為審定製作文件；改稿後需同步檢查。
