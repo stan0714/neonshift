@@ -109,3 +109,7 @@ Level 1 保留普通「原點」。Level 2 起，每階結合一種瀕危動物�
 TypeScript 通過；鞋款分配、雙語 key、細節互動、鎖定／預覽、Gear 與 Launch 共 39 項測試通過。靜態向量設計預覽見 [output/shoe-design-review/preview.html](../../output/shoe-design-review/preview.html)，由實際 TSX 圖形座標產生，不代表實機 UI 截圖。
 
 待 Android 真機：64／110／220dp 辨識、三個局部裁切、三種外觀、繁中／英文大字、TalkBack、Gear 詳情捲動與 Demo 卡片高度。既有 WILD-07 實機驗收仍未完成。簡報包舊素材未自動替換，正式影片應重錄本版鞋款與故事互動。
+
+## 2026-09-19：共同領取里程碑彩蛋
+
+新增「一起點亮荒野」，以同款鞋 finalized 歷史紀念 NFT 領取筆數，嚴格超過具名族群參考值後，開啟可重看的光點棲地場景；Demo 明示模擬且不修改數字。鞋款故事提供查詢入口，NFT 領取完成頁自動查詢、由本人進入場景。數據不是真人数，不代表動物救援、捐款或新增 NFT。族群資料快照、玳瑁待查核與朋友邀請方案見 [共同彩蛋與朋友邀請](guardian-milestone.md)。

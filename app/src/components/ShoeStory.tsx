@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { GuardianMilestone } from './GuardianMilestone';
 import { Button } from './Button';
 import { ShoeHero, type ShoeDetail } from './ShoeHero';
 import { shoeVariant, wildlifeOf } from '@/config/shoeCollection';
@@ -62,6 +63,7 @@ export function ShoeStory({ level, locked = false, preview = false }: { level: S
         <Text variant="caption" tone="muted">{t('wild.cosmetic')}</Text>
       </View>
     </View>
+    <GuardianMilestone key={`${level}-${preview}`} level={level} preview={preview} />
     <Text variant="caption" tone="muted">{t('wild.note')}</Text>
     <Text variant="caption" tone="muted">{t('wild.sourceChecked')}</Text>
     <Button variant="secondary" label={t('wild.source')} onPress={() => {
