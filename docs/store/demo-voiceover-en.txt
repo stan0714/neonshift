@@ -2,7 +2,7 @@ What keeps us moving after the first few days? NeonShift turns everyday movement
 
 Start with a walk or a run. Follow your pace, complete daily goals, and build your progress over time. Your starter shoes and level upgrades are free. Each session adds to a journey you can see, rather than another number to forget.
 
-Here is a real clock-in on Solana devnet. NeonShift checks a qualifying activity summary from Android Health Connect. I approve the request in my wallet, and the app confirms the result. We can open the transaction in the explorer. Raw health records stay on the phone; they are not published onchain. The prototype uses test tokens with no monetary value. The blockchain records the claim, not every step of the run.
+NeonShift connects qualifying daily activity with a claim on Solana devnet. An activity summary from Android Health Connect is checked before you approve the claim in your wallet. The resulting transaction can be viewed in the explorer. Raw health records stay on your phone; they are not published onchain. The prototype uses test tokens with no monetary value. The blockchain records the claim, not every step of your run.
 
 As you level up, discover Wild Guardians: shoes inspired by threatened wildlife, from the Asian elephant to the hawksbill turtle. Each design introduces an animal, the pressures on its habitat, and a small action you can take. These personal finishes are cosmetic. They connect your progress with a story worth remembering, and a world worth caring about.
 

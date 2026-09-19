@@ -1,6 +1,6 @@
 # CLOCK IN 國際參賽影片腳本 v3（PG-D-03）
 
-更新：2026-09-18。狀態：英文旁白、分鏡與配音製作建議已整理；尚未生成正式語音、錄製或完成提交 APK 實機驗收。本文件為影片時間軸唯一來源，取代 v2 的 3:00 主片＋6:00 詳解規劃。
+更新：2026-09-18。狀態：英文旁白、分鏡與配音製作建議已整理；尚未生成正式語音、錄製或完成提交 APK 實機驗收。本文件為影片時間軸唯一來源，取代 v2 的 3:00 主片＋6:00 詳解規劃。2026-09-19 review：旁白採英文投影片包已審定的六段稿，純配音檔以 `docs/store/demo-voiceover-en.txt` 為唯一配音來源；投影片包 TXT、JSON、PPTX 備忘稿為同步副本。
 
 **成片目標 2:50，包含片頭、轉場、片尾；使用者要求上限 3:00。** 英文旁白＋英文字幕，中文僅供團隊製作。主片必須獨立說清產品，不依賴另一支長片。活動深度內容改由 [活動手冊](event-demo-playbook.md)承接。
 
@@ -20,13 +20,13 @@
 
 ## 2. 六段時間軸與剪輯預算
 
-全稿 **288 個英文單字**，連字詞算一字；125–135 words per minute 的純朗讀估計約 128–138 秒，剩餘約 32–42 秒供停頓與操作證據。這是算術估計，不是已合成音訊的實測。
+全稿 **286 個英文單字**，連字詞算一字；125–135 words per minute 的純朗讀估計約 127–137 秒，剩餘約 33–43 秒供停頓與操作證據。這是算術估計，不是已合成音訊的實測。
 
 | 段落／英文章節標題 | 成片區間 | 字數 | 單段音檔上限（含停頓） | 畫面與剪輯 |
 |---|---|---:|---:|---|
 | 01 · MOVE WITH PURPOSE | 0:00–0:18 | 35 | 17 秒 | 戶外起步 2–3 秒 → 手持 Seeker → 英文首頁；用產品畫面建立問題與定位 |
 | 02 · SEE YOUR PROGRESS | 0:18–0:43 | 42 | 22 秒 | 預先錄製的配速／運動摘要 → 每日目標 → 原點跑鞋與等級進度；結尾留畫面閱讀 |
-| 03 · VERIFY A MILESTONE | 0:43–1:29 | 71 | 38 秒 | Health Connect 任務摘要 → 打卡 → 實際錢包授權／簽署 → 成功 → 同筆 Explorer；保留約 8 秒操作空間 |
+| 03 · VERIFY A MILESTONE | 0:43–1:29 | 69 | 38 秒 | Health Connect 任務摘要 → 打卡 → 實際錢包授權／簽署 → 成功 → 同筆 Explorer；保留約 8 秒操作空間 |
 | 04 · DISCOVER WILD GUARDIANS | 1:29–2:03 | 57 | 29 秒 | 已解鎖動物鞋 → 鞋面細節 → 物種故事與可採取行動；最多展示兩種，留約 5 秒讀故事 |
 | 05 · CONNECT WITH COMMUNITY | 2:03–2:29 | 45 | 23 秒 | 測試活動詳情 → 報名 → 參加者代碼／staff 輸入並排 → 狀態；未驗收則用明示流程示意 |
 | 06 · BUILD WHAT COMES NEXT | 2:29–2:50 | 38 | 19 秒 | `NEXT: LOCAL PILOTS` → 已有產品／下一步分欄 → 主張與評審入口；末尾至少 2 秒靜止 |
@@ -59,13 +59,13 @@
 
 **English voiceover**
 
-> Here is a real clock-in on Solana devnet. NeonShift checks a qualifying activity summary from Android Health Connect. I approve the request in my wallet, and the app confirms the result. We can open the transaction in the explorer. Raw health records stay on the phone; they are not published onchain. The prototype uses test tokens with no monetary value. The blockchain records the claim, not every step of the run.
+> NeonShift connects qualifying daily activity with a claim on Solana devnet. An activity summary from Android Health Connect is checked before you approve the claim in your wallet. The resulting transaction can be viewed in the explorer. Raw health records stay on your phone; they are not published onchain. The prototype uses test tokens with no monetary value. The blockchain records the claim, not every step of your run.
 
-**中文意涵**：展示一筆 Solana devnet 真實打卡。App 將合格 Health Connect 摘要交由後端驗證，使用者在錢包確認，再查看鏈上結果。原始健康紀錄留在手機，測試幣無金錢價值；鏈上證明的是申領紀錄。
+**中文意涵**：介紹 Solana devnet 打卡流程；真實操作須另有錄影佐證。App 將合格 Health Connect 摘要交由後端驗證，使用者在錢包確認，再查看鏈上結果。原始健康紀錄留在手機，測試幣無金錢價值；鏈上證明的是申領紀錄。
 
-**畫面文字**：`REAL DEVICE · DEVNET`、`Health summary → validation → wallet approval → claim`；看到幣額時加 `tSKR: test token · no monetary value · not official SKR`。錢包若需多次簽名，保留各自目的，不把它剪成保證一次點擊完成。
+**畫面文字**：流程圖使用 `WORKFLOW PREVIEW · DEVICE VALIDATION PENDING`；真實操作驗收後才使用 `REAL DEVICE · DEVNET`；`Health summary → validation → wallet approval → claim`；看到幣額時加 `tSKR: test token · no monetary value · not official SKR`。錢包若需多次簽名，保留各自目的，不把它剪成保證一次點擊完成。
 
-**拍攝門檻**：這段英文只在提交 APK 真正成功完成打卡、且 Explorer 的錢包／cluster／交易一致時使用。尚未錄到時保留待拍，不能用動畫配上 “real clock-in”。如剪短網路等待，加 `Wait time shortened`，保留前後因果。不要將錢包彈窗上的個人訊息或健康摘要之外的敏感資料公開。
+**拍攝門檻**：目前旁白說明流程，不宣稱眼前已完成交易。正式實機 Demo 仍須提交 APK 真正成功完成打卡，且 Explorer 的錢包／cluster／交易一致。尚未錄到時只能配明示流程圖，不稱為真實成功操作。如剪短網路等待，加 `Wait time shortened`，保留前後因果。不要將錢包彈窗上的個人訊息或健康摘要之外的敏感資料公開。
 
 ### 04｜1:29–2:03 · DISCOVER WILD GUARDIANS
 
@@ -137,3 +137,14 @@ ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:no
 > NeonShift connects daily movement, wildlife-inspired progression, and event participation on Solana Mobile. This demo includes a Solana devnet clock-in and an event prototype. Test tokens have no monetary value. Local conservation pilots and paid partnerships are planned. AI-generated narration; product footage and prototype labels identify the demo context. APK, source code, and reviewer guide: [replace with published links before submission].
 
 上段的 devnet 宣稱只在第 03 段證據完成後使用；AI 配音使用與揭露依本屆完整規則再核對。不要發布括號佔位文字。最終版本、聲線／模型、成片時長、交易、APK 與 URL 統一登錄 [提交追蹤](clock-in-submission.md#9-最終交付登錄)。
+
+## 7. 2026-09-19 文件 review：依目前開發調整拍攝
+
+- 第 1、2 段改錄目前提交 APK；9/14 首頁與 Gear 圖僅為早期素材，不能代表最新功能。第 2 段依「模式／目標 → GPS 就緒 → 開始記錄 → 完成保存 → 查看成長」剪輯；可預錄並標示，不需把整次運動塞進 25 秒。
+- 最新未同步清單與登入後重試可用 2–3 秒畫面呈現，英文短標 `Save on your phone. Sync when ready.`；操作鎖及定位提示可放大，但不在旁白堆診斷數字。
+- 切入第 3 段前加 `Daily claims require qualifying Health Connect data.`，不將 GPS 運動完成等同健康打卡資格。
+- 第 4 段優先「揭曉 → 鞋面 → 物種故事」，仍保留 Demo／準備帳號標示。若加入收藏成果，只選一項已驗收的 PB／首次章／活動章，替換既有鏡頭，不增加頁數。
+- 提交版本若啟用維持制度，補 `Active level / Highest achieved`；免費升級不等同永久保級。若尚未部署，不展示為現有功能。
+- 活動雙角色未通過驗收時維持 workflow preview，可縮短至 16 秒，將 10 秒移給第 2 段（第 2 段結束 0:53、第 3 段結束 1:39、第 4 段結束 2:13、第 5 段仍結束 2:29）；採替代剪輯前須同步所有分鏡時間。
+- 操作鏡頭以手機內容為主畫面，避免整段只看小手機截圖。第 6 段片尾主畫面優先品牌與下一步；商業規劃細節留說明文件，配音若修改須同步所有副本。
+- 官方規則、APK、鏈上升級及實機驗收狀態不因本次文件修改而變更。

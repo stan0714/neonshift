@@ -105,3 +105,7 @@ Preserve the distinction between the working demo and planned partnerships.
 - V3：[Microsoft — SSML document structure](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-synthesis-markup-structure)
 - V4：[Microsoft — SSML pronunciation](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-synthesis-markup-pronunciation)
 - V5：[Microsoft — SSML voice and sound](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-synthesis-markup-voice)
+
+## 2026-09-19 配音版本同步
+
+正式配音唯一文字來源為 [demo-voiceover-en.txt](demo-voiceover-en.txt)，目前六段共 286 字（空白分詞）。投影片包 voiceover-en.txt 為一致副本；第 3 段改為流程介紹，不使用尚無實錄佐證的 “Here is a real clock-in”。本指南先前聲線試聽短文僅為內部測試，不可拼入正式配音。改稿須同步 Demo 分鏡、投影片 JSON、建置來源與 PPTX 備忘稿後再配音。

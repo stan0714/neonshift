@@ -256,3 +256,7 @@ Our direction is simple: move for yourself, move together for nature. We plan to
 
 最後至少靜止 2 秒。正式發布 APK、原始碼與評審指南後，才在影片說明欄與片尾加可點連結／QR。現有投影片不放未發布連結或佔位網址；尚無已確認合作、捐款或減碳實績。
 
+
+## 2026-09-19 補充製作指示
+
+逐頁旁白維持已審定版本；實機鏡頭、GPS／Health Connect 分界、Active／Highest 說明及活動縮時備案，統一依 [production-plan.md](production-plan.md#2026-09-19-review-決策)。此處描述的是下一輪拍攝，不代表目前圖像已換新。

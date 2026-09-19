@@ -42,6 +42,6 @@
 
 ## 參賽展示補充（2026-09-18）
 
-短版參賽 Pitch 應保留一頁「日常運動 → 活動報名／報到 → 權益／成績／收藏 → 回訪」，並標示已實作、待實機與未來規劃。可取募資版第 5 頁、第 13–15 頁與第 16–22 頁的精簡內容；不宣稱已另產出短版投影片。片尾、Pitch 與 README 共用 [評審指南](judges-guide.md)，活動細節見 [展示手冊](event-demo-playbook.md)，拍攝依 [Demo v3](demo-video.md)：英文六段，目標 2:50、上限 3:00。
+短版參賽 Pitch 應保留一頁「日常運動 → 活動報名／報到 → 權益／成績／收藏 → 回訪」，並標示已實作、待實機與未來規劃。可取募資版第 5 頁、第 13–15 頁與第 16–22 頁的精簡內容；2026-09-19 已核對：另有 [6 頁英文參賽簡報包](../../output/hackathon-flexclip-en/README.md)，含 PPTX／PDF／1080p 圖片與分鏡；不是已完成實機影片。片尾、Pitch 與 README 共用 [評審指南](judges-guide.md)，活動細節見 [展示手冊](event-demo-playbook.md)，拍攝依 [Demo v3](demo-video.md)：英文六段，目標 2:50、上限 3:00。
 
 2026-09-18 已更新 v3 募資稿與 [永續研究](../sustainability-direction.md)，共同主張為「為自己而動，為棲地同行」。影片的 “Move for yourself. Move together for nature.” 承接同一方向；保育試辦與付費合作仍為規劃。

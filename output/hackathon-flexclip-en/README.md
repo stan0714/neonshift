@@ -42,3 +42,7 @@ python3 -m venv /tmp/neonshift-deck-venv
 ```
 
 以上在本資料夾執行。重建會覆寫簡報、配套視覺、JSON 與純英文旁白；如手改 PPTX，請另存新檔。storyboard.md 與 production-plan.md 為審定製作文件；改稿後需同步檢查。
+
+## 2026-09-19 文件 Review
+
+配音唯一來源為 [正式英文稿](../../docs/store/demo-voiceover-en.txt)，本包純稿及 PPTX 備忘稿均已核對一致（286 字）。最新開發對應的拍攝調整見 [production-plan.md](production-plan.md#2026-09-19-review-決策)。簡報中的早期圖與流程圖仍待實機替換，本次僅更新文件與交付登錄，不假裝已拍攝。
