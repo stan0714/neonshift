@@ -20,14 +20,14 @@
 
 ## 2. 六段時間軸與剪輯預算
 
-全稿 **286 個英文單字**，連字詞算一字；125–135 words per minute 的純朗讀估計約 127–137 秒，剩餘約 33–43 秒供停頓與操作證據。這是算術估計，不是已合成音訊的實測。
+全稿 **280 個英文單字**，連字詞算一字；125–135 words per minute 的純朗讀估計約 124–134 秒，剩餘約 36–46 秒供停頓與操作證據。這是算術估計，不是已合成音訊的實測。
 
 | 段落／英文章節標題 | 成片區間 | 字數 | 單段音檔上限（含停頓） | 畫面與剪輯 |
 |---|---|---:|---:|---|
 | 01 · MOVE WITH PURPOSE | 0:00–0:18 | 35 | 17 秒 | 戶外起步 2–3 秒 → 手持 Seeker → 英文首頁；用產品畫面建立問題與定位 |
-| 02 · SEE YOUR PROGRESS | 0:18–0:43 | 42 | 22 秒 | 預先錄製的配速／運動摘要 → 每日目標 → 原點跑鞋與等級進度；結尾留畫面閱讀 |
+| 02 · SEE YOUR PROGRESS | 0:18–0:43 | 39 | 22 秒 | Activity 月總覽／詳情設計 → 可選連網同步 → 17→18→19；全段標 DESIGN PREVIEW |
 | 03 · VERIFY A MILESTONE | 0:43–1:29 | 69 | 38 秒 | Health Connect 任務摘要 → 打卡 → 實際錢包授權／簽署 → 成功 → 同筆 Explorer；保留約 8 秒操作空間 |
-| 04 · DISCOVER WILD GUARDIANS | 1:29–2:03 | 57 | 29 秒 | 已解鎖動物鞋 → 鞋面細節 → 物種故事與可採取行動；最多展示兩種，留約 5 秒讀故事 |
+| 04 · DISCOVER WILD GUARDIANS | 1:29–2:03 | 54 | 29 秒 | 已取得鞋款選擇 → 森林／海洋背景 → 關閉背景；保留 DESIGN PREVIEW 與外觀不改資格說明 |
 | 05 · CONNECT WITH COMMUNITY | 2:03–2:29 | 45 | 23 秒 | 測試活動詳情 → 報名 → 參加者代碼／staff 輸入並排 → 狀態；未驗收則用明示流程示意 |
 | 06 · BUILD WHAT COMES NEXT | 2:29–2:50 | 38 | 19 秒 | `NEXT: LOCAL PILOTS` → 已有產品／下一步分欄 → 主張與評審入口；末尾至少 2 秒靜止 |
 
@@ -49,11 +49,11 @@
 
 **English voiceover**
 
-> Start with a walk or a run. Follow your pace, complete daily goals, and build your progress over time. Your starter shoes and level upgrades are free. Each session adds to a journey you can see, rather than another number to forget.
+> Start with a walk or a run. Our next design adds a personal Activity journal with monthly views and workout details. Choose automatic sync when online, with saved workouts processed oldest first. Starter shoes and level upgrades remain free.
 
-**中文意涵**：從健走或跑步開始，看見配速、完成每日目標、逐步累積成長。初始鞋與升級免費，每次運動都成為個人歷程的一部分。
+**中文意涵**：新增設計將提供 Activity 月總覽與單次詳情，使用者可選連網自動同步，依運動時間由舊到新處理。初始鞋與升級維持免費。
 
-**畫面文字**：`Free starter shoes · Free level upgrades`。使用先前運動錄影時加 `Previously recorded workout`；配速超越的是「本次平均」就不得改寫成歷史最佳。GPS 運動頁與 Health Connect 任務驗證分開切鏡，避免暗示 GPS 軌跡就是申領依據。
+**畫面文字**：`DESIGN PREVIEW`、`Activity`、`Auto-sync when online: OFF / ON`、`Oldest workout first`。示例資料顯示 17→18→19，同步不等於打卡或自動錢包簽署。
 
 ### 03｜0:43–1:29 · VERIFY A MILESTONE
 
@@ -71,11 +71,11 @@
 
 **English voiceover**
 
-> As you level up, discover Wild Guardians: shoes inspired by threatened wildlife, from the Asian elephant to the hawksbill turtle. Each design introduces an animal, the pressures on its habitat, and a small action you can take. These personal finishes are cosmetic. They connect your progress with a story worth remembering, and a world worth caring about.
+> As you level up, discover Wild Guardians, inspired by threatened wildlife. Our next design lets you switch between shoes you have earned, with matching forest or ocean backgrounds. Prefer a simpler view? Turn the background off. These choices are cosmetic; your active level still controls eligibility. Each shoe connects your progress with conservation learning.
 
-**中文意涵**：升階時認識荒野守護鞋款，以亞洲象與玳瑁為例，理解動物、棲地壓力與小行動。個人細節款是外觀，用故事讓成長值得記住。
+**中文意涵**：新增設計可切換已取得跑鞋，連動森林／海洋背景，也可關閉背景。這些選擇只改外觀，有效等級仍決定資格；鞋款持續連結保育學習。
 
-**畫面文字**：`Wild Guardians`、`Cosmetic shoe finishes`、`Learn about habitats`。若沒有真實升階素材，拍已解鎖鞋款詳情；試拆畫面加 `DEMO PREVIEW`，切帳號加 `Prepared demo account`。不要稱為隨機 NFT、付費抽獎或保育收益權。鞋款細節與鏈上紀念 NFT 分開，這 34 秒不額外塞 NFT 鑄造流程。
+**畫面文字**：`DESIGN PREVIEW`、`Switch earned shoes`、`Background ON / OFF`、`Cosmetic only`。以既有鞋圖說明待實作互動，不冒充實機。不稱隨機 NFT、付費抽獎或保育收益權。
 
 ### 05｜2:03–2:29 · CONNECT WITH COMMUNITY
 
@@ -148,3 +148,8 @@ ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:no
 - 活動雙角色未通過驗收時維持 workflow preview，可縮短至 16 秒，將 10 秒移給第 2 段（第 2 段結束 0:53、第 3 段結束 1:39、第 4 段結束 2:13、第 5 段仍結束 2:29）；採替代剪輯前須同步所有分鏡時間。
 - 操作鏡頭以手機內容為主畫面，避免整段只看小手機截圖。第 6 段片尾主畫面優先品牌與下一步；商業規劃細節留說明文件，配音若修改須同步所有副本。
 - 官方規則、APK、鏈上升級及實機驗收狀態不因本次文件修改而變更。
+
+
+## 2026-09-19 新需求改稿（優先於前述舊拍攝註記）
+
+第 2 段改為 Activity 與自選連網同步，第 4 段補多鞋切換及可關閉背景；旁白明說 next design。這些互動待實作，不能以現有清單／鞋圖宣稱驗收完成。月曆、三筆舊到新同步、兩鞋背景切換與關閉需後續實錄；目前以標示 DESIGN PREVIEW 的簡報呈現。原時間配置維持 2:50 目標，音檔須重新生成並量測。

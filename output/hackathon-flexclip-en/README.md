@@ -1,6 +1,6 @@
 # NeonShift｜英文黑客松影片投影片包
 
-建立日期：2026-09-18。獨立製作資料夾；未修改 App 或既有募資簡報。
+建立日期：2026-09-18；更新：2026-09-19。本次更新第 2、4 頁設計預覽與配套輸出，App 新需求待實作；中文募資稿同步另存 v4。
 
 ## 交付內容
 
@@ -31,7 +31,7 @@
 
 已產出投影片、PDF、1080p 圖片、旁白文字與規劃文件。未生成語音、錄製 App、製作最終影片或完成提交 APK 驗收。時間表是剪輯目標，非實測片長；上限 3 分鐘沿用本次製作方向，不宣稱為已查核的賽事官方限制。
 
-舊實機圖已標 EARLY BUILD／EARLY GEAR UI；第 3、5 頁為明示流程示意；第 4 頁為鞋款設計素材。所有計畫中的試辦與合作均使用 planned／next，不暗示已營運。
+第 1 頁早期實機圖標 EARLY BUILD；第 2 頁為 Activity／有序同步設計預覽，第 4 頁為多鞋切換與可關閉背景設計；第 3、5 頁為流程示意。所有計畫中的試辦與合作均使用 planned／next，不暗示已營運。
 
 ## 重建
 
@@ -41,8 +41,11 @@ python3 -m venv /tmp/neonshift-deck-venv
 /tmp/neonshift-deck-venv/bin/python build_deck.py
 ```
 
-以上在本資料夾執行。重建會覆寫簡報、配套視覺、JSON 與純英文旁白；如手改 PPTX，請另存新檔。storyboard.md 與 production-plan.md 為審定製作文件；改稿後需同步檢查。
+以上在本資料夾執行。重建會覆寫簡報、配套視覺、JSON 與純英文旁白；如手改 PPTX，請另存新檔。storyboard.md 由生成器同步；production-plan.md 為製作文件，改稿後需同步檢查。
 
 ## 2026-09-19 文件 Review
 
-配音唯一來源為 [正式英文稿](../../docs/store/demo-voiceover-en.txt)，本包純稿及 PPTX 備忘稿均已核對一致（286 字）。最新開發對應的拍攝調整見 [production-plan.md](production-plan.md#2026-09-19-review-決策)。簡報中的早期圖與流程圖仍待實機替換，本次僅更新文件與交付登錄，不假裝已拍攝。
+配音唯一來源為 [正式英文稿](../../docs/store/demo-voiceover-en.txt)，本包純稿及 PPTX 備忘稿均已核對一致（280 字；09-19 新需求修訂）。最新開發對應的拍攝調整見 [production-plan.md](production-plan.md#2026-09-19-review-決策)。簡報中的早期圖與流程圖仍待實機替換，本次僅更新文件與交付登錄，不假裝已拍攝。
+
+
+新增需求：[跑鞋／同步／Activity 設計](../../docs/shoe-sync-activity.md)。第 2 頁示例三筆紀錄為測試文案，不是真實運動資料；預設自動同步關閉，開啟後依運動時間由舊到新。第 4 頁選擇已取得鞋款，背景可關閉且不改有效等級。

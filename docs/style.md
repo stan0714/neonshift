@@ -1042,3 +1042,10 @@ ShoeStory 加入三處設計導覽：後跟／鞋面／鞋底。選取區塊以�
 ## 2026-09-19 共同棲地彩蛋
 
 GuardianMilestone 使用版本化族群參考與 finalized 領取數進度；嚴格超過才顯示場景入口。GuardianScene 以靜態棲地 SVG、動物剪影與 1.8 秒淡入營造共同解鎖，Reduce Motion 靜態呈現；關閉與邀請按鈕固定在安全區內。Demo、網路、象徵光點、教育用途均可見；不強制分享或中斷跑步。詳見 [設計／來源／邀請方案](design/guardian-milestone.md)。
+
+
+## 2026-09-19：跑鞋連動、同步與 Activity
+
+新增 Gear 鞋款選擇與背景開關、Profile 資料與同步、Activity 月總覽／月曆／清單／詳情。靜態場景、內容不透明、減少動態與狀態文案依專章。
+
+完整需求、畫面、資料契約及驗收以 [整合設計](./shoe-sync-activity.md) 為準。

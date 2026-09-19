@@ -55,7 +55,8 @@ flowchart LR
 | 文件 | 用途 |
 |---|---|
 | [永續研究與共同方向](docs/sustainability-direction.md) | 運動 × 保育 × Solana、營運模式、成果驗證與 90 天試辦提案 |
-| [中文募資簡報 v3](output/fundraising/NeonShift_募資簡報_中文草稿_v3.pptx)／[網頁預覽](output/fundraising/preview.html) | 2026-09-18 更新永續與保育方向；含講稿與來源，策略與數值待驗證 |
+| [中文募資簡報 v4](output/fundraising/NeonShift_募資簡報_中文草稿_v4.pptx)／[網頁預覽](output/fundraising/preview.html) | 2026-09-19 新增跑鞋連動、同步與 Activity 設計；含永續方向、講稿與來源，策略與數值待驗證 |
+| [跑鞋連動、同步與 Activity 設計](docs/shoe-sync-activity.md) | 2026-09-19：多鞋切換、背景開關、舊到新同步及私人運動日誌（待實作） |
 | `docs/brd-detailed.md` | 業務需求 |
 | `docs/sa.md` | 系統分析（業務規則 BR-*） |
 | `docs/sd.md` | 系統設計（帳戶、指令、API、結算協議、藝廊） |

@@ -13,6 +13,8 @@ BG='070B16'; PANEL='111A2B'; WHITE='F3F7FF'; MUTED='A8B6CF'; MINT='35E5C5'; PURP
 FONT_DIR=Path('/System/Library/Fonts/Supplemental')
 prs=Presentation(); prs.slide_width=Inches(13.333333); prs.slide_height=Inches(7.5)
 slides=[]; images=[]; manifest=[]
+NARRATION=(OUT.parents[1]/'docs/store/demo-voiceover-en.txt').read_text().strip().split('\n\n')
+assert len(NARRATION)==6
 
 def font(size,bold=False):
     path=FONT_DIR/('Arial Bold.ttf' if bold else 'Arial.ttf')
@@ -51,6 +53,7 @@ def start(n,kicker):
     txt(f'{n:02d} / 06',1720,1028,160,22,MINT,True)
 
 def finish(n,title,time,vo,note):
+    assert vo == NARRATION[n-1], f'Narration mismatch on slide {n}'
     s.notes_slide.notes_text_frame.text=f'{time}\n\nENGLISH VOICEOVER\n{vo}\n\nPRODUCTION NOTES\n{note}'
     path=OUT/'slides'/f'{n:02d}.png'; canvas.save(path); images.append(canvas.copy())
     manifest.append(dict(slide=n,title=title,time=time,voiceover=vo,production_notes=note,image=f'slides/{n:02d}.png'))
@@ -67,14 +70,23 @@ finish(1,'Move with purpose','0:00–0:18',
 '目前為 2026-09-14 早期實機截圖，含尚未配置鏈上程式的狀態；不是交易證據。正式影片以提交 APK 首頁錄影替換。前 2 秒可加戶外起步，包含在 18 秒內。')
 
 start(2,'SEE YOUR PROGRESS')
-txt('Every session\nmoves you forward.',80,175,1110,74,WHITE,True)
-for i,(a,b) in enumerate([('01  WALK OR RUN','Start with everyday movement.'),('02  COMPLETE DAILY GOALS','Build a habit you can see.'),('03  LEVEL UP YOUR SHOES','Free starter shoes. Free level upgrades.')]):
-    y=415+i*160; box(80,y,1120,138); txt(a,112,y+22,1050,29,MINT,True); txt(b,112,y+75,1050,32)
-box(1330,145,425,805); pic('gear.png',1350,160,385,735)
-txt('EARLY GEAR UI · SEP 14, 2026',1310,920,550,21,GOLD,True)
+txt('Your movement. Your history.',80,163,1760,72,WHITE,True)
+txt('NEXT DESIGN · ACTIVITY + OPTIONAL AUTO-SYNC',85,276,1730,27,GOLD,True)
+box(80,360,850,510)
+txt('ACTIVITY',112,390,780,34,MINT,True)
+txt('Month view · Filters · Workout details',112,454,780,31)
+for i,line in enumerate(['SEP 17   RUN     5.00 km   30:00','SEP 18   WALK    2.40 km   28:00','SEP 19   RUN     3.00 km   19:00']):
+    txt(line,112,548+i*83,780,30,MUTED)
+box(990,360,850,510)
+txt('AUTO-SYNC WHEN ONLINE',1022,390,780,32,MINT,True)
+txt('Your choice: OFF / ON',1022,454,780,34)
+txt('Oldest workout first',1022,552,780,39,WHITE,True)
+txt('SEP 17  >  SEP 18  >  SEP 19',1022,625,780,32,MINT)
+txt('Retry safely. Keep records in order.',1022,724,780,30,MUTED)
+txt('DESIGN PREVIEW · SAMPLE DATA · IMPLEMENTATION PENDING',85,918,1740,24,GOLD,True)
 finish(2,'See your progress','0:18–0:43',
-'Start with a walk or a run. Follow your pace, complete daily goals, and build your progress over time. Your starter shoes and level upgrades are free. Each session adds to a journey you can see, rather than another number to forget.',
-'右側為舊版 Gear UI，尚非 Wild Guardians 系列。正式影片替換為本次提交版本：運動頁 → 每日目標 → 等級進度。GPS 運動追蹤不等同 Health Connect 申領依據。')
+'Start with a walk or a run. Our next design adds a personal Activity journal with monthly views and workout details. Choose automatic sync when online, with saved workouts processed oldest first. Starter shoes and level upgrades remain free.',
+'設計預覽與示例資料，非實機。Activity 月份／篩選／詳情；連網自動同步預設關閉，開啟後依運動開始時間由舊到新。補拍 17→18→19 與較早失敗阻擋後續；不得把摘要同步當成 Health Connect 打卡或自動錢包簽署。')
 
 start(3,'VERIFY A MILESTONE')
 txt('Your milestone.\nAn onchain record.',80,165,1710,76,WHITE,True)
@@ -91,13 +103,13 @@ finish(3,'Verify a milestone','0:43–1:29',
 
 start(4,'DISCOVER WILD GUARDIANS')
 txt('Progress with a story.',80,163,1760,77,WHITE,True)
-txt('Wildlife-inspired shoes. Conservation learning.',85,278,1730,39,MUTED)
-for x,name,label,sub in [(80,'asian-elephant.png','ASIAN ELEPHANT','Learn about habitat fragmentation.'),(985,'hawksbill-turtle.png','HAWKSBILL TURTLE','Learn about threats to coastal habitats.')]:
+txt('NEXT DESIGN · SWITCH EARNED SHOES + MATCHING BACKGROUNDS',85,278,1730,27,GOLD,True)
+for x,name,label,sub in [(80,'asian-elephant.png','ASIAN ELEPHANT','Forest theme · Earned shoe selection'),(985,'hawksbill-turtle.png','HAWKSBILL TURTLE','Ocean theme · Background ON / OFF')]:
     box(x,376,855,484); pic(name,x+20,387,815,335); txt(label,x+32,744,790,34,MINT,True); txt(sub,x+32,801,800,28)
-txt('COSMETIC SHOE DESIGNS · DESIGN ASSETS, NOT DEVICE CAPTURES',85,904,1740,24,GOLD,True)
+txt('DESIGN PREVIEW · COSMETIC ONLY · ACTIVE LEVEL CONTROLS ELIGIBILITY',85,904,1740,24,GOLD,True)
 finish(4,'Discover Wild Guardians','1:29–2:03',
-'As you level up, discover Wild Guardians: shoes inspired by threatened wildlife, from the Asian elephant to the hawksbill turtle. Each design introduces an animal, the pressures on its habitat, and a small action you can take. These personal finishes are cosmetic. They connect your progress with a story worth remembering, and a world worth caring about.',
-'本頁使用專案既有設計圖。正式影片補已解鎖鞋款、鞋面特寫與物種故事卡；圖不可冒充實機。使用試拆時標 DEMO PREVIEW，切帳號標 Prepared demo account。不稱隨機 NFT、付費抽獎或保育收益權。')
+'As you level up, discover Wild Guardians, inspired by threatened wildlife. Our next design lets you switch between shoes you have earned, with matching forest or ocean backgrounds. Prefer a simpler view? Turn the background off. These choices are cosmetic; your active level still controls eligibility. Each shoe connects your progress with conservation learning.',
+'本頁使用專案既有鞋款素材；多鞋切換、森林／海洋背景與關閉開關為待實作設計。正式影片補切兩雙已取得鞋→關背景→故事卡；圖不可冒充實機。使用試拆時標 DEMO PREVIEW，切帳號標 Prepared demo account。不稱隨機 NFT、付費抽獎或保育收益權。')
 
 start(5,'CONNECT WITH COMMUNITY')
 txt('From daily movement\nto shared experiences.',80,158,1740,74,WHITE,True)
@@ -131,3 +143,10 @@ contact.save(OUT/'overview.jpg',quality=93)
 (OUT/'voiceover-en.txt').write_text('\n\n'.join(v['voiceover'] for v in manifest)+'\n')
 (OUT/'preview.html').write_text('<!doctype html><html lang="en"><meta charset="utf-8"><title>NeonShift — Hackathon</title><style>body{margin:0;background:#070b16;color:#a8b6cf;font:16px Arial}main{max-width:1280px;margin:auto}img{display:block;width:100%;margin:20px 0 8px}p{margin:0 0 32px}@media print{img{break-before:page;margin:0}p{display:none}@page{size:landscape;margin:0}}</style><main>'+''.join(f'<img src="{v["image"]}" alt="{escape(v["title"])}"><p>{v["slide"]:02d} / {v["time"]} — {escape(v["title"])}</p>' for v in manifest)+'</main></html>')
 print('Built 6 slides, PPTX, PDF, PNGs, preview, overview, narration, and manifest.')
+
+# Keep review storyboard in sync with slide text and canonical narration.
+sections=['# NeonShift｜逐頁英文文案與中文分鏡\n\n2026-09-19 更新；第 2、4 頁新增設計預覽，尚待實作。']
+for slide_obj, item in zip(prs.slides, manifest):
+    visible='\n\n'.join('\n'.join('> '+line for line in sh.text.splitlines()) for sh in slide_obj.shapes if sh.has_text_frame and sh.text.strip())
+    sections.append(f"## {item['slide']:02d}｜{item['title']}｜{item['time']}\n\n### 投影片畫面文字\n\n{visible}\n\n### English voiceover\n\n{item['voiceover']}\n\n### 中文分鏡與製作註記\n\n{item['production_notes']}")
+(OUT/'storyboard.md').write_text('\n\n'.join(sections)+'\n')

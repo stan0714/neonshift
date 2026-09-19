@@ -53,7 +53,7 @@ def slide(title,kicker='投資人簡報草稿',sub=None,source=None):
  text(s,'NEONSHIFT  /  '+kicker,.72,.32,11,.35,11,MINT,True)
  text(s,title,.72,.93,11.9,.78,30,WHITE,True)
  if sub: text(s,sub,.74,1.83,11.7,.7,16,MUTED)
- text(s,'募資討論稿・2026.09.18｜永續策略／商業與數值假設待驗證',.74,7.07,10,.22,9,MUTED)
+ text(s,'募資討論稿・2026.09.19｜永續策略／商業與數值假設待驗證',.74,7.07,10,.22,9,MUTED)
  text(s,'%02d'%len(prs.slides),12.02,7.03,.5,.3,12,MINT)
  if source:
   title_,url=SOURCES[source]; text(s,source+'｜'+title_,.74,6.7,11.7,.25,9,MUTED,url=url)
@@ -175,6 +175,11 @@ for i,(key,(label,url)) in enumerate(WILDLIFE_SOURCES.items()):
 text(s,'保育資料查核：2026.09.17；目前沒有已成立的保育合作、捐款或聯名。',.8,6.68,11.6,.27,11,MUTED)
 finish(s,'保育教育與系列路線','已完成 App 故事卡、來源連結及系列識別；聯名發行、系列切換、NFT 獨立款式 metadata 尚未實作。現在的共用 kind URI 無法表示每個錢包的獨立款式，需先完成每資產權威紀錄。保育行動為教育建議，不表示 WWF 授權或合作；未承諾任何捐款。未來衡量故事閱讀、來源開啟與回訪，尚無實績。\n'+'\n'.join(k+' '+v[0]+' '+v[1] for k,v in WILDLIFE_SOURCES.items()))
 
+s=slide('讓每次運動，連回自己的成長',kicker='新增產品設計｜待實作',sub='跑鞋外觀、同步選擇與私人運動日誌，形成持續回顧的理由。')
+cards(s,[('跑鞋 × 棲地背景','已取得跑鞋自由切換\n森林／海洋等主題連動\n背景可關閉、記住偏好\n外觀不改有效等級'),('連網 × 自主同步','自動同步預設關閉\n按運動時間由舊到新\n較早失敗先處理再續傳\n晚到紀錄重算、避免重複'),('Activity × 個人回顧','月曆／清單與月份總覽\n跑步、健走與散步篩選\n單次詳情、分段與來源\n離線可看本機紀錄')],y=2.65,h=3.7)
+text(s,'設計預覽｜既有清單／手動同步需擴充；新增開關、有序佇列與外觀切換尚待實作。',.8,6.55,11.65,.35,12,AMBER)
+finish(s,'跑鞋連動、同步與 Activity','2026-09-19 新增設計，完整規格見 docs/shoe-sync-activity.md。已取得外觀可切換並連動背景；正常降級不收回外觀，但倍率與成就資格仍依 Active level。自動同步採 opt-in，所有入口共用由舊到新佇列；失敗阻擋後續、晚到或更正需重算。私人日誌合併本機與遠端去重，雲端保留不默默延長；原始 GPS 留本機。不宣稱新設計已通過 APK 驗收或帶來留存成果。')
+
 sustainability=json.loads((OUT/'sustainability_slides.json').read_text(encoding='utf-8'))
 for item in sustainability['slides']:
  s=slide(item['title'],kicker=item['kicker'],sub=item['sub'])
@@ -258,9 +263,9 @@ for s in prs.slides:
 prs.core_properties.title='NeonShift 中文募資簡報｜討論草稿'
 prs.core_properties.subject='為自己而動，為棲地同行｜Solana、永續營運與保育合作'
 prs.core_properties.author='NeonShift'
-target=OUT/'NeonShift_募資簡報_中文草稿_v3.pptx'; prs.save(str(target))
+target=OUT/'NeonShift_募資簡報_中文草稿_v4.pptx'; prs.save(str(target))
 css='body{margin:0;background:#151925;font-family:"Microsoft JhengHei","PingFang TC",sans-serif}section{width:13.333in;height:7.5in;position:relative;background:#050711;margin:24px auto;overflow:hidden;box-shadow:0 4px 30px #000}section>*{position:absolute;box-sizing:border-box}.text{line-height:1.35;white-space:normal;overflow:hidden}.box{border-radius:12px}img{object-fit:fill}@media print{body{background:white}section{margin:0;page-break-after:always;box-shadow:none}@page{size:13.333in 7.5in;margin:0}}'
 (OUT/'preview.html').write_text('<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><title>NeonShift 中文募資草稿</title><style>'+css+'</style>'+''.join(html_slides)+'</html>',encoding='utf-8')
-(OUT/'講稿與資料來源.md').write_text('# NeonShift 中文募資簡報講稿\n\n2026-09-18。%d 頁，%d 頁主文＋4 頁附錄。可編輯文字／圖形；視覺稿為 PNG。\n\n新增永續研究見 [共同方向與研究](../../docs/sustainability-direction.md)。\n\n'%(len(prs.slides),len(prs.slides)-4)+ '\n\n'.join('## %02d｜%s\n\n%s'%(r['slide'],r['title'],r['notes']) for r in outline),encoding='utf-8')
+(OUT/'講稿與資料來源.md').write_text('# NeonShift 中文募資簡報講稿\n\n2026-09-19。%d 頁，%d 頁主文＋4 頁附錄。可編輯文字／圖形；視覺稿為 PNG。\n\n新增永續研究見 [共同方向與研究](../../docs/sustainability-direction.md)。\n\n'%(len(prs.slides),len(prs.slides)-4)+ '\n\n'.join('## %02d｜%s\n\n%s'%(r['slide'],r['title'],r['notes']) for r in outline),encoding='utf-8')
 (OUT/'sources.json').write_text(json.dumps(dict(SOURCES, **WILDLIFE_SOURCES, **sustainability['sources'], E1=('STEPN 官方，2022-05-10', 'https://stepnofficial.medium.com/tokeonomics-at-stepn-ee08604e82f1'), E2=('CoinDesk，2022-05-29', 'https://www.coindesk.com/markets/2022/05/29/first-mover-asia-bitcoin-extends-losing-streak-new-lunas-crash-like-old-lunas-stepns-china-dilemma'), E3=('NeonShift 九組庫存試算', 'docs/economics/stress.csv')),ensure_ascii=False,indent=2),encoding='utf-8')
 print('Saved %s slides: %s'%(len(prs.slides),target))

@@ -85,3 +85,10 @@ flowchart LR
 - 回報附 APK 版本、裝置／OS、功能入口、時間與 request ID（若有）；不要傳 access token、私鑰或原始健康資料。
 
 可查文件：[架構與建置](../../README.md)、[開發進度](../pg.md)、[活動展示手冊](event-demo-playbook.md)、[保育與系列設計](../design/wild-guardian-shoes.md)。
+
+
+## 2026-09-19：跑鞋連動、同步與 Activity
+
+新增三項設計為待實作：跑鞋／可關閉背景、有序自動同步、Activity 日誌。既有運動清單與手動同步不代表新需求已驗收；參賽簡報第 2、4 頁以 DESIGN PREVIEW 呈現。
+
+完整需求、畫面、資料契約及驗收以 [整合設計](../shoe-sync-activity.md) 為準。

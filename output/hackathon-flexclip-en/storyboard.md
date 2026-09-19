@@ -1,14 +1,12 @@
 # NeonShift｜逐頁英文文案與中文分鏡
 
-旁白共六段；只需配音文字時使用 voiceover-en.txt。標示為流程示意的頁面目前不提供真實操作證據。
+2026-09-19 更新；第 2、4 頁新增設計預覽，尚待實作。
 
 ## 01｜Move with purpose｜0:00–0:18
 
 ### 投影片畫面文字
 
 > NEONSHIFT  /  MOVE WITH PURPOSE
-
-> 
 
 > SOLANA MOBILE  /  HACKATHON PRODUCT INTRO
 
@@ -20,11 +18,11 @@
 > A fitness experience built
 > for Solana Mobile.
 
-> 
-
 > MOVE  /  LEVEL UP  /  DISCOVER
 
 > A reason to return, every day.
+
+> EARLY BUILD · SEP 14, 2026
 
 ### English voiceover
 
@@ -34,56 +32,55 @@ What keeps us moving after the first few days? NeonShift turns everyday movement
 
 目前為 2026-09-14 早期實機截圖，含尚未配置鏈上程式的狀態；不是交易證據。正式影片以提交 APK 首頁錄影替換。前 2 秒可加戶外起步，包含在 18 秒內。
 
-
 ## 02｜See your progress｜0:18–0:43
 
 ### 投影片畫面文字
 
 > NEONSHIFT  /  SEE YOUR PROGRESS
 
-> 
-
 > SOLANA MOBILE  /  HACKATHON PRODUCT INTRO
 
 > 02 / 06
 
-> Every session
-> moves you forward.
+> Your movement. Your history.
 
-> 
+> NEXT DESIGN · ACTIVITY + OPTIONAL AUTO-SYNC
 
-> 01  WALK OR RUN
+> ACTIVITY
 
-> Start with everyday movement.
+> Month view · Filters · Workout details
 
-> 
+> SEP 17   RUN     5.00 km   30:00
 
-> 02  COMPLETE DAILY GOALS
+> SEP 18   WALK    2.40 km   28:00
 
-> Build a habit you can see.
+> SEP 19   RUN     3.00 km   19:00
 
-> 
+> AUTO-SYNC WHEN ONLINE
 
-> 03  LEVEL UP YOUR SHOES
+> Your choice: OFF / ON
 
-> Free starter shoes. Free level upgrades.
+> Oldest workout first
+
+> SEP 17  >  SEP 18  >  SEP 19
+
+> Retry safely. Keep records in order.
+
+> DESIGN PREVIEW · SAMPLE DATA · IMPLEMENTATION PENDING
 
 ### English voiceover
 
-Start with a walk or a run. Follow your pace, complete daily goals, and build your progress over time. Your starter shoes and level upgrades are free. Each session adds to a journey you can see, rather than another number to forget.
+Start with a walk or a run. Our next design adds a personal Activity journal with monthly views and workout details. Choose automatic sync when online, with saved workouts processed oldest first. Starter shoes and level upgrades remain free.
 
 ### 中文分鏡與製作註記
 
-右側為舊版 Gear UI，尚非 Wild Guardians 系列。正式影片替換為本次提交版本：運動頁 → 每日目標 → 等級進度。GPS 運動追蹤不等同 Health Connect 申領依據。
-
+設計預覽與示例資料，非實機。Activity 月份／篩選／詳情；連網自動同步預設關閉，開啟後依運動開始時間由舊到新。補拍 17→18→19 與較早失敗阻擋後續；不得把摘要同步當成 Health Connect 打卡或自動錢包簽署。
 
 ## 03｜Verify a milestone｜0:43–1:29
 
 ### 投影片畫面文字
 
 > NEONSHIFT  /  VERIFY A MILESTONE
-
-> 
 
 > SOLANA MOBILE  /  HACKATHON PRODUCT INTRO
 
@@ -94,8 +91,6 @@ Start with a walk or a run. Follow your pace, complete daily goals, and build yo
 
 > Raw health records stay on your phone.
 
-> 
-
 > 01
 
 > HEALTH SUMMARY
@@ -104,8 +99,6 @@ Start with a walk or a run. Follow your pace, complete daily goals, and build yo
 > Connect
 
 > >
-
-> 
 
 > 02
 
@@ -116,8 +109,6 @@ Start with a walk or a run. Follow your pace, complete daily goals, and build yo
 
 > >
 
-> 
-
 > 03
 
 > WALLET APPROVAL
@@ -127,14 +118,16 @@ Start with a walk or a run. Follow your pace, complete daily goals, and build yo
 
 > >
 
-> 
-
 > 04
 
 > ONCHAIN CLAIM
 
 > View the transaction
 > on Solana devnet
+
+> WORKFLOW PREVIEW · DEVICE VALIDATION PENDING
+
+> tSKR: devnet test token · No monetary value · Not official SKR
 
 ### English voiceover
 
@@ -144,14 +137,11 @@ NeonShift connects qualifying daily activity with a claim on Solana devnet. An a
 
 本頁為流程圖，非已成功交易。正式影片以合格摘要 → 打卡 → 錢包確認 → 成功 → 同筆 Explorer 實錄覆蓋中間流程區。僅證據完成後改為 REAL DEVICE · DEVNET；縮短等待需標 Wait time shortened。
 
-
 ## 04｜Discover Wild Guardians｜1:29–2:03
 
 ### 投影片畫面文字
 
 > NEONSHIFT  /  DISCOVER WILD GUARDIANS
-
-> 
 
 > SOLANA MOBILE  /  HACKATHON PRODUCT INTRO
 
@@ -159,34 +149,31 @@ NeonShift connects qualifying daily activity with a claim on Solana devnet. An a
 
 > Progress with a story.
 
-> Wildlife-inspired shoes. Conservation learning.
-
-> 
+> NEXT DESIGN · SWITCH EARNED SHOES + MATCHING BACKGROUNDS
 
 > ASIAN ELEPHANT
 
-> Learn about habitat fragmentation.
-
-> 
+> Forest theme · Earned shoe selection
 
 > HAWKSBILL TURTLE
 
+> Ocean theme · Background ON / OFF
+
+> DESIGN PREVIEW · COSMETIC ONLY · ACTIVE LEVEL CONTROLS ELIGIBILITY
+
 ### English voiceover
 
-As you level up, discover Wild Guardians: shoes inspired by threatened wildlife, from the Asian elephant to the hawksbill turtle. Each design introduces an animal, the pressures on its habitat, and a small action you can take. These personal finishes are cosmetic. They connect your progress with a story worth remembering, and a world worth caring about.
+As you level up, discover Wild Guardians, inspired by threatened wildlife. Our next design lets you switch between shoes you have earned, with matching forest or ocean backgrounds. Prefer a simpler view? Turn the background off. These choices are cosmetic; your active level still controls eligibility. Each shoe connects your progress with conservation learning.
 
 ### 中文分鏡與製作註記
 
-本頁使用專案既有設計圖。正式影片補已解鎖鞋款、鞋面特寫與物種故事卡；圖不可冒充實機。使用試拆時標 DEMO PREVIEW，切帳號標 Prepared demo account。不稱隨機 NFT、付費抽獎或保育收益權。
-
+本頁使用專案既有鞋款素材；多鞋切換、森林／海洋背景與關閉開關為待實作設計。正式影片補切兩雙已取得鞋→關背景→故事卡；圖不可冒充實機。使用試拆時標 DEMO PREVIEW，切帳號標 Prepared demo account。不稱隨機 NFT、付費抽獎或保育收益權。
 
 ## 05｜Connect with community｜2:03–2:29
 
 ### 投影片畫面文字
 
 > NEONSHIFT  /  CONNECT WITH COMMUNITY
-
-> 
 
 > SOLANA MOBILE  /  HACKATHON PRODUCT INTRO
 
@@ -196,10 +183,6 @@ As you level up, discover Wild Guardians: shoes inspired by threatened wildlife,
 > to shared experiences.
 
 > EVENT PROTOTYPE · WORKFLOW PREVIEW
-
-> 
-
-> 
 
 > PARTICIPANT
 
@@ -211,6 +194,10 @@ As you level up, discover Wild Guardians: shoes inspired by threatened wildlife,
 > Enter the participant code
 > Confirm attendance
 
+> NEXT: local community and conservation pilots.
+
+> Device validation pending. Partnerships are planned.
+
 ### English voiceover
 
 The journey also reaches beyond solo exercise. This event prototype previews registration and staff-confirmed check-in. Participants show a code; authorized staff confirm attendance. Event participation connects back to your personal journey. Our next step is to test this experience with local communities and conservation partners.
@@ -219,14 +206,11 @@ The journey also reaches beyond solo exercise. This event prototype previews reg
 
 雙角色流程示意。完成提交 APK 端到端驗收後替換為報名 → 出示代碼 → 授權 staff 輸入 → 狀態確認，保留 TEST DATA 標示。不可改成 staff 相機掃碼或暗示 NFC 為出席證明；活動報到不等同每日鏈上打卡。
 
-
 ## 06｜Build what comes next｜2:29–2:50
 
 ### 投影片畫面文字
 
 > NEONSHIFT  /  BUILD WHAT COMES NEXT
-
-> 
 
 > SOLANA MOBILE  /  HACKATHON PRODUCT INTRO
 
@@ -237,16 +221,17 @@ The journey also reaches beyond solo exercise. This event prototype previews reg
 > Move together
 > for nature.
 
-> 
-
-> 
-
 > THE EXPERIENCE
 
 > Movement · Progress
 > Conservation learning
 
 > NEXT: LOCAL PILOTS
+
+> Planned: paid event services
+> Separate conservation reporting
+
+> NEONSHIFT
 
 ### English voiceover
 
@@ -255,8 +240,3 @@ Our direction is simple: move for yourself, move together for nature. We plan to
 ### 中文分鏡與製作註記
 
 最後至少靜止 2 秒。正式發布 APK、原始碼與評審指南後，才在影片說明欄與片尾加可點連結／QR。現有投影片不放未發布連結或佔位網址；尚無已確認合作、捐款或減碳實績。
-
-
-## 2026-09-19 補充製作指示
-
-逐頁旁白維持已審定版本；實機鏡頭、GPS／Health Connect 分界、Active／Highest 說明及活動縮時備案，統一依 [production-plan.md](production-plan.md#2026-09-19-review-決策)。此處描述的是下一輪拍攝，不代表目前圖像已換新。

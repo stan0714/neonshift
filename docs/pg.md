@@ -817,3 +817,18 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 |---|---|---|
 | Demo v3 英文主片、評審入口、活動參與手冊 | WIP | [主影片分鏡](store/demo-video.md)、[評審指南](store/judges-guide.md)、[活動手冊](store/event-demo-playbook.md)；2026-09-18：六段英文稿 288 字、2:50 目標／3:00 上限與 AI 配音指南；待語音試聽、錄影、fixture 與實機驗收 |
 | 拆盒蓄能、獨立盒蓋、守護剪影、跳過與背景停止 | WIP | UnboxStage／WildlifeSilhouette；待 Android 真機確認剪影辨識、遮擋、幀率與震動強度 |
+
+
+## 22. 跑鞋連動、有序同步與 Activity（2026-09-19）
+
+設計見 [整合規格](shoe-sync-activity.md)。本次完成文件及簡報，不標記 App DONE。
+
+| ID | 工作 | 狀態 | 驗收 |
+|---|---|---|---|
+| PG-LINK-01 | 多鞋選擇與可關閉場景 | TODO | 取得資格、降級外觀、持久化與換帳號隔離 |
+| PG-LINK-02 | opt-in 自動同步與統一佇列 | TODO | 全入口同鎖、舊到新、重試／幂等、關閉不發新請求 |
+| PG-LINK-03 | 晚到、修正、刪除重算 | TODO | PB／首次章／等級歷史、跨裝置、tombstone |
+| PG-LINK-04 | Activity 月曆、篩選與詳情 | TODO | 本機遠端合併、分頁、缺值、離線與保留範圍 |
+| PG-LINK-05 | 實機驗收與 Demo 素材 | TODO | 三條新流程實錄；目前簡報為設計預覽 |
+
+新增工期與負責人待排，與 PG-R／V／WILD 既有基礎整合，不重複計完成度。
