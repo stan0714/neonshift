@@ -50,6 +50,53 @@ describe('PG-A-07 ApiClient', () => {
     expect(await api.hasSession()).toBe(true);
   });
 
+  test('signIn 實機：簽完 verify 遇網路錯誤 → 短暫重試；仍失敗保留已簽訊息，下次 signIn 不再開錢包直接 verify；非網路錯誤則重新走完整流程', async () => {
+    jest.useFakeTimers();
+    try {
+      let verifyMode: 'down' | 'ok' | 'bad' = 'down';
+      const { f, calls } = fakeFetch((c) => {
+        if (c.url.endsWith('/auth/nonce')) return { status: 200, body: { nonce: 'n', request_id: 'r', issued_at: 'i', expires_at: new Date(1_000_000 + 300_000).toISOString(), message: 'msg-1' } };
+        if (c.url.endsWith('/auth/verify')) {
+          if (verifyMode === 'down') throw new TypeError('fetch failed: UnknownHostException');
+          if (verifyMode === 'bad') return { status: 401, body: { error: { code: 'NONCE_EXPIRED', message: 'x' } } };
+          return { status: 200, body: { wallet: 'W', access_token: 'A', token_type: 'Bearer', expires_in: 900, refresh_token: 'R', refresh_expires_in: 86400 } };
+        }
+        return { status: 404 };
+      });
+      const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+      const signer = jest.fn(async () => Buffer.alloc(64, 9));
+      const first = api.signIn('W', signer);
+      const settle = expect(first).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
+      await jest.advanceTimersByTimeAsync(10_000); // 1.5 s＋3 s 重試
+      await settle;
+      expect(calls.filter((c) => c.url.endsWith('/auth/verify'))).toHaveLength(3);
+      expect(signer).toHaveBeenCalledTimes(1);
+      expect(api.hasPendingSignIn('W')).toBe(true);
+      // 網路恢復：不取 nonce、不再簽，直接 verify 成功
+      verifyMode = 'ok';
+      const pair = await api.signIn('W', signer);
+      expect(pair.access_token).toBe('A');
+      expect(signer).toHaveBeenCalledTimes(1);
+      expect(calls.filter((c) => c.url.endsWith('/auth/nonce'))).toHaveLength(1);
+      expect(api.hasPendingSignIn('W')).toBe(false);
+      // 非網路錯誤（nonce 過期）：清掉保留，下一次重新取 nonce 並簽
+      verifyMode = 'down';
+      const second = api.signIn('W', signer);
+      const settle2 = expect(second).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
+      await jest.advanceTimersByTimeAsync(10_000);
+      await settle2;
+      expect(signer).toHaveBeenCalledTimes(2);
+      verifyMode = 'bad';
+      await expect(api.signIn('W', signer)).rejects.toMatchObject({ code: 'NONCE_EXPIRED' });
+      expect(api.hasPendingSignIn('W')).toBe(false);
+      verifyMode = 'ok';
+      await api.signIn('W', signer);
+      expect(signer).toHaveBeenCalledTimes(3);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   test('帶 Bearer；401 UNAUTHORIZED 時 refresh 一次並重試；refresh 失敗清 session', async () => {
     let refreshed = 0;
     const { f, calls } = fakeFetch((c) => {

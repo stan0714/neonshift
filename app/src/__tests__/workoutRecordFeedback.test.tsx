@@ -50,6 +50,13 @@ test('review 9：精簡模式下 GPS 有狀況時診斷列自動出現', async (
   expect(screen.getByTestId('record-gps-diag').props.children).toContain('35');
 });
 
+test('實機：看門狗重啟／備援定位時診斷列自動出現並標示', async () => {
+  await show({ gps: 'searching', fixes: 0, accepted: 0, lastAccuracyM: null, gpsRestarts: 1, gpsFallback: true });
+  const text = screen.getByTestId('record-gps-diag').props.children as string;
+  expect(text).toContain('GPS auto-restarted ×1');
+  expect(text).toContain('fallback GPS on');
+});
+
 test('review 3：配速過期 → 主數字 —、顯示「定位恢復中」、距離照常', async () => {
   await show({ paceStale: true, currentPaceSPerKm: null, currentSpeedMs: null, gps: 'poor', lastAccuracyM: 90 });
   expect(screen.getByTestId('record-primary').props.children).toBe('—');

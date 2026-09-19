@@ -30,6 +30,10 @@ export class ApiError extends Error {
 type Tokens = { accessToken: string; refreshToken: string; accessExpiresAt: number; wallet: string };
 const STORE_KEY = 'neonshift.api.tokens.v1';
 
+/** 登入 verify 的網路錯誤重試間隔（ms）；已簽訊息可重用到 nonce 到期前 `SIGNIN_REUSE_MARGIN_MS` */
+export const SIGNIN_VERIFY_RETRY_MS = [1_500, 3_000] as const;
+export const SIGNIN_REUSE_MARGIN_MS = 15_000;
+const SIGNIN_DEFAULT_TTL_MS = 5 * 60_000;
 export type NonceResponse = { nonce: string; request_id: string; issued_at: string; expires_at: string; message: string };
 export type TokenPair = { wallet: string; access_token: string; token_type: 'Bearer'; expires_in: number; refresh_token: string; refresh_expires_in: number };
 export type ChallengeResponse = { challenge_b64: string; expires_at: number; purpose: string };
@@ -208,11 +212,44 @@ export class ApiClient {
    * 讓「連線錢包」與「後端登入」一次完成，之後競技場／藝廊／活動不再要求登入（token 會續期）。
    */
   async signIn(wallet: string, signer: (message: Uint8Array) => Promise<Uint8Array> = (m) => walletService.signMessage(m)): Promise<TokenPair> {
-    const n = await this.request<NonceResponse>('POST', '/auth/nonce', { wallet }, { auth: false });
-    const sig = await signer(new TextEncoder().encode(n.message));
-    const pair = await this.request<TokenPair>('POST', '/auth/verify', { message: n.message, signature_b64: Buffer.from(sig).toString('base64') }, { auth: false });
+    // 實機回饋：熱點斷斷續續時，錢包簽完 verify 卻因 DNS／離線失敗，畫面又要求再簽一次、永遠登不進去。
+    // 已簽好的 (message, signature) 在 nonce 有效期內可重用：verify 失敗（網路）先短暫重試，仍失敗就留著，下次 signIn 直接 verify、不再開錢包。
+    const pending = this.pendingSignIn;
+    let signed: { message: string; signature_b64: string; expiresAt: number };
+    if (pending && pending.wallet === wallet && pending.expiresAt - SIGNIN_REUSE_MARGIN_MS > this.now()) signed = pending;
+    else {
+      this.pendingSignIn = null;
+      const n = await this.request<NonceResponse>('POST', '/auth/nonce', { wallet }, { auth: false });
+      const sig = await signer(new TextEncoder().encode(n.message));
+      const exp = Date.parse(n.expires_at);
+      signed = { message: n.message, signature_b64: Buffer.from(sig).toString('base64'), expiresAt: Number.isFinite(exp) ? exp : this.now() + SIGNIN_DEFAULT_TTL_MS };
+      this.pendingSignIn = { wallet, ...signed };
+    }
+    let pair: TokenPair | null = null;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        pair = await this.request<TokenPair>('POST', '/auth/verify', { message: signed.message, signature_b64: signed.signature_b64 }, { auth: false });
+        break;
+      } catch (e) {
+        const transient = e instanceof ApiError && (e.code === 'NETWORK_ERROR' || e.code === 'SERVER_ERROR' || e.code === 'RATE_LIMITED');
+        if (transient && attempt < SIGNIN_VERIFY_RETRY_MS.length) { await this.sleep(SIGNIN_VERIFY_RETRY_MS[attempt]!); continue; }
+        if (!transient) this.pendingSignIn = null; // nonce 已用掉／過期／簽章無效：下次重新走完整流程
+        throw e;
+      }
+    }
+    this.pendingSignIn = null;
     await writeTokens({ accessToken: pair.access_token, refreshToken: pair.refresh_token, accessExpiresAt: this.now() + pair.expires_in * 1000, wallet: pair.wallet });
     return pair;
+  }
+  /** 已簽好、尚未 verify 成功的登入訊息（只在記憶體） */
+  private pendingSignIn: { wallet: string; message: string; signature_b64: string; expiresAt: number } | null = null;
+  /** 是否有可直接重用的已簽登入（畫面用來說明「不必再簽一次」） */
+  hasPendingSignIn(wallet: string): boolean {
+    const p = this.pendingSignIn;
+    return !!p && p.wallet === wallet && p.expiresAt - SIGNIN_REUSE_MARGIN_MS > this.now();
+  }
+  private sleep(ms: number) {
+    return new Promise<void>((res) => setTimeout(res, ms));
   }
 
   async hasSession(): Promise<boolean> {

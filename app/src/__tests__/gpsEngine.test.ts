@@ -273,7 +273,35 @@ describe('靜止漂移抑制（GPS_RULES_VERSION 3）', () => {
   });
 });
 
-test('顯示速度平滑（EMA τ 8 s）：速度驟變時顯示值漸進、原始 5 秒窗即時；恢復後重設', () => {
+test('顯示配速保持（實機：主數字每秒跳動）：GPS 抖動下 5 秒窗每秒變、顯示配速一分鐘內只換少數次且落在 5 s 格', () => {
+  const e = new GpsMetricsEngine('run');
+  e.start(0);
+  // 每秒交替 2.4／3.6 m/s（平均 3 m/s）的抖動軌跡 70 s
+  let lat = 25;
+  const rawSeen = new Set<number>();
+  const shownSeen: (number | null)[] = [];
+  for (let i = 0; i <= 70; i++) {
+    e.addPoint({ seq: i, monotonicMs: i * 1000, utcMs: i * 1000, lat, lon: 121.5, accuracyM: 5 });
+    lat += (i % 2 === 0 ? 2.4 : 3.6) / M_PER_DEG_LAT;
+    if (i >= 20) {
+      rawSeen.add(Math.round((e.windowSpeedMs() ?? 0) * 100));
+      const p = e.currentPaceSPerKm();
+      if (shownSeen[shownSeen.length - 1] !== p) shownSeen.push(p);
+    }
+  }
+  expect(rawSeen.size).toBeGreaterThan(1); // 原始 5 秒窗確實在跳
+  expect(shownSeen.length).toBeLessThanOrEqual(4); // 顯示值 50 s 內最多換幾次
+  for (const p of shownSeen) expect(p! % 5).toBe(0);
+  expect(Math.abs(e.currentPaceSPerKm()! - 335)).toBeLessThanOrEqual(15); // 接近 3 m/s ≈ 5:33
+  // 前 10 s 窗未滿 → 顯示 —；5 秒窗（最高速度）仍照舊
+  const f = new GpsMetricsEngine('run');
+  f.start(0);
+  run(track({ speedMs: 3, seconds: 8 }), f);
+  expect(f.windowSpeedMs()).not.toBeNull();
+  expect(f.currentPaceSPerKm()).toBeNull();
+});
+
+test('顯示速度平滑（EMA τ 15 s）：速度驟變時顯示值漸進、原始 5 秒窗即時；恢復後重設', () => {
   const e = new GpsMetricsEngine('run');
   e.start(0);
   run(track({ speedMs: 3, seconds: 12 }), e);

@@ -78,7 +78,7 @@ export function WorkoutRecordScreen() {
   const prefs = useWorkoutPrefs();
   const detail = prefs.detailView;
   // GPS 有問題時即使精簡模式也把診斷列展開（review 9）
-  const showDiag = detail || !!s.gpsIssue || s.gps !== 'ok' || s.paceStale;
+  const showDiag = detail || !!s.gpsIssue || s.gps !== 'ok' || s.paceStale || s.gpsRestarts > 0 || s.gpsFallback;
   const [finishFailed, setFinishFailed] = useState<string | null>(null);
 
   // 模式樣態（Style 24.6）：走路主數字＝運動時間、健走＝km/h＋建議區間、跑步＝配速＋與平均比較
@@ -197,7 +197,7 @@ export function WorkoutRecordScreen() {
       {/* 定位診斷：詳細模式或 GPS 有狀況時顯示「收到幾筆／採用幾筆／精度」（實機回饋：戶外跑道 14 分鐘 0 km 沒有任何提示） */}
       {s.state === 'recording' && showDiag ? (
         <Text variant="caption" tone="muted" style={styles.center} testID="record-gps-diag">
-          {t('rec.gpsDiag', { fixes: s.fixes, accepted: s.accepted, acc: s.lastAccuracyM === null ? '—' : String(Math.round(s.lastAccuracyM)) })}
+          {[t('rec.gpsDiag', { fixes: s.fixes, accepted: s.accepted, acc: s.lastAccuracyM === null ? '—' : String(Math.round(s.lastAccuracyM)) }), s.gpsRestarts > 0 ? t('rec.gpsDiag.restarted', { n: s.gpsRestarts }) : null, s.gpsFallback ? t('rec.gpsDiag.fallback') : null].filter(Boolean).join(' · ')}
         </Text>
       ) : null}
       {s.gpsIssue ? (

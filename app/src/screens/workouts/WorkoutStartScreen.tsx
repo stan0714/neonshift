@@ -234,9 +234,12 @@ export function WorkoutStartScreen() {
     (async () => {
       const perm = await Location.getForegroundPermissionsAsync().catch(() => null);
       if (!perm?.granted || cancelled) return;
-      sub = await Location.watchPositionAsync({ accuracy: Location.Accuracy.BestForNavigation, timeInterval: 2000, distanceInterval: 0 }, (l) => {
-        setGpsReady({ acc: l.coords.accuracy ?? Number.POSITIVE_INFINITY });
+      const created = await Location.watchPositionAsync({ accuracy: Location.Accuracy.BestForNavigation, timeInterval: 2000, distanceInterval: 0 }, (l) => {
+        if (!cancelled) setGpsReady({ acc: l.coords.accuracy ?? Number.POSITIVE_INFINITY });
       }).catch(() => null);
+      // 訂閱建立完成前就已離開／開始倒數：立刻移除，不讓預熱訂閱與記錄用的定位任務並存
+      if (cancelled) created?.remove();
+      else sub = created;
     })();
     return () => { cancelled = true; sub?.remove(); };
   }, [env, focused, counting]);

@@ -350,6 +350,59 @@ describe('2026-09-19 review：可重試啟動、寫入失敗不掉點、序列�
     }
   });
 
+  test('實機：開始後一直沒有定位點 → 12 s 重啟背景任務、24 s 開前景備援訂閱；備援點餵入 ingest；有點後不再重啟；finish 移除備援', async () => {
+    jest.useFakeTimers();
+    try {
+      const remove = jest.fn();
+      let cb: ((l: { timestamp: number; coords: { latitude: number; longitude: number; accuracy: number; speed: number | null } }) => void) | null = null;
+      loc.watchPositionAsync.mockImplementation(async (_o: unknown, fn: typeof cb) => { cb = fn; return { remove }; });
+      const { rec } = mk();
+      await rec.start({ sport: 'run', environment: 'outdoor' });
+      const startCalls = () => loc.startLocationUpdatesAsync.mock.calls.length;
+      const stopCalls = () => loc.stopLocationUpdatesAsync.mock.calls.length;
+      const s0 = startCalls();
+      const p0 = stopCalls();
+      expect(rec.snapshot()).toMatchObject({ gpsRestarts: 0, gpsFallback: false });
+      await jest.advanceTimersByTimeAsync(12_000);
+      expect(rec.snapshot().gpsRestarts).toBe(1);
+      expect(stopCalls()).toBe(p0 + 1);
+      expect(startCalls()).toBe(s0 + 1);
+      expect(loc.watchPositionAsync).not.toHaveBeenCalled();
+      await jest.advanceTimersByTimeAsync(12_000);
+      expect(loc.watchPositionAsync).toHaveBeenCalledTimes(1);
+      expect(rec.snapshot()).toMatchObject({ gpsRestarts: 1, gpsFallback: true });
+      // 備援訂閱送點 → 進 ingest
+      cb!({ timestamp: 1_000_500, coords: { latitude: 25, longitude: 121.5, accuracy: 6, speed: 0 } });
+      expect(rec.snapshot().fixes).toBe(1);
+      await jest.advanceTimersByTimeAsync(30_000);
+      expect(rec.snapshot().gpsRestarts).toBe(1); // 不再重啟
+      await rec.finish();
+      expect(remove).toHaveBeenCalled();
+      expect(rec.snapshot().gpsFallback).toBe(false);
+    } finally {
+      loc.watchPositionAsync.mockReset();
+      loc.watchPositionAsync.mockImplementation(async () => ({ remove: jest.fn() }));
+      jest.useRealTimers();
+    }
+  });
+
+  test('實機：有定位點進來就不重啟（看門狗只在 0 點時動作）', async () => {
+    jest.useFakeTimers();
+    try {
+      const { rec } = mk();
+      await rec.start({ sport: 'run', environment: 'outdoor' });
+      const s0 = loc.startLocationUpdatesAsync.mock.calls.length;
+      rec.ingest(pts(3, 1_000_000));
+      await jest.advanceTimersByTimeAsync(30_000);
+      expect(rec.snapshot().gpsRestarts).toBe(0);
+      expect(loc.startLocationUpdatesAsync.mock.calls.length).toBe(s0);
+      expect(loc.watchPositionAsync).not.toHaveBeenCalled();
+      await rec.finish();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   test('review 4：finish 期間排隊中的通知更新不會在 stop 之後把定位服務重新叫起來', async () => {
     const { rec, tick: advance } = mk();
     await rec.start({ sport: 'run', environment: 'outdoor' });

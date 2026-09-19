@@ -36,6 +36,17 @@ test('未登入提示', async () => {
   expect(screen.getByTestId('explore-signin')).toBeTruthy();
 });
 
+test('實機：登入時連不上伺服器 → 顯示離線說明（不是「確認錢包 App 已開啟」），登入卡仍在可再按', async () => {
+  api.quests.mockRejectedValueOnce(new ApiError(401, 'NO_SESSION', 'Sign in required'));
+  api.signIn.mockRejectedValueOnce(new ApiError(0, 'NETWORK_ERROR', 'fetch failed: java.net.UnknownHostException: Unable to resolve host api.neonshift.cc'));
+  await render(<ExploreScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByTestId('explore-signin')).toBeTruthy());
+  await fireEvent.press(screen.getByTestId('explore-signin-btn'));
+  await waitFor(() => expect(screen.getByText(/Cannot reach the server/)).toBeTruthy());
+  expect(screen.queryByText(/wallet app is open/)).toBeNull();
+  expect(screen.getByTestId('explore-signin-btn')).toBeTruthy();
+});
+
 test('後端 NO_SESSION：顯示就地登入卡（不是錯誤＋Try again）；簽完重新載入', async () => {
   api.quests.mockRejectedValueOnce(new ApiError(401, 'NO_SESSION', 'Sign in required'));
   api.quests.mockResolvedValueOnce({ templates, enrollments: [], cosmetics: [], rules });

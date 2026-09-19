@@ -147,9 +147,11 @@ describe('EventDetail／Events（2026-09-19 review）', () => {
   test('列表頂部「我的活動」：今天／即將／待領取／已完成分類；今天的活動點入直接展開報到碼', async () => {
     api.events.mockResolvedValue({ events: [], next_cursor: null });
     const reg = (status: string) => ({ status, accepted_rule_revision: 'R', display_name: null, public_consent: false, registered_at: '', cancelled_at: null });
-    const soon = new Date(Date.now() + 2 * 3_600_000).toISOString();
+    // 「今天」用本地日曆日：開始定在今天內、結束定在今天 23:59:59，測試在任何時刻執行都不會跨日
+    const todayAt = (h: number, m: number, sec = 0) => { const d = new Date(); d.setHours(h, m, sec, 0); return d.toISOString(); };
+    const soon = todayAt(new Date().getHours() < 12 ? 23 : 0, 30);
     api.myEventHistory.mockResolvedValue({ items: [
-      { event: { event_id: 'E1', slug: 'today-run', title: 'Today Run', state: 'published', starts_at: soon, ends_at: new Date(Date.now() + 6 * 3_600_000).toISOString() }, registration: reg('registered'), check_ins: [], redemptions: [], results: [] },
+      { event: { event_id: 'E1', slug: 'today-run', title: 'Today Run', state: 'published', starts_at: soon, ends_at: todayAt(23, 59, 59) }, registration: reg('registered'), check_ins: [], redemptions: [], results: [] },
       { event: { event_id: 'E2', slug: 'next-week', title: 'Next Week', state: 'published', starts_at: future(24 * 7), ends_at: future(24 * 7 + 4) }, registration: reg('registered'), check_ins: [], redemptions: [], results: [] },
       { event: { event_id: 'E3', slug: 'past-claim', title: 'Past Claim', state: 'completed', starts_at: future(-48), ends_at: future(-40) }, registration: reg('checked_in'), check_ins: [], redemptions: [{ status: 'reserved' }], results: [] },
       { event: { event_id: 'E4', slug: 'past-done', title: 'Past Done', state: 'completed', starts_at: future(-96), ends_at: future(-90) }, registration: reg('checked_in'), check_ins: [], redemptions: [], results: [{ rank: 3 }] },

@@ -932,6 +932,12 @@ Lap／Pause 至少 48dp；Finish 置於暫停頁並確認。摘要分 Splits／L
 
 Home 「Workouts ›」進入 `WorkoutsScreen`：每筆一張 Surface — 標題「Run／Walk（· Indoor）」＋品質 Chip（Measured＝synced／Estimated、Partial＝neutral／Needs review＝devnet 警示色／Invalid＝offline），日期，四格指標（km、time、pace、kcal）以 `elevated` 底色成列；kcal 只有 Total 時顯示「350 kcal (total)」，缺值一律「—」。來源列「Source: Health Connect · <package>」＋步數；待審核原因與「可能重複」以 warning 文字列在指標下方，不合併、不相加。PB eligible 以 level Chip 標示（由後端判定，UI 不自行授予）。刪除為 caption danger 連結，需 Alert 確認並說明只移除 NeonShift 摘要。頂部「Import from Health Connect」secondary Button；原生模組未提供時以 info InlineState 說明，不假裝已匯入。
 
+### 23.12 首次開跑無定位、配速跳動、離線登入（2026-09-19 晚間實機：跑道 3 km）
+
+- **定位看門狗**（`GPS_WATCHDOG`；實機：第一次開跑「GPS 就緒」卻整場 0 點，結束再開一次才正常）：`start()` 先把上一個 process 殘留的同名定位任務停乾淨再啟動；開始（或恢復續錄）後每 12 s 檢查，仍 0 點 → 第 1 次停掉再啟動背景定位任務（`gpsRestarts`），第 2 次再開前景 `watchPositionAsync` 備援訂閱（`gpsFallback`），與任務共用同一條去重／序號餵入 `ingest`。有點進來就不再檢查；結束移除備援。診斷列自動出現並加註「定位已自動重啟 1 次」「備援定位中」。開始頁預熱訂閱若在建立完成前就離開，建立後立即移除（不與記錄任務並存）。
+- **顯示配速不跳**（實機：主數字每秒跳動不專業）：引擎顯示用速度改 **10 秒窗 → EMA（τ 15 s）→ 保持**：顯示值只在首次、配速變化 ≥ 15 s/km、或距上次更新 ≥ 5 s 時才換，並維持取到 5 s 格；前 10 s 顯示「—」。最高速度、防弊、自動暫停、步態探測仍用原始 5 秒窗（`windowSpeedMs(5000)`）。
+- **離線登入不再要求重簽**（實機：熱點斷線，「Sign the message」簽完仍出現同一張卡、訊息誤導成「確認錢包 App 已開啟」）：`ApiClient.signIn` 簽完後 verify 遇網路／5xx／429 先重試（1.5 s、3 s），仍失敗就把已簽的訊息留在記憶體（nonce 5 分鐘有效），下一次 `signIn` 直接 verify、不再開錢包；非網路錯誤（nonce 過期／簽章無效）才重走完整流程。`SignInState` 依原因顯示：離線（連不上伺服器／DNS，確認熱點或 Wi-Fi；紀錄都在手機）＋「你剛才簽好的登入訊息已保留」、按鈕改「重新連線並登入」；錢包取消；其他才顯示原本的錢包提示。
+
 ## 24. 三模式運動與探索冊體驗
 
 依 [補充規格](./sport-experience-gameplay.md) 第 1～5 章。延續深色霓虹設計，三模式使用文字＋圖示，不只靠顏色；健走不呈現成跑步等級。運動中三項大數字、狀態與主要操作優先，慶祝與 NFT 預覽延至保存後。探索冊使用可逐格點亮的抽象城市章節，不展示真實位置；分列「探索進度」「鞋階維持」，不可合成同一進度條。大字、讀屏、減少動態設定須驗收。

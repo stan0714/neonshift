@@ -8,7 +8,7 @@ import { GpsMetricsEngine, haversineMm, type IntegrityFlag, type Lap, type RawPo
 import { GPS_QUALITY } from '@/domain/gps/thresholds';
 import { ApiError, apiClient, type WorkoutGoal, type WorkoutImportInput, type WorkoutIntent } from '@/services/api/ApiClient';
 import { LocalWorkoutStore, type SessionMeta } from './LocalWorkoutStore';
-import { resetLocationSeq, setLocationSink, WORKOUT_LOCATION_TASK } from './locationTask';
+import { resetLocationSeq, setLocationSink, toRawPoints, WORKOUT_LOCATION_TASK } from './locationTask';
 
 /**
  * WorkoutRecorder（PG-R-03，SD 16）：同時只允許一個主動 session。
@@ -73,6 +73,12 @@ export type RecorderSnapshot = {
   /** 本次收到的定位點總數（含被拒絕的） */
   fixes: number;
   /**
+   * 定位看門狗（實機回饋：第一次開跑「GPS 就緒」卻始終沒有點進來，要重開一次運動才會動）：
+   * 開始後 12 s 仍 0 點 → 重啟背景定位任務（restarts+1）；再 12 s 仍 0 點 → 額外開啟前景 watchPosition 當備援來源（fallback）。
+   */
+  gpsRestarts: number;
+  gpsFallback: boolean;
+  /**
    * 戶外記錄中的 GPS 問題（實機回饋：跑道 14 分鐘 0 km 卻沒有提示）：
    * - `no_fix`：≥ 30 s 沒有任何定位點（系統定位關閉／室內／剛冷開機）
    * - `weak`：有點但精度都超過門檻、≥ 60 s 沒有任何點被採用（距離不會累計）
@@ -94,12 +100,17 @@ export type RecorderSnapshot = {
 /** Recorder 事件（review 4／7）：提示服務用，不經畫面 */
 export type RecorderEvent = { kind: 'auto_pause' } | { kind: 'auto_resume' } | { kind: 'session_start'; sessionId: string } | { kind: 'session_end'; sessionId: string };
 
-type LocationApi = Pick<typeof Location, 'requestForegroundPermissionsAsync' | 'getForegroundPermissionsAsync' | 'startLocationUpdatesAsync' | 'stopLocationUpdatesAsync' | 'hasStartedLocationUpdatesAsync'>;
+type LocationApi = Pick<typeof Location, 'requestForegroundPermissionsAsync' | 'getForegroundPermissionsAsync' | 'startLocationUpdatesAsync' | 'stopLocationUpdatesAsync' | 'hasStartedLocationUpdatesAsync'> & { watchPositionAsync?: typeof Location.watchPositionAsync };
 /** 感測器探測：回 true＝機身有步態、false＝沒有、null＝無法量測（無感測器／忙碌／背景） */
 export type MotionProbe = () => Promise<boolean | null>;
 export type ForegroundText = (s: RecorderSnapshot) => { title: string; body: string };
 /** GPS 問題判定門檻（ms） */
 export const GPS_ISSUE = { noFixMs: 30_000, weakMs: 60_000 } as const;
+/**
+ * 定位看門狗：開始（或恢復續錄）後每 `intervalMs` 檢查一次，仍沒有任何定位點 → 第 1 次重啟背景定位任務、第 2 次再開前景備援訂閱。
+ * 實機：Seeker 第一次開跑常常整場 0 點（開始頁預熱已顯示就緒），結束再開一次就正常；之前只能靠使用者重開運動。
+ */
+export const GPS_WATCHDOG = { intervalMs: 12_000, maxRestarts: 1 } as const;
 /** 前景服務通知的更新間隔：每次更新會重啟定位訂閱（expo-location setOptions），不宜太密 */
 export const NOTIFICATION_UPDATE_MS = 30_000;
 const defaultForegroundText: ForegroundText = (s) => ({ title: s.state === 'paused' ? 'NeonShift · paused' : 'NeonShift is recording', body: `${(s.distanceMm / 1_000_000).toFixed(2)} km · ${Math.floor(s.elapsedMs / 60000)}:${String(Math.floor((s.elapsedMs / 1000) % 60)).padStart(2, '0')} · tap to return` });
@@ -206,6 +217,11 @@ export class WorkoutRecorder {
   private locationBusy: Promise<void> | null = null;
   private locationSession: string | null = null;
   private readonly processId = randomUUID();
+  // 定位看門狗（見 GPS_WATCHDOG）
+  private watchdogTimer: ReturnType<typeof setTimeout> | null = null;
+  private gpsRestarts = 0;
+  private fallbackSub: { remove: () => void } | null = null;
+  private fallbackStarting = false;
 
   constructor(deps: Deps = {}) {
     this.store = deps.store ?? new LocalWorkoutStore();
@@ -255,6 +271,73 @@ export class WorkoutRecorder {
         // 通知只是輔助；失敗不影響記錄
       }
     });
+  }
+
+  /**
+   * 定位看門狗（GPS_WATCHDOG）：開始後仍沒有任何點進來 → 先重啟背景定位任務，再不行就開前景備援訂閱。
+   * 有點進來（fixes > 0）就不再檢查；備援訂閱與任務共用同一條去重／序號（toRawPoints），同一筆定位不會重複餵入。
+   */
+  private armWatchdog() {
+    this.stopWatchdog();
+    const sid = this.meta?.sessionId ?? null;
+    const fixesAtArm = this.fixes;
+    const schedule = () => {
+      const timer = setTimeout(() => {
+        this.watchdogTimer = null;
+        if (!sid || this.meta?.sessionId !== sid || (this.state !== 'recording' && this.state !== 'paused')) return;
+        if (this.fixes > fixesAtArm) return; // 已有定位點：不再檢查
+        if (this.gpsRestarts < GPS_WATCHDOG.maxRestarts) {
+          this.gpsRestarts += 1;
+          this.emit();
+          void this.restartLocation(sid);
+          schedule();
+        } else if (!this.fallbackSub && !this.fallbackStarting) {
+          void this.startFallbackWatch(sid);
+        }
+      }, GPS_WATCHDOG.intervalMs);
+      (timer as unknown as { unref?: () => void }).unref?.();
+      this.watchdogTimer = timer;
+    };
+    schedule();
+  }
+  private stopWatchdog() {
+    if (this.watchdogTimer) { clearTimeout(this.watchdogTimer); this.watchdogTimer = null; }
+    this.fallbackSub?.remove();
+    this.fallbackSub = null;
+    this.fallbackStarting = false;
+  }
+  /** 停掉再啟動背景定位任務（同一 session；排隊執行，不與通知更新／finish 交錯） */
+  private restartLocation(sid: string) {
+    return this.runLocationOp(async () => {
+      if (this.locationSession !== sid) return;
+      try {
+        if (await this.location.hasStartedLocationUpdatesAsync(WORKOUT_LOCATION_TASK)) await this.location.stopLocationUpdatesAsync(WORKOUT_LOCATION_TASK);
+      } catch { /* 可能已被系統停止 */ }
+      if (this.locationSession !== sid) return;
+      try {
+        await this.location.startLocationUpdatesAsync(WORKOUT_LOCATION_TASK, this.locationOptions());
+      } catch { /* 起不來就交給備援訂閱 */ }
+    });
+  }
+  /** 前景備援定位訂閱：與背景任務同時餵 ingest；session 結束時移除 */
+  private async startFallbackWatch(sid: string) {
+    const watch = this.location.watchPositionAsync;
+    if (!watch) return;
+    this.fallbackStarting = true;
+    try {
+      const sub = await watch({ accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0 }, (l) => {
+        if (this.meta?.sessionId !== sid) return;
+        const pts = toRawPoints([l]);
+        if (pts.length) this.ingest(pts);
+      });
+      if (this.meta?.sessionId !== sid || (this.state !== 'recording' && this.state !== 'paused')) { sub.remove(); return; }
+      this.fallbackSub = sub;
+      this.emit();
+    } catch {
+      /* 備援也起不來：畫面已有 no_fix 警示 */
+    } finally {
+      this.fallbackStarting = false;
+    }
   }
 
   /** 完整性探測（防弊）：GPS 顯示在動而機身沒有步態 → 記一次不一致；量不到（背景／無感測器）不計 */
@@ -349,6 +432,8 @@ export class WorkoutRecorder {
       lastAccuracyM: this.lastAccuracy,
       paceStale,
       fixes: this.fixes,
+      gpsRestarts: this.gpsRestarts,
+      gpsFallback: this.fallbackSub !== null,
       gpsIssue,
       pauseKind: this.state === 'paused' ? (this.meta?.pauses[this.meta.pauses.length - 1]?.kind ?? 'manual') : null,
       autoPausedMs: (this.meta?.pauses ?? []).filter((p) => p.kind === 'auto').reduce((n, p) => n + ((p.resumedAtMs ?? this.now()) - p.atMs), 0),
@@ -394,16 +479,22 @@ export class WorkoutRecorder {
       this.pending = [];
       this.resetStorageState();
       this.lastNotifyAt = t;
+      this.gpsRestarts = 0;
       this.locationSession = sessionId;
       resetLocationSeq(0);
       await this.runLocationOp(async () => {
         if (this.locationSession !== sessionId) return; // 啟動途中已被取消
+        // 上一個 process 沒停掉的任務登記（被系統殺掉／滑掉 App）：同名再 start 只會換選項，定位有時不會真的重來；先停乾淨再啟動
+        try {
+          if (await this.location.hasStartedLocationUpdatesAsync(WORKOUT_LOCATION_TASK)) await this.location.stopLocationUpdatesAsync(WORKOUT_LOCATION_TASK);
+        } catch { /* 查不到就直接啟動 */ }
         await this.location.startLocationUpdatesAsync(WORKOUT_LOCATION_TASK, this.locationOptions());
       });
       // 定位服務已在跑，才開始收點
       setLocationSink((pts) => this.ingest(pts));
       this.state = 'recording';
       this.startProbes();
+      this.armWatchdog();
       this.emit();
       this.emitEvent({ kind: 'session_start', sessionId });
       return this.meta;
@@ -411,6 +502,7 @@ export class WorkoutRecorder {
       this.locationSession = null;
       setLocationSink(null);
       this.stopProbes();
+      this.stopWatchdog();
       this.engine = null;
       this.meta = null;
       this.pending = [];
@@ -571,6 +663,7 @@ export class WorkoutRecorder {
     this.state = 'finishing';
     this.emit();
     this.stopProbes();
+    this.stopWatchdog();
     setLocationSink(null);
     // review 4：先撤銷 session 標記，排隊中的更新通知執行時會跳過；stop 接在既有操作之後，不與 start 交錯
     this.locationSession = null;
@@ -736,6 +829,8 @@ export class WorkoutRecorder {
       this.locationSession = meta.sessionId;
       resetLocationSeq(meta.lastSeq + 1);
       setLocationSink((pts) => this.ingest(pts));
+      this.gpsRestarts = 0;
+      this.armWatchdog();
       this.emit();
       this.emitEvent({ kind: 'session_start', sessionId: meta.sessionId });
       return { meta };
