@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 
 import { Button, Chip, InlineState, Screen, Sheet, Surface } from "@/components";
@@ -25,6 +25,8 @@ import {
   type Collectible,
   type CollectibleStatus,
 } from "@/domain/collectibles";
+import { useAppearance } from "@/hooks/useAppearance";
+import { useAppearanceStore } from "@/state/appearanceStore";
 import { useCollectibleStore } from "@/state/collectibleStore";
 import { useDashboardStore } from "@/state/dashboardStore";
 import { useWalletStore } from "@/state/walletStore";
@@ -47,6 +49,11 @@ export function GearScreen() {
   /** 點鞋子開詳情面板（2026-09-16 專案負責人指示）；記 kind 而非物件，資料變動時面板跟著更新 */
   const [detailKind, setDetailKind] = useState<ShoeLevel | null>(null);
   const [previewLevel, setPreviewLevel] = useState<ShoeLevel | null>(null);
+  /** PG-LINK-01：外觀（可切換的已取得跑鞋＋棲地背景）與有效等級分開 */
+  const ap = useAppearance();
+  const selectShoe = useAppearanceStore((s) => s.selectShoe);
+  const setBackground = useAppearanceStore((s) => s.setBackground);
+  const dismissOffer = useAppearanceStore((s) => s.dismissOffer);
 
   const refresh = useCallback(async () => {
     if (!session) return;
@@ -104,6 +111,7 @@ export function GearScreen() {
     <Screen
       scroll
       insideTabs
+      scene={ap.scene}
       testID="gear-screen"
       refreshControl={
         <RefreshControl
@@ -122,8 +130,14 @@ export function GearScreen() {
         <View style={styles.levelRow}>
           <Chip label={t("gear.activeLv", { n: level })} kind="level" />
           <Chip label={t("gear.highestLv", { n: highest })} kind={highest > level ? "synced" : "neutral"} />
+          {ap.differs ? <View testID="gear-appearance-chip"><Chip label={t("gear.lookLv", { n: ap.level })} kind="neutral" /></View> : null}
         </View>
-        <ShoeHero level={level} size={220} />
+        <ShoeHero level={ap.level} size={220} />
+        {ap.differs ? (
+          <Text variant="caption" tone="muted" style={styles.center} testID="gear-appearance-note">
+            {t("gear.lookNote", { look: ap.level, active: level })}
+          </Text>
+        ) : null}
         <View style={styles.heroRow}>
           <XpRing ratio={ratio} tint={stage.tint}>
             <Text variant="heading2" numeric>
@@ -233,6 +247,57 @@ export function GearScreen() {
         </Surface>
       ) : null}
 
+      {ap.offer ? (
+        <Surface active style={styles.maint} testID="gear-offer">
+          <Text variant="title">{t("gear.offer.title", { name: stageName(t, ap.offer) })}</Text>
+          <Text variant="bodySmall" tone="secondary" style={styles.mtXs}>{t("gear.offer.body")}</Text>
+          <View style={styles.rowBtns}>
+            <Button label={t("gear.offer.useNow")} style={styles.flex} onPress={() => void selectShoe(ap.offer)} testID="gear-offer-use" />
+            <Button label={t("gear.offer.later")} variant="secondary" style={styles.flex} onPress={dismissOffer} testID="gear-offer-later" />
+          </View>
+        </Surface>
+      ) : null}
+
+      <View style={styles.sectionHead}>
+        <Text variant="label" tone="muted" uppercase>
+          {t("gear.myShoes")}
+        </Text>
+        <Text variant="label" tone="secondary" numeric>
+          {ap.owned.length}
+        </Text>
+      </View>
+      <Text variant="caption" tone="muted" style={styles.sectionNote}>
+        {t(ap.owned.length > 1 ? "gear.myShoes.note" : "gear.myShoes.single")}
+      </Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shoeRow} testID="gear-my-shoes">
+        {ap.owned.map((shoe) => {
+          const inUse = shoe.level === ap.level;
+          const when = ap.acquiredAt[shoe.level];
+          return (
+            <Pressable key={shoe.id} onPress={() => setDetailKind(shoe.level)} accessibilityRole="button" accessibilityLabel={`${stageName(t, shoe.level)}${inUse ? ` · ${t("gear.inUse")}` : ""}`} testID={`gear-shoe-${shoe.level}`}>
+              <Surface active={inUse} style={styles.shoeCard}>
+                <ShoeHero level={shoe.level} size={96} badge={false} active={false} />
+                <Text variant="title" numberOfLines={1}>{stageName(t, shoe.level)}</Text>
+                <Text variant="caption" tone="muted" numberOfLines={1}>
+                  {shoe.variant ? t(`wild.variant.${shoe.variant}` as TKey) : t("wild.series")}
+                </Text>
+                <Text variant="caption" tone="muted" numberOfLines={1}>
+                  {when ? t("gear.acquiredOn", { date: new Date(when).toLocaleDateString() }) : t("gear.acquiredUnknown")}
+                </Text>
+                {inUse ? <View style={styles.mtXs}><Chip label={t("gear.inUse")} kind="level" /></View> : null}
+              </Surface>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      <Surface style={styles.mtXs} testID="gear-bg-card">
+        <View style={styles.rowBetween}>
+          <Text variant="bodySmall" tone="secondary" style={styles.flex}>{t("gear.bg.follow")}</Text>
+          <Switch value={ap.backgroundEnabled} onValueChange={(v) => void setBackground(v)} disabled={!session} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t("gear.bg.follow")} testID="gear-bg-switch" />
+        </View>
+        <Text variant="caption" tone="muted" style={styles.mtXs}>{t(session ? "gear.bg.note" : "gear.bg.guest")}</Text>
+      </Surface>
+
       <View style={styles.sectionHead}>
         <Text variant="label" tone="muted" uppercase>
           {t("gear.myCollection")}
@@ -336,6 +401,7 @@ export function GearScreen() {
         disabledReason={claimDisabledReason}
         onClaim={() => session && detailKind && void c.claim(session.publicKey, detailKind)}
         onPreviewReveal={setPreviewLevel}
+        look={detailKind ? { owned: ap.owned.some((o) => o.level === detailKind), inUse: detailKind === ap.level, active: level, onUse: () => { void selectShoe(detailKind); setDetailKind(null); } } : null}
       />
       {previewLevel ? <RevealCeremony from={(previewLevel - 1) as ShoeLevel} to={previewLevel} preview onClose={() => setPreviewLevel(null)} /> : null}
       <Text
@@ -484,13 +550,15 @@ type ShoeDetailProps = {
   onClaim: () => void;
   /** 未解鎖的 Lv.2+：試拆盲盒（示意揭曉，Style 25.2） */
   onPreviewReveal: (level: ShoeLevel) => void;
+  /** PG-LINK-01：外觀切換（已取得 → 可「使用這雙」；使用中／未取得分別標示） */
+  look: { owned: boolean; inUse: boolean; active: ShoeLevel; onUse: () => void } | null;
 };
 
 /**
  * 跑鞋詳情面板：鞋階、所需 XP、倍率、解鎖條件，以及「裝備 vs 紀念 NFT」說明（實機回饋：領過初階跑鞋後
  * 又看到「原點」可領，誤以為同一雙鞋要領兩次）。NFT 可領時 footer 直接領取。
  */
-function ShoeDetailSheet({ kind, onClose, profile, status, section, xp, thresholds, multiplier, claiming, busy, disabledReason, onClaim, onPreviewReveal }: ShoeDetailProps) {
+function ShoeDetailSheet({ kind, onClose, profile, status, section, xp, thresholds, multiplier, claiming, busy, disabledReason, onClaim, onPreviewReveal, look }: ShoeDetailProps) {
   const { t } = useT();
   const wallet = useWalletStore((s) => s.session?.publicKey ?? null);
   const editionRow = useCollectibleStore((s) => (kind ? s.editions[kind] : undefined));
@@ -510,11 +578,17 @@ function ShoeDetailSheet({ kind, onClose, profile, status, section, xp, threshol
     { label: t("gear.detail.unlock"), value: collectibleUnlock(t, item) },
     { label: t("gear.detail.nft"), value: t(`gear.detail.nft.${status}` as TKey), testID: "shoe-detail-nft" },
     ...(editionValue ? [{ label: t("gear.detail.edition"), value: editionValue, testID: "shoe-detail-edition" }] : []),
+    { label: t("gear.detail.look"), value: look?.inUse ? t("gear.inUse") : look?.owned ? t("gear.detail.look.available") : t("gear.detail.look.locked", { n: kind }), testID: "shoe-detail-look" },
   ];
   return (
     <Sheet visible onClose={onClose} title={collectibleName(t, item)} testID="shoe-detail" footer={
       status === "claimable" ? (
-        <Button label={t("gear.claim")} loading={claiming} loadingLabel={t("gear.claiming")} onPress={onClaim} disabled={busy || Boolean(disabledReason)} disabledReason={disabledReason} style={styles.flex} testID="shoe-detail-claim" />
+        <>
+          <Button label={t("gear.claim")} loading={claiming} loadingLabel={t("gear.claiming")} onPress={onClaim} disabled={busy || Boolean(disabledReason)} disabledReason={disabledReason} style={styles.flex} testID="shoe-detail-claim" />
+          {look?.owned && !look.inUse ? <Button label={t("gear.useThis")} variant="secondary" onPress={look.onUse} style={styles.flex} testID="shoe-detail-use" /> : null}
+        </>
+      ) : look?.owned && !look.inUse ? (
+        <Button label={t("gear.useThis")} onPress={look.onUse} style={styles.flex} testID="shoe-detail-use" />
       ) : (
         <Button label={t("common.close")} variant="secondary" onPress={onClose} style={styles.flex} testID="shoe-detail-done" />
       )
@@ -548,6 +622,11 @@ function ShoeDetailSheet({ kind, onClose, profile, status, section, xp, threshol
       <Text variant="caption" tone="muted" style={styles.sectionNote}>
         {t(kind === 1 ? "gear.detail.starterNote" : "gear.detail.gearNote")}
       </Text>
+      {look?.owned && kind !== look.active ? (
+        <Text variant="caption" tone="muted" style={styles.sectionNote} testID="shoe-detail-look-note">
+          {t("gear.lookNote", { look: kind, active: look.active })}
+        </Text>
+      ) : null}
     </Sheet>
   );
 }
@@ -706,6 +785,10 @@ const styles = StyleSheet.create({
   sectionNote: { marginTop: space.xxs },
   flex: { flex: 1 },
   center: { textAlign: "center" },
+  rowBtns: { flexDirection: "row", gap: space.s, marginTop: space.s },
+  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.m },
+  shoeRow: { gap: space.s, paddingVertical: space.xs },
+  shoeCard: { width: 148, alignItems: "center", padding: space.s },
   detailHero: { alignItems: "center", gap: space.xs, marginBottom: space.m },
   detailRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.m, minHeight: 44, borderBottomWidth: 1, borderBottomColor: color.borderSubtle },
   detailValue: { flexShrink: 1, textAlign: "right" },

@@ -18,7 +18,10 @@ import { useT, type TKey } from '@/i18n';
 import type { WorkoutGoal } from '@/services/api/ApiClient';
 import { ensureWorkoutChannel, type WorkoutChannelState } from '@/services/workouts/notificationChannel';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
+import { shoeSnapshotOf } from '@/domain/appearance';
+import { useAppearanceStore } from '@/state/appearanceStore';
 import { useDashboardStore } from '@/state/dashboardStore';
+import { useWalletStore } from '@/state/walletStore';
 import { FREE_GOAL, GOAL_VERSION, modeToSport, useWorkoutPrefs, type WorkoutMode } from '@/state/workoutPrefsStore';
 import { color, glowStyle, radius, space, Text } from '@/theme';
 
@@ -277,7 +280,10 @@ export function WorkoutStartScreen() {
         title: snap.state === 'paused' ? t('rec.notif.paused', { mode: modeName }) : t('rec.notif.recording', { mode: modeName }),
         body: t('rec.notif.body', { km: (snap.distanceMm / 1_000_000).toFixed(2), time: formatDuration(String(snap.elapsedMs)) }),
       }));
-      await workoutRecorder.start({ sport, intent, goal, environment: env, autoLapMm: autoLap === 'off' ? null : Number(autoLap) * 1000, trackLapMm: trackLapM === null ? null : trackLapM * 1000, splitLengthMm: units === 'km' ? SPLIT_KM_MM : SPLIT_MILE_MM, autoPause: prefs.autoPause });
+      // PG-LINK-01：記下開始時的跑鞋外觀（未綁定玩家 → null 未指定）；PG-LINK-02：綁定玩家
+      const owner = useWalletStore.getState().session?.address ?? null;
+      const shoeSnapshot = shoeSnapshotOf(owner, useDashboardStore.getState().profile, useAppearanceStore.getState().selectedShoeId);
+      await workoutRecorder.start({ sport, intent, goal, environment: env, autoLapMm: autoLap === 'off' ? null : Number(autoLap) * 1000, trackLapMm: trackLapM === null ? null : trackLapM * 1000, splitLengthMm: units === 'km' ? SPLIT_KM_MM : SPLIT_MILE_MM, autoPause: prefs.autoPause, shoeSnapshot, owner });
       navigation.navigate('WorkoutRecord');
     } catch (e) {
       setErr({ kind: 'generic', message: e instanceof Error ? e.message : String(e) });

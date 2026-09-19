@@ -5,7 +5,9 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-n
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Chip, DataCard, InlineState, MissionCard, Wordmark } from '@/components';
+import { HabitatScene } from '@/components/HabitatScene';
 import { ShoeHero } from '@/components/ShoeHero';
+import { useAppearance } from '@/hooks/useAppearance';
 import { maintenanceNeeds } from '@/chain/accounts';
 import { APP_CONFIG } from '@/config/app';
 import { secondsUntilUtcMidnight, type TaskType } from '@/domain/taskEngine';
@@ -113,10 +115,13 @@ export function HomeScreen() {
 
   const stepsReward = estimateReward(d.config, d.profile, 'steps');
   const sleepReward = estimateReward(d.config, d.profile, 'sleep');
+  const ap = useAppearance(); // PG-LINK-01：跑鞋外觀與棲地背景
 
   return (
+    <View style={styles.root}>
+    {ap.scene ? <HabitatScene kind={ap.scene} /> : null}
     <ScrollView
-      style={styles.root}
+      style={ap.scene ? styles.overScene : styles.root}
       contentContainerStyle={[{ paddingHorizontal: screenPaddingX, paddingTop: insets.top + space.m, paddingBottom: space.xl }]}
       refreshControl={<RefreshControl refreshing={d.healthSyncing} onRefresh={() => void refresh()} tintColor={color.mint} />}
       testID="home-screen"
@@ -204,10 +209,15 @@ export function HomeScreen() {
       ) : null}
 
       <Pressable onPress={() => navigation.navigate('Main', { screen: 'Gear' })} style={styles.hero} accessibilityRole="button" accessibilityLabel={t('home.openGear')}>
-        <ShoeHero level={(d.profile?.shoeLevel ?? 1) as 1 | 2 | 3 | 4 | 5} size={200} active={isFocused} />
+        <ShoeHero level={ap.level} size={200} active={isFocused} />
         <Text variant="label" tone="secondary" uppercase style={styles.heroCaption}>
           {t('common.lv', { n: d.profile?.shoeLevel ?? 1 })} · {d.profile ? t('common.xp', { n: Number(d.profile.xp) }) : t('home.noProfile')} · {d.config && d.profile ? `${(d.config.coreMultiplierBps[d.profile.coreLevel - 1] ?? 10_000) / 10_000}×` : '1.0×'}
         </Text>
+        {ap.differs ? (
+          <Text variant="caption" tone="muted" style={styles.heroCaption} testID="home-appearance-note">
+            {t('gear.lookNote', { look: ap.level, active: ap.active })}
+          </Text>
+        ) : null}
       </Pressable>
 
       <MissionCard type="steps" status={d.tasks.steps} progress={steps} rewardLabel={stepsReward !== null ? `${formatTskr(stepsReward)} tSKR` : null} onPress={() => startClaim('steps')} disabledReason={disabledReason} testID="mission-steps" />
@@ -219,11 +229,13 @@ export function HomeScreen() {
 
       <ClockInSheet visible={sheetInput !== null} input={sheetInput} onClose={() => setSheetInput(null)} onPhase={onPhase} />
     </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.canvas },
+  overScene: { flex: 1, backgroundColor: 'transparent' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   section: { marginTop: space.xl, marginBottom: space.xs },
   flex: { flex: 1 },

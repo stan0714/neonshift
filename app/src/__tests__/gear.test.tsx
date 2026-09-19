@@ -37,7 +37,7 @@ beforeEach(() => {
 describe('PG-A-14 Gear', () => {
   test('等級、倍率、距下一階 XP 與三種收藏狀態', async () => {
     await render(<GearScreen />, { wrapper: Wrapper });
-    expect(screen.getByText('Asian Elephant')).toBeTruthy();
+    expect(screen.getAllByText('Asian Elephant').length).toBeGreaterThan(0); // hero＋「我的跑鞋」卡片
     expect(screen.getByText(/600 XP · 900 XP to Lv\.3/)).toBeTruthy();
     expect(screen.getByText('1.1×')).toBeTruthy(); // core level 2
     expect(screen.getByText('1.25×')).toBeTruthy();
@@ -155,5 +155,54 @@ describe('PG-A-14 Gear', () => {
     expect(screen.getByText(/9,000 XP · Max level/)).toBeTruthy();
     expect(screen.getByText('1.6×')).toBeTruthy();
     expect(screen.getByLabelText('Shoe · Amur Leopard, claimable')).toBeTruthy();
+  });
+
+  test('PG-LINK-01：我的跑鞋列出已取得鞋款、目前使用；詳情「使用這雙」切換 hero 外觀並標示有效等級；背景開關持久化並依錢包分區', async () => {
+    const { useAppearanceStore } = jest.requireActual('@/state/appearanceStore') as typeof import('@/state/appearanceStore');
+    useAppearanceStore.setState({ owner: null, loaded: false, selectedShoeId: null, shoeBackgroundEnabled: true, acquiredAt: {}, offer: null });
+    useDashboardStore.setState({ profile: profile({ coreLevel: 2, shoeLevel: 2, highestLevel: 4, xp: BigInt(4000) }), config, syncChain: jest.fn(async () => {}) } as never);
+    await render(<GearScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(useAppearanceStore.getState().loaded).toBe(true));
+    // 已取得 Lv.1–4（highest 4），Lv.5 不在列
+    expect(screen.getByTestId('gear-shoe-1')).toBeTruthy();
+    expect(screen.getByTestId('gear-shoe-4')).toBeTruthy();
+    expect(screen.queryByTestId('gear-shoe-5')).toBeNull();
+    expect(screen.queryByTestId('gear-appearance-chip')).toBeNull(); // 跟隨有效等級 Lv.2
+    await waitFor(() => expect(screen.getByTestId('habitat-scene-forest', { includeHiddenElements: true })).toBeTruthy()); // Lv.2 森林
+    // 切到 Lv.4 老虎外觀
+    await fireEvent.press(screen.getByTestId('gear-shoe-4'));
+    expect(screen.getByTestId('shoe-detail-look').props.children).toBe('Available');
+    await fireEvent.press(screen.getByTestId('shoe-detail-use'));
+    await waitFor(() => expect(screen.getByTestId('gear-appearance-chip')).toBeTruthy());
+    expect(screen.getByText('Look Lv.4')).toBeTruthy();
+    expect(screen.getByTestId('gear-appearance-note').props.children).toContain('active level is Lv.2');
+    expect(screen.getByTestId('habitat-scene-jungle', { includeHiddenElements: true })).toBeTruthy();
+    expect(useAppearanceStore.getState().selectedShoeId).toBe('wild-guardians-v1:4');
+    // 關背景：場景消失、選擇保留
+    fireEvent(screen.getByTestId('gear-bg-switch'), 'valueChange', false);
+    await waitFor(() => expect(screen.queryByTestId('habitat-scene-jungle', { includeHiddenElements: true })).toBeNull());
+    expect(useAppearanceStore.getState().selectedShoeId).toBe('wild-guardians-v1:4');
+    // 持久化：以錢包分區
+    const SecureStore = jest.requireMock('expo-secure-store') as { getItemAsync: (k: string) => Promise<string | null> };
+    const raw = await SecureStore.getItemAsync(`neonshift.appearance.v1.${wallet.toBase58()}`);
+    expect(JSON.parse(raw!)).toMatchObject({ selectedShoeId: 'wild-guardians-v1:4', shoeBackgroundEnabled: false });
+    // 換成另一個錢包：不沿用上一人的選擇
+    const other = new PublicKey('11111111111111111111111111111112');
+    useWalletStore.setState({ status: 'connected', session: { address: other.toBase58(), publicKey: other, walletUriBase: '', label: 'Phantom' }, error: null } as never);
+    await waitFor(() => expect(useAppearanceStore.getState().owner).toBe(other.toBase58()));
+    expect(useAppearanceStore.getState()).toMatchObject({ selectedShoeId: null, shoeBackgroundEnabled: true });
+  });
+
+  test('PG-LINK-01：未取得的鞋款不能套用（詳情無「使用這雙」）；訪客無場景', async () => {
+    const { useAppearanceStore } = jest.requireActual('@/state/appearanceStore') as typeof import('@/state/appearanceStore');
+    useAppearanceStore.setState({ owner: null, loaded: false, selectedShoeId: null, shoeBackgroundEnabled: true, acquiredAt: {}, offer: null });
+    await render(<GearScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(useAppearanceStore.getState().loaded).toBe(true));
+    await fireEvent.press(screen.getByTestId('collectible-open-3'));
+    expect(screen.getByTestId('shoe-detail-look').props.children).toBe('Available after Lv.3');
+    expect(screen.queryByTestId('shoe-detail-use')).toBeNull();
+    await fireEvent.press(screen.getByTestId('shoe-detail-done'));
+    useWalletStore.setState({ status: 'disconnected', session: null, error: null } as never);
+    await waitFor(() => expect(screen.queryByTestId('habitat-scene-forest', { includeHiddenElements: true })).toBeNull());
   });
 });

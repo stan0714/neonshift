@@ -453,7 +453,7 @@ export class WorkoutRecorder {
     return r.granted;
   }
 
-  async start(opts: { sport: 'run' | 'walk'; intent?: WorkoutIntent | null; goal?: WorkoutGoal | null; environment: 'outdoor' | 'indoor'; autoLapMm?: number | null; trackLapMm?: number | null; splitLengthMm?: number; autoPause?: boolean }): Promise<SessionMeta> {
+  async start(opts: { sport: 'run' | 'walk'; intent?: WorkoutIntent | null; goal?: WorkoutGoal | null; environment: 'outdoor' | 'indoor'; autoLapMm?: number | null; trackLapMm?: number | null; splitLengthMm?: number; autoPause?: boolean; /** PG-LINK-01：開始時的跑鞋外觀快照 */ shoeSnapshot?: SessionMeta['shoeSnapshot']; /** PG-LINK-02：建立時的玩家 */ owner?: string | null }): Promise<SessionMeta> {
     if (this.state !== 'idle') throw new Error('a session is already active');
     if (opts.environment === 'indoor') throw new Error('indoor sessions do not use GPS'); // Indoor 不啟用 GPS 推算距離
     const t = this.now();
@@ -463,7 +463,7 @@ export class WorkoutRecorder {
     this.emit();
     let created = false;
     try {
-      this.meta = await this.store.create({ sessionId, sport: opts.sport, intent: opts.intent ?? (opts.sport === 'run' ? 'run' : null), goal: opts.goal ?? null, environment: opts.environment, autoLapMm: opts.autoLapMm ?? null, trackLapMm: opts.trackLapMm ?? null, autoPause: opts.autoPause ?? false, splitLengthMm: opts.splitLengthMm ?? 1_000_000, status: 'recording', startedAtUtc: t, startedMonoMs: t, processId: this.processId });
+      this.meta = await this.store.create({ sessionId, sport: opts.sport, intent: opts.intent ?? (opts.sport === 'run' ? 'run' : null), goal: opts.goal ?? null, environment: opts.environment, autoLapMm: opts.autoLapMm ?? null, trackLapMm: opts.trackLapMm ?? null, autoPause: opts.autoPause ?? false, splitLengthMm: opts.splitLengthMm ?? 1_000_000, status: 'recording', startedAtUtc: t, startedMonoMs: t, processId: this.processId, shoeSnapshot: opts.shoeSnapshot ?? null, owner: opts.owner ?? null });
       created = true;
       this.engine = new GpsMetricsEngine(opts.sport, engineConfigOf(this.meta));
       this.engine.start(t);

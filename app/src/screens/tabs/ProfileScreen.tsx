@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
+import { useAppearance } from '@/hooks/useAppearance';
+import { useAppearanceStore } from '@/state/appearanceStore';
+import { stageName } from '@/domain/collectibles';
 import { APP_CONFIG } from '@/config/app';
 import { ApiError, apiClient } from '@/services/api/ApiClient';
 import { healthConnect, type HealthPermissionSummary } from '@/services/health/HealthConnectService';
@@ -24,6 +27,8 @@ export function ProfileScreen() {
   const { t } = useT();
   const navigation = useNavigation();
   const wallet = useWalletStore();
+  const ap = useAppearance();
+  const setBackground = useAppearanceStore((s) => s.setBackground);
   const onboarding = useOnboardingStore();
   const dashboard = useDashboardStore();
   const [health, setHealth] = useState<HealthPermissionSummary | null>(null);
@@ -145,6 +150,16 @@ export function ProfileScreen() {
             );
           })}
         </View>
+      </Section>
+
+      <Section title={t('profile.lookTitle')}>
+        <Row icon="layers" label={t('profile.lookShoe', { name: stageName(t, ap.level) })} detail={ap.differs ? t('gear.lookNote', { look: ap.level, active: ap.active }) : t('profile.lookFollow')} />
+        <View style={styles.rowBetween}>
+          <Text variant="bodySmall" tone="secondary" style={styles.flex}>{t('gear.bg.follow')}</Text>
+          <Switch value={ap.backgroundEnabled} onValueChange={(v) => void setBackground(v)} disabled={!wallet.session} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('gear.bg.follow')} testID="profile-bg-switch" />
+        </View>
+        <Text variant="caption" tone="muted" style={styles.mtXs}>{t(wallet.session ? 'profile.lookBody' : 'gear.bg.guest')}</Text>
+        <Button label={t('profile.lookOpenGear')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('Main', { screen: 'Gear' })} testID="profile-open-gear" />
       </Section>
 
       <Section title={t('profile.galleryTitle')}>

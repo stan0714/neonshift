@@ -10,7 +10,9 @@ import { WildlifeSilhouette } from '@/components/WildlifeSilhouette';
 import { ShoeStory } from '@/components/ShoeStory';
 import { ShoeHero } from '@/components/ShoeHero';
 import { APP_CONFIG } from '@/config/app';
-import { wildlifeOf } from '@/config/shoeCollection';
+import { DEFAULT_SHOE_SERIES, wildlifeOf } from '@/config/shoeCollection';
+import { shoeId } from '@/domain/appearance';
+import { useAppearanceStore } from '@/state/appearanceStore';
 import { SHOE_PROGRESSION, type ShoeLevel } from '@/config/shoeProgression';
 import { stageDetail, stageName } from '@/domain/collectibles';
 import { RewardStage } from './RewardStage';
@@ -65,6 +67,9 @@ export function RevealCeremony({ from, to, explorer = null, preview = false, onC
     if (!preview && claimed && wallet) void useCollectibleStore.getState().loadEdition(wallet, to);
   }, [preview, claimed, wallet, to]);
   const edition: EditionState = preview ? 'preview' : !claimed ? 'unclaimed' : editionRow ? editionRow : editionLoading || editionRow === undefined ? 'loading' : 'unavailable';
+  const selectedShoeId = useAppearanceStore((s) => s.selectedShoeId);
+  const selectShoe = useAppearanceStore((s) => s.selectShoe);
+  const offerUse = selectedShoeId !== null && selectedShoeId !== shoeId(DEFAULT_SHOE_SERIES, to);
 
   // 在子舞台通知立即揭曉前重設；避免背景／減少動態的結果被父層覆蓋。
   useLayoutEffect(() => {
@@ -126,7 +131,11 @@ export function RevealCeremony({ from, to, explorer = null, preview = false, onC
             </Text>
             {unbox ? <View style={styles.plate}><CollectorPlate level={to} edition={edition} /></View> : null}
             {up ? <ShoeStory level={to} preview={preview} /> : null}
-            <Button label={t(preview ? 'common.close' : up ? 'common.nice' : 'common.dismiss')} onPress={onClose} style={styles.btn} testID="reveal-ok" />
+            {/* PG-LINK-01：有明確外觀選擇時，新鞋不強制覆蓋——提供「立即使用／稍後」 */}
+            {!preview && up && offerUse ? (
+              <Button label={t('gear.offer.useNow')} onPress={() => { void selectShoe(to); onClose(); }} style={styles.btn} testID="reveal-use-now" />
+            ) : null}
+            <Button label={t(preview ? 'common.close' : up ? (offerUse ? 'gear.offer.later' : 'common.nice') : 'common.dismiss')} onPress={onClose} variant={!preview && up && offerUse ? 'secondary' : 'primary'} style={styles.btn} testID="reveal-ok" />
             {preview && unbox ? (
               <Button label={t('reveal.replay')} variant="secondary" onPress={() => setTake((n) => n + 1)} style={styles.replay} testID="reveal-replay" />
             ) : null}

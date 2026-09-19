@@ -10,6 +10,7 @@ import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import type { Lap, RawPoint } from '@/domain/gps/engine';
 import { GPS_QUALITY } from '@/domain/gps/thresholds';
 import { formatDuration, formatKm, formatPace, modeLabel } from '@/domain/workouts';
+import { stageName } from '@/domain/collectibles';
 import { useT, type TKey } from '@/i18n';
 import { compareSameCategory, SHARE_CARD_DEFAULT, shareCard, type ShareCardFields } from '@/domain/review';
 import { apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
@@ -119,6 +120,8 @@ export function WorkoutSummaryScreen() {
         <Stat label={`${isWalk ? t('sum.avgSpeed') : t('sum.avgPace')} · ${t('sum.avgMovingHint')}`} value={isWalk ? ((s.movingAvgSpeedKmh ?? s.avgSpeedKmh) === null ? '—' : `${(s.movingAvgSpeedKmh ?? s.avgSpeedKmh)!.toFixed(1)} km/h`) : formatPace(s.movingAvgPaceSPerKm ?? s.avgPaceSPerKm)} testID="sum-avg" hint={s.pausedMs > 0 ? t('sum.avgOverall', { v: isWalk ? (s.avgSpeedKmh === null ? '—' : `${s.avgSpeedKmh.toFixed(1)} km/h`) : formatPace(s.avgPaceSPerKm) }) : undefined} />
         <Stat label={t('sum.max5s')} value={s.maxSpeed5sKmh === null ? '—' : `${s.maxSpeed5sKmh.toFixed(1)} km/h`} />
         <Stat label={t('sum.kcal')} value="—" />
+        {/* PG-LINK-01：當時跑鞋（開始時快照；未綁定玩家／舊紀錄＝未指定） */}
+        <Stat label={t('sum.shoe')} value={meta.shoeSnapshot ? `Lv.${meta.shoeSnapshot.level} · ${stageName(t, meta.shoeSnapshot.level)}` : t('sum.shoeUnknown')} testID="sum-shoe" />
       </View>
       {(meta.unsavedPoints ?? 0) > 0 ? (
         <InlineState kind="warning" title={t('sum.unsaved.title')} body={t('sum.unsaved.body', { n: meta.unsavedPoints ?? 0 })} testID="sum-unsaved" />

@@ -45,6 +45,10 @@ export type SessionMeta = {
   updatedAt: number;
   /** review 2：結束時仍未落地的定位點數（寫入失敗且重試耗盡）；> 0 代表摘要距離含未持久化的部分。舊 meta 無此欄位 */
   unsavedPoints?: number;
+  /** PG-LINK-01：開始時的跑鞋外觀快照（之後切鞋不回寫）；null／缺欄位＝未指定（未綁定玩家或舊紀錄），不推算 */
+  shoeSnapshot?: { shoeId: string; level: 1 | 2 | 3 | 4 | 5; variant: string | null } | null;
+  /** PG-LINK-02：建立時綁定的玩家（錢包地址）；null＝訪客紀錄，首次歸屬須確認 */
+  owner?: string | null;
 };
 
 const META = 'meta.json';
