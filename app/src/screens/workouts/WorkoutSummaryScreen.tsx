@@ -8,6 +8,7 @@ import { RouteTrace, TRACE_LAYERS } from '@/components/RouteTrace';
 import { WorkoutActionFeedback } from '@/components/WorkoutActionMotion';
 import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import type { Lap, RawPoint } from '@/domain/gps/engine';
+import { GPS_QUALITY } from '@/domain/gps/thresholds';
 import { formatDuration, formatKm, formatPace, modeLabel } from '@/domain/workouts';
 import { useT, type TKey } from '@/i18n';
 import { compareSameCategory, SHARE_CARD_DEFAULT, shareCard, type ShareCardFields } from '@/domain/review';
@@ -31,6 +32,8 @@ export function WorkoutSummaryScreen() {
 
   const reload = useCallback(() => setMeta(store.readMeta(params.sessionId)), [params.sessionId]);
   useEffect(reload, [reload]);
+  // finish() 保存後即進入本頁，同步在背景進行；完成時 recorder 會 emit，這裡重讀 meta 讓「已同步」即時更新
+  useEffect(() => workoutRecorder.subscribe(reload), [reload]);
 
   const s = meta?.summary;
   // 軌跡預覽（預設開啟，可在此關閉並記住）：讀本機加密點，只在畫面上畫折線，不上傳
@@ -199,8 +202,8 @@ export function WorkoutSummaryScreen() {
             <Text variant="bodySmall" tone={s.quality.complete ? 'success' : 'warning'} style={styles.qualityVerdict} testID="sum-quality-verdict">
               {s.quality.complete ? t('sum.quality.complete') : t('sum.quality.incomplete')}
             </Text>
-            <Text variant="caption" tone="muted">{t('sum.quality.explainAccepted')}</Text>
-            <Text variant="caption" tone="muted">{t('sum.quality.explainRejected')}</Text>
+            <Text variant="caption" tone="muted">{t('sum.quality.explainAccepted', { m: GPS_QUALITY.acceptMaxAccuracyM })}</Text>
+            <Text variant="caption" tone="muted">{t('sum.quality.explainRejected', { m: GPS_QUALITY.acceptMaxAccuracyM })}</Text>
             {rejectedTotal > 0 ? (
               <Text variant="caption" tone="muted" testID="sum-quality-reasons">
                 {(Object.entries(s.quality.rejected) as [keyof typeof s.quality.rejected, number][]).filter(([, n]) => n > 0).map(([k, n]) => `${t(`sum.quality.reason.${k}` as TKey)} ${n}`).join(' · ')}

@@ -108,6 +108,12 @@ jest.mock('expo-file-system', () => {
     get exists() { return files.has(this.uri); }
     create() { if (!files.has(this.uri)) files.set(this.uri, ''); }
     write(content: string, opts?: { append?: boolean }) { files.set(this.uri, (opts?.append ? (files.get(this.uri) ?? '') : '') + content); }
+    async move(dest: File, opts?: { overwrite?: boolean }) {
+      if (!files.has(this.uri)) throw new Error(`move: source missing ${this.uri}`);
+      if (files.has(dest.uri) && !opts?.overwrite) throw new Error(`move: destination exists ${dest.uri}`);
+      files.set(dest.uri, files.get(this.uri)!);
+      files.delete(this.uri);
+    }
     async text() { return files.get(this.uri) ?? ''; }
     textSync() { return files.get(this.uri) ?? ''; }
     delete() { files.delete(this.uri); }

@@ -118,6 +118,29 @@ describe('WorkoutsScreen', () => {
   });
 });
 
+test('review 9：本機清單不只掛載時讀一次——recorder 發出變化（結束／背景同步完成）時重讀；重新取得焦點時重讀', async () => {
+  const { workoutRecorder } = jest.requireActual('@/services/workouts/WorkoutRecorder') as typeof import('@/services/workouts/WorkoutRecorder');
+  const meta = { sessionId: 'local-9', sport: 'walk', intent: 'brisk', goal: null, environment: 'outdoor', status: 'saved', startedAtUtc: Date.UTC(2026, 8, 18, 8), startedMonoMs: 0, processId: 'p', pauses: [], manualLapsAtMs: [], lastSeq: 0, acceptedCount: 10, interrupted: false, endedAtUtc: null, syncedSessionId: null, updatedAt: 0, summary: { distanceMm: 2_000_000, elapsedMs: 1_500_000 } } as never;
+  const unsynced = jest.spyOn(workoutRecorder, 'unsynced').mockReturnValue([]);
+  jest.spyOn(workoutRecorder, 'markRecoverable').mockResolvedValue([]);
+  (jest.requireMock('@/services/api/ApiClient') as { apiClient: { myWorkouts: jest.Mock } }).apiClient.myWorkouts.mockResolvedValue({ items: [], rules_version: 1 });
+  const listeners = (workoutRecorder as unknown as { listeners: Set<() => void> }).listeners;
+  const before = listeners.size; // 單例可能已有其他測試留下的訂閱；只驗證本畫面自己有訂閱、卸載後有退訂
+  await render(<WorkoutsScreen />, { wrapper: Wrapper });
+  expect(screen.queryByTestId('workouts-unsynced')).toBeNull();
+  // 畫面仍在堆疊上時，另一處結束了一筆運動（recorder emit）→ 清單出現，不需重新掛載
+  unsynced.mockReturnValue([meta]);
+  expect(listeners.size).toBe(before + 1);
+  await act(async () => { for (const l of listeners) l(); });
+  await waitFor(() => expect(screen.getByTestId('workouts-unsynced')).toBeTruthy());
+  // 背景同步完成 → 再 emit → 清單移除
+  unsynced.mockReturnValue([]);
+  await act(async () => { for (const l of listeners) l(); });
+  await waitFor(() => expect(screen.queryByTestId('workouts-unsynced')).toBeNull());
+  await act(async () => { cleanup(); });
+  expect(listeners.size).toBe(before); // 卸載時取消訂閱
+});
+
 test('本機未同步紀錄：列出（模式／距離／時間）、可同步（未登入 → 提示先登入；成功 → 已同步並從清單移除）、可刪除', async () => {
   const { workoutRecorder } = jest.requireActual('@/services/workouts/WorkoutRecorder') as typeof import('@/services/workouts/WorkoutRecorder');
   const meta = { sessionId: 'local-1', sport: 'run', intent: 'run', goal: null, environment: 'outdoor', status: 'saved', startedAtUtc: Date.UTC(2026, 8, 17, 12), startedMonoMs: 0, processId: 'p', pauses: [], manualLapsAtMs: [], lastSeq: 0, acceptedCount: 10, interrupted: false, endedAtUtc: null, syncedSessionId: null, updatedAt: 0, summary: { distanceMm: 1_230_000, elapsedMs: 420_000 } } as never;

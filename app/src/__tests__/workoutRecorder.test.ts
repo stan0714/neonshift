@@ -78,7 +78,8 @@ describe('WorkoutRecorder', () => {
     expect(loc.stopLocationUpdatesAsync).toHaveBeenCalled();
     expect(r.summary.distanceMm / 1_000_000).toBeCloseTo(1.2, 1);
     expect(r.summary.pausedMs).toBe(30_000);
-    expect(r.synced).toBe(true);
+    expect(rec.snapshot().state).toBe('idle'); // review 3：保存後立即回到 idle，不等同步
+    expect((await r.sync).ok).toBe(true);
     const input = sync.mock.calls[0]![0] as Record<string, unknown>;
     expect(input).toMatchObject({ origin: 'gps', external_record_id: meta.sessionId, distance_method: 'gps', paused_ms: '30000' });
     expect(JSON.stringify(input)).not.toMatch(/"lat"|121\.5/);
@@ -94,7 +95,7 @@ describe('WorkoutRecorder', () => {
     rec.ingest(pts(60, 1_100_000, 60, 1.2)); // 40 s 缺口
     tick(160_000);
     const r = await rec.finish();
-    expect(r.synced).toBe(false);
+    expect((await r.sync).ok).toBe(false);
     expect(store.readMeta(meta.sessionId)).toMatchObject({ status: 'needs_review', syncedSessionId: null });
     expect(r.summary.quality.gaps).toBe(1);
     sync.mockResolvedValueOnce({ sessionId: 'server-2' } as never);
@@ -269,13 +270,178 @@ describe('前景通知（實機回饋：退到背景不知道還在記錄）', (
     expect(loc.startLocationUpdatesAsync).toHaveBeenCalledTimes(2);
     expect(loc.startLocationUpdatesAsync.mock.calls[1]![1].foregroundService.notificationBody).toMatch(/^0\.\d\d km$/);
     expect(loc.startLocationUpdatesAsync.mock.calls[1]![1].foregroundService.notificationBody).not.toBe('0.00 km');
-    // 暫停／繼續：不等 30 s
-    t += 1000; await rec.pause();
+    // 暫停／繼續：不等 30 s（更新經序列化佇列，等一個 tick）
+    const tick = () => new Promise((r) => setTimeout(r, 0));
+    t += 1000; await rec.pause(); await tick();
     expect(loc.startLocationUpdatesAsync).toHaveBeenCalledTimes(3);
     expect(loc.startLocationUpdatesAsync.mock.calls[2]![1].foregroundService.notificationTitle).toBe('P');
-    t += 1000; await rec.resume();
+    t += 1000; await rec.resume(); await tick();
     expect(loc.startLocationUpdatesAsync).toHaveBeenCalledTimes(4);
     expect(loc.startLocationUpdatesAsync.mock.calls[3]![1].foregroundService.notificationTitle).toBe('R');
     await rec.finish();
+  });
+});
+
+describe('2026-09-19 review：可重試啟動、寫入失敗不掉點、序列化定位服務、探測綁定 session、meta 原子寫入', () => {
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+  const mk = (over: { sync?: jest.Mock; now?: () => number; store?: LocalWorkoutStore } = {}) => {
+    let t = 1_000_000;
+    const now = over.now ?? (() => t);
+    const sync = over.sync ?? jest.fn(async () => ({ sessionId: 'server-1' }));
+    const store = over.store ?? new LocalWorkoutStore();
+    const rec = new WorkoutRecorder({ store, now, sync, monotonic: null, motionProbe: null });
+    return { rec, store, sync, tick: (ms: number) => { t += ms; } };
+  };
+
+  test('review 1：定位服務啟動失敗 → start 拒絕、回到 idle、本機不留半截 session；再 start 可成功', async () => {
+    const { rec, store } = mk();
+    loc.startLocationUpdatesAsync.mockRejectedValueOnce(new Error('foreground service not allowed'));
+    const states: string[] = [];
+    rec.subscribe(() => states.push(rec.snapshot().state));
+    await expect(rec.start({ sport: 'run', environment: 'outdoor' })).rejects.toThrow(/foreground service/);
+    expect(states).toContain('starting');
+    expect(rec.snapshot()).toMatchObject({ state: 'idle', sessionId: null });
+    expect(store.list()).toEqual([]); // 不會變成一筆可恢復的空紀錄
+    // 之前的 bug：這裡會被「a session is already active」擋住
+    const meta = await rec.start({ sport: 'run', environment: 'outdoor' });
+    expect(rec.snapshot()).toMatchObject({ state: 'recording', sessionId: meta.sessionId });
+    await rec.finish();
+  });
+
+  test('review 2：appendPoints 失敗 → 點留在佇列、storage.failing、退避重試成功後補寫，不遺失；結束時仍失敗 → unsavedPoints 與 storage_incomplete', async () => {
+    jest.useFakeTimers();
+    try {
+      const store = new LocalWorkoutStore();
+      const real = store.appendPoints.bind(store);
+      const append = jest.spyOn(store, 'appendPoints');
+      const sync: jest.Mock = jest.fn(async () => ({ sessionId: 'server-1' }));
+      const { rec } = mk({ store, sync });
+      const meta = await rec.start({ sport: 'run', environment: 'outdoor' });
+      // 前兩次寫入失敗（磁碟／加密），第三次起正常
+      append.mockRejectedValueOnce(new Error('disk full')).mockRejectedValueOnce(new Error('disk full')).mockImplementation(real);
+      rec.ingest(pts(10, 1_000_000));
+      await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+      expect(rec.snapshot().storage).toMatchObject({ failing: true, pendingPoints: 10, lastError: 'disk full' });
+      expect(rec.snapshot().accepted).toBe(10); // 畫面距離已累加，但 storage 標示未落地
+      expect(await store.readPoints(meta.sessionId)).toHaveLength(0);
+      // 第一次退避 1 s → 仍失敗 → 2 s → 成功
+      await jest.advanceTimersByTimeAsync(1_000);
+      expect(rec.snapshot().storage.failing).toBe(true);
+      await jest.advanceTimersByTimeAsync(2_000);
+      expect(rec.snapshot().storage).toMatchObject({ failing: false, pendingPoints: 0, lastError: null });
+      expect((await store.readPoints(meta.sessionId)).map((p) => p.seq)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      // 結束前再進 5 點且寫入一直失敗：finish 重試 3 次後放棄，記入 unsavedPoints，狀態 needs_review，同步旗標 storage_incomplete
+      append.mockRejectedValue(new Error('disk full'));
+      rec.ingest(pts(5, 1_010_000, 10));
+      await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+      const r = await rec.finish();
+      expect(r.meta.unsavedPoints).toBe(5);
+      expect(r.meta.status).toBe('needs_review');
+      expect((sync.mock.calls[0]![0] as { client_flags: string[] }).client_flags).toContain('storage_incomplete');
+      expect(rec.snapshot()).toMatchObject({ state: 'idle', storage: { pendingPoints: 0, failing: false } });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('review 4：finish 期間排隊中的通知更新不會在 stop 之後把定位服務重新叫起來', async () => {
+    const { rec, tick: advance } = mk();
+    await rec.start({ sport: 'run', environment: 'outdoor' });
+    const order: string[] = [];
+    // 讓「更新通知」的 start 卡住，模擬與 finish 的 stop 交錯
+    let releaseStart: () => void = () => {};
+    loc.startLocationUpdatesAsync.mockImplementationOnce(() => new Promise<void>((res) => { releaseStart = () => { order.push('start:done'); res(); }; order.push('start:begin'); }));
+    loc.stopLocationUpdatesAsync.mockImplementation(async () => { order.push('stop'); });
+    rec.ingest(pts(5, 1_000_000));
+    advance(31_000);
+    rec.ingest(pts(1, 1_031_000, 5)); // 滿 30 s → 更新通知（會卡住）
+    const finishing = rec.finish();
+    await tick();
+    expect(order).toEqual(['start:begin']); // stop 排在 start 之後，還沒執行
+    releaseStart();
+    await finishing;
+    expect(order).toEqual(['start:begin', 'start:done', 'stop']);
+    // 結束後再觸發任何更新：不會呼叫 start
+    const calls = loc.startLocationUpdatesAsync.mock.calls.length;
+    advance(60_000);
+    rec.ingest(pts(1, 1_100_000, 99)); // idle 時忽略
+    await tick();
+    expect(loc.startLocationUpdatesAsync.mock.calls.length).toBe(calls);
+    expect(order.filter((o) => o === 'stop')).toHaveLength(1);
+  });
+
+  test('review 4b：結束時已排隊但尚未執行的通知更新，執行時發現 session 已結束 → 跳過，不呼叫 start', async () => {
+    const { rec, tick: advance } = mk();
+    await rec.start({ sport: 'run', environment: 'outdoor' });
+    const startCalls = () => loc.startLocationUpdatesAsync.mock.calls.length;
+    let releaseStop: () => void = () => {};
+    // 先讓一個 start 卡住（佇列忙碌）
+    let releaseFirst: () => void = () => {};
+    loc.startLocationUpdatesAsync.mockImplementationOnce(() => new Promise<void>((res) => { releaseFirst = res; }));
+    rec.ingest(pts(5, 1_000_000));
+    advance(31_000);
+    rec.ingest(pts(1, 1_031_000, 5)); // 卡住的 start
+    const before = startCalls();
+    // 再排一個更新（force）：會在佇列裡等
+    await rec.pause();
+    // 此時 finish：撤銷 session，stop 也排進佇列
+    loc.stopLocationUpdatesAsync.mockImplementationOnce(() => new Promise<void>((res) => { releaseStop = res; }));
+    const finishing = rec.finish();
+    releaseFirst();
+    await tick();
+    // pause 排的那次更新在執行時發現 locationSession 已撤銷 → 跳過
+    expect(startCalls()).toBe(before);
+    releaseStop();
+    await finishing;
+    expect(startCalls()).toBe(before);
+  });
+
+  test('review 6：感測器探測在舊運動結束、新運動開始後才回來 → 結果不落到新 session', async () => {
+    let t = 1_000_000;
+    let resolveProbe: (v: boolean | null) => void = () => {};
+    const probe = jest.fn(() => new Promise<boolean | null>((res) => { resolveProbe = res; }));
+    const rec = new WorkoutRecorder({ store: new LocalWorkoutStore(), now: () => t, sync: jest.fn(async () => ({ sessionId: null })), motionProbe: probe, probeIntervalMs: 999_999, monotonic: null });
+    await rec.start({ sport: 'run', environment: 'outdoor' });
+    rec.ingest(pts(30, 1_000_000));
+    t += 30_000;
+    const probing = rec.runProbe(); // 開始量測（懸而未決）
+    expect(probe).toHaveBeenCalledTimes(1);
+    await rec.finish(); // 舊運動結束
+    await rec.start({ sport: 'walk', environment: 'outdoor' }); // 新運動
+    rec.ingest(pts(30, 1_100_000, 0, 1.2));
+    t += 30_000;
+    resolveProbe(false); // 舊量測回來：「機身沒有步態」
+    await probing;
+    // 舊結果不可記到新 session
+    expect(rec.snapshot().integrityFlags).toEqual([]);
+    const r = await rec.finish();
+    expect(r.summary.integrity.motionProbes.total).toBe(0);
+  });
+
+  test('review 7：meta.json 以暫存檔原子替換；主檔壞掉退回暫存檔；兩者皆壞 → corrupted() 列出而非無聲消失；schema 不符不當成 meta', async () => {
+    const store = new LocalWorkoutStore();
+    const { File, Paths } = jest.requireMock('expo-file-system') as typeof import('expo-file-system');
+    const meta = await store.create({ sessionId: 's7', sport: 'run', environment: 'outdoor', autoLapMm: null, splitLengthMm: 1_000_000, status: 'recording', startedAtUtc: 1000, startedMonoMs: 1000, processId: 'p1' });
+    // 寫完後暫存檔不存在、主檔存在
+    expect(new File(Paths.document, 'workouts', 's7', 'meta.json.tmp').exists).toBe(false);
+    expect(new File(Paths.document, 'workouts', 's7', 'meta.json').exists).toBe(true);
+    // 模擬 move 之前被殺：主檔半截、暫存檔完整 → 讀得到
+    new File(Paths.document, 'workouts', 's7', 'meta.json.tmp').write(JSON.stringify({ ...meta, acceptedCount: 42 }));
+    new File(Paths.document, 'workouts', 's7', 'meta.json').write('{"sessionId":"s7","sport":"run"');
+    expect(store.readMeta('s7')?.acceptedCount).toBe(42);
+    expect(store.list().map((m) => m.sessionId)).toEqual(['s7']);
+    expect(store.corrupted()).toEqual([]);
+    // 兩者皆壞：list 不含、corrupted 列出原因、目錄與點檔仍在
+    new File(Paths.document, 'workouts', 's7', 'meta.json.tmp').write('not json');
+    expect(store.readMeta('s7')).toBeNull();
+    expect(store.list()).toEqual([]);
+    expect(store.corrupted()).toEqual([{ sessionId: 's7', reason: expect.stringMatching(/meta: json.*tmp: json/) }]);
+    expect(new File(Paths.document, 'workouts', 's7', 'points.log').exists).toBe(true);
+    // schema 不符（JSON 合法但缺欄位）→ corrupt: schema
+    new File(Paths.document, 'workouts', 's7', 'meta.json').write(JSON.stringify({ sessionId: 's7' }));
+    new File(Paths.document, 'workouts', 's7', 'meta.json.tmp').delete();
+    expect(store.readMetaResult('s7')).toEqual({ kind: 'corrupt', sessionId: 's7', reason: 'meta: schema' });
+    store.delete('s7');
+    expect(store.corrupted()).toEqual([]);
   });
 });

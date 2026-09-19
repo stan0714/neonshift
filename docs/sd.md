@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.36（GPS 防弊分層） |
+| 文件版本 | v0.37（靜態 review 修正：Recorder／Store／ApiClient） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -396,6 +396,8 @@ Base path `/v1`。除登入相關外皆需 Bearer JWT。錯誤回應統一為 `{
 申請 attestation 前，App 先對 claim body（不含 `claim_authorization`）做與 3.5 相同的 canonicalization 及 SHA-256，再呼叫 `/auth/challenge`（`purpose=claim`）。後端回傳 32-byte 隨機 nonce 與 5 分鐘 expiry，並綁定 JWT wallet、purpose、task_date、task_type、request_hash。App 透過 MWA 簽署 `NEONSHIFT_CLAIM_V1 || nonce || request_hash || expiry_le`。`/attestation/claim` 必須驗證此簽章與單次 challenge，符合 BRD 9.2「以錢包簽署請求」；JWT 只負責 session，不可取代本次 claim 授權。
 
 API 共通要求：TLS only、request body 上限、schema validation、wallet／IP rate limit、結構化 audit log；不得記錄 JWT、完整簽章或健康 request body。伺服器只信任驗證後 JWT 的 `sub`，不信任 body 內另傳的 wallet。
+
+**App 端 refresh 與逾時（2026-09-19 review 修正，`app/src/services/api/ApiClient.ts`）**：所有請求帶 AbortController 逾時（預設 15 s，可逐請求覆寫或傳入外部 signal），逾時與取消一律回 `NETWORK_ERROR`。`/auth/refresh` 的結果分三類：`ok`；`invalid`（401／403 且代碼為 `REFRESH_INVALID`／`REFRESH_EXPIRED`／`REFRESH_REUSED`／`SESSION_REVOKED`／`UNAUTHORIZED`，或 401 無代碼）才清除本機 token 並以 `NO_SESSION` 要求重新登入；`transient`（離線、逾時、429 → `RATE_LIMITED`、5xx → `SERVER_ERROR`）保留 token、回報對應錯誤，畫面不得把它顯示成需要登入。之前任何非 2xx 都清 token，伺服器維護中會把使用者踢出登入。
 
 ### 4.3 `POST /attestation/claim`
 
@@ -970,6 +972,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
 | v0.35 | 2026-09-15 | PG-U-04：探索冊 schema（migration 0017）、任務判定與領取／撤銷、API |
+| v0.37 | 2026-09-19 | 靜態 review 修正：Recorder 可重試啟動、寫入失敗不掉點、finish 不等同步、定位服務序列化、探測綁定 session；meta 原子寫入與損毀列出；ApiClient 逾時與 refresh 失敗分類；GPS 門檻單一來源 |
 | v0.34 | 2026-09-15 | PG-U-01：workout intent／goal_snapshot（migration 0016）、三模式與目標流程 |
 | v0.33 | 2026-09-15 | PG-V-05：IncidentFreeze PDA、set_incident_freeze、凍結期不升不降、6044 |
 | v0.32 | 2026-09-15 | PG-V-04：藝廊 board=lifetime、App 維持儀表與收藏分區 |
@@ -1101,6 +1104,16 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 **實作（2026-09-14，PG-R-04／R-05）**：`GpsMetricsEngine`（`app/src/domain/gps/engine.ts`，`GPS_RULES_VERSION = 1`）純計算：`start／pause／resume／lap／finish` 以單調毫秒驅動；`addPoint` 依序拒絕非有限座標、seq 重複、時間倒序、精度 > 50 m（2026-09-17 由 20 放寬：無 SIM／無 A-GPS 的 Seeker 戶外跑道 14 分鐘精度一直 > 20 m 全數被拒、0 km；抖動由遲滯門檻抑制）、與前一接受點速度超上限（跑 12／走 4 m/s，門檻待實機校準）、暫停中；與前一接受點間隔 > 5 s 或恢復後從新點重建連續段（不補直線距離；缺口計數）；位移 < 3 m 視為抖動不累加（錨點不前進）；距離為接受點間 haversine 整數毫米。速度＝最近完整 5 秒連續窗的接受距離 ÷ 5（窗起點插值），不完整回 null，最高速度取其最大；平均速度／配速用全程 elapsed（含暫停）。Splits 依 `splitLengthMm`（1,000,000／1,609,344）在兩接受點間按距離比例插值時間、一次跨多界線逐一切、跨缺口標 `uncertain`、末段 `isPartial`，最快分段只比完整且非 uncertain 者；手動 Lap 與自訂距離自動圈為獨立序列（暫停禁按、零距離／零時間不新增）；跑道等效圈 `floor(distance / lapMm)` ＋餘數（PG-R-12：`trackEquivalent()` 供記錄中即時顯示與 `finish()` 共用；`trackLapMm` 由開始頁選定 400／200／自訂 100～2000 m 並經使用者核對後寫入 session meta，恢復重播沿用；上傳 extras `track_equivalent`；不含實體過線偵測）。`finish()` 回摘要與品質統計（accepted／rejected 分類／stationary／segments／gaps／coverageRatio／complete）。固定軌跡重播測試 `app/src/__tests__/gpsEngine.test.ts`。
 
 **實作（2026-09-14，PG-R-03／R-06）**：`WorkoutRecorder`（`app/src/services/workouts/WorkoutRecorder.ts`）狀態機 idle → recording ↔ paused → finishing → saved｜needs_review → idle；同時只允許一個 session；Indoor 拒絕啟動（不以 GPS 推算）。定位：`expo-location.startLocationUpdatesAsync`（BestForNavigation、1 s、前景服務通知；`FOREGROUND_SERVICE_LOCATION`，不申請背景定位）→ `expo-task-manager` 任務（`locationTask.ts`，啟動時定義）把原始點以 seq 交給 recorder；點先批次寫入 `LocalWorkoutStore`（每 session 目錄：`meta.json` 無座標；`points.log` 每行一批 `nacl.secretbox`，金鑰在 Keystore-backed SecureStore）再餵 `GpsMetricsEngine`；暫停／手動圈時間記在 meta。Finish：停止定位 → `engine.finish` → 摘要與狀態寫入本機（gaps／coverage < 0.9 或 interrupted → needs_review）→ `WorkoutSummarySync`（`POST /workouts/import`，origin gps、source_id `cc.neonshift.app/gps`、external_record_id = sessionId、distance_method gps、client_flags gps_gap／interrupted、extras 含 splits／laps／quality，無座標）；失敗保留本機、摘要頁可重試。恢復：啟動時 `markRecoverable` 把非本 process 的 recording／paused 標 recoverable＋interrupted；`recover(id, 'finish')` 以 seq 去重重播點與暫停／圈事件，用最後一點時間結束（不補負時間）並同步；`discard` 刪目錄（路線一併清除）；同 process 才允許續錄。單調時基目前以定位 timestamp（UTC）為準，跨 process 一律視為中斷（原生 elapsedRealtime 於 R-10 實機驗證時評估）。刪除 workout（`DELETE /me/workouts/{id}`）與本機 `store.delete` 分開，UI 刪除時兩者都做。畫面見 Style 23.2。
+
+**2026-09-19 靜態 review 修正（`WorkoutRecorder`／`LocalWorkoutStore`）**：
+- 狀態機新增 `starting`：`start()` 在定位服務啟動成功前不進入 `recording`；啟動拋錯時清除 engine／meta／sink、刪除剛建立的 session 目錄並回到 `idle`，下一次 `start()` 不會被「已有運動」擋住。
+- `flush()` 寫入成功才從待存佇列移除該批；失敗保留原批、`snapshot().storage = { pendingPoints, failing, lastError }` 標示並以 1 s 起倍增（上限 30 s）退避重試。`finish()` 最多再試 3 次，仍未落地的點數寫入 `meta.unsavedPoints`，狀態強制 `needs_review`，同步 `client_flags` 加 `storage_incomplete`。畫面距離仍先累加，但使用者看得到「尚未存好」。
+- `finish()` 在本機保存完成後立即回傳並重設為 `idle`，回傳值改為 `{ meta, summary, sync: Promise<SyncOutcome> }`；同步在背景進行，完成時 `emit()`，摘要頁訂閱 recorder 重讀 meta 更新「已同步」。`recover()` 同樣改為背景同步。
+- 定位服務的 start／更新通知／stop 經同一條序列化佇列（`runLocationOp`）依序執行；`locationSession` 記錄應在跑服務的 session，`finish()` 一開始就清成 null，排隊中的通知更新執行時發現不符即跳過，不會在 stop 之後把定位重新叫起來。
+- `runProbe()` 在 await 前捕捉 engine 與 sessionId，量測回來後三者仍一致才記錄；舊運動的感測器結果不會落到新 session。
+- `meta.json` 改為「寫 `meta.json.tmp` → `File.move(overwrite)`」原子替換；讀取做最低限度 schema 檢查（`isSessionMeta`），主檔壞掉退回暫存檔，兩者皆壞由 `store.corrupted()` 列出 sessionId 與原因，目錄與點檔保留，不再從清單無聲消失。
+- GPS 精度門檻集中於 `app/src/domain/gps/thresholds.ts`：`acceptMaxAccuracyM` 50（引擎可採用、軌跡預覽）、`goodAccuracyM` 20（狀態列 ok／poor）、`autoResumeMaxAccuracyM` 20（自動繼續）；摘要文案的數值由此插值，不再寫死。
+- 運動紀錄頁的本機清單（可恢復／未同步）改在取得焦點與 recorder 變化時重讀，不只首次掛載。
 
 同步契約須拒絕非有限數值、負距離／時長、圈界越界及不支援的 sport／版本；伺服器衍生欄位不可由客戶端覆寫。相同 revision 重試返回同結果，過期 revision 回傳衝突，刪除 tombstone 阻止離線舊資料重建。裝置摘要仍屬裝置來源，欄位合法不等於運動真實性已驗證。
 

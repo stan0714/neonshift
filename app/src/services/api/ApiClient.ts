@@ -1,7 +1,9 @@
 /**
  * ApiClient（PG-A-07，SD 4.1／4.2）：後端呼叫、JWT 續期、challenge 簽署。不做業務判定。
  * - access／refresh token 放 SecureStore（Keystore-backed），不進 AsyncStorage／log
- * - 401 時以 refresh 輪替一次再重試；refresh 失敗即清除 session（需重新 SIWS）
+ * - 401 時以 refresh 輪替一次再重試；只有後端**明確判定憑證失效**（REFRESH_INVALID／EXPIRED／REUSED、SESSION_REVOKED 等 401）才清除 session；
+ *   離線、逾時、限流（429）與伺服器錯誤（5xx）視為暫時失敗，token 保留、以 NETWORK_ERROR／RATE_LIMITED／SERVER_ERROR 回報（review 5）。
+ * - 所有請求都有逾時（預設 15 s；AbortController），網路卡住不會讓畫面無限等待（review 3）。
  * - 統一錯誤 `{ error: { code, message, rules_version? } }` → ApiError
  */
 import * as SecureStore from 'expo-secure-store';
@@ -146,15 +148,53 @@ async function writeTokens(t: Tokens | null) {
 }
 
 export type FetchLike = typeof fetch;
+/** 預設請求逾時（ms）。同步摘要這類小請求在行動網路下 15 s 仍沒回應，等下去也不會好 */
+export const DEFAULT_TIMEOUT_MS = 15_000;
+export type RequestOpts = { auth?: boolean; headers?: Record<string, string>; /** 覆寫逾時；0 表示不逾時 */ timeoutMs?: number; /** 外部取消 */ signal?: AbortSignal };
+
+/**
+ * refresh 的三種結果（review 5）：
+ * - ok：拿到新 token
+ * - invalid：後端明確說憑證失效 → 已清 session，需重新登入
+ * - transient：離線／逾時／限流／伺服器錯誤 → token 保留，稍後可再試；不可當成「需要登入」
+ */
+type RefreshResult = { kind: 'ok'; tokens: Tokens } | { kind: 'invalid' } | { kind: 'transient'; error: ApiError };
+
+/** 後端 refresh 端點會回的「憑證確實失效」代碼（backend/src/auth/service.ts） */
+const REFRESH_INVALID_CODES = new Set(['REFRESH_INVALID', 'REFRESH_EXPIRED', 'REFRESH_REUSED', 'REFRESH_REVOKED', 'SESSION_REVOKED', 'UNAUTHORIZED']);
 
 export class ApiClient {
-  private refreshing: Promise<Tokens | null> | null = null;
+  private refreshing: Promise<RefreshResult> | null = null;
 
   constructor(
     private readonly baseUrl: string = APP_CONFIG.apiUrl,
     private readonly fetchImpl: FetchLike = fetch,
     private readonly now: () => number = () => Date.now(),
+    private readonly defaultTimeoutMs: number = DEFAULT_TIMEOUT_MS,
   ) {}
+
+  /** 帶逾時與外部取消的 fetch；逾時或取消 → ApiError NETWORK_ERROR（code 帶 TIMEOUT／ABORTED 於 message） */
+  private async fetchWithTimeout(url: string, init: RequestInit, opts: { timeoutMs?: number; signal?: AbortSignal } = {}): Promise<Response> {
+    const timeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs;
+    const ctrl = new AbortController();
+    const onAbort = () => ctrl.abort(opts.signal?.reason);
+    if (opts.signal) {
+      if (opts.signal.aborted) onAbort();
+      else opts.signal.addEventListener('abort', onAbort, { once: true });
+    }
+    const timer = timeoutMs > 0 ? setTimeout(() => ctrl.abort(new Error(`timeout after ${timeoutMs} ms`)), timeoutMs) : null;
+    try {
+      // 進到這裡之前（讀 token／refresh）就已被取消：不再發請求
+      if (ctrl.signal.aborted) throw new Error('aborted before request');
+      return await this.fetchImpl(url, { ...init, signal: ctrl.signal });
+    } catch (e) {
+      const reason = ctrl.signal.aborted ? (ctrl.signal.reason instanceof Error ? ctrl.signal.reason.message : 'aborted') : e instanceof Error ? e.message : String(e);
+      throw new ApiError(0, 'NETWORK_ERROR', reason);
+    } finally {
+      if (timer) clearTimeout(timer);
+      opts.signal?.removeEventListener('abort', onAbort);
+    }
+  }
 
   get configured(): boolean {
     return this.baseUrl.length > 0;
@@ -395,67 +435,83 @@ export class ApiClient {
 
   // ---------------- 底層 ----------------
 
-  async request<T>(method: string, path: string, body?: unknown, opts: { auth?: boolean; headers?: Record<string, string> } = {}): Promise<T> {
+  async request<T>(method: string, path: string, body?: unknown, opts: RequestOpts = {}): Promise<T> {
     const r = await this.requestRaw(method, path, body, opts);
     return r.body as T;
   }
 
-  private async requestRaw(method: string, path: string, body?: unknown, opts: { auth?: boolean; headers?: Record<string, string> } = {}, retried = false): Promise<{ status: number; body: unknown }> {
+  private async requestRaw(method: string, path: string, body?: unknown, opts: RequestOpts = {}, retried = false): Promise<{ status: number; body: unknown }> {
     if (!this.configured) throw new ApiError(0, 'NOT_CONFIGURED', 'EXPO_PUBLIC_API_URL is not set for this build');
     const headers: Record<string, string> = { accept: 'application/json', ...(opts.headers ?? {}) };
     if (body !== undefined) headers['content-type'] = 'application/json';
     if (opts.auth !== false) {
-      const t = await this.ensureAccessToken();
+      const t = await this.ensureAccessToken(opts);
       if (!t) throw new ApiError(401, 'NO_SESSION', 'Sign in required');
       headers.authorization = `Bearer ${t.accessToken}`;
     }
-    let res: Response;
-    try {
-      res = await this.fetchImpl(`${this.baseUrl}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
-    } catch (e) {
-      throw new ApiError(0, 'NETWORK_ERROR', e instanceof Error ? e.message : String(e));
-    }
+    const res = await this.fetchWithTimeout(`${this.baseUrl}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }, opts);
     const text = await res.text();
     const parsed: unknown = text ? safeJson(text) : null;
     if (res.ok) return { status: res.status, body: parsed };
     const err = (parsed as { error?: { code?: string; message?: string; rules_version?: number; request_id?: string } } | null)?.error;
     // access 過期／撤銷：refresh 一次後重試
     if (res.status === 401 && opts.auth !== false && !retried && (err?.code === 'UNAUTHORIZED' || err?.code === 'SESSION_REVOKED')) {
-      const t = await this.refresh();
-      if (t) return this.requestRaw(method, path, body, opts, true);
+      const r = await this.refresh(opts);
+      if (r.kind === 'ok') return this.requestRaw(method, path, body, opts, true);
+      if (r.kind === 'transient') throw r.error; // 離線／伺服器錯誤：不是登入問題
+      throw new ApiError(401, 'NO_SESSION', 'Sign in required'); // 憑證確實失效
     }
     throw new ApiError(res.status, err?.code ?? `HTTP_${res.status}`, err?.message ?? `HTTP ${res.status}`, err?.rules_version, parsed, err?.request_id);
   }
 
-  private async ensureAccessToken(): Promise<Tokens | null> {
+  /** 取有效 access token；null＝沒有 session（需登入）；暫時性失敗會 throw，不會誤判成需登入 */
+  private async ensureAccessToken(opts: RequestOpts = {}): Promise<Tokens | null> {
     const t = await readTokens();
     if (!t) return null;
     // 提前 30 秒續期
     if (t.accessExpiresAt - this.now() > 30_000) return t;
-    return this.refresh();
+    const r = await this.refresh(opts);
+    if (r.kind === 'ok') return r.tokens;
+    if (r.kind === 'transient') throw r.error;
+    return null;
   }
 
-  /** 單飛：同時多個請求只做一次 refresh；失敗即清 session */
-  private refresh(): Promise<Tokens | null> {
-    this.refreshing ??= (async () => {
+  /**
+   * 單飛：同時多個請求只做一次 refresh。
+   * review 5：只有後端明確回「憑證失效」才清 session；離線、逾時、429、5xx 都保留 token 回 transient。
+   */
+  private refresh(opts: RequestOpts = {}): Promise<RefreshResult> {
+    this.refreshing ??= (async (): Promise<RefreshResult> => {
       try {
         const cur = await readTokens();
-        if (!cur) return null;
-        const res = await this.fetchImpl(`${this.baseUrl}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', accept: 'application/json' },
-          body: JSON.stringify({ refresh_token: cur.refreshToken }),
-        });
-        if (!res.ok) {
-          await writeTokens(null);
-          return null;
+        if (!cur) return { kind: 'invalid' };
+        let res: Response;
+        try {
+          res = await this.fetchWithTimeout(`${this.baseUrl}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', accept: 'application/json' },
+            body: JSON.stringify({ refresh_token: cur.refreshToken }),
+          }, opts);
+        } catch (e) {
+          return { kind: 'transient', error: e instanceof ApiError ? e : new ApiError(0, 'NETWORK_ERROR', e instanceof Error ? e.message : String(e)) };
         }
-        const pair = (await res.json()) as TokenPair;
-        const next: Tokens = { accessToken: pair.access_token, refreshToken: pair.refresh_token, accessExpiresAt: this.now() + pair.expires_in * 1000, wallet: pair.wallet };
-        await writeTokens(next);
-        return next;
-      } catch {
-        return null;
+        if (res.ok) {
+          const pair = (await res.json()) as TokenPair;
+          const next: Tokens = { accessToken: pair.access_token, refreshToken: pair.refresh_token, accessExpiresAt: this.now() + pair.expires_in * 1000, wallet: pair.wallet };
+          await writeTokens(next);
+          return { kind: 'ok', tokens: next };
+        }
+        const text = await res.text();
+        const err = (safeJson(text) as { error?: { code?: string; message?: string; request_id?: string } } | null)?.error;
+        const code = err?.code ?? `HTTP_${res.status}`;
+        const credentialInvalid = (res.status === 401 || res.status === 403) && (err?.code === undefined || REFRESH_INVALID_CODES.has(err.code));
+        if (credentialInvalid) {
+          await writeTokens(null);
+          return { kind: 'invalid' };
+        }
+        // 429／5xx／其他：暫時失敗，token 保留
+        const transientCode = res.status === 429 ? 'RATE_LIMITED' : res.status >= 500 ? 'SERVER_ERROR' : code;
+        return { kind: 'transient', error: new ApiError(res.status, transientCode, err?.message ?? `HTTP ${res.status}`, undefined, undefined, err?.request_id) };
       } finally {
         this.refreshing = null;
       }

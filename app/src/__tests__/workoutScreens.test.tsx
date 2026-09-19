@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import type { PropsWithChildren } from 'react';
 import { Alert } from 'react-native';
 
+import { GPS_QUALITY } from '@/domain/gps/thresholds';
 import type { RawPoint } from '@/domain/gps/engine';
 import { WorkoutRecordScreen } from '@/screens/workouts/WorkoutRecordScreen';
 import { WorkoutStartScreen } from '@/screens/workouts/WorkoutStartScreen';
@@ -240,7 +241,7 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   expect(screen.getByText('120 points accepted')).toBeTruthy();
   // GPS 品質說明：完整量測判定＋各項含意；軌跡卡預設開啟、可關閉並記住
   expect(screen.getByTestId('sum-quality-verdict').props.children).toMatch(/^Not fully measured/); // 時鐘跳 480 s 造成缺口
-  expect(screen.getByText(/^Accepted: GPS fixes within 20 m/)).toBeTruthy();
+  expect(screen.getByText(new RegExp(`^Accepted: GPS fixes within ${GPS_QUALITY.acceptMaxAccuracyM} m`))).toBeTruthy(); // 文案數值來自 thresholds.ts，不再寫死
   expect(screen.getByTestId('sum-route')).toBeTruthy();
   expect(screen.getByText('Moving time')).toBeTruthy();
   expect(screen.getByText('Paused')).toBeTruthy();

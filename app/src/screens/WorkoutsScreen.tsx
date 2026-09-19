@@ -1,4 +1,4 @@
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
@@ -30,10 +30,14 @@ export function WorkoutsScreen() {
   const [recoverable, setRecoverable] = useState<SessionMeta[]>([]);
   const [unsynced, setUnsynced] = useState<SessionMeta[]>([]);
   const [syncingId, setSyncingId] = useState<string | null>(null);
-  useEffect(() => {
+  // review 9：本機清單（可恢復／未同步）不只在首次掛載讀一次。
+  // 頁面留在導覽堆疊時，從記錄頁或摘要頁返回會重新取得焦點 → 重讀；recorder 狀態變化（結束、背景同步完成）→ 重讀。
+  const reloadLocal = useCallback(() => {
     void workoutRecorder.markRecoverable().then(setRecoverable).catch(() => setRecoverable([]));
     setUnsynced(workoutRecorder.unsynced());
   }, []);
+  useFocusEffect(useCallback(() => { reloadLocal(); }, [reloadLocal]));
+  useEffect(() => workoutRecorder.subscribe(reloadLocal), [reloadLocal]);
   const syncLocal = async (m: SessionMeta) => {
     setSyncingId(m.sessionId);
     setNotice(null);

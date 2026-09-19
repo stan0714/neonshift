@@ -3,7 +3,7 @@
  * 純計算、可由固定軌跡重播；不碰定位 API、不持久化。內部整數毫米／毫秒；UI 四捨五入不參與比較。
  *
  * 規則（GPS_RULES_VERSION 3；v2 完整性／防弊、v3 靜止漂移抑制）：
- * - 拒絕：非有限座標、時間倒序／重複、精度 > 20 m、與前一接受點的速度超過上限（跑 12 m/s／走 4 m/s）→ 疑似跳點、暫停中的點。
+ * - 拒絕：非有限座標、時間倒序／重複、精度 > acceptMaxAccuracyM（50 m，見 thresholds.ts）、與前一接受點的速度超過上限（跑 12 m/s／走 4 m/s）→ 疑似跳點、暫停中的點。
  * - 連續段：與前一接受點間隔 > 5 s、或暫停後恢復，從新點重新建段；不跨缺口補直線距離。
  * - 抖動：位移小於遲滯門檻（max(3 m, 0.6 × 精度)）的點不累加距離（錨點不前進）；OS 速度 < 0.3 m/s 且位移 < 3 × 精度也視為靜止（v3），避免原地飄移增加里程。
  * - 速度：最近完整 5 秒連續窗的接受距離 ÷ 5；窗不完整（缺口／暫停／剛開始）→ null。最高速度 = 該窗最大值。
@@ -13,6 +13,8 @@
  *   缺口前後位移換算速度超過跳點上限記一次瞬移；utc−monotonic 偏移變化 > 30 s 記時鐘漂移；感測器探測（由 recorder 餵入）
  *   ≥ 2 次且過半不一致記 motion_mismatch。任一旗標 → needs_review、不具 PB／任務資格；後端以 client_flags 二次判定，不信任 App 單方。
  */
+
+import { GPS_QUALITY } from './thresholds';
 
 export const GPS_RULES_VERSION = 3;
 /** 完整性（防弊）規則 v2：模擬定位、持續超速、缺口瞬移、時鐘漂移、感測器不一致（後者由 recorder 填入） */
@@ -48,8 +50,8 @@ export type GpsConfig = {
 };
 
 export const defaultConfig = (sport: Sport, over: Partial<GpsConfig> = {}): GpsConfig => ({
-  /** 2026-09-17 實機：無 SIM（無 A-GPS）戶外跑道 14 分鐘精度一直 > 20 m → 全部拒絕、0 km；放寬到 50 m，抖動由 0.6×精度的遲滯門檻抑制 */
-  maxAccuracyM: 50,
+  /** 2026-09-17 實機：無 SIM（無 A-GPS）戶外跑道 14 分鐘精度一直 > 20 m → 全部拒絕、0 km；放寬到 50 m（見 thresholds.ts），抖動由 0.6×精度的遲滯門檻抑制 */
+  maxAccuracyM: GPS_QUALITY.acceptMaxAccuracyM,
   maxGapMs: 5000,
   maxSpeedMs: sport === 'run' ? 12 : 4,
   jitterFloorMm: 3000,

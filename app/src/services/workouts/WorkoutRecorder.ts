@@ -5,6 +5,7 @@ import { AppState } from 'react-native';
 import { liveMotion } from '@/services/sensors/LiveMotionService';
 
 import { GpsMetricsEngine, haversineMm, type IntegrityFlag, type Lap, type RawPoint, type Summary, type TrackEquivalent } from '@/domain/gps/engine';
+import { GPS_QUALITY } from '@/domain/gps/thresholds';
 import { ApiError, apiClient, type WorkoutGoal, type WorkoutImportInput, type WorkoutIntent } from '@/services/api/ApiClient';
 import { LocalWorkoutStore, type SessionMeta } from './LocalWorkoutStore';
 import { resetLocationSeq, setLocationSink, WORKOUT_LOCATION_TASK } from './locationTask';
@@ -14,9 +15,15 @@ import { resetLocationSeq, setLocationSink, WORKOUT_LOCATION_TASK } from './loca
  * 生命週期 Ready → Recording ↔ Paused → Finishing → Saved／NeedsReview；process 被殺回到 Recoverable（再選恢復／結束）。
  * - 點先寫入 LocalWorkoutStore（加密）再餵引擎；恢復以 seq 去重重播，不重播累加。
  * - 單調時間：本 process 內用定位 timestamp 差；跨 process 恢復標 interrupted（不以負時間補段）。
- * - Finish 先保存摘要再同步後端（origin gps、只含摘要與圈，無座標）；同步失敗保留本機待重試。
+ * - Finish 先保存摘要；同步後端在背景進行（origin gps、只含摘要與圈，無座標），不阻塞進入摘要頁；同步失敗保留本機待重試。
+ *
+ * 2026-09-19 review 修正：
+ * - start 失敗（定位服務起不來）會完整清理回 idle，可重試；啟動中為 `starting`。
+ * - flush 寫入成功才移除待存點；失敗保留在佇列、標示 storage.failing 並以退避重試；結束時仍未落地的點數寫入 meta.unsavedPoints。
+ * - 定位服務的 start／更新通知／stop 經同一條序列化佇列，並以 session id 檢查，結束後排隊中的更新不會再把定位叫起來。
+ * - 感測器探測回來時確認仍是同一個 engine／session，舊運動的量測不會落到新運動。
  */
-export type RecorderState = 'idle' | 'recording' | 'paused' | 'finishing' | 'saved' | 'needs_review';
+export type RecorderState = 'idle' | 'starting' | 'recording' | 'paused' | 'finishing' | 'saved' | 'needs_review';
 export type RecorderSnapshot = {
   state: RecorderState;
   sessionId: string | null;
@@ -63,6 +70,11 @@ export type RecorderSnapshot = {
   pauseKind: 'manual' | 'auto' | null;
   /** 本次 session 自動暫停累計（ms；含進行中的那段） */
   autoPausedMs: number;
+  /**
+   * 本機儲存狀態（review 2）：`pendingPoints` 為已餵引擎但尚未落地的點數；
+   * `failing` 表示最近一次寫入失敗、正在退避重試。畫面距離會先累加，這裡讓使用者知道「還沒存好」。
+   */
+  storage: { pendingPoints: number; failing: boolean; lastError: string | null };
 };
 
 type LocationApi = Pick<typeof Location, 'requestForegroundPermissionsAsync' | 'getForegroundPermissionsAsync' | 'startLocationUpdatesAsync' | 'stopLocationUpdatesAsync' | 'hasStartedLocationUpdatesAsync'>;
@@ -77,7 +89,10 @@ const defaultForegroundText: ForegroundText = (s) => ({ title: s.state === 'paus
 type Deps = { store?: LocalWorkoutStore; location?: LocationApi; now?: () => number; sync?: (input: WorkoutImportInput) => Promise<{ sessionId: string | null }>; foreground?: ForegroundText; motionProbe?: MotionProbe | null; probeIntervalMs?: number; /** 單調時鐘（預設 performance.now）；null＝不做時鐘漂移偵測 */ monotonic?: (() => number) | null };
 
 /** 自動暫停（Style 23.7）：5 秒窗速度 < 0.5 m/s 持續 ≥ 10 s → 自動暫停；暫停中任一可用點距暫停位置 ≥ 15 m → 自動繼續 */
-export const AUTO_PAUSE = { minSpeedMs: 0.5, stillMs: 10_000, resumeDistanceM: 15, maxAccuracyM: 20 } as const;
+export const AUTO_PAUSE = { minSpeedMs: 0.5, stillMs: 10_000, resumeDistanceM: 15, maxAccuracyM: GPS_QUALITY.autoResumeMaxAccuracyM } as const;
+
+/** 本機寫入失敗的重試退避（ms）：1 s 起倍增，最長 30 s；結束時最多再試 3 次 */
+export const STORAGE_RETRY = { baseMs: 1_000, maxMs: 30_000, finishAttempts: 3 } as const;
 
 /** 完整性探測節奏：記錄中每 3 分鐘量一次（前景才量）；GPS 5 秒窗速度 ≥ 1 m/s 才算「GPS 在動」 */
 export const MOTION_PROBE_INTERVAL_MS = 180_000;
@@ -146,6 +161,16 @@ export class WorkoutRecorder {
   private listeners = new Set<() => void>();
   private pending: RawPoint[] = [];
   private flushing: Promise<void> | null = null;
+  private storage: RecorderSnapshot['storage'] = { pendingPoints: 0, failing: false, lastError: null };
+  private storageFailures = 0;
+  private storageRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * 定位服務操作序列化（review 4）：start／更新通知／stop 依序執行，不交錯。
+   * `locationSession` 是「目前應該在跑定位服務」的 session；finish 一開始就清成 null，
+   * 排隊中的更新通知執行時發現不符就跳過，不會在 stop 之後又把服務叫起來。
+   */
+  private locationBusy: Promise<void> | null = null;
+  private locationSession: string | null = null;
   private readonly processId = randomUUID();
 
   constructor(deps: Deps = {}) {
@@ -167,17 +192,35 @@ export class WorkoutRecorder {
     const text = this.foreground(this.snapshot());
     return { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0, foregroundService: { notificationTitle: text.title, notificationBody: text.body, notificationColor: '#2EEAC6', killServiceOnDestroy: false } };
   }
+  /**
+   * 定位服務操作排隊執行。佇列閒置時立即開始（保持既有的同步呼叫時序），忙碌時接在前一個之後。
+   * 失敗不會讓佇列卡住。
+   */
+  private runLocationOp(op: () => Promise<void>): Promise<void> {
+    const prev = this.locationBusy;
+    const run = prev ? prev.then(op, op) : op();
+    const tracked: Promise<void> = run.catch(() => undefined).finally(() => {
+      if (this.locationBusy === tracked) this.locationBusy = null;
+    });
+    this.locationBusy = tracked;
+    return run;
+  }
   /** 更新前景通知（實機回饋：退到背景後不知道 App 還在記錄）；重新送同一組定位選項即可讓 expo-location 重建通知 */
   private async refreshForeground(force = false) {
-    if (this.state === 'idle') return;
+    const sid = this.meta?.sessionId;
+    if (!sid || (this.state !== 'recording' && this.state !== 'paused')) return;
     const t = this.now();
     if (!force && t - this.lastNotifyAt < NOTIFICATION_UPDATE_MS) return;
     this.lastNotifyAt = t;
-    try {
-      await this.location.startLocationUpdatesAsync(WORKOUT_LOCATION_TASK, this.locationOptions());
-    } catch {
-      // 通知只是輔助；失敗不影響記錄
-    }
+    await this.runLocationOp(async () => {
+      // 排隊期間 session 可能已結束（review 4）：stop 之後不可再 start
+      if (this.locationSession !== sid || this.meta?.sessionId !== sid) return;
+      try {
+        await this.location.startLocationUpdatesAsync(WORKOUT_LOCATION_TASK, this.locationOptions());
+      } catch {
+        // 通知只是輔助；失敗不影響記錄
+      }
+    });
   }
 
   /** 完整性探測（防弊）：GPS 顯示在動而機身沒有步態 → 記一次不一致；量不到（背景／無感測器）不計 */
@@ -191,23 +234,27 @@ export class WorkoutRecorder {
     this.probeTimer = null;
   }
   async runProbe(): Promise<void> {
-    if (this.probing || !this.motionProbe || !this.engine || this.state !== 'recording') return;
-    const speed = this.engine.windowSpeedMs();
+    const engine = this.engine;
+    const sid = this.meta?.sessionId ?? null;
+    if (this.probing || !this.motionProbe || !engine || !sid || this.state !== 'recording') return;
+    const speed = engine.windowSpeedMs();
     if (speed === null || speed < MOTION_PROBE_MIN_SPEED_MS) return; // GPS 沒在動就不用比
     this.probing = true;
     try {
       const moving = await this.motionProbe();
-      if (moving === null || !this.engine) return;
-      this.engine.recordMotionProbe(!moving);
+      // 量測期間可能已結束舊運動並開始新運動（review 6）：結果只能記到發起量測的那個 engine
+      if (moving === null || this.engine !== engine || this.meta?.sessionId !== sid || this.state !== 'recording') return;
+      engine.recordMotionProbe(!moving);
       this.emit();
     } finally {
       this.probing = false;
     }
   }
 
-  subscribe(fn: () => void) {
+  /** 訂閱狀態變化；回傳的退訂函式可直接作 useEffect 的 cleanup */
+  subscribe(fn: () => void): () => void {
     this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
+    return () => { this.listeners.delete(fn); };
   }
   private emit() {
     for (const l of this.listeners) l();
@@ -216,7 +263,7 @@ export class WorkoutRecorder {
   snapshot(): RecorderSnapshot {
     const e = this.engine;
     const t = this.now();
-    const gps: RecorderSnapshot['gps'] = this.state !== 'recording' ? 'off' : !this.lastPointAt || t - this.lastPointAt > 10_000 ? 'searching' : this.lastAccuracy !== null && this.lastAccuracy > 20 ? 'poor' : 'ok';
+    const gps: RecorderSnapshot['gps'] = this.state !== 'recording' ? 'off' : !this.lastPointAt || t - this.lastPointAt > 10_000 ? 'searching' : this.lastAccuracy !== null && this.lastAccuracy > GPS_QUALITY.goodAccuracyM ? 'poor' : 'ok';
     const movingMs = e && this.meta ? e.elapsedAt(t) : 0;
     const pausedMs = e && this.meta && e.status !== 'finished' ? this.pausedTotal() : 0;
     const startedAt = this.meta?.startedMonoMs ?? t;
@@ -255,6 +302,7 @@ export class WorkoutRecorder {
       gpsIssue,
       pauseKind: this.state === 'paused' ? (this.meta?.pauses[this.meta.pauses.length - 1]?.kind ?? 'manual') : null,
       autoPausedMs: (this.meta?.pauses ?? []).filter((p) => p.kind === 'auto').reduce((n, p) => n + ((p.resumedAtMs ?? this.now()) - p.atMs), 0),
+      storage: { ...this.storage, pendingPoints: this.pending.length },
     };
   }
   private pausedTotal() {
@@ -274,23 +322,50 @@ export class WorkoutRecorder {
     if (opts.environment === 'indoor') throw new Error('indoor sessions do not use GPS'); // Indoor 不啟用 GPS 推算距離
     const t = this.now();
     const sessionId = randomUUID();
-    this.meta = await this.store.create({ sessionId, sport: opts.sport, intent: opts.intent ?? (opts.sport === 'run' ? 'run' : null), goal: opts.goal ?? null, environment: opts.environment, autoLapMm: opts.autoLapMm ?? null, trackLapMm: opts.trackLapMm ?? null, autoPause: opts.autoPause ?? false, splitLengthMm: opts.splitLengthMm ?? 1_000_000, status: 'recording', startedAtUtc: t, startedMonoMs: t, processId: this.processId });
-    this.engine = new GpsMetricsEngine(opts.sport, engineConfigOf(this.meta));
-    this.engine.start(t);
-    this.state = 'recording';
-    this.lastPointAt = 0;
-    this.lastAcceptedAt = 0;
-    this.fixes = 0;
-    this.clockOffset0 = null;
-    this.stillSince = null;
-    this.autoPausedAt = null;
-    resetLocationSeq(0);
-    setLocationSink((pts) => this.ingest(pts));
-    this.lastNotifyAt = t;
-    await this.location.startLocationUpdatesAsync(WORKOUT_LOCATION_TASK, this.locationOptions());
-    this.startProbes();
+    // review 1：啟動中另立狀態。定位服務起不來時完整清理回 idle，下一次 start 不會被「已有運動」擋住
+    this.state = 'starting';
     this.emit();
-    return this.meta;
+    let created = false;
+    try {
+      this.meta = await this.store.create({ sessionId, sport: opts.sport, intent: opts.intent ?? (opts.sport === 'run' ? 'run' : null), goal: opts.goal ?? null, environment: opts.environment, autoLapMm: opts.autoLapMm ?? null, trackLapMm: opts.trackLapMm ?? null, autoPause: opts.autoPause ?? false, splitLengthMm: opts.splitLengthMm ?? 1_000_000, status: 'recording', startedAtUtc: t, startedMonoMs: t, processId: this.processId });
+      created = true;
+      this.engine = new GpsMetricsEngine(opts.sport, engineConfigOf(this.meta));
+      this.engine.start(t);
+      this.lastPointAt = 0;
+      this.lastAcceptedAt = 0;
+      this.fixes = 0;
+      this.clockOffset0 = null;
+      this.stillSince = null;
+      this.autoPausedAt = null;
+      this.pending = [];
+      this.resetStorageState();
+      this.lastNotifyAt = t;
+      this.locationSession = sessionId;
+      resetLocationSeq(0);
+      await this.runLocationOp(async () => {
+        if (this.locationSession !== sessionId) return; // 啟動途中已被取消
+        await this.location.startLocationUpdatesAsync(WORKOUT_LOCATION_TASK, this.locationOptions());
+      });
+      // 定位服務已在跑，才開始收點
+      setLocationSink((pts) => this.ingest(pts));
+      this.state = 'recording';
+      this.startProbes();
+      this.emit();
+      return this.meta;
+    } catch (e) {
+      this.locationSession = null;
+      setLocationSink(null);
+      this.stopProbes();
+      this.engine = null;
+      this.meta = null;
+      this.pending = [];
+      this.state = 'idle';
+      if (created) {
+        try { this.store.delete(sessionId); } catch { /* 清不掉就留給 markRecoverable 當可恢復紀錄 */ }
+      }
+      this.emit();
+      throw e;
+    }
   }
 
   /** 定位點進來：先持久化（批次）再餵引擎；引擎拒絕的點也保留（審查用） */
@@ -337,13 +412,46 @@ export class WorkoutRecorder {
       void this.pause('auto');
     }
   }
-  private async flush() {
+  private resetStorageState() {
+    this.storage = { pendingPoints: 0, failing: false, lastError: null };
+    this.storageFailures = 0;
+    if (this.storageRetryTimer) clearTimeout(this.storageRetryTimer);
+    this.storageRetryTimer = null;
+  }
+  private scheduleStorageRetry() {
+    if (this.storageRetryTimer) return;
+    const delay = Math.min(STORAGE_RETRY.maxMs, STORAGE_RETRY.baseMs * 2 ** Math.max(0, this.storageFailures - 1));
+    this.storageRetryTimer = setTimeout(() => {
+      this.storageRetryTimer = null;
+      void this.flush();
+    }, delay);
+  }
+  /**
+   * 把待存點批次寫入本機。review 2：寫入成功才從佇列移除；失敗保留原批、標示 storage.failing 並退避重試。
+   * 之前是先 splice 再寫，磁碟或加密寫入失敗時那批點就永遠不見了，但畫面距離已先累加。
+   */
+  private async flush(): Promise<void> {
     if (this.flushing) return this.flushing;
     this.flushing = (async () => {
       while (this.pending.length && this.meta) {
-        const batch = this.pending.splice(0, 50);
-        await this.store.appendPoints(this.meta.sessionId, batch);
-        await this.store.writeMeta(this.meta);
+        const meta = this.meta;
+        const batch = this.pending.slice(0, 50);
+        try {
+          await this.store.appendPoints(meta.sessionId, batch);
+          await this.store.writeMeta(meta);
+        } catch (e) {
+          this.storageFailures += 1;
+          this.storage = { pendingPoints: this.pending.length, failing: true, lastError: e instanceof Error ? e.message : String(e) };
+          this.scheduleStorageRetry();
+          this.emit();
+          return;
+        }
+        // 只移除剛寫成功的那一批；期間新進的點在尾端，不受影響
+        this.pending.splice(0, batch.length);
+        if (this.storage.failing) {
+          this.resetStorageState();
+          this.emit();
+        }
       }
     })().finally(() => {
       this.flushing = null;
@@ -391,36 +499,55 @@ export class WorkoutRecorder {
     return l;
   }
 
-  /** 結束：停止定位 → 先保存摘要 → 同步後端；同步失敗不影響本機已保存 */
-  async finish(): Promise<{ meta: SessionMeta; summary: Summary; synced: boolean }> {
+  /**
+   * 結束：停止定位 → 先保存摘要 → 回傳（畫面可立即進摘要頁）；後端同步在背景進行，結果由 `sync` 取得。
+   * review 3：之前會等 syncMeta 完成才回傳，網路卡住時摘要頁與 Recorder 重設都被延遲。
+   */
+  async finish(): Promise<{ meta: SessionMeta; summary: Summary; sync: Promise<SyncOutcome> }> {
     if (!this.engine || !this.meta || (this.state !== 'recording' && this.state !== 'paused')) throw new Error('no active session');
     this.state = 'finishing';
     this.emit();
     this.stopProbes();
     setLocationSink(null);
-    try {
-      if (await this.location.hasStartedLocationUpdatesAsync(WORKOUT_LOCATION_TASK)) await this.location.stopLocationUpdatesAsync(WORKOUT_LOCATION_TASK);
-    } catch {
-      /* 服務可能已被系統停止 */
-    }
+    // review 4：先撤銷 session 標記，排隊中的更新通知執行時會跳過；stop 接在既有操作之後，不與 start 交錯
+    this.locationSession = null;
+    await this.runLocationOp(async () => {
+      try {
+        if (await this.location.hasStartedLocationUpdatesAsync(WORKOUT_LOCATION_TASK)) await this.location.stopLocationUpdatesAsync(WORKOUT_LOCATION_TASK);
+      } catch {
+        /* 服務可能已被系統停止 */
+      }
+    });
     const t = this.now();
     const last = this.meta.pauses[this.meta.pauses.length - 1];
     if (last && last.resumedAtMs === null) last.resumedAtMs = t;
     const summary = this.engine.finish(t);
     this.meta.endedAtUtc = t;
     this.meta.summary = summary;
-    this.meta.status = summary.quality.complete && !this.meta.interrupted && summary.integrity.flags.length === 0 ? 'saved' : 'needs_review';
-    await this.flush();
+    // review 2：儲存失敗時再試幾次；仍未落地的點數記入 meta，讓摘要與後端都知道這筆不完整
+    for (let i = 0; i < STORAGE_RETRY.finishAttempts && this.pending.length; i++) await this.flush();
+    const unsaved = this.pending.length;
+    if (unsaved > 0) this.meta.unsavedPoints = unsaved;
+    this.meta.status = summary.quality.complete && !this.meta.interrupted && summary.integrity.flags.length === 0 && unsaved === 0 ? 'saved' : 'needs_review';
     await this.store.writeMeta(this.meta);
     this.state = this.meta.status;
     this.emit();
-    const synced = (await this.syncMeta(this.meta)).ok;
-    const out = { meta: this.meta, summary, synced };
+    const meta = this.meta;
+    const out = { meta, summary, sync: this.syncInBackground(meta) };
     this.engine = null;
     this.meta = null;
+    this.pending = [];
+    this.resetStorageState();
     this.state = 'idle';
     this.emit();
     return out;
+  }
+  /** 背景同步：完成後 emit，讓已開啟的摘要頁重讀 meta；syncMeta 不會 reject */
+  private syncInBackground(meta: SessionMeta): Promise<SyncOutcome> {
+    return this.syncMeta(meta).then((r) => {
+      this.emit();
+      return r;
+    });
   }
 
   /** 已結束但尚未同步到帳號的本機 session（實機回饋：離開摘要頁後就再也找不到、無法補同步） */
@@ -441,6 +568,7 @@ export class WorkoutRecorder {
     const flags: string[] = [];
     if (s.quality.gaps > 0 || s.quality.coverageRatio < 0.9) flags.push('gps_gap');
     if (meta.interrupted) flags.push('interrupted');
+    if ((meta.unsavedPoints ?? 0) > 0) flags.push('storage_incomplete'); // review 2：本機有點未落地，摘要距離含未持久化的部分
     flags.push(...(s.integrity?.flags ?? [])); // 完整性旗標原樣上送；後端二次判定，不只信 App
     try {
       const r = await this.sync({
@@ -473,7 +601,7 @@ export class WorkoutRecorder {
   }
 
   /** 恢復未正常結束的 session：同 process 可續錄；跨 process 標 interrupted 只允許結束 */
-  async recover(sessionId: string, action: 'continue' | 'finish' | 'discard'): Promise<{ meta: SessionMeta | null; summary?: Summary }> {
+  async recover(sessionId: string, action: 'continue' | 'finish' | 'discard'): Promise<{ meta: SessionMeta | null; summary?: Summary; sync?: Promise<SyncOutcome> }> {
     const meta = this.store.readMeta(sessionId);
     if (!meta) return { meta: null };
     if (action === 'discard') {
@@ -508,9 +636,12 @@ export class WorkoutRecorder {
     if (action === 'continue' && !meta.interrupted && this.state === 'idle') {
       this.engine = engine;
       this.meta = meta;
+      this.pending = [];
+      this.resetStorageState();
       this.state = engine.status === 'paused' ? 'paused' : 'recording';
       meta.status = this.state;
       await this.store.writeMeta(meta);
+      this.locationSession = meta.sessionId;
       resetLocationSeq(meta.lastSeq + 1);
       setLocationSink((pts) => this.ingest(pts));
       this.emit();
@@ -523,8 +654,7 @@ export class WorkoutRecorder {
     meta.summary = summary;
     meta.status = 'needs_review';
     await this.store.writeMeta(meta);
-    await this.syncMeta(meta);
-    return { meta, summary };
+    return { meta, summary, sync: this.syncInBackground(meta) };
   }
 
   /** 啟動時：把仍在 recording／paused 的 session 標為 recoverable（不自動續錄） */

@@ -99,3 +99,96 @@ describe('PG-A-07 ApiClient', () => {
     await expect(api.claim({}, 'k')).rejects.toMatchObject({ status: 422, code: 'TASK_NOT_MET', rulesVersion: 3 });
   });
 });
+
+describe('2026-09-19 review：refresh 區分憑證失效與暫時失敗；請求逾時', () => {
+  const TOK = 'neonshift.api.tokens.v1';
+  const expiredTokens = { accessToken: 'A', refreshToken: 'R', accessExpiresAt: 1_000_000 + 10_000, wallet: 'W' }; // 10 s 內到期 → 觸發 refresh
+
+  test('review 5：refresh 遇 5xx → SERVER_ERROR、token 保留、不是 NO_SESSION', async () => {
+    const { f } = fakeFetch((c) => (c.url.endsWith('/auth/refresh') ? { status: 503, body: { error: { code: 'UNAVAILABLE', message: 'maintenance' } } } : { status: 200, body: {} }));
+    await SecureStore.setItemAsync(TOK, JSON.stringify(expiredTokens));
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    const err = await api.history().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).code).toBe('SERVER_ERROR');
+    expect((err as ApiError).status).toBe(503);
+    expect(await api.hasSession()).toBe(true); // 之前的 bug：這裡會被清掉，畫面顯示成需要登入
+  });
+
+  test('review 5：refresh 遇 429 → RATE_LIMITED、token 保留', async () => {
+    const { f } = fakeFetch((c) => (c.url.endsWith('/auth/refresh') ? { status: 429, body: { error: { code: 'RATE_LIMITED', message: 'slow down' } } } : { status: 200, body: {} }));
+    await SecureStore.setItemAsync(TOK, JSON.stringify(expiredTokens));
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    const err = await api.history().catch((e: unknown) => e);
+    expect((err as ApiError).code).toBe('RATE_LIMITED');
+    expect(await api.hasSession()).toBe(true);
+  });
+
+  test('review 5：refresh 時離線（fetch 拋錯）→ NETWORK_ERROR、token 保留', async () => {
+    const f = (async (url: string) => {
+      if (String(url).endsWith('/auth/refresh')) throw new TypeError('Network request failed');
+      return new Response('{}', { status: 200 });
+    }) as unknown as typeof fetch;
+    await SecureStore.setItemAsync(TOK, JSON.stringify(expiredTokens));
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    const err = await api.history().catch((e: unknown) => e);
+    expect((err as ApiError).code).toBe('NETWORK_ERROR');
+    expect((err as ApiError).message).toMatch(/Network request failed/);
+    expect(await api.hasSession()).toBe(true);
+  });
+
+  test('review 5：refresh 回 401 REFRESH_EXPIRED → 清 session、NO_SESSION', async () => {
+    const { f } = fakeFetch((c) => (c.url.endsWith('/auth/refresh') ? { status: 401, body: { error: { code: 'REFRESH_EXPIRED', message: 'expired' } } } : { status: 200, body: {} }));
+    await SecureStore.setItemAsync(TOK, JSON.stringify(expiredTokens));
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    const err = await api.history().catch((e: unknown) => e);
+    expect((err as ApiError).code).toBe('NO_SESSION');
+    expect(await api.hasSession()).toBe(false);
+  });
+
+  test('review 5：401 重試路徑上 refresh 暫時失敗 → 丟暫時錯誤而非 NO_SESSION；token 保留', async () => {
+    const { f } = fakeFetch((c) => {
+      if (c.url.endsWith('/auth/refresh')) return { status: 502, body: { error: { code: 'BAD_GATEWAY', message: 'upstream' } } };
+      return { status: 401, body: { error: { code: 'UNAUTHORIZED', message: 'expired' } } };
+    });
+    await SecureStore.setItemAsync(TOK, JSON.stringify({ ...expiredTokens, accessExpiresAt: 2_000_000 })); // access 未到期 → 直接打 → 401 → refresh
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    const err = await api.history().catch((e: unknown) => e);
+    expect((err as ApiError).code).toBe('SERVER_ERROR');
+    expect(await api.hasSession()).toBe(true);
+  });
+
+  test('review 3：請求逾時 → NETWORK_ERROR（message 含 timeout），fetch 收到 abort 訊號', async () => {
+    jest.useFakeTimers();
+    try {
+      let aborted = false;
+      const f = ((_url: string, init: RequestInit) => new Promise<Response>((_res, rej) => {
+        init.signal?.addEventListener('abort', () => { aborted = true; rej(new Error('The operation was aborted')); });
+      })) as unknown as typeof fetch;
+      await SecureStore.setItemAsync(TOK, JSON.stringify({ ...expiredTokens, accessExpiresAt: 2_000_000 }));
+      const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000, 500);
+      const pending = api.history().catch((e: unknown) => e);
+      await jest.advanceTimersByTimeAsync(600);
+      const err = await pending;
+      expect(aborted).toBe(true);
+      expect((err as ApiError).code).toBe('NETWORK_ERROR');
+      expect((err as ApiError).message).toMatch(/timeout after 500 ms/);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('review 3：外部 AbortSignal 可取消請求', async () => {
+    const f = ((_url: string, init: RequestInit) => new Promise<Response>((_res, rej) => {
+      init.signal?.addEventListener('abort', () => rej(new Error('aborted')));
+    })) as unknown as typeof fetch;
+    await SecureStore.setItemAsync(TOK, JSON.stringify({ ...expiredTokens, accessExpiresAt: 2_000_000 }));
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000, 0);
+    const ctrl = new AbortController();
+    const pending = api.request('GET', '/player/history?days=30', undefined, { signal: ctrl.signal }).catch((e: unknown) => e);
+    ctrl.abort(new Error('user left screen'));
+    const err = await pending;
+    expect((err as ApiError).code).toBe('NETWORK_ERROR');
+    expect((err as ApiError).message).toMatch(/user left screen/);
+  });
+});

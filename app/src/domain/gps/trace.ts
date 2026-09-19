@@ -1,4 +1,5 @@
 import type { RawPoint } from '@/domain/gps/engine';
+import { GPS_QUALITY } from '@/domain/gps/thresholds';
 
 /**
  * 軌跡投影（PG-R-10 補；Style 23.3）：把本機加密保存的原始定位點轉成可畫在固定尺寸畫布上的折線。
@@ -20,7 +21,7 @@ const R_M = 6_371_008.8;
 
 export function buildTrace(points: RawPoint[], opts: { width: number; height: number; padding?: number; maxAccuracyM?: number; maxGapMs?: number }): Trace {
   const padding = opts.padding ?? 16;
-  const maxAcc = opts.maxAccuracyM ?? 20;
+  const maxAcc = opts.maxAccuracyM ?? GPS_QUALITY.acceptMaxAccuracyM;
   const maxGap = opts.maxGapMs ?? 5000;
   const usable = points.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon) && p.accuracyM <= maxAcc).sort((a, b) => a.seq - b.seq);
   if (usable.length === 0) return { segments: [], metersPerPx: null, start: null, end: null, pointCount: 0 };
