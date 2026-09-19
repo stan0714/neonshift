@@ -1,12 +1,13 @@
 import { Feather } from '@expo/vector-icons';
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, RefreshControl, StyleSheet, Switch, View } from 'react-native';
+import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Pressable, RefreshControl, Share, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import { SignInState } from '@/components/SignInState';
 import type { RootParamList } from '@/navigation/types';
 import { ApiError, apiClient, type EventRegistration, type PartnerEventView, type TagState } from '@/services/api/ApiClient';
+import { EventProgress, MyEvents, RulesCard, shareInvite } from './EventExtras';
 
 import { CheckInCode } from './CheckInCode';
 import { EventBadges } from './EventBadges';
@@ -61,6 +62,7 @@ export function EventsScreen() {
       <Text variant="bodySmall" tone="secondary">
         {t('ev.intro')}
       </Text>
+      <MyEvents />
       {err ? <InlineState kind={err.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={err.code === 'NETWORK_ERROR' ? t('common.devnetBreak') : t('common.somethingInterrupted')} body={t('ev.errBody', { message: err.message })} referenceId={err.ref} action={{ label: t('common.tryAgain'), onPress: () => void load(), loading }} testID="events-error" /> : null}
       {events && events.length === 0 ? (
         <Surface style={styles.card} testID="events-empty">
@@ -103,12 +105,14 @@ export function EventDetailScreen() {
   const [reg, setReg] = useState<EventRegistration | null>(null);
   const [err, setErr] = useState<Err | null>(null);
   const [needsSignIn, setNeedsSignIn] = useState(false);
+  /** 報名狀態查詢失敗（非未登入）：明確顯示「目前無法確認」，不讓已報名者以為沒報名（review P1-3） */
+  const [regErr, setRegErr] = useState<Err | null>(null);
   const [busy, setBusy] = useState(false);
   const [consent, setConsent] = useState(false);
   const [outcome, setOutcome] = useState<{ kind: 'success' | 'error'; title: string; body: string; ref?: string } | null>(null);
   const [tag, setTag] = useState<TagState | 'checking' | 'unknown' | 'signin' | null>(params.tag ? 'checking' : null);
   const [staff, setStaff] = useState(false);
-  const [showCode, setShowCode] = useState(false);
+  const [showCode, setShowCode] = useState(!!params.showCode);
 
   const load = useCallback(async () => {
     try {
@@ -118,8 +122,10 @@ export function EventDetailScreen() {
       try {
         setReg((await apiClient.eventRegistration(e.event_id)).registration);
         setNeedsSignIn(false);
+        setRegErr(null);
       } catch (x) {
-        if (x instanceof ApiError && x.code === 'NO_SESSION') setNeedsSignIn(true);
+        if (x instanceof ApiError && x.code === 'NO_SESSION') { setNeedsSignIn(true); setReg(null); setRegErr(null); }
+        else { setReg(null); setRegErr(toErr(x)); }
       }
       apiClient.partnerMe().then((me) => setStaff(me.event_roles.some((r) => r.event_id === e.event_id && r.role === 'staff') || me.organizations.some((o) => o.role === 'owner'))).catch(() => setStaff(false));
       // PG-E-04：標籤只提供 opaque reference，資格與狀態一律向後端查（SD 11.4）
@@ -133,8 +139,21 @@ export function EventDetailScreen() {
     } catch (e) {
       setErr(toErr(e));
     }
-  }, [params.idOrSlug, params.source, params.tag]);
+    // 換錢包（身分切換）重查：session.address 在依賴內
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.idOrSlug, params.source, params.tag, session?.address]);
   useEffect(() => {
+    void load();
+  }, [load]);
+  // 返回此頁（例如從 Staff 工具或錢包回來）重查報名狀態
+  const first = useRef(true);
+  useFocusEffect(useCallback(() => {
+    if (first.current) { first.current = false; return; }
+    void load();
+  }, [load]));
+  const onCheckedIn = useCallback(() => {
+    setReg((r) => (r ? { ...r, status: 'checked_in' } : r));
+    setShowCode(false);
     void load();
   }, [load]);
 
@@ -198,7 +217,6 @@ export function EventDetailScreen() {
           <Surface hero>
             <View style={styles.rowBetween}>
               <Chip label={stateLabel(t, event.state)} kind={event.state === 'published' ? 'synced' : 'offline'} />
-              {event.rules ? <Chip label={t('ev.rulesV', { n: event.rules.version })} kind="level" /> : null}
             </View>
             <Text variant="heading2" style={styles.mt}>
               {event.title}
@@ -215,18 +233,10 @@ export function EventDetailScreen() {
             {event.state === 'cancelled' ? <Row icon="x-octagon" label={t('ev.cancelledLabel')} value={event.cancel_reason ?? t('ev.byOrganizer')} /> : null}
           </Surface>
 
-          {event.rules ? (
-            <Surface style={styles.card} testID="event-rules">
-              <Text variant="label" tone="muted" uppercase>
-                {t('ev.rulesTitle', { n: event.rules.version })}
-              </Text>
-              {Object.entries(event.rules.rules).map(([k, v]) => (
-                <Text key={k} variant="bodySmall" tone="secondary" style={styles.mt} numeric>
-                  {k.replace(/_/g, ' ')}: {typeof v === 'object' ? JSON.stringify(v) : String(v)}
-                </Text>
-              ))}
-            </Surface>
-          ) : null}
+          {event.rules ? <RulesCard event={event} /> : null}
+          {registered && reg ? <EventProgress event={event} reg={reg} /> : null}
+          <Button label={t('ev.invite')} variant="secondary" style={styles.card} onPress={() => void shareInvite(t, event)} testID="event-invite" />
+          {regErr ? <InlineState kind="warning" title={t('ev.regUnknown.title')} body={t('ev.regUnknown.body', { message: regErr.message })} action={{ label: t('common.tryAgain'), onPress: () => void load() }} testID="event-reg-unknown" /> : null}
 
           {outcome ? (
             <Pressable onPress={() => setOutcome(null)} accessibilityRole="button" accessibilityLabel={t('common.dismiss')}>
@@ -240,18 +250,20 @@ export function EventDetailScreen() {
               <Text variant="bodySmall" tone="secondary" style={styles.mt}>
                 {t('ev.acceptedRules', { v: event.rules?.revision_id === reg?.accepted_rule_revision ? (event.rules?.version ?? '') : t('ev.earlier') })}{reg?.status === 'checked_in' ? t('ev.checkedIn') : t('ev.checkInHint')}
               </Text>
-              {reg?.status !== 'checked_in' && tag && typeof tag === 'object' && tag.status === 'active' && tag.checkpoint?.purpose === 'check_in' ? (
-                <CheckInCode eventId={event.event_id} checkpointId={tag.checkpoint.checkpoint_id} checkpointName={tag.checkpoint.name} />
-              ) : reg?.status !== 'checked_in' && showCode ? (
-                <CheckInPicker eventId={event.event_id} />
-              ) : reg?.status !== 'checked_in' ? (
+              {reg?.status === 'checked_in' ? (
+                <Text variant="bodySmall" tone="mint" style={styles.mt} testID="event-checked-in-next">{t('ev.checkedInNext')}</Text>
+              ) : tag && typeof tag === 'object' && tag.status === 'active' && tag.checkpoint?.purpose === 'check_in' ? (
+                <CheckInCode eventId={event.event_id} checkpointId={tag.checkpoint.checkpoint_id} checkpointName={tag.checkpoint.name} onCheckedIn={onCheckedIn} />
+              ) : showCode ? (
+                <CheckInPicker eventId={event.event_id} onCheckedIn={onCheckedIn} />
+              ) : (
                 <Button label={t('ci.show')} variant="secondary" style={styles.mt} onPress={() => setShowCode(true)} testID="event-show-code" />
-              ) : null}
+              )}
               {window !== 'closed' && reg?.status !== 'checked_in' ? <Button label={t('ev.cancel.ok')} variant="danger" style={styles.mt} onPress={cancel} loading={busy} disabled={busy} /> : null}
             </Surface>
           ) : needsSignIn ? (
             <SignInState title={t('ev.signin.title')} body={t('ev.signin.body')} onSignedIn={load} testID="event-signin" />
-          ) : window === 'open' && event.rules ? (
+          ) : regErr ? null : window === 'open' && event.rules ? (
             <Surface style={styles.card} testID="event-register">
               <View style={styles.rowBetween}>
                 <Text variant="bodySmall" tone="secondary" style={styles.flex}>
@@ -277,7 +289,7 @@ export function EventDetailScreen() {
 }
 
 /** 無標籤時：讓參加者選報到站點後顯示代碼 */
-function CheckInPicker({ eventId }: { eventId: string }) {
+function CheckInPicker({ eventId, onCheckedIn }: { eventId: string; onCheckedIn?: () => void }) {
   const { t } = useT();
   const [cps, setCps] = useState<{ checkpoint_id: string; name: string }[] | null>(null);
   const [cp, setCp] = useState<{ checkpoint_id: string; name: string } | null>(null);
@@ -304,7 +316,7 @@ function CheckInPicker({ eventId }: { eventId: string }) {
           ))}
         </View>
       ) : null}
-      {cp ? <CheckInCode eventId={eventId} checkpointId={cp.checkpoint_id} checkpointName={cp.name} /> : null}
+      {cp ? <CheckInCode key={cp.checkpoint_id} eventId={eventId} checkpointId={cp.checkpoint_id} checkpointName={cp.name} onCheckedIn={onCheckedIn} /> : null}
     </>
   );
 }

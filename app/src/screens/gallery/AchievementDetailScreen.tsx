@@ -23,6 +23,7 @@ export function AchievementDetailScreen() {
       setData(await apiClient.galleryAchievement(params.asset));
       setErr(null);
     } catch (e) {
+      setData(null); // 對方退出藝廊（NOT_FOUND）或失敗：不留舊作品（review P1-2）
       setErr(e instanceof ApiError ? { code: e.code, message: e.message } : { code: 'UNKNOWN', message: String(e) });
     }
   }, [params.asset]);

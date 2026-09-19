@@ -1,5 +1,7 @@
 import { Feather } from '@expo/vector-icons';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { SvgUri } from 'react-native-svg';
 
 import { Chip, Surface } from '@/components';
 import { useT, type TKey } from '@/i18n';
@@ -20,13 +22,27 @@ export function PbCard({ a, onPress, testID }: { a: GalleryAchievement; onPress?
   const event = a.series === 'event_check_in' || a.series === 'event_finish';
   const tint = a.verification_class === 'organizer' ? color.mint : speed ? color.cyan : color.violet;
   const label = achievementLabel(t, a);
+  // review P2-6：用對應作品圖（後端 metadata image，SVG）；載入失敗退回通用圖示
+  const [artFailed, setArtFailed] = useState(false);
+  const showArt = !!a.image && /\.svg(\?|$)/i.test(a.image) && !artFailed;
+  // 紀念語：首次完成／刷新紀錄／參與活動（技術欄位留在詳情）
+  const story = event ? (a.series === 'event_finish' ? t('gal.story.eventFinish') : t('gal.story.eventCheckIn')) : milestone ? t('gal.story.first') : a.record === 'current' ? t('gal.story.pbCurrent') : a.record === 'historical' ? t('gal.story.pbHistorical') : t('gal.story.invalidated');
   return (
     <Pressable onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : undefined} accessibilityLabel={`${label} · ${t(`gal.record.${a.record}` as TKey)}`} testID={testID}>
       <Surface level="elevated" style={[styles.tile, a.record === 'invalidated' && styles.dim]}>
         <View style={[styles.art, { borderColor: tint }]}>
-          <View style={[styles.ring, { borderColor: tint }, !speed && styles.arc]} />
-          <Feather name={event ? (a.series === 'event_finish' ? 'flag' : 'check-circle') : milestone ? (a.series === 'first_finish' ? 'flag' : 'award') : speed ? 'zap' : 'map'} size={28} color={tint} />
+          {showArt ? (
+            <SvgUri uri={a.image} width="100%" height="100%" onError={() => setArtFailed(true)} testID="pb-card-art" />
+          ) : (
+            <>
+              <View style={[styles.ring, { borderColor: tint }, !speed && styles.arc]} />
+              <Feather name={event ? (a.series === 'event_finish' ? 'flag' : 'check-circle') : milestone ? (a.series === 'first_finish' ? 'flag' : 'award') : speed ? 'zap' : 'map'} size={28} color={tint} />
+            </>
+          )}
         </View>
+        <Text variant="caption" tone="mint" numberOfLines={1}>
+          {story}
+        </Text>
         <Text variant="title" numberOfLines={1}>
           {label}
         </Text>
