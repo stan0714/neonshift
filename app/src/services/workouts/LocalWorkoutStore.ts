@@ -49,6 +49,8 @@ export type SessionMeta = {
   shoeSnapshot?: { shoeId: string; level: 1 | 2 | 3 | 4 | 5; variant: string | null } | null;
   /** PG-LINK-02：建立時綁定的玩家（錢包地址）；null＝訪客紀錄，首次歸屬須確認 */
   owner?: string | null;
+  /** PG-LINK-04：記錄時的裝置時區（IANA）；日誌月／日分組依此，改手機時區不改事件順序；舊紀錄缺 → 裝置時區 */
+  recordedTimeZone?: string | null;
   /** PG-LINK-03：使用者要求刪除的時間（tombstone）；已同步者等伺服器確認刪除後才移除本機，未確認前顯示「刪除待同步」，且不會被一般上傳復活 */
   deletedAt?: number | null;
   /** PG-LINK-02：上傳佇列狀態（WorkoutOutbox）；缺欄位＝從未嘗試 */

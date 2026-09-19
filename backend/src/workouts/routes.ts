@@ -87,10 +87,46 @@ export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthServ
     return reply.status(created > 0 ? 201 : 200).send({ imported: created, results: results.map((r) => ("session" in r && r.session ? { ...r, accepted_revision: r.session.revision } : r)), recompute: changed ? "confirmed" : "unchanged" });
   });
 
+  /**
+   * PG-LINK-04：Activity 日誌查詢——`from,to`（[from,to)，ISO）、`sport`、`intent`、`source`（gps／device／manual／imported＝非 gps）、
+   * `status`、`order`（asc＝運動開始時間由舊到新；預設 desc 相容舊版）、`cursor`＋`limit` 游標分頁（開始時間＋session id，穩定）。
+   * 回傳 `next_cursor`、`as_of`（查詢快照時間）與 `range`；資料量受 30 天保留期限制，先全取再過濾。舊參數 `offset` 仍支援。
+   */
   app.get("/me/workouts", { preHandler: requireAuth(auth) }, async (req) => {
-    const q = z.object({ limit: z.coerce.number().int().min(1).max(200).default(50), offset: z.coerce.number().int().min(0).default(0) }).parse(req.query ?? {});
-    const items = await store.listWorkouts(req.auth!.wallet, q.limit, q.offset);
-    return { items: items.map(workoutView), rules_version: WORKOUT_RULES_VERSION };
+    const q = z.object({
+      limit: z.coerce.number().int().min(1).max(200).default(50), offset: z.coerce.number().int().min(0).default(0),
+      from: z.coerce.date().optional(), to: z.coerce.date().optional(),
+      sport: z.enum(["run", "walk"]).optional(), intent: z.enum(["run", "brisk", "casual"]).optional(),
+      source: z.enum(["gps", "device", "manual", "imported"]).optional(), status: z.enum(["saved", "needs_review", "invalid"]).optional(),
+      order: z.enum(["asc", "desc"]).default("desc"), cursor: z.string().max(200).optional(),
+    }).parse(req.query ?? {});
+    const wallet = req.auth!.wallet;
+    const legacy = !q.from && !q.to && !q.sport && !q.intent && !q.source && !q.status && !q.cursor && q.order === "desc";
+    if (legacy) {
+      const items = await store.listWorkouts(wallet, q.limit, q.offset);
+      return { items: items.map(workoutView), rules_version: WORKOUT_RULES_VERSION, next_cursor: null, as_of: now().toISOString() };
+    }
+    const all = (await store.listWorkouts(wallet, 1000, 0)).filter((w) => {
+      if (q.from && w.startedAt < q.from) return false;
+      if (q.to && w.startedAt >= q.to) return false;
+      if (q.sport && w.sport !== q.sport) return false;
+      if (q.intent && (w.intent ?? (w.sport === "run" ? "run" : null)) !== q.intent) return false;
+      if (q.source && (q.source === "imported" ? w.origin === "gps" : w.origin !== q.source)) return false;
+      if (q.status && w.status !== q.status) return false;
+      return true;
+    });
+    const cmp = (a: WorkoutSession, b: WorkoutSession) => (a.startedAt.getTime() - b.startedAt.getTime()) || (a.sessionId < b.sessionId ? -1 : a.sessionId > b.sessionId ? 1 : 0);
+    all.sort((a, b) => (q.order === "asc" ? cmp(a, b) : -cmp(a, b)));
+    let start = 0;
+    if (q.cursor) {
+      const [ms, id] = Buffer.from(q.cursor, "base64url").toString("utf8").split("|");
+      const idx = all.findIndex((w) => w.startedAt.getTime() === Number(ms) && w.sessionId === id);
+      start = idx >= 0 ? idx + 1 : 0;
+    }
+    const page = all.slice(start, start + q.limit);
+    const last = page[page.length - 1];
+    const nextCursor = start + q.limit < all.length && last ? Buffer.from(`${last.startedAt.getTime()}|${last.sessionId}`).toString("base64url") : null;
+    return { items: page.map(workoutView), rules_version: WORKOUT_RULES_VERSION, next_cursor: nextCursor, as_of: now().toISOString(), range: { from: q.from?.toISOString() ?? null, to: q.to?.toISOString() ?? null }, total: all.length };
   });
 
   app.get("/me/workouts/:id", { preHandler: requireAuth(auth) }, async (req) => {

@@ -28,6 +28,9 @@ export type RootParamList = {
   Explore: undefined;
   /** 運動紀錄（PG-R-01，FR-14.1）：匯入的跑步／健走摘要 */
   Workouts: undefined;
+  /** PG-LINK-04 我的運動日誌；month＝YYYY-MM */
+  Activity: { month?: string } | undefined;
+  ActivityDetail: { serverId: string };
   /** GPS 記錄（PG-R-03／R-06，FR-18）：開始 → 記錄 → 摘要 */
   WorkoutStart: undefined;
   WorkoutRecord: undefined;

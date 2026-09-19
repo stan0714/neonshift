@@ -963,6 +963,16 @@ Home 「Workouts ›」進入 `WorkoutsScreen`：每筆一張 Surface — 標題
 - **App 刪除**：未同步 → 直接刪本機（含路線）並移出佇列；已同步 → 先寫 `meta.deletedAt`（tombstone，不會被一般上傳復活），以同一佇列、同一順序向伺服器提交刪除，2xx／404 確認後才移除本機；未確認前清單顯示「刪除待同步 · 伺服器確認後才會移除」，離線也可操作。運動頁伺服器清單的刪除：本機有對應 session 者走 tombstone，只在伺服器的（Health Connect 匯入）直接刪。
 - **不做**：長期雲端歷史／保留期變更（仍 30 天，另行同意）；App 內編輯開始時間（無此功能，revision 固定 1）。
 
+### 23.16 我的運動 Activity 日誌（PG-LINK-04，2026-09-19；設計見 shoe-sync-activity.md §4）
+
+- **入口**：Profile「我的運動」、Home「最近運動」卡（本機最新一筆：模式／距離／時間／日期／同步狀態，點入日誌）；路由 `Activity`（可帶 month）、`ActivityDetail`（伺服器摘要）。
+- **資料**（`domain/activity.ts` 純函式）：合併本機（`localStore.list()`，含佇列狀態）＋伺服器（`/me/workouts?from&to&order=asc&cursor`，[from,to) 前後放寬一天再依日曆日過濾），以 canonical id 去重（本機 `syncedSessionId`＝伺服器 session_id，或伺服器 gps 來源的 external_record_id＝本機 id）；已同步同一筆只一列，本機為詳情來源、伺服器審查結果覆蓋狀態；invalid／deleted 不列。月／日分組依 session 保存的 `recordedTimeZone`（跨午夜歸開始日；缺 → 裝置時區）。
+- **狀態分開標示**：僅本機／排隊同步／同步失敗／已排除／刪除待同步／已同步／待審／伺服器摘要；月總覽只計有效且去重（待審／排除／刪除中另列「另 n 筆不計」）；距離／時間缺值顯示 —；跑步顯示平均配速、健走顯示平均速度；每列附當時跑鞋（未指定）、來源。
+- **檢視**：月份 ‹ ›、清單／月曆切換（月曆格顯示當日 km 或次數，點日期只看該日）、模式（全部／跑步／健走／散步）、來源（裝置紀錄／匯入）、狀態（僅本機／已同步／待審／同步失敗）篩選；預設由舊到新（＝同步順序），可切由新到舊並記在 `workoutPrefs.activityOrder／activityView`；同步永遠由舊到新，頁面排序不改佇列。同步列：待傳 n 筆＋自動同步開／關＋「立即同步」；「資料與同步」連到 Profile。
+- **詳情**：本機紀錄 → 既有摘要頁（路線、分段、品質、當時跑鞋）；只在伺服器 → `ActivityDetail`（開始／結束、經過／移動時間、配速或速度、步數、熱量、當時跑鞋、PB 資格、分段；無分段說明「不以平均速度推算最快分段」；「伺服器摘要沒有路線」；404 → 找不到／已超過保留期）。
+- **離線／登入**：伺服器查詢失敗仍列本機並說明（離線／登入後合併）；未連錢包只看訪客本機紀錄；登入失效不清本機日誌。空狀態引導開始運動／匯入；頁尾提示伺服器保留 30 天、本機可看更久但非永久備份。
+- **後端**：`GET /me/workouts` 新增 `from,to,sport,intent,source(gps|device|manual|imported),status,order,cursor`，回 `next_cursor`、`as_of`、`total`；舊參數 limit／offset 不變。App 同步 extras 帶 `recorded_time_zone`、`shoe`、`moving_ms`。
+
 ## 24. 三模式運動與探索冊體驗
 
 依 [補充規格](./sport-experience-gameplay.md) 第 1～5 章。延續深色霓虹設計，三模式使用文字＋圖示，不只靠顏色；健走不呈現成跑步等級。運動中三項大數字、狀態與主要操作優先，慶祝與 NFT 預覽延至保存後。探索冊使用可逐格點亮的抽象城市章節，不展示真實位置；分列「探索進度」「鞋階維持」，不可合成同一進度條。大字、讀屏、減少動態設定須驗收。

@@ -26,6 +26,9 @@ export type WorkoutPrefs = {
   keepAwake: boolean;
   /** 記錄頁詳細模式（review 9）：預設精簡（配速／距離／運動時間／暫停／計圈）；開啟才顯示分段表、軌跡、速度曲線與配速比較 */
   detailView: boolean;
+  /** PG-LINK-04：日誌排序（預設由舊到新，與同步順序一致）與檢視（清單／月曆）——瀏覽偏好，不影響同步 */
+  activityOrder: 'asc' | 'desc';
+  activityView: 'list' | 'calendar';
 };
 /**
  * 目標快照版本。v1：時間目標以總時間（含暫停）判定。
@@ -34,10 +37,10 @@ export type WorkoutPrefs = {
 export const GOAL_VERSION = 2;
 export const FREE_GOAL: WorkoutGoal = { kind: 'free', target: 0, unit: 's', version: GOAL_VERSION };
 const KEY = 'neonshift.workout.prefs.v1';
-const initial: WorkoutPrefs = { mode: 'run', goal: FREE_GOAL, voice: false, haptic: false, showRoute: true, traceLayer: 'grid', autoPause: false, cueEvery: '1000', keepAwake: true, detailView: false };
+const initial: WorkoutPrefs = { mode: 'run', goal: FREE_GOAL, voice: false, haptic: false, showRoute: true, traceLayer: 'grid', autoPause: false, cueEvery: '1000', keepAwake: true, detailView: false, activityOrder: 'asc', activityView: 'list' };
 
 type State = WorkoutPrefs & { loaded: boolean; load: () => Promise<WorkoutPrefs>; set: (patch: Partial<WorkoutPrefs>) => Promise<void> };
-const pick = (s: State): WorkoutPrefs => ({ mode: s.mode, goal: s.goal, voice: s.voice, haptic: s.haptic, showRoute: s.showRoute, traceLayer: s.traceLayer, autoPause: s.autoPause, cueEvery: s.cueEvery, keepAwake: s.keepAwake, detailView: s.detailView });
+const pick = (s: State): WorkoutPrefs => ({ mode: s.mode, goal: s.goal, voice: s.voice, haptic: s.haptic, showRoute: s.showRoute, traceLayer: s.traceLayer, autoPause: s.autoPause, cueEvery: s.cueEvery, keepAwake: s.keepAwake, detailView: s.detailView, activityOrder: s.activityOrder, activityView: s.activityView });
 
 export const useWorkoutPrefs = create<State>((set, get) => ({
   ...initial,

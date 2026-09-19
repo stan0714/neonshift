@@ -363,8 +363,9 @@ export class ApiClient {
     return this.request('POST', '/workouts/import', { sessions });
   }
 
-  myWorkouts(q: { limit?: number; offset?: number } = {}): Promise<{ items: WorkoutSummary[]; rules_version: number }> {
-    const qs = Object.entries(q).filter(([, v]) => v !== undefined).map(([k, v]) => `${k}=${v}`).join('&');
+  /** PG-LINK-04：日誌查詢（from／to 為 [from,to) ISO；order asc＝由舊到新；cursor 分頁）；舊參數 limit／offset 仍可用 */
+  myWorkouts(q: { limit?: number; offset?: number; from?: string; to?: string; sport?: 'run' | 'walk'; intent?: WorkoutIntent; source?: 'gps' | 'device' | 'manual' | 'imported'; status?: 'saved' | 'needs_review' | 'invalid'; order?: 'asc' | 'desc'; cursor?: string } = {}): Promise<{ items: WorkoutSummary[]; rules_version: number; next_cursor?: string | null; as_of?: string; total?: number }> {
+    const qs = Object.entries(q).filter(([, v]) => v !== undefined).map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&');
     return this.request('GET', `/me/workouts${qs ? `?${qs}` : ''}`);
   }
 
@@ -417,6 +418,11 @@ export class ApiClient {
 
   personalBests(): Promise<PersonalBests> {
     return this.request('GET', '/me/personal-bests');
+  }
+
+  /** PG-LINK-04：單筆伺服器摘要（只限本人；未知或無權 → 404） */
+  workout(sessionId: string): Promise<WorkoutSummary> {
+    return this.request('GET', `/me/workouts/${encodeURIComponent(sessionId)}`);
   }
 
   deleteWorkout(sessionId: string): Promise<unknown> {

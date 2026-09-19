@@ -123,6 +123,8 @@ type Deps = { store?: LocalWorkoutStore; location?: LocationApi; now?: () => num
  * 改成連續兩點可抵擋單點飄移，門檻與引擎一致則「引擎會採計的移動」也能解除暫停。
  */
 export const AUTO_PAUSE = { minSpeedMs: 0.5, stillMs: 10_000, resumeDistanceM: 15, maxAccuracyM: GPS_QUALITY.acceptMaxAccuracyM, resumeConsecutive: 2 } as const;
+/** 裝置時區（IANA）；取不到 → null（日誌以裝置時區顯示） */
+export const deviceTimeZone = (): string | null => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone ?? null; } catch { return null; } };
 /** 配速過期門檻（ms）：超過此時間沒有點被採用就不顯示速度／配速 */
 export const PACE_STALE_MS = 10_000;
 
@@ -472,7 +474,7 @@ export class WorkoutRecorder {
     this.emit();
     let created = false;
     try {
-      this.meta = await this.store.create({ sessionId, sport: opts.sport, intent: opts.intent ?? (opts.sport === 'run' ? 'run' : null), goal: opts.goal ?? null, environment: opts.environment, autoLapMm: opts.autoLapMm ?? null, trackLapMm: opts.trackLapMm ?? null, autoPause: opts.autoPause ?? false, splitLengthMm: opts.splitLengthMm ?? 1_000_000, status: 'recording', startedAtUtc: t, startedMonoMs: t, processId: this.processId, shoeSnapshot: opts.shoeSnapshot ?? null, owner: opts.owner ?? null });
+      this.meta = await this.store.create({ sessionId, sport: opts.sport, intent: opts.intent ?? (opts.sport === 'run' ? 'run' : null), goal: opts.goal ?? null, environment: opts.environment, autoLapMm: opts.autoLapMm ?? null, trackLapMm: opts.trackLapMm ?? null, autoPause: opts.autoPause ?? false, splitLengthMm: opts.splitLengthMm ?? 1_000_000, status: 'recording', startedAtUtc: t, startedMonoMs: t, processId: this.processId, shoeSnapshot: opts.shoeSnapshot ?? null, owner: opts.owner ?? null, recordedTimeZone: deviceTimeZone() });
       created = true;
       this.engine = new GpsMetricsEngine(opts.sport, engineConfigOf(this.meta));
       this.engine.start(t);
@@ -777,7 +779,7 @@ export class WorkoutRecorder {
         distance_mm: s.distanceMm > 0 ? String(s.distanceMm) : null,
         distance_method: s.distanceMm > 0 ? 'gps' : null,
         client_flags: flags,
-        extras: { gps_rules_version: s.rulesVersion, max_speed_5s_kmh: s.maxSpeed5sKmh, moving_ms: s.movingMs, splits: s.splits, laps: s.laps, quality: s.quality, integrity: s.integrity ?? null, track_equivalent: s.trackEquivalent },
+        extras: { gps_rules_version: s.rulesVersion, max_speed_5s_kmh: s.maxSpeed5sKmh, moving_ms: s.movingMs, splits: s.splits, laps: s.laps, quality: s.quality, integrity: s.integrity ?? null, track_equivalent: s.trackEquivalent, recorded_time_zone: meta.recordedTimeZone ?? null, shoe: meta.shoeSnapshot ?? null },
       });
       if (r.sessionId) {
         meta.syncedSessionId = r.sessionId;

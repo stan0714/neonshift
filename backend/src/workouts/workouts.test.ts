@@ -149,6 +149,37 @@ describe("POST /workouts/import、/me/workouts", () => {
     expect(j(await app.inject({ method: "GET", url: "/v1/me/workouts", headers: u.h })).items).toHaveLength(1);
   });
 
+  it("PG-LINK-04 日誌查詢：[from,to) 月份範圍、sport／intent／source／status 篩選、asc 由舊到新、游標分頁穩定不重複不漏列；舊參數不變", async () => {
+    const u = await login();
+    const mk = (id: string, day: string, extra: Record<string, unknown> = {}) => ({ ...base, external_record_id: id, started_at: `2026-09-${day}T01:00:00Z`, ended_at: `2026-09-${day}T01:25:00Z`, ...extra });
+    await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [mk("a", "19"), mk("b", "17"), mk("c", "18", { sport: "walk", intent: "brisk" }), mk("d", "02", { origin: "gps", source_id: "cc.neonshift.app/gps", distance_mm: "5000000", distance_method: "gps" }), { ...base, external_record_id: "e", started_at: "2026-08-31T23:00:00Z", ended_at: "2026-08-31T23:20:00Z" }] } });
+    const ids = (r: { json: () => unknown }) => j(r).items.map((x: { source: { external_record_id: string } }) => x.source.external_record_id);
+    // 舊參數：由新到舊、無 next_cursor
+    let r = await app.inject({ method: "GET", url: "/v1/me/workouts", headers: u.h });
+    expect(ids(r)).toEqual(["a", "c", "b", "d", "e"]);
+    expect(j(r).next_cursor).toBeNull();
+    // 九月 [from,to)：8/31 排除；asc 由舊到新
+    r = await app.inject({ method: "GET", url: "/v1/me/workouts?from=2026-09-01T00:00:00Z&to=2026-10-01T00:00:00Z&order=asc", headers: u.h });
+    expect(ids(r)).toEqual(["d", "b", "c", "a"]);
+    expect(j(r).total).toBe(4);
+    // 篩選
+    expect(ids(await app.inject({ method: "GET", url: "/v1/me/workouts?sport=walk&order=asc", headers: u.h }))).toEqual(["c"]);
+    expect(ids(await app.inject({ method: "GET", url: "/v1/me/workouts?intent=brisk&order=asc", headers: u.h }))).toEqual(["c"]);
+    expect(ids(await app.inject({ method: "GET", url: "/v1/me/workouts?source=gps&order=asc", headers: u.h }))).toEqual(["d"]);
+    expect(ids(await app.inject({ method: "GET", url: "/v1/me/workouts?source=imported&order=asc", headers: u.h }))).toEqual(["e", "b", "c", "a"]);
+    expect(ids(await app.inject({ method: "GET", url: "/v1/me/workouts?status=saved&order=asc", headers: u.h })).length).toBeGreaterThan(0);
+    // 游標分頁：limit 2 → 三頁，不重複不漏列
+    r = await app.inject({ method: "GET", url: "/v1/me/workouts?order=asc&limit=2", headers: u.h });
+    const p1 = ids(r); const c1 = j(r).cursor ?? j(r).next_cursor;
+    r = await app.inject({ method: "GET", url: `/v1/me/workouts?order=asc&limit=2&cursor=${c1}`, headers: u.h });
+    const p2 = ids(r); const c2 = j(r).next_cursor;
+    r = await app.inject({ method: "GET", url: `/v1/me/workouts?order=asc&limit=2&cursor=${c2}`, headers: u.h });
+    const p3 = ids(r);
+    expect([...p1, ...p2, ...p3]).toEqual(["e", "d", "b", "c", "a"]);
+    expect(j(r).next_cursor).toBeNull();
+    expect((await app.inject({ method: "GET", url: "/v1/me/workouts?order=sideways", headers: u.h })).statusCode).toBeGreaterThanOrEqual(400);
+  });
+
   it("跨來源同場（重疊 ≥ 50%）：第二筆標 possible_duplicate_of，不合併；invalid 列不入庫；DELETE /player/data 清掉全部", async () => {
     const u = await login();
     const r = await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [

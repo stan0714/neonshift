@@ -17,6 +17,7 @@ import { healthConnect, type HealthPermissionSummary } from '@/services/health/H
 import { useLevelRevealStore } from '@/state/levelRevealStore';
 import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
+import { formatDuration, formatKm, modeLabel } from '@/domain/workouts';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text, useTheme, glowStyle } from '@/theme';
 
@@ -116,6 +117,11 @@ export function HomeScreen() {
   const stepsReward = estimateReward(d.config, d.profile, 'steps');
   const sleepReward = estimateReward(d.config, d.profile, 'sleep');
   const ap = useAppearance(); // PG-LINK-01：跑鞋外觀與棲地背景
+  const recent = useMemo(() => {
+    const owner = session?.address ?? null;
+    return workoutRecorder.localStore().list().find((m) => !!m.summary && !m.deletedAt && (owner ? m.owner === owner || !m.owner : !m.owner)) ?? null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.address, isFocused]);
 
   return (
     <View style={styles.root}>
@@ -185,6 +191,18 @@ export function HomeScreen() {
         ))}
       </View>
 
+      {/* PG-LINK-04：最近運動入口（本機最新一筆；點入我的運動日誌） */}
+      {recent ? (
+        <Pressable onPress={() => navigation.navigate('Activity')} accessibilityRole="button" style={({ pressed }) => [styles.recent, pressed && styles.pressed]} testID="home-recent-workout">
+          <View style={styles.flex}>
+            <Text variant="label" tone="muted" uppercase>{t('home.recentWorkout')}</Text>
+            <Text variant="body" numeric>{modeLabel(t, recent.sport, recent.intent)} · {recent.summary ? formatKm(String(recent.summary.distanceMm)) : '—'} · {recent.summary ? formatDuration(String(recent.summary.elapsedMs)) : '—'}</Text>
+            <Text variant="caption" tone="muted">{new Date(recent.startedAtUtc).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · {t(recent.syncedSessionId ? 'sum.synced' : 'sum.notSynced')}</Text>
+          </View>
+          <Feather name="chevron-right" size={20} color={color.textMuted} />
+        </Pressable>
+      ) : null}
+
       <Text variant="label" tone="muted" uppercase style={styles.section}>
         {t('home.today')}
       </Text>
@@ -251,6 +269,7 @@ const styles = StyleSheet.create({
   gap: { width: space.s },
   utc: { marginTop: space.xs },
   hero: { alignItems: 'center', marginTop: space.xl },
+  recent: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.m, padding: space.m, borderRadius: radius.m, backgroundColor: color.surface, borderWidth: 1, borderColor: color.borderSubtle },
   heroCaption: { marginTop: space.xs },
   disclaimer: { marginTop: space.l, textAlign: 'center' },
 });

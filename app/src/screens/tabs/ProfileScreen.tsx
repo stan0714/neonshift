@@ -222,6 +222,7 @@ export function ProfileScreen() {
         <Text variant="caption" tone="muted" style={styles.mtXs}>
           {t('profile.galleryBody')}
         </Text>
+        <Button label={t('actv.title')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('Activity')} testID="profile-activity" />
         <Button label={t('profile.runningHistory')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('Workouts')} testID="profile-running-history" />
       </Section>
 
