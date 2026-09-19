@@ -109,7 +109,7 @@ describe('PG-A-14 Gear', () => {
     await fireEvent.press(screen.getByTestId('shoe-detail-preview-reveal'));
     expect(screen.getByTestId('evolution-reveal')).toBeTruthy();
     expect(screen.getByTestId('reveal-preview')).toBeTruthy();
-    expect(screen.getByTestId('reward-stage-box')).toBeTruthy();
+    expect(screen.getByTestId('unbox-stage')).toBeTruthy(); // 盒子層本身由 unboxStage.test 驗證；整個檔案跑時 5.2 s 儀式可能已結束（settled）
     expect(screen.getByText('Lv.2 → Lv.3')).toBeTruthy();
     expect(screen.getByText('Collection preview')).toBeTruthy();
     expect(screen.queryByTestId('reveal-tx')).toBeNull();

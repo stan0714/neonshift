@@ -1549,6 +1549,7 @@ export const en = {
   'sync.assign.body': 'These were recorded without a wallet connected. Once assigned they upload under this wallet and cannot be reassigned. Confirm they are your own workouts.',
   'sync.assign.confirm': 'Assign to this wallet',
   'sync.assign.btn': 'Assign {n} guest workouts',
+  'sync.deletePending': 'Deletion pending · removed once the server confirms',
   'sum.syncing': 'Syncing…',
   'sum.sync.signinTitle': 'Sign in to sync',
   'sum.sync.signinBody': 'The summary is saved on this phone. Syncing to your account needs one signed message from your connected wallet (not a transaction, no fee, asked once); it syncs automatically after you sign.',

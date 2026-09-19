@@ -122,6 +122,15 @@ export function WorkoutsScreen() {
         onPress: () => {
           void (async () => {
             try {
+              // PG-LINK-03：這支手機記錄的 session → 先寫 tombstone 走佇列（離線也能刪、不會被上傳復活）；只在伺服器的（匯入）→ 直接刪
+              const local = workoutRecorder.localStore().list().find((m) => m.syncedSessionId === w.session_id);
+              if (local && ob.owner) {
+                await workoutOutbox.requestDelete(local.sessionId);
+                const r = await workoutOutbox.run(ob.owner, { manual: true, target: local.sessionId });
+                if (r.target?.ok) { setNotice({ kind: 'success', title: t('wo.deleted') }); await load(); }
+                else setNotice({ kind: 'info', title: t('sync.deletePending'), body: r.target && !r.target.ok ? t(`sync.err.${r.target.code}` as TKey, { message: r.target.message }) : undefined });
+                return;
+              }
               await apiClient.deleteWorkout(w.session_id);
               setNotice({ kind: 'success', title: t('wo.deleted') });
               await load();
@@ -148,9 +157,9 @@ export function WorkoutsScreen() {
         <InlineState key={m.sessionId} kind="warning" title={t('wo.recoverTitle')} body={t('wo.recoverBody')} action={{ label: t('wo.recoverSave'), onPress: () => void recover(m, 'finish') }} secondaryAction={{ label: t('wo.recoverDiscard'), onPress: () => void recover(m, 'discard') }} testID={`workouts-recover-${m.sessionId}`} />
       ))}
       {notice ? <InlineState kind={notice.kind} title={notice.title} body={notice.body} testID={`workouts-${notice.kind}`} /> : null}
-      {unsynced.length ? (
+      {unsynced.length || ob.list.length ? (
         <Surface style={styles.mt} testID="workouts-unsynced">
-          <Text variant="title">{t('wo.local.title', { n: unsynced.length })}</Text>
+          <Text variant="title">{t('wo.local.title', { n: unsynced.length + ob.list.filter((e) => e.op === 'delete').length })}</Text>
           <Text variant="caption" tone="secondary">{t('wo.local.body')} {t(ob.autoSync ? 'sync.listAutoOn' : 'sync.listAutoOff')}</Text>
           {ob.summary.head && (ob.summary.head.status === 'blocked' || ob.summary.head.status === 'retry_wait') && ob.summary.pending > 1 ? (
             <Text variant="caption" tone="warning" style={styles.mtXs} testID="workouts-head-stuck">{t('sync.headStuck', { when: new Date(ob.summary.head.meta.startedAtUtc).toLocaleDateString(), reason: t(`sync.err.${ob.summary.head.lastError?.code ?? 'UNKNOWN'}` as TKey, { message: ob.summary.head.lastError?.message ?? '' }) })}</Text>
@@ -162,7 +171,7 @@ export function WorkoutsScreen() {
                 <Text variant="body">{modeLabel(t, m.sport, m.intent)} · {formatKm(String(m.summary?.distanceMm ?? 0))} · {formatDuration(String(m.summary?.elapsedMs ?? 0))}</Text>
                 <Text variant="caption" tone="muted">{new Date(m.startedAtUtc).toLocaleString()}{m.status === 'needs_review' ? ` · ${t('sum.needsReviewShort')}` : ''}</Text>
                 <Text variant="caption" tone={e?.status === 'blocked' ? 'warning' : e?.status === 'excluded' ? 'danger' : 'muted'} testID={`workouts-local-status-${m.sessionId}`}>
-                  {e ? t(`sync.status.${e.status}` as TKey) : t('sync.status.guest')}{e?.lastError && (e.status === 'blocked' || e.status === 'retry_wait') ? ` · ${t(`sync.err.${e.lastError.code}` as TKey, { message: e.lastError.message })}` : ''}
+                  {e?.op === 'delete' ? t('sync.deletePending') : e ? t(`sync.status.${e.status}` as TKey) : t('sync.status.guest')}{e?.lastError && (e.status === 'blocked' || e.status === 'retry_wait') ? ` · ${t(`sync.err.${e.lastError.code}` as TKey, { message: e.lastError.message })}` : ''}
                 </Text>
               </Pressable>
               {e?.status === 'excluded' ? (
@@ -175,9 +184,11 @@ export function WorkoutsScreen() {
                   <Text variant="label" tone="warning">{t('sync.exclude.btn')}</Text>
                 </Pressable>
               ) : null}
-              <Pressable onPress={() => deleteLocal(m)} accessibilityRole="button" accessibilityLabel={t('wo.local.delete')} hitSlop={8} style={styles.trash} testID={`workouts-local-delete-${m.sessionId}`}>
-                <Text variant="label" tone="danger">{t('wo.local.delete')}</Text>
-              </Pressable>
+              {e?.op !== 'delete' ? (
+                <Pressable onPress={() => deleteLocal(m)} accessibilityRole="button" accessibilityLabel={t('wo.local.delete')} hitSlop={8} style={styles.trash} testID={`workouts-local-delete-${m.sessionId}`}>
+                  <Text variant="label" tone="danger">{t('wo.local.delete')}</Text>
+                </Pressable>
+              ) : null}
             </View>
           ))}
         </Surface>

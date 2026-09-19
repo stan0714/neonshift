@@ -1528,6 +1528,7 @@ export const zhTW: Record<keyof typeof en, string> = {
   'sync.assign.body': '這些是未連接錢包時記錄的運動。歸屬後會以目前錢包上傳，不能再改。請確認這些是你自己的運動。',
   'sync.assign.confirm': '歸屬到這個錢包',
   'sync.assign.btn': '歸屬 {n} 筆訪客紀錄',
+  'sync.deletePending': '刪除待同步 · 伺服器確認後才會移除',
   'sum.syncing': '同步中…',
   'sum.sync.signinTitle': '登入後才能同步',
   'sum.sync.signinBody': '摘要已保存在手機。同步到帳號需要以已連接的錢包簽一則登入訊息（不是交易、不收費，之後不會再問）；簽完會自動同步。',

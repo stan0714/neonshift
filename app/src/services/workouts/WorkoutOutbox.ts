@@ -13,12 +13,13 @@ import { AppState, type AppStateStatus } from 'react-native';
 import * as Network from 'expo-network';
 
 import type { LocalWorkoutStore, SessionMeta } from './LocalWorkoutStore';
-import { workoutRecorder, type SyncOutcome } from './WorkoutRecorder';
+import { syncOutcomeOf, workoutRecorder, type SyncOutcome } from './WorkoutRecorder';
+import { ApiError, apiClient } from '@/services/api/ApiClient';
 import { useSyncPrefs } from '@/state/syncPrefsStore';
 import { useWalletStore } from '@/state/walletStore';
 
 export type OutboxStatus = 'queued' | 'sending' | 'retry_wait' | 'blocked' | 'acked' | 'excluded';
-export type OutboxEntry = { meta: SessionMeta; status: OutboxStatus; attempt: number; nextAttemptAt: number | null; lastError: { code: string; message: string } | null; revision: number };
+export type OutboxEntry = { meta: SessionMeta; /** upload＝上傳摘要；delete＝已同步紀錄的刪除待確認（PG-LINK-03 tombstone） */ op: 'upload' | 'delete'; status: OutboxStatus; attempt: number; nextAttemptAt: number | null; lastError: { code: string; message: string } | null; revision: number };
 export type OutboxRunResult = { sent: number; /** 佇列停在哪一筆與原因（null＝全部送完） */ stoppedAt: { sessionId: string; outcome: SyncOutcome } | null; /** 指定 target 時：該筆的結果（未輪到 → BLOCKED_EARLIER） */ target?: SyncOutcome };
 export type OutboxKickReason = 'finish' | 'foreground' | 'network' | 'startup' | 'toggle';
 
@@ -30,11 +31,15 @@ export const backoffMs = (attempt: number) => Math.min(OUTBOX_BACKOFF.maxMs, OUT
 export const outboxOrder = (a: SessionMeta, b: SessionMeta) =>
   a.startedAtUtc - b.startedAtUtc || (a.endedAtUtc ?? 0) - (b.endedAtUtc ?? 0) || (a.sessionId < b.sessionId ? -1 : a.sessionId > b.sessionId ? 1 : 0);
 
-const isPendingMeta = (m: SessionMeta) => (m.status === 'saved' || m.status === 'needs_review') && !!m.summary && !m.syncedSessionId;
+const isPendingMeta = (m: SessionMeta) => (m.status === 'saved' || m.status === 'needs_review') && !!m.summary && !m.syncedSessionId && !m.deletedAt;
+/** 已同步且被要求刪除：等伺服器確認（同一佇列、同一順序），確認後才移除本機 */
+const isDeletePending = (m: SessionMeta) => !!m.deletedAt && !!m.syncedSessionId;
 
 type Deps = {
   store?: LocalWorkoutStore;
   send?: (meta: SessionMeta) => Promise<SyncOutcome>;
+  /** 伺服器刪除；404 視為已刪 */
+  remove?: (serverSessionId: string) => Promise<SyncOutcome>;
   now?: () => number;
   autoEnabled?: (owner: string | null) => boolean;
   currentOwner?: () => string | null;
@@ -44,6 +49,7 @@ type Deps = {
 export class WorkoutOutbox {
   private readonly store: () => LocalWorkoutStore;
   private readonly send: (meta: SessionMeta) => Promise<SyncOutcome>;
+  private readonly remove: (serverSessionId: string) => Promise<SyncOutcome>;
   private readonly now: () => number;
   private readonly autoEnabled: (owner: string | null) => boolean;
   private readonly currentOwner: () => string | null;
@@ -57,6 +63,12 @@ export class WorkoutOutbox {
   constructor(deps: Deps = {}) {
     this.store = deps.store ? () => deps.store! : () => workoutRecorder.localStore();
     this.send = deps.send ?? ((meta) => workoutRecorder.syncMeta(meta));
+    this.remove = deps.remove ?? (async (id) => {
+      try { await apiClient.deleteWorkout(id); return { ok: true }; } catch (e) {
+        if (e instanceof ApiError && (e.status === 404 || e.code === 'NOT_FOUND')) return { ok: true }; // 伺服器已無此筆：視為刪除完成
+        return syncOutcomeOf(e);
+      }
+    });
     this.now = deps.now ?? (() => Date.now());
     this.autoEnabled = deps.autoEnabled ?? ((owner) => useSyncPrefs.getState().isAutoEnabled(owner));
     this.currentOwner = deps.currentOwner ?? (() => useWalletStore.getState().session?.address ?? null);
@@ -69,7 +81,7 @@ export class WorkoutOutbox {
   /** 該玩家的佇列（含已排除；已 ACK 的不列） */
   list(owner: string | null): OutboxEntry[] {
     if (!owner) return [];
-    const metas = this.store().list().filter((m) => isPendingMeta(m) && m.owner === owner).sort(outboxOrder);
+    const metas = this.store().list().filter((m) => (isPendingMeta(m) || isDeletePending(m)) && m.owner === owner).sort(outboxOrder);
     return metas.map((meta) => this.entryOf(meta));
   }
   /** 訪客紀錄（未綁定玩家）：需本人確認歸屬 */
@@ -103,15 +115,31 @@ export class WorkoutOutbox {
     this.emit();
   }
 
+  /**
+   * 使用者刪除（PG-LINK-03）：未同步 → 直接刪本機（含路線）並移出佇列；已同步 → 先寫 tombstone（不會被一般上傳復活），
+   * 依佇列順序向伺服器提交刪除，確認（2xx／404）後才移除本機；未確認前列為「刪除待同步」。
+   */
+  async requestDelete(sessionId: string): Promise<'deleted_local' | 'delete_pending'> {
+    const m = this.store().readMeta(sessionId);
+    if (!m) return 'deleted_local';
+    if (!m.syncedSessionId) { this.store().delete(sessionId); this.emit(); return 'deleted_local'; }
+    m.deletedAt = this.now();
+    m.sync = { attempt: 0, nextAttemptAt: null, lastError: null, revision: m.sync?.revision ?? 1 };
+    await this.store().writeMeta(m);
+    this.emit();
+    return 'delete_pending';
+  }
+
   private entryOf(meta: SessionMeta): OutboxEntry {
     const s = meta.sync ?? { attempt: 0, nextAttemptAt: null, lastError: null, revision: 1 };
-    const status: OutboxStatus = meta.syncedSessionId ? 'acked'
+    const op: OutboxEntry['op'] = isDeletePending(meta) ? 'delete' : 'upload';
+    const status: OutboxStatus = op === 'upload' && meta.syncedSessionId ? 'acked'
       : s.excluded ? 'excluded'
       : this.sendingId === meta.sessionId ? 'sending'
       : s.lastError && (s.lastError.code === 'NO_SESSION' || s.lastError.code === 'REJECTED') ? 'blocked'
       : s.lastError ? 'retry_wait'
       : 'queued';
-    return { meta, status, attempt: s.attempt, nextAttemptAt: s.nextAttemptAt, lastError: s.lastError, revision: s.revision };
+    return { meta, op, status, attempt: s.attempt, nextAttemptAt: s.nextAttemptAt, lastError: s.lastError, revision: s.revision };
   }
 
   /** 摘要（畫面用）：待傳筆數、隊首是否卡住、最後一次結果 */
@@ -152,10 +180,18 @@ export class WorkoutOutbox {
       this.sendingId = meta.sessionId;
       this.emit();
       let outcome: SyncOutcome;
-      try { outcome = await this.send(meta); } catch (e) { outcome = { ok: false, code: 'UNKNOWN', message: e instanceof Error ? e.message : String(e) }; }
+      try { outcome = entry.op === 'delete' ? await this.remove(meta.syncedSessionId!) : await this.send(meta); } catch (e) { outcome = { ok: false, code: 'UNKNOWN', message: e instanceof Error ? e.message : String(e) }; }
       this.sendingId = null;
+      if (entry.op === 'delete' && outcome.ok) {
+        // 伺服器確認刪除 → 移除本機（含路線）
+        this.store().delete(meta.sessionId);
+        result.sent += 1;
+        if (opts.target === meta.sessionId) result.target = outcome;
+        this.emit();
+        continue;
+      }
       const fresh = this.store().readMeta(meta.sessionId) ?? meta;
-      if (outcome.ok && !fresh.syncedSessionId && !this.store().readMeta(meta.sessionId)?.syncedSessionId) {
+      if (entry.op === 'upload' && outcome.ok && !fresh.syncedSessionId && !this.store().readMeta(meta.sessionId)?.syncedSessionId) {
         // 送出成功但本機沒記到伺服器 id（不該發生）：不能再取同一筆，否則會無限重送
         outcome = { ok: false, code: 'UNKNOWN', message: 'synced but not committed locally' };
       }

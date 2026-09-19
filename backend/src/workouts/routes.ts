@@ -79,9 +79,12 @@ export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthServ
       if (r.outcome === "created") created += 1;
       results.push({ external_record_id: w.external_record_id, outcome: r.outcome, session: workoutView(r.session) });
     }
-    if (pbs && results.some((r) => r.outcome === "created" || r.outcome === "superseded")) await pbs.recompute(wallet); // PG-R-07：匯入後重算 PB
-    if (opts.onWorkoutsChanged && results.some((r) => r.outcome === "created" || r.outcome === "superseded")) await opts.onWorkoutsChanged(wallet);
-    return reply.status(created > 0 ? 201 : 200).send({ imported: created, results });
+    // PG-LINK-03：晚到／更正的紀錄插回運動時間線後，自最早受影響時間重算 PB、首次里程碑與探索冊（全量重算，冪等）；
+    // 先 commit 再 ACK：回應裡 `recompute: "confirmed"` 表示成就已依最新時間線更新，"unchanged" 表示本批沒有新增或取代
+    const changed = results.some((r) => r.outcome === "created" || r.outcome === "superseded");
+    if (pbs && changed) await pbs.recompute(wallet); // PG-R-07：匯入後重算 PB
+    if (opts.onWorkoutsChanged && changed) await opts.onWorkoutsChanged(wallet);
+    return reply.status(created > 0 ? 201 : 200).send({ imported: created, results: results.map((r) => ("session" in r && r.session ? { ...r, accepted_revision: r.session.revision } : r)), recompute: changed ? "confirmed" : "unchanged" });
   });
 
   app.get("/me/workouts", { preHandler: requireAuth(auth) }, async (req) => {

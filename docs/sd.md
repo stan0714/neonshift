@@ -1097,7 +1097,7 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 | 模組 | 職責與邊界 |
 |---|---|
 | WorkoutRecorder | 管理 Walking／Running session、權限、定位服務、單調時間及手動暫停；同時只允許一個主動 session；定位看門狗：開始後 12 s 無點重啟背景任務、24 s 無點加開前景備援訂閱（Style 23.12） |
-| WorkoutOutbox | PG-LINK-02 上傳佇列：依玩家分區、startedAtUtc→endedAtUtc→sessionId 排序、單 worker、退避／blocked／排除、opt-in 自動入口（結束／啟動／回前景／網路恢復）；幂等鍵沿用匯入端點 (source_id, external_record_id, source_revision)（Style 23.14） |
+| WorkoutOutbox | PG-LINK-02／03 上傳與刪除佇列（tombstone 依序提交、2xx／404 確認後移除本機）：依玩家分區、startedAtUtc→endedAtUtc→sessionId 排序、單 worker、退避／blocked／排除、opt-in 自動入口（結束／啟動／回前景／網路恢復）；幂等鍵沿用匯入端點 (source_id, external_record_id, source_revision)（Style 23.14） |
 | LocalWorkoutStore | 加密軌跡、checkpoint 與操作 ID；先持久化再回報成功，恢复去重；清除 session 時清除點與圈 |
 | GpsMetricsEngine | 合格點判定、距離／完整 5 秒窗、split／lap 插值；純計算可由固定軌跡重播，保存規則版本 |
 | WorkoutSummarySync | 沿用第 13 章運動摘要入口，以 wallet＋session ID 去重、revision 防覆寫；只同步同意的摘要與圈，原始座標不得進請求或日誌 |

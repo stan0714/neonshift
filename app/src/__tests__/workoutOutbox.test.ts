@@ -7,7 +7,7 @@ const fsMock = jest.requireMock('expo-file-system') as { __reset: () => void };
 const A = 'walletA';
 const B = 'walletB';
 
-type Fixture = { store: LocalWorkoutStore; sent: string[]; outcomes: Map<string, SyncOutcome[]>; outbox: WorkoutOutbox; auto: Set<string>; owner: { current: string | null }; now: { t: number }; inflight: { n: number; max: number } };
+type Fixture = { store: LocalWorkoutStore; sent: string[]; removed: string[]; outcomes: Map<string, SyncOutcome[]>; outbox: WorkoutOutbox; auto: Set<string>; owner: { current: string | null }; now: { t: number }; inflight: { n: number; max: number } };
 async function fixture(): Promise<Fixture> {
   fsMock.__reset();
   const store = new LocalWorkoutStore();
@@ -27,8 +27,10 @@ async function fixture(): Promise<Fixture> {
     if (o.ok) { meta.syncedSessionId = `srv-${meta.sessionId}`; await store.writeMeta(meta); }
     return o;
   };
-  const outbox = new WorkoutOutbox({ store, send, now: () => now.t, autoEnabled: (o) => !!o && auto.has(o), currentOwner: () => owner.current, online: async () => true });
-  return { store, sent, outcomes, outbox, auto, owner, now, inflight };
+  const removed: string[] = [];
+  const remove = async (serverId: string): Promise<SyncOutcome> => { removed.push(serverId); const q = outcomes.get(`del:${serverId}`); return q?.shift() ?? { ok: true }; };
+  const outbox = new WorkoutOutbox({ store, send, remove, now: () => now.t, autoEnabled: (o) => !!o && auto.has(o), currentOwner: () => owner.current, online: async () => true });
+  return { store, sent, removed, outcomes, outbox, auto, owner, now, inflight };
 }
 async function mk(store: LocalWorkoutStore, id: string, day: number, owner: string | null, extra: Partial<SessionMeta> = {}) {
   const m = await store.create({ sessionId: id, sport: 'run', environment: 'outdoor', autoLapMm: null, splitLengthMm: 1_000_000, status: 'saved', startedAtUtc: Date.UTC(2026, 8, day, 12), startedMonoMs: 0, processId: 'p', owner, ...extra });
@@ -143,4 +145,33 @@ test('跨錢包隔離：A 的紀錄不列在 B 的佇列；換錢包後在途 wo
   expect(f.outbox.list(B).map((e) => e.meta.sessionId)).toEqual(['g16', 'b17']);
   await f.outbox.assign(['g16'], A); // 已歸屬不可再改
   expect(f.store.readMeta('g16')?.owner).toBe(B);
+});
+
+test('PG-LINK-03 刪除：未同步 → 直接刪本機；已同步 → tombstone 進佇列（依時間排序、不被上傳復活），伺服器確認（含 404）後才移除本機；離線時保留「刪除待同步」', async () => {
+  const f = await fixture();
+  await mk(f.store, 's16', 16, A);
+  const s17 = await mk(f.store, 's17', 17, A);
+  s17.syncedSessionId = 'srv-17'; await f.store.writeMeta(s17);
+  const s18 = await mk(f.store, 's18', 18, A);
+  s18.syncedSessionId = 'srv-18'; await f.store.writeMeta(s18);
+  await mk(f.store, 's19', 19, A);
+  expect(await f.outbox.requestDelete('s16')).toBe('deleted_local');
+  expect(f.store.readMeta('s16')).toBeNull();
+  expect(await f.outbox.requestDelete('s17')).toBe('delete_pending');
+  expect(await f.outbox.requestDelete('s18')).toBe('delete_pending');
+  expect(f.outbox.list(A).map((e) => [e.meta.sessionId, e.op])).toEqual([['s17', 'delete'], ['s18', 'delete'], ['s19', 'upload']]);
+  // 伺服器離線：刪除卡在隊首、s19 不上傳、本機仍保留 tombstone
+  f.outcomes.set('del:srv-17', [{ ok: false, code: 'NETWORK_ERROR', message: 'offline' }]);
+  const r1 = await f.outbox.run(A, { manual: true, target: 's17' });
+  expect(r1.target).toMatchObject({ ok: false, code: 'NETWORK_ERROR' });
+  expect(f.store.readMeta('s17')?.deletedAt).toBeTruthy();
+  expect(f.sent).toEqual([]);
+  // 恢復：s17 確認刪除、s18 伺服器回 404（已不存在）也視為完成、s19 上傳
+  f.outcomes.set('del:srv-18', [{ ok: true }]);
+  const r2 = await f.outbox.run(A, { manual: true });
+  expect(r2).toMatchObject({ sent: 3, stoppedAt: null });
+  expect(f.removed).toEqual(['srv-17', 'srv-17', 'srv-18']);
+  expect(f.store.readMeta('s17')).toBeNull();
+  expect(f.store.readMeta('s18')).toBeNull();
+  expect(f.sent).toEqual(['s19']);
 });

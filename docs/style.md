@@ -957,6 +957,12 @@ Home 「Workouts ›」進入 `WorkoutsScreen`：每筆一張 Surface — 標題
 - **跨錢包**：紀錄綁定建立時的玩家；換錢包時在途 worker 不再用新 session 上傳；訪客紀錄（owner null）列為「訪客紀錄 · 同步時歸屬到目前錢包」，本人按該筆同步或 Profile「歸屬 n 筆訪客紀錄」確認後才歸屬，歸屬後不可改。
 - **清單**：運動頁「保存在手機、尚未同步」改為由舊到新，每列狀態（排隊中／上傳中／稍後重試／需要你處理／已排除）與原因，標示自動同步開／關。
 
+### 23.15 晚到、更正與刪除的重算（PG-LINK-03，2026-09-19；設計見 shoe-sync-activity.md §3.2）
+
+- **後端**（既有機制沿用＋補強）：匯入以 (source_id, external_record_id, source_revision) 判重（same／superseded／stale），每次 created／superseded／刪除後全量重算 PB 鏈（依 achieved_at 時間線）、首次里程碑（有效來源中最早）與探索冊；成就依 reconcile 規則更正來源或 revoke_pending，已鑄造只更新來源不鑄第二枚。補強：未公開 metadata 相同時「首次」換來源也會更正成就來源欄位；匯入回應加 `accepted_revision`、`recompute: confirmed|unchanged`（先 commit 再 ACK）。PB NFT 資格仍用達成當日的等級歷史（查不到 → LEVEL_HISTORY_UNKNOWN 待審）。
+- **App 刪除**：未同步 → 直接刪本機（含路線）並移出佇列；已同步 → 先寫 `meta.deletedAt`（tombstone，不會被一般上傳復活），以同一佇列、同一順序向伺服器提交刪除，2xx／404 確認後才移除本機；未確認前清單顯示「刪除待同步 · 伺服器確認後才會移除」，離線也可操作。運動頁伺服器清單的刪除：本機有對應 session 者走 tombstone，只在伺服器的（Health Connect 匯入）直接刪。
+- **不做**：長期雲端歷史／保留期變更（仍 30 天，另行同意）；App 內編輯開始時間（無此功能，revision 固定 1）。
+
 ## 24. 三模式運動與探索冊體驗
 
 依 [補充規格](./sport-experience-gameplay.md) 第 1～5 章。延續深色霓虹設計，三模式使用文字＋圖示，不只靠顏色；健走不呈現成跑步等級。運動中三項大數字、狀態與主要操作優先，慶祝與 NFT 預覽延至保存後。探索冊使用可逐格點亮的抽象城市章節，不展示真實位置；分列「探索進度」「鞋階維持」，不可合成同一進度條。大字、讀屏、減少動態設定須驗收。

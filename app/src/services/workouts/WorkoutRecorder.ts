@@ -157,7 +157,7 @@ export class SyncRejected extends Error {
 }
 /** 同步結果（實機回饋：按「立即同步」沒有任何反應——之前所有錯誤都被吞掉） */
 export type SyncOutcome = { ok: true } | { ok: false; code: 'NO_SESSION' | 'NETWORK_ERROR' | 'REJECTED' | 'UNKNOWN' | /** PG-LINK-02：自動同步關閉，只保存本機 */ 'DISABLED' | /** 較早紀錄待處理，本筆未輪到 */ 'BLOCKED_EARLIER' | /** 使用者已排除 */ 'EXCLUDED'; message: string };
-const syncOutcomeOf = (e: unknown): SyncOutcome => {
+export const syncOutcomeOf = (e: unknown): SyncOutcome => {
   if (e instanceof SyncRejected) return { ok: false, code: 'REJECTED', message: e.message };
   if (e instanceof ApiError) return { ok: false, code: e.code === 'NO_SESSION' ? 'NO_SESSION' : e.code === 'NETWORK_ERROR' ? 'NETWORK_ERROR' : 'UNKNOWN', message: e.message };
   return { ok: false, code: 'UNKNOWN', message: e instanceof Error ? e.message : String(e) };
@@ -743,7 +743,7 @@ export class WorkoutRecorder {
 
   /** 已結束但尚未同步到帳號的本機 session（實機回饋：離開摘要頁後就再也找不到、無法補同步） */
   unsynced(): SessionMeta[] {
-    return this.store.list().filter((m) => (m.status === 'saved' || m.status === 'needs_review') && !m.syncedSessionId && !!m.summary).sort((a, b) => b.startedAtUtc - a.startedAtUtc);
+    return this.store.list().filter((m) => (m.status === 'saved' || m.status === 'needs_review') && !m.syncedSessionId && !!m.summary && !m.deletedAt).sort((a, b) => b.startedAtUtc - a.startedAtUtc);
   }
   /** 刪除本機 session（未同步的測試紀錄）；記錄中不可刪 */
   deleteLocal(sessionId: string) {

@@ -161,7 +161,12 @@ export class AchievementService {
     if (m.status !== "eligible" || !m.first) throw new ApiError(409, "MILESTONE_NOT_ELIGIBLE", `milestone is ${m.status}`);
     const achievementId = milestoneAchievementIdOf(wallet, key);
     const metadata = buildMilestoneMetadata(m, m.first, achievementId, publicConsent);
-    const achievement = await this.store.upsertAchievement({ achievementId, wallet, kind: "milestone", pbId: null, milestoneKey: key, sourceKind: m.first.sourceKind, sourceId: m.first.sourceId, category: m.category, verificationClass: m.verificationClass, sourceRevision: m.first.sourceRevision, rulesMajor: MILESTONE_RULES_MAJOR, publicConsent, metadata, metadataHash: metadataHashOf(metadata), status: "pending_registry", registrySignature: null, registryUpdatedAt: null, asset: null, mintedSignature: null, mintedAt: null }, this.now());
+    let achievement = await this.store.upsertAchievement({ achievementId, wallet, kind: "milestone", pbId: null, milestoneKey: key, sourceKind: m.first.sourceKind, sourceId: m.first.sourceId, category: m.category, verificationClass: m.verificationClass, sourceRevision: m.first.sourceRevision, rulesMajor: MILESTONE_RULES_MAJOR, publicConsent, metadata, metadataHash: metadataHashOf(metadata), status: "pending_registry", registrySignature: null, registryUpdatedAt: null, asset: null, mintedSignature: null, mintedAt: null }, this.now());
+    // PG-LINK-03：晚到的更早紀錄讓「首次」換了來源，但未公開的 metadata 可能一字不差（無日期／數值）→ upsert 不會動；來源欄位仍須跟著更正
+    if (!achievement.mintedSignature && (achievement.sourceKind !== m.first.sourceKind || achievement.sourceId !== m.first.sourceId || achievement.sourceRevision !== m.first.sourceRevision)) {
+      await this.store.setAchievementSource(achievementId, { sourceKind: m.first.sourceKind, sourceId: m.first.sourceId, sourceRevision: m.first.sourceRevision }, this.now());
+      achievement = (await this.store.getAchievement(achievementId)) ?? achievement;
+    }
     return { achievement, milestone: m };
   }
 
