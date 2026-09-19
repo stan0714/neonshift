@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import { calendarGrid, dayOfItem, filterActivity, mergeActivity, monthOf, monthRangeUtc, monthSummary, shiftMonth, sortActivity, type ActivityFilter, type ActivityItem } from '@/domain/activity';
@@ -80,6 +80,14 @@ export function ActivityScreen() {
   };
   const monthLabel = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1)).toLocaleDateString(undefined, { year: 'numeric', month: 'long', timeZone: 'UTC' });
   const pending = ob.summary.pending;
+  // 升版前／未連錢包錄的紀錄沒有 owner：需本人確認歸屬後才進佇列（Style 23.14）
+  const assignGuest = () => {
+    if (!ob.owner) return;
+    Alert.alert(t('sync.assign.title', { n: ob.unassigned.length }), t('sync.assign.body'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('sync.assign.confirm'), onPress: () => void workoutOutbox.assign(ob.unassigned.map((m) => m.sessionId), ob.owner!) },
+    ]);
+  };
 
   return (
     <Screen scroll scene={ap.scene} testID="activity-screen" refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void loadRemote(month)} tintColor={color.mint} />}>
@@ -121,6 +129,7 @@ export function ActivityScreen() {
           {ob.owner ? `${t('sync.pending', { n: pending })} · ${t(ob.autoSync ? 'sync.listAutoOn' : 'sync.listAutoOff')}` : t('actv.guestNote')}
         </Text>
         {ob.owner && pending > 0 ? <Button label={t('sum.syncNow')} variant="secondary" onPress={() => void workoutOutbox.run(ob.owner!, { manual: true })} loading={ob.summary.running} loadingLabel={t('sum.syncing')} testID="activity-sync-now" /> : null}
+        {ob.owner && ob.unassigned.length > 0 ? <Button label={t('sync.assign.btn', { n: ob.unassigned.length })} variant="secondary" onPress={assignGuest} testID="activity-sync-assign" /> : null}
         <Pressable onPress={() => void prefs.set({ activityOrder: prefs.activityOrder === 'asc' ? 'desc' : 'asc' })} accessibilityRole="button" hitSlop={8} style={styles.orderBtn} testID="activity-order">
           <Feather name={prefs.activityOrder === 'asc' ? 'arrow-up' : 'arrow-down'} size={14} color={color.textSecondary} />
           <Text variant="caption" tone="secondary">{t(prefs.activityOrder === 'asc' ? 'actv.order.asc' : 'actv.order.desc')}</Text>
@@ -168,7 +177,7 @@ export function ActivityScreen() {
                   {it.distanceMm === null ? '—' : formatKm(String(it.distanceMm))} · {it.elapsedMs === null ? '—' : formatDuration(String(it.elapsedMs))} · {it.sport === 'run' ? formatPace(it.avgPaceSPerKm) : it.avgSpeedKmh === null ? '—' : `${it.avgSpeedKmh.toFixed(1)} km/h`}
                 </Text>
                 <Text variant="caption" tone={it.status === 'sync_failed' || it.status === 'delete_pending' ? 'warning' : it.needsReview || it.status === 'excluded' ? 'danger' : 'muted'} testID={`activity-item-status-${it.id}`}>
-                  {it.shoe ? stageName(t, it.shoe.level) : t('sum.shoeUnknown')} · {t(`actv.source.${it.source}` as TKey)} · {t(`actv.status.${it.status}` as TKey)}
+                  {[it.shoe ? stageName(t, it.shoe.level) : null, t(`actv.source.${it.source}` as TKey), t(`actv.status.${it.status}` as TKey), it.needsReview && it.status !== 'needs_review' ? t('actv.status.needs_review') : null].filter(Boolean).join(' · ')}
                 </Text>
               </View>
               <Feather name="chevron-right" size={18} color={color.textMuted} />

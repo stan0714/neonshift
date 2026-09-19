@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { PublicKey } from '@solana/web3.js';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { PropsWithChildren } from 'react';
+import { Alert } from 'react-native';
 
 import { ActivityScreen } from '@/screens/activity/ActivityScreen';
 import { ActivityDetailScreen } from '@/screens/activity/ActivityDetailScreen';
@@ -54,9 +55,9 @@ test('合併本機＋伺服器、去重、預設由舊到新；月總覽；狀�
   const ids = screen.getAllByTestId(/^activity-item-(l17|srv-18|l19|srv-hc)$/).map((n) => n.props.testID);
   expect(ids).toEqual(['activity-item-l17', 'activity-item-srv-18', 'activity-item-l19', 'activity-item-srv-hc']); // 已同步 l18＝srv-18 只有一列
   expect(screen.getByTestId('activity-summary').props.children.join('')).toMatch(/This month 4 · 17\.4 km/);
-  expect(screen.getByTestId('activity-item-status-l17').props.children.join('')).toMatch(/Asian Elephant · Recorded here · Queued/);
-  expect(screen.getByTestId('activity-item-status-srv-18').props.children.join('')).toMatch(/Synced/);
-  expect(screen.getByTestId('activity-item-status-srv-hc').props.children.join('')).toMatch(/Not set · Imported · Server summary/);
+  expect(screen.getByTestId('activity-item-status-l17').props.children).toMatch(/Asian Elephant · Recorded here · Queued/);
+  expect(screen.getByTestId('activity-item-status-srv-18').props.children).toMatch(/Synced/);
+  expect(screen.getByTestId('activity-item-status-srv-hc').props.children).toMatch(/^Imported · Server summary$/);
   await fireEvent.press(screen.getByTestId('activity-item-l17'));
   expect(mockNav.navigate).toHaveBeenCalledWith('WorkoutSummary', { sessionId: 'l17' });
   await fireEvent.press(screen.getByTestId('activity-item-srv-hc'));
@@ -115,4 +116,21 @@ test('伺服器摘要詳情：欄位、無分段說明、無路線說明；404 �
   await waitFor(() => expect(screen.getByTestId('activity-detail-error')).toBeTruthy());
   expect(screen.getByText(/Workout not found/)).toBeTruthy();
   await act(async () => {});
+});
+
+test('訪客／升版前紀錄（無 owner）：列出並標待審核；連錢包時可一鍵歸屬 → 進佇列', async () => {
+  const store = workoutRecorder.localStore();
+  const m = await store.create({ sessionId: 'g16', sport: 'run', intent: 'run', goal: null, environment: 'outdoor', autoLapMm: null, splitLengthMm: 1_000_000, status: 'needs_review', startedAtUtc: Date.UTC(2026, 8, 16, 1), startedMonoMs: 0, processId: 'p', recordedTimeZone: 'Asia/Taipei' } as never);
+  m.endedAtUtc = m.startedAtUtc + 600_000;
+  m.summary = { distanceMm: 0, elapsedMs: 600_000, movingMs: 0, movingAvgPaceSPerKm: null, avgPaceSPerKm: null, movingAvgSpeedKmh: null, avgSpeedKmh: null, splits: [], laps: [] } as never;
+  m.status = 'needs_review';
+  await store.writeMeta(m);
+  await render(<ActivityScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByTestId('activity-item-g16')).toBeTruthy());
+  expect(screen.getByTestId('activity-item-status-g16').props.children).toBe('Recorded here · Local only · Under review'); // 無鞋款快照不顯示「未設定」；待審核明說
+  const spy = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => { (buttons as { onPress?: () => void }[])[1]!.onPress?.(); });
+  await fireEvent.press(screen.getByTestId('activity-sync-assign'));
+  await waitFor(() => expect(screen.queryByTestId('activity-sync-assign')).toBeNull());
+  expect(store.readMeta('g16')?.owner).toBe(owner);
+  spy.mockRestore();
 });
