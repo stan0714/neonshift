@@ -61,14 +61,15 @@ export function WorkoutSummaryScreen() {
   const cmp = asSummary && peers ? compareSameCategory(asSummary, peers) : null;
   const sharePreview = meta && s
     ? shareCard(
-        { sport: meta.sport, intent: meta.intent ?? null, startedAt: new Date(meta.startedAtUtc), elapsedMs: s.elapsedMs, movingMs: s.movingMs, distanceMm: s.distanceMm, avgPaceSPerKm: s.avgPaceSPerKm, avgSpeedKmh: s.avgSpeedKmh, maxSpeed5sKmh: s.maxSpeed5sKmh, splits: s.splits.map((x) => ({ index: x.index, paceSPerKm: x.paceSPerKm, isPartial: x.isPartial })), lapCount: s.laps.length, goal: meta.goal ?? null, goalMet: !!meta.goal && goalReached(meta.goal, s.elapsedMs, s.distanceMm), qualityAccepted: s.quality.accepted, qualityRejected: Object.values(s.quality.rejected).reduce((a, b) => a + b, 0), autoPausedMs },
+        { sport: meta.sport, intent: meta.intent ?? null, startedAt: new Date(meta.startedAtUtc), elapsedMs: s.elapsedMs, movingMs: s.movingMs, distanceMm: s.distanceMm, avgPaceSPerKm: s.movingAvgPaceSPerKm ?? s.avgPaceSPerKm, avgSpeedKmh: s.movingAvgSpeedKmh ?? s.avgSpeedKmh, maxSpeed5sKmh: s.maxSpeed5sKmh, splits: s.splits.map((x) => ({ index: x.index, paceSPerKm: x.paceSPerKm, isPartial: x.isPartial })), lapCount: s.laps.length, goal: meta.goal ?? null, goalMet: !!meta.goal && goalReached(meta.goal, s.movingMs, s.distanceMm), qualityAccepted: s.quality.accepted, qualityRejected: Object.values(s.quality.rejected).reduce((a, b) => a + b, 0), autoPausedMs },
         shareFields,
         (k, p) => t(k as TKey, p),
         { mode: modeLabel(t, meta.sport, meta.intent), app: 'NeonShift', site: 'neonshift.cc' },
       )
     : '';
   // PG-U-01：目標結果（未達標仍保存，顯示實際完成）；模式標籤
-  const goalMet = !!meta?.goal && !!s && goalReached(meta.goal, s.elapsedMs, s.distanceMm);
+  // review 2：時間目標以運動時間判定（goal v2）；舊紀錄（v1）也改用運動時間呈現，與記錄頁一致
+  const goalMet = !!meta?.goal && !!s && goalReached(meta.goal, s.movingMs, s.distanceMm);
   const goalLabel = meta?.goal ? (meta.goal.kind === 'time' ? t('rec.goal.min', { n: Math.round(meta.goal.target / 60) }) : t('rec.goal.km', { n: meta.goal.target / 1_000_000 })) : '';
   if (!meta || !s) return <Screen testID="workout-summary-screen"><InlineState kind="error" title={t('common.somethingInterrupted')} /></Screen>;
   const isWalk = meta.sport === 'walk';
@@ -114,10 +115,14 @@ export function WorkoutSummaryScreen() {
         <Stat label={t('sum.elapsed')} value={formatDuration(String(s.elapsedMs))} />
         <Stat label={t('sum.moving')} value={formatDuration(String(s.movingMs))} />
         <Stat label={t('sum.pausedStat')} value={s.pausedMs > 0 ? `${formatDuration(String(s.pausedMs))}${autoPausedMs > 0 ? ` (${t('sum.autoPausedShort', { t: formatDuration(String(autoPausedMs)) })})` : ''}` : '—'} />
-        <Stat label={isWalk ? t('sum.avgSpeed') : t('sum.avgPace')} value={isWalk ? (s.avgSpeedKmh === null ? '—' : `${s.avgSpeedKmh.toFixed(1)} km/h`) : formatPace(s.avgPaceSPerKm)} />
+        {/* review 1：主數字＝運動平均（不含暫停），與記錄頁一致；有暫停時另列「全程（含暫停）」，即後端的 avg_pace */}
+        <Stat label={`${isWalk ? t('sum.avgSpeed') : t('sum.avgPace')} · ${t('sum.avgMovingHint')}`} value={isWalk ? ((s.movingAvgSpeedKmh ?? s.avgSpeedKmh) === null ? '—' : `${(s.movingAvgSpeedKmh ?? s.avgSpeedKmh)!.toFixed(1)} km/h`) : formatPace(s.movingAvgPaceSPerKm ?? s.avgPaceSPerKm)} testID="sum-avg" hint={s.pausedMs > 0 ? t('sum.avgOverall', { v: isWalk ? (s.avgSpeedKmh === null ? '—' : `${s.avgSpeedKmh.toFixed(1)} km/h`) : formatPace(s.avgPaceSPerKm) }) : undefined} />
         <Stat label={t('sum.max5s')} value={s.maxSpeed5sKmh === null ? '—' : `${s.maxSpeed5sKmh.toFixed(1)} km/h`} />
         <Stat label={t('sum.kcal')} value="—" />
       </View>
+      {(meta.unsavedPoints ?? 0) > 0 ? (
+        <InlineState kind="warning" title={t('sum.unsaved.title')} body={t('sum.unsaved.body', { n: meta.unsavedPoints ?? 0 })} testID="sum-unsaved" />
+      ) : null}
       {meta.environment !== 'indoor' ? (
         <Surface style={styles.card} testID="sum-route">
           <View style={styles.routeHead}>
@@ -267,15 +272,20 @@ export function WorkoutSummaryScreen() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, hint, testID }: { label: string; value: string; hint?: string; testID?: string }) {
   return (
-    <View style={styles.stat}>
-      <Text variant="heading2" numeric>
+    <View style={styles.stat} testID={testID}>
+      <Text variant="heading2" numeric testID={testID ? `${testID}-value` : undefined}>
         {value}
       </Text>
       <Text variant="caption" tone="muted">
         {label}
       </Text>
+      {hint ? (
+        <Text variant="caption" tone="muted" numeric testID={testID ? `${testID}-hint` : undefined}>
+          {hint}
+        </Text>
+      ) : null}
     </View>
   );
 }

@@ -94,8 +94,15 @@ export type Summary = {
   elapsedMs: number;
   movingMs: number;
   pausedMs: number;
+  /**
+   * 全程平均（含暫停）：距離 ÷ elapsed。與後端 `avg_pace_s_per_km` 定義一致（伺服器以 ended−started 計）。
+   * 2026-09-19 review 1：跑步畫面主數字用的是運動平均（不含暫停），摘要主數字也改用 `movingAvg*`；這兩個欄位保留給「全程」與後端對照。
+   */
   avgSpeedKmh: number | null;
   avgPaceSPerKm: number | null;
+  /** 運動平均（不含暫停）：距離 ÷ moving。跑步中畫面與摘要主數字皆用此，兩處一致 */
+  movingAvgSpeedKmh: number | null;
+  movingAvgPaceSPerKm: number | null;
   /** 最高速度（5 秒平均），km/h */
   maxSpeed5sKmh: number | null;
   splits: Lap[];
@@ -435,6 +442,8 @@ export class GpsMetricsEngine {
       pausedMs: this.pausedTotalMs,
       avgSpeedKmh: km > 0 && elapsedMs > 0 ? Number((km / (elapsedMs / 3_600_000)).toFixed(3)) : null,
       avgPaceSPerKm: paceOf(this.cumMm, elapsedMs),
+      movingAvgSpeedKmh: km > 0 && movingMs > 0 ? Number((km / (movingMs / 3_600_000)).toFixed(3)) : null,
+      movingAvgPaceSPerKm: paceOf(this.cumMm, movingMs),
       maxSpeed5sKmh: this.maxSpeed5s === null ? null : Number((this.maxSpeed5s * 3.6).toFixed(2)),
       splits,
       laps,

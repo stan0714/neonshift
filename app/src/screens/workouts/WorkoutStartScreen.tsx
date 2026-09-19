@@ -195,6 +195,11 @@ export function WorkoutStartScreen() {
     void prefs.load().then((p) => { setMode(p.mode); setGoalKind(p.goal.kind); if (p.goal.kind === 'time') setTimeMin(Math.round(p.goal.target / 60)); if (p.goal.kind === 'distance') setDistKm(p.goal.target / 1_000_000); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // review 6：已有進行中的運動 → 直接回到該 session，不在這裡再開一場（recorder 也會擋，但使用者不該看到錯誤）
+  useEffect(() => {
+    if (workoutRecorder.active()) navigation.navigate('WorkoutRecord');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { sport, intent } = modeToSport(mode);
   const profile = profileOf(mode);
   const [env, setEnv] = useState<'outdoor' | 'indoor'>('outdoor');
@@ -448,6 +453,24 @@ export function WorkoutStartScreen() {
         </View>
         <Text variant="caption" tone="muted">
           {t('rec.autoPause.hint')}
+        </Text>
+        <View style={styles.row}>
+          <Text variant="bodySmall" style={styles.rowLabel}>
+            {t('rec.keepAwake')}
+          </Text>
+          <Switch value={prefs.keepAwake} onValueChange={(v) => void prefs.set({ keepAwake: v })} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('rec.keepAwake')} testID="start-keepawake" />
+        </View>
+        <Text variant="caption" tone="muted">
+          {t('rec.keepAwake.hint')}
+        </Text>
+        <View style={styles.row}>
+          <Text variant="bodySmall" style={styles.rowLabel}>
+            {t('rec.detailView')}
+          </Text>
+          <Switch value={prefs.detailView} onValueChange={(v) => void prefs.set({ detailView: v })} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('rec.detailView')} testID="start-detailview" />
+        </View>
+        <Text variant="caption" tone="muted">
+          {t('rec.detailView.hint')}
         </Text>
         <View style={styles.row}>
           <Text variant="bodySmall" style={styles.rowLabel}>

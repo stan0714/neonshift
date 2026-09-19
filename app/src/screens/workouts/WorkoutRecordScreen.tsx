@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { StackActions, useNavigation } from '@react-navigation/native';
 import { useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
-import { useKeepAwake } from 'expo-keep-awake';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Alert, Animated, BackHandler, Easing, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -14,7 +14,6 @@ import { paceVsAvg, profileOf, speedZone } from '@/domain/modes';
 import { formatDuration, formatPace } from '@/domain/workouts';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useT, type TKey } from '@/i18n';
-import { workoutCues } from '@/services/workouts/WorkoutCues';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import { color, layout, radius, space, Text } from '@/theme';
@@ -23,6 +22,13 @@ import { useRecorder } from './useRecorder';
 /**
  * 記錄頁（Style 23）：走路主顯示 km/h、跑步主顯示 min/km；時間／距離次要；GPS 與暫停狀態始終可見；
  * Lap／Pause ≥ 48dp；Finish 只在暫停頁並需確認。動作切換播放短暫回饋，穩定記錄中不做循環裝飾動畫。
+ *
+ * 2026-09-19 第二輪 review：
+ * - 精簡／詳細兩種顯示（review 9）：預設只留配速、距離、運動時間、暫停／計圈；分段表、軌跡、速度曲線、配速比較與定位診斷只在詳細模式；GPS 有問題時診斷列自動出現。
+ * - 配速過期（review 3）顯示「—」與「定位恢復中」，距離不動。
+ * - 儲存異常（review 5）：storage.failing 時顯示「正在重試（N 點待存）」；finish 寫入失敗停在本頁並可重試。
+ * - 語音／震動提示改由 cueController 以 session 驅動（review 7），本頁不再負責。
+ * - 螢幕常亮遵守偏好且暫停中允許休眠；達標震動遵守震動偏好（review 10）。
  */
 export function WorkoutRecordScreen() {
   const { t, locale } = useT();
@@ -46,23 +52,34 @@ export function WorkoutRecordScreen() {
     // PG-U-01：達標只提醒一次（震動＋文字），不自動停止；結束仍需確認
     if (s.goalReached && !goalNotified) {
       setGoalNotified(true);
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      if (useWorkoutPrefs.getState().haptic) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
   }, [s.goalReached, goalNotified]);
 
   // PG-U-02：操作鎖（明確長按解鎖；不阻擋系統返回——返回後記錄仍由前景服務持續，可自 Workouts 清單回來）
   const [locked, setLocked] = useState(false);
-  useKeepAwake(); // 記錄中螢幕常亮（NRC 同）；離開畫面自動解除
+  // review 10：常亮遵守偏好；只在 recording 時常亮，暫停中允許休眠省電；離開畫面解除
+  const keepAwakePref = useWorkoutPrefs((p) => p.keepAwake);
+  useEffect(() => {
+    const tag = 'workout-record';
+    if (keepAwakePref && s.state === 'recording') {
+      void activateKeepAwakeAsync(tag).catch(() => {});
+      return () => { void deactivateKeepAwake(tag).catch(() => {}); };
+    }
+    return undefined;
+  }, [keepAwakePref, s.state]);
   useEffect(() => {
     // 記錄中未鎖定時攔返回鍵（避免誤觸）；鎖定時放行系統返回（緊急操作不可被阻擋）
     const sub = BackHandler.addEventListener('hardwareBackPress', () => !locked && (s.state === 'recording' || s.state === 'paused'));
     return () => sub.remove();
   }, [s.state, locked]);
 
-  // PG-U-02：距離間隔（500 m／1 km／目標一半）與自訂圈語音或震動提示（預設關閉；背景可播，不補播）
+  // PG-U-02 的距離提示改由 services/workouts/cueController 以 session 驅動（review 7），離開本頁仍會播、返回不重設基準
   const prefs = useWorkoutPrefs();
-  useEffect(() => { workoutCues.reset(workoutRecorder.snapshot(), { voice: prefs.voice, haptic: prefs.haptic, locale: locale === 'zh-TW' ? 'zh-TW' : 'en', cueEvery: prefs.cueEvery }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { workoutCues.onSnapshot(s, { voice: prefs.voice, haptic: prefs.haptic, locale: locale === 'zh-TW' ? 'zh-TW' : 'en', cueEvery: prefs.cueEvery }); }, [s, prefs.voice, prefs.haptic, prefs.cueEvery, locale]);
+  const detail = prefs.detailView;
+  // GPS 有問題時即使精簡模式也把診斷列展開（review 9）
+  const showDiag = detail || !!s.gpsIssue || s.gps !== 'ok' || s.paceStale;
+  const [finishFailed, setFinishFailed] = useState<string | null>(null);
 
   // 模式樣態（Style 24.6）：走路主數字＝運動時間、健走＝km/h＋建議區間、跑步＝配速＋與平均比較
   const mode = modeOfIntent(s.sport, s.intent) ?? (s.sport === 'run' ? 'run' : 'walk');
@@ -83,10 +100,11 @@ export function WorkoutRecordScreen() {
   const last = [...s.splits, ...s.laps].filter((l) => !l.isPartial).sort((x, y) => y.endElapsedMs - x.endElapsedMs)[0] ?? null;
   const recent = [...s.splits, ...s.laps].filter((l) => !l.isPartial).sort((x, y) => y.endElapsedMs - x.endElapsedMs).slice(0, 5);
   const startedAt = new Date(Date.now() - s.elapsedMs).toLocaleTimeString(locale === 'zh-TW' ? 'zh-TW' : 'en', { hour: '2-digit', minute: '2-digit' });
-  const goalCompletion = s.goal && s.goal.kind !== 'free' && s.goal.target > 0 ? (s.goal.kind === 'time' ? s.elapsedMs / (s.goal.target * 1000) : s.distanceMm / s.goal.target) : 0;
+  // review 2：時間目標以運動時間（不含暫停）計，與主時間一致
+  const goalCompletion = s.goal && s.goal.kind !== 'free' && s.goal.target > 0 ? (s.goal.kind === 'time' ? s.movingMs / (s.goal.target * 1000) : s.distanceMm / s.goal.target) : 0;
   const goalRatio = Math.min(1, goalCompletion);
   const goalExtra = s.goal?.kind === 'time'
-    ? formatDuration(String(Math.max(0, s.elapsedMs - s.goal.target * 1000)))
+    ? formatDuration(String(Math.max(0, s.movingMs - s.goal.target * 1000)))
     : `${(Math.max(0, s.distanceMm - (s.goal?.target ?? 0)) / 1_000_000).toFixed(2)} km`;
   /** 計圈：距離為 0 時引擎不建圈，但按鈕必須有回應——說明原因並輕震；成功則顯示第 N 圈＋配速 */
   const onLap = async () => {
@@ -107,9 +125,13 @@ export function WorkoutRecordScreen() {
         onPress: () => {
           void (async () => {
             setBusy(true);
+            setFinishFailed(null);
             try {
               const r = await workoutRecorder.finish();
               navigation.dispatch(StackActions.replace('WorkoutSummary', { sessionId: r.meta.sessionId, celebrate: true }));
+            } catch (e) {
+              // review 5：本機寫入失敗——摘要仍在 recorder 手上，留在本頁提供重試，不要卡在「結束中」
+              setFinishFailed(e instanceof Error ? e.message : String(e));
             } finally {
               setBusy(false);
             }
@@ -119,11 +141,27 @@ export function WorkoutRecordScreen() {
     ]);
   };
 
+  const retryFinish = async () => {
+    setBusy(true);
+    try {
+      const r = await workoutRecorder.retryFinish();
+      navigation.dispatch(StackActions.replace('WorkoutSummary', { sessionId: r.meta.sessionId, celebrate: true }));
+    } catch (e) {
+      setFinishFailed(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Screen testID="workout-record-screen">
       <View style={styles.statusRow} accessible accessibilityLabel={`${t(`rec.gps.${s.gps}` as TKey)}, ${s.state === 'paused' ? t('rec.paused') : t('rec.recording')}`} testID="record-status">
         <Chip label={t(`rec.gps.${s.gps}` as TKey)} kind={s.gps === 'ok' ? 'synced' : s.gps === 'poor' ? 'devnet' : 'offline'} />
         <Chip label={s.state === 'paused' ? (s.pauseKind === 'auto' ? t('rec.autoPaused') : t('rec.paused')) : t('rec.recording')} kind={s.state === 'paused' ? 'devnet' : 'level'} />
+        <Pressable onPress={() => void prefs.set({ detailView: !detail })} accessibilityRole="button" accessibilityState={{ selected: detail }} accessibilityLabel={t('rec.detailView')} hitSlop={8} style={[styles.lockBtn, detail && styles.lockBtnOn]} testID="record-detail-toggle">
+          <Feather name={detail ? 'list' : 'minimize-2'} size={16} color={detail ? color.mint : color.textSecondary} />
+          <Text variant="label" tone={detail ? 'mint' : 'secondary'}>{detail ? t('rec.detail.hide') : t('rec.detail.show')}</Text>
+        </Pressable>
         <Pressable onPress={() => setLocked(true)} onLongPress={() => setLocked(false)} delayLongPress={1200} accessibilityRole="button" accessibilityLabel={locked ? t('rec.lock.unlockA11y') : t('rec.lock.lockA11y')} hitSlop={8} style={[styles.lockBtn, locked && styles.lockBtnOn]} testID={locked ? 'record-unlock' : 'record-lock'}>
           <Feather name={locked ? 'lock' : 'unlock'} size={16} color={locked ? color.mint : color.textSecondary} />
           <Text variant="label" tone={locked ? 'mint' : 'secondary'}>{locked ? t('rec.lock.locked') : t('rec.lock.lock')}</Text>
@@ -143,9 +181,21 @@ export function WorkoutRecordScreen() {
         <Text variant="caption" tone="warning" style={styles.center} testID="record-gps-gap">
           {t('rec.gpsGap')}
         </Text>
+      ) : s.paceStale && s.state === 'recording' && !s.gpsIssue ? (
+        <Text variant="caption" tone="warning" style={styles.center} testID="record-pace-stale">
+          {t('rec.paceStale')}
+        </Text>
       ) : null}
-      {/* 定位診斷：一直看得到「收到幾筆／採用幾筆／精度」，0 km 時不用猜（實機回饋：戶外跑道 14 分鐘 0 km 沒有任何提示） */}
-      {s.state === 'recording' ? (
+      {s.storage.failing ? (
+        <Text variant="caption" tone="warning" style={styles.center} testID="record-storage-failing">
+          {t('rec.storage.failing', { n: s.storage.pendingPoints })}
+        </Text>
+      ) : null}
+      {finishFailed !== null || s.finishError !== null ? (
+        <InlineState kind="error" title={t('rec.finishFailed.title')} body={t('rec.finishFailed.body', { message: finishFailed ?? s.finishError ?? '' })} action={{ label: busy ? t('rec.finishing') : t('rec.finishFailed.retry'), onPress: () => void retryFinish() }} testID="record-finish-failed" />
+      ) : null}
+      {/* 定位診斷：詳細模式或 GPS 有狀況時顯示「收到幾筆／採用幾筆／精度」（實機回饋：戶外跑道 14 分鐘 0 km 沒有任何提示） */}
+      {s.state === 'recording' && showDiag ? (
         <Text variant="caption" tone="muted" style={styles.center} testID="record-gps-diag">
           {t('rec.gpsDiag', { fixes: s.fixes, accepted: s.accepted, acc: s.lastAccuracyM === null ? '—' : String(Math.round(s.lastAccuracyM)) })}
         </Text>
@@ -187,7 +237,7 @@ export function WorkoutRecordScreen() {
             </Text>
           </View>
         ) : null}
-        {vsAvg !== null ? (
+        {vsAvg !== null && detail ? (
           <View style={[styles.zoneChip, { borderColor: onFire ? color.warning : vsAvg <= 0 ? profile.accent : color.borderSubtle }, onFire && styles.energyComparison]} testID="record-vs-avg">
             <Text variant="caption" tone={onFire ? 'warning' : vsAvg <= 0 ? profile.accentTone : 'secondary'}>
               {vsAvg < -2 ? t('rec.vsAvg.faster', { p: -vsAvg }) : vsAvg > 2 ? t('rec.vsAvg.slower', { p: vsAvg }) : t('rec.vsAvg.same')}
@@ -256,12 +306,12 @@ export function WorkoutRecordScreen() {
             <View style={[styles.goalFill, { width: `${Math.round(goalRatio * 100)}%`, backgroundColor: profile.accent }, s.goalReached && styles.goalFillDone]} />
           </View>
           <Text variant="caption" tone={s.goalReached ? 'mint' : 'muted'} style={styles.center} testID="record-goal">
-            {s.goalReached ? t('rec.goalReached') : t('rec.goalProgress', { target: s.goal.kind === 'time' ? t('rec.goal.min', { n: Math.round(s.goal.target / 60) }) : t('rec.goal.km', { n: s.goal.target / 1_000_000 }) })}
+            {s.goalReached ? t('rec.goalReached') : t('rec.goalProgress', { target: s.goal.kind === 'time' ? t('rec.goal.minMoving', { n: Math.round(s.goal.target / 60) }) : t('rec.goal.km', { n: s.goal.target / 1_000_000 }) })}
           </Text>
         </View>
       ) : null}
-      {/* 最近分段／圈（最多 5 筆，新到舊）；沒有時提示自動分段規則 */}
-      <View style={styles.splits} testID="record-splits">
+      {/* 最近分段／圈（最多 5 筆，新到舊）；沒有時提示自動分段規則——詳細模式 */}
+      {detail ? <View style={styles.splits} testID="record-splits">
         <View style={styles.splitsHead}>
           <Text variant="label" tone="muted" uppercase>
             {t('rec.splitsTitle')}
@@ -292,7 +342,7 @@ export function WorkoutRecordScreen() {
             </View>
           ))
         )}
-      </View>
+      </View> : null}
       {s.trackEquivalent ? (
         <View style={styles.track} testID="record-track">
           <Text variant="title" numeric testID="record-track-laps">
@@ -308,15 +358,21 @@ export function WorkoutRecordScreen() {
           {lapNote.text}
         </Text>
       ) : null}
-      {/* 即時軌跡＋速度曲線（Style 23.6）：只用記憶體內最近接受點與 5 秒窗樣本，不讀磁碟 */}
-      {s.path.length >= 2 ? <RouteTrace points={s.path} height={150} layer={prefs.traceLayer} testID="record-trace" /> : null}
-      <View style={styles.sparkHead}>
-        <Text variant="label" tone="muted" uppercase>{s.sport === 'walk' ? t('rec.spark.speed') : t('rec.spark.pace')}</Text>
-        <Text variant="caption" tone="muted" numeric>
-          {s.lastAccuracyM !== null && s.state === 'recording' ? `${t('rec.gpsAccuracy', { m: Math.round(s.lastAccuracyM) })} · ` : ''}{t('rec.totalTime', { t: formatDuration(String(s.elapsedMs)) })}
+      {/* 即時軌跡＋速度曲線（Style 23.6）：只用記憶體內最近接受點與 5 秒窗樣本，不讀磁碟——詳細模式 */}
+      {detail && s.path.length >= 2 ? <RouteTrace points={s.path} height={150} layer={prefs.traceLayer} testID="record-trace" /> : null}
+      {detail ? <>
+        <View style={styles.sparkHead}>
+          <Text variant="label" tone="muted" uppercase>{s.sport === 'walk' ? t('rec.spark.speed') : t('rec.spark.pace')}</Text>
+          <Text variant="caption" tone="muted" numeric>
+            {s.lastAccuracyM !== null && s.state === 'recording' ? `${t('rec.gpsAccuracy', { m: Math.round(s.lastAccuracyM) })} · ` : ''}{t('rec.totalTime', { t: formatDuration(String(s.elapsedMs)) })}
+          </Text>
+        </View>
+        <SpeedSparkline samples={s.speedSamples} sport={s.sport} accent={profile.accent} />
+      </> : (
+        <Text variant="caption" tone="muted" style={styles.center} numeric testID="record-total-time">
+          {t('rec.totalTime', { t: formatDuration(String(s.elapsedMs)) })}
         </Text>
-      </View>
-      <SpeedSparkline samples={s.speedSamples} sport={s.sport} accent={profile.accent} />
+      )}
       </ScrollView>
       <View style={styles.controls}>
         {locked ? (

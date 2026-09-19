@@ -228,10 +228,16 @@ describe('WorkoutRecorder', () => {
     // 再原地 8 s → 5 秒窗速度歸零起算滿 10 s → 自動暫停
     for (let i = 0; i < 8; i++) { t += 1000; rec.ingest(still(1, t, 200 + i, lat)); }
     expect(rec.snapshot()).toMatchObject({ state: 'paused', pauseKind: 'auto' });
-    // 暫停中小幅移動 5 m 不繼續；移動 20 m → 自動繼續
+    // 暫停中小幅移動 5 m 不繼續；單一點 20 m 不算（review 4：需連續 2 個可用點都離開 ≥ 15 m，抵擋單點飄移）
     t += 1000; rec.ingest(still(1, t, 300, lat + 5 / M_PER_DEG_LAT));
     expect(rec.snapshot().state).toBe('paused');
     t += 1000; rec.ingest(still(1, t, 301, lat + 20 / M_PER_DEG_LAT));
+    expect(rec.snapshot().state).toBe('paused');
+    // 中間插一個飄回去的點 → 連續計數歸零；之後再兩點才繼續
+    t += 1000; rec.ingest(still(1, t, 302, lat + 3 / M_PER_DEG_LAT));
+    t += 1000; rec.ingest(still(1, t, 303, lat + 22 / M_PER_DEG_LAT));
+    expect(rec.snapshot().state).toBe('paused');
+    t += 1000; rec.ingest(still(1, t, 304, lat + 25 / M_PER_DEG_LAT));
     expect(rec.snapshot()).toMatchObject({ state: 'recording', pauseKind: null });
     expect(rec.snapshot().autoPausedMs).toBeGreaterThan(0);
     // 手動暫停：之後即使移動 100 m 也不自動繼續
@@ -443,5 +449,150 @@ describe('2026-09-19 review：可重試啟動、寫入失敗不掉點、序列�
     expect(store.readMetaResult('s7')).toEqual({ kind: 'corrupt', sessionId: 's7', reason: 'meta: schema' });
     store.delete('s7');
     expect(store.corrupted()).toEqual([]);
+  });
+});
+
+describe('2026-09-19 第二輪 review：配速一致、暫停不達標、配速過期、自動繼續門檻、finish 重試、進行中 session', () => {
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+  const mk = (over: { sync?: jest.Mock; store?: LocalWorkoutStore } = {}) => {
+    let t = 1_000_000;
+    const sync = over.sync ?? jest.fn(async () => ({ sessionId: 'server-1' }));
+    const store = over.store ?? new LocalWorkoutStore();
+    const rec = new WorkoutRecorder({ store, now: () => t, sync, monotonic: null, motionProbe: null });
+    return { rec, store, sync, now: () => t, tick: (ms: number) => { t += ms; } };
+  };
+
+  test('review 1：摘要同時給運動平均（不含暫停）與全程平均（含暫停）；暫停 5 分鐘時兩者不同，運動平均與記錄頁算法一致', async () => {
+    const { rec, tick: advance } = mk();
+    await rec.start({ sport: 'run', environment: 'outdoor' });
+    rec.ingest(pts(300, 1_000_000)); // 300 s × 3 m/s ≈ 900 m
+    advance(300_000);
+    await rec.pause();
+    advance(300_000); // 暫停 5 分鐘
+    await rec.resume();
+    rec.ingest(pts(300, 1_600_000, 300)); // 再 900 m
+    advance(300_000);
+    const snapBefore = rec.snapshot();
+    const liveAvg = Math.round(snapBefore.movingMs / 1000 / (snapBefore.distanceMm / 1_000_000)); // 記錄頁算法
+    const r = await rec.finish();
+    expect(r.summary.pausedMs).toBe(300_000);
+    expect(r.summary.movingAvgPaceSPerKm).toBe(liveAvg);
+    expect(r.summary.avgPaceSPerKm).toBeGreaterThan(r.summary.movingAvgPaceSPerKm!); // 含暫停一定較慢
+    expect(r.summary.avgPaceSPerKm! - r.summary.movingAvgPaceSPerKm!).toBeCloseTo(300 / (r.summary.distanceMm / 1_000_000), -1);
+    expect(r.summary.movingAvgSpeedKmh).toBeGreaterThan(r.summary.avgSpeedKmh!);
+  });
+
+  test('review 2：時間目標用運動時間——暫停中時間流逝不達標；繼續運動後才達標', async () => {
+    const { rec, tick: advance } = mk();
+    await rec.start({ sport: 'walk', environment: 'outdoor', goal: { kind: 'time', target: 60, unit: 's', version: 2 } });
+    rec.ingest(pts(30, 1_000_000, 0, 1.2));
+    advance(30_000);
+    expect(rec.snapshot().goalReached).toBe(false);
+    await rec.pause();
+    advance(120_000); // 休息 2 分鐘：總時間早已超過 60 s
+    const paused = rec.snapshot();
+    expect(paused.elapsedMs).toBeGreaterThan(60_000);
+    expect(paused.movingMs).toBeLessThan(60_000);
+    expect(paused.goalReached).toBe(false); // 之前的 bug：這裡會是 true
+    await rec.resume();
+    rec.ingest(pts(35, 1_150_000, 30, 1.2));
+    advance(35_000);
+    expect(rec.snapshot().goalReached).toBe(true);
+    await rec.finish();
+  });
+
+  test('review 3：定位點持續被拒（精度差）超過 10 s → paceStale、速度／配速為 null、距離保留；恢復可用點後再顯示', async () => {
+    const { rec, now, tick: advance } = mk();
+    await rec.start({ sport: 'run', environment: 'outdoor' });
+    // 每秒一個好點、共 20 s（時鐘與點同步推進，才不會被「10 s 無點」判成 searching）
+    for (let i = 0; i < 20; i++) { advance(1000); rec.ingest(pts(1, now(), i)); }
+    const good = rec.snapshot();
+    expect(good.gps).toBe('ok');
+    expect(good.currentSpeedMs).not.toBeNull();
+    expect(good.paceStale).toBe(false);
+    const dist = good.distanceMm;
+    // 接下來 15 s 每秒都有點進來，但精度 120 m 全被拒
+    for (let i = 0; i < 15; i++) {
+      advance(1000);
+      rec.ingest([{ ...pts(1, now(), 20 + i)[0]!, accuracyM: 120 }]);
+    }
+    const stale = rec.snapshot();
+    expect(stale.gps).not.toBe('searching'); // 有點進來，不是「搜尋中」
+    expect(stale.paceStale).toBe(true);
+    expect(stale.currentSpeedMs).toBeNull();
+    expect(stale.currentPaceSPerKm).toBeNull();
+    expect(stale.distanceMm).toBe(dist); // 距離不動
+    expect(stale.accepted).toBe(20);
+    // 好點回來：需要重新累積 5 秒窗
+    for (let i = 0; i < 6; i++) { advance(1000); rec.ingest(pts(1, now(), 40 + i)); }
+    expect(rec.snapshot().paceStale).toBe(false);
+    await rec.finish();
+  });
+
+  test('review 4：精度 40 m（介於 20～50）的連續移動點也能解除自動暫停；自動暫停／繼續會發事件', async () => {
+    const { rec, now, tick: advance } = mk();
+    const events: string[] = [];
+    rec.onEvent((e) => events.push(e.kind));
+    const still = (seq: number, lat: number, acc = 5): RawPoint[] => [{ seq, monotonicMs: now(), utcMs: now(), lat, lon: 121.5, accuracyM: acc }];
+    await rec.start({ sport: 'run', environment: 'outdoor', autoPause: true });
+    rec.ingest(pts(20, 1_000_000));
+    advance(20_000);
+    const lat = 25 + (3 * 19) / M_PER_DEG_LAT;
+    for (let i = 0; i < 14; i++) { advance(1000); rec.ingest(still(100 + i, lat)); }
+    await tick();
+    expect(rec.snapshot()).toMatchObject({ state: 'paused', pauseKind: 'auto' });
+    expect(events).toContain('auto_pause');
+    // 精度 40 m 的兩個連續點各離開 20 m：之前門檻 20 m 會忽略它們、一直停在暫停
+    advance(1000); rec.ingest(still(200, lat + 20 / M_PER_DEG_LAT, 40));
+    expect(rec.snapshot().state).toBe('paused');
+    advance(1000); rec.ingest(still(201, lat + 24 / M_PER_DEG_LAT, 40));
+    expect(rec.snapshot().state).toBe('recording');
+    expect(events).toContain('auto_resume');
+    // 精度 60 m（超過可採用門檻）不算可用點：手動觸發一次自動暫停後，兩個 60 m 的點不會解除
+    await rec.pause('auto');
+    (rec as unknown as { autoPausedAt: { lat: number; lon: number } }).autoPausedAt = { lat: lat + 24 / M_PER_DEG_LAT, lon: 121.5 };
+    advance(1000); rec.ingest(still(300, lat + 60 / M_PER_DEG_LAT, 60));
+    advance(1000); rec.ingest(still(301, lat + 65 / M_PER_DEG_LAT, 60));
+    expect(rec.snapshot().state).toBe('paused');
+    await rec.resume();
+    await rec.finish();
+  });
+
+  test('review 5：finish 寫入 meta 失敗 → 狀態停在 finishing、finishError、active() 仍在；retryFinish 成功 → idle、本機已保存', async () => {
+    const store = new LocalWorkoutStore();
+    const write = jest.spyOn(store, 'writeMeta');
+    const { rec } = mk({ store });
+    const meta = await rec.start({ sport: 'run', environment: 'outdoor' });
+    rec.ingest(pts(30, 1_000_000));
+    await tick();
+    write.mockRejectedValueOnce(new Error('ENOSPC'));
+    await expect(rec.finish()).rejects.toThrow(/ENOSPC/);
+    const snap = rec.snapshot();
+    expect(snap.state).toBe('finishing');
+    expect(snap.finishError).toBe('ENOSPC');
+    expect(rec.active()).toMatchObject({ sessionId: meta.sessionId, state: 'finishing' });
+    expect(store.readMeta(meta.sessionId)?.summary).toBeNull(); // 還沒存進去
+    // 不允許在這狀態再 start
+    await expect(rec.start({ sport: 'run', environment: 'outdoor' })).rejects.toThrow(/already active/);
+    const r = await rec.retryFinish();
+    expect(r.meta.summary).toBeTruthy();
+    expect(rec.snapshot()).toMatchObject({ state: 'idle', finishError: null });
+    expect(store.readMeta(meta.sessionId)?.summary?.distanceMm).toBe(r.summary.distanceMm);
+    expect(rec.active()).toBeNull();
+    await expect(rec.retryFinish()).rejects.toThrow(/no failed finish/);
+  });
+
+  test('review 6：active() 回報進行中 session；markRecoverable 不把它列成可恢復紀錄', async () => {
+    const { rec, store } = mk();
+    expect(rec.active()).toBeNull();
+    const meta = await rec.start({ sport: 'walk', environment: 'outdoor' });
+    expect(rec.active()).toEqual({ sessionId: meta.sessionId, state: 'recording', sport: 'walk' });
+    expect(store.recoverable().map((m) => m.sessionId)).toContain(meta.sessionId); // store 層面它仍是 recording
+    expect((await rec.markRecoverable()).map((m) => m.sessionId)).not.toContain(meta.sessionId); // recorder 層面排除
+    expect(store.readMeta(meta.sessionId)?.status).toBe('recording'); // 也沒被改成 recoverable／interrupted
+    await rec.pause();
+    expect(rec.active()?.state).toBe('paused');
+    await rec.finish();
+    expect(rec.active()).toBeNull();
   });
 });

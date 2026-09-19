@@ -8,6 +8,7 @@ import { GPS_QUALITY } from '@/domain/gps/thresholds';
 import type { RawPoint } from '@/domain/gps/engine';
 import { WorkoutRecordScreen } from '@/screens/workouts/WorkoutRecordScreen';
 import { WorkoutStartScreen } from '@/screens/workouts/WorkoutStartScreen';
+import { LocalWorkoutStore } from '@/services/workouts/LocalWorkoutStore';
 import { WorkoutSummaryScreen } from '@/screens/workouts/WorkoutSummaryScreen';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { useWorkoutPrefs } from '@/state/workoutPrefsStore';
@@ -115,7 +116,7 @@ test('開始頁（NRC 版面）：GPS chip 切室內停用 START 並導向匯入
   await fireEvent.press(screen.getByTestId('start-countdown'));
   await waitFor(() => expect(mockNav.navigate).toHaveBeenCalledWith('WorkoutRecord'));
   expect(screen.queryByTestId('start-countdown')).toBeNull();
-  expect(recorder.snapshot()).toMatchObject({ state: 'recording', sport: 'walk', intent: 'brisk', goal: { kind: 'time', target: 600, unit: 's', version: 1 }, goalReached: false, trackEquivalent: { laps: 0, remainderMm: 0, lapMm: 400_000 } });
+  expect(recorder.snapshot()).toMatchObject({ state: 'recording', sport: 'walk', intent: 'brisk', goal: { kind: 'time', target: 600, unit: 's', version: 2 }, goalReached: false, trackEquivalent: { laps: 0, remainderMm: 0, lapMm: 400_000 } });
   expect(useWorkoutPrefs.getState().autoPause).toBe(true);
   expect(useWorkoutPrefs.getState().mode).toBe('brisk'); // 最近模式保存
   expect(loc.startLocationUpdatesAsync).toHaveBeenCalled();
@@ -133,9 +134,11 @@ test('記錄頁：距離 0 時按「計圈」有回應（說明還沒有距離�
 
 test('記錄頁：健走顯示速度、時間／距離；目標進度 → 達標提醒一次不自動停止；Lap；Pause 後顯示 Resume／Finish；Finish 需確認 → 摘要頁', async () => {
   jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, b) => b?.find((x) => x.style === 'destructive')?.onPress?.());
+  // review 9：預設精簡模式只留主數字與四格；本測試驗證分段表／軌跡等詳細元素，先開詳細模式
+  useWorkoutPrefs.setState({ detailView: true });
   await render(<WorkoutRecordScreen />, { wrapper: Wrapper });
   expect(screen.getByTestId('record-primary').props.children).toBe('—'); // 不足 5 秒窗
-  expect(screen.getByTestId('record-goal').props.children).toBe('Goal 10 min');
+  expect(screen.getByTestId('record-goal').props.children).toBe('Goal 10 min moving'); // review 2：時間目標明示運動時間
   await act(async () => {
     recorder.ingest(pts(120, clock));
     clock += 120_000;
@@ -219,6 +222,10 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   await fireEvent(screen.getByTestId('sum-share-date'), 'valueChange', true);
   expect(screen.getByTestId('sum-share-preview').props.children).toMatch(/\n\d{4}-\d{2}-\d{2}\n#NeonShift · neonshift\.cc$/);
   expect(screen.getByText('—')).toBeTruthy(); // kcal 無裝置值
+  // review 1（第二輪）：主平均＝運動平均（不含暫停），與記錄頁一致；有暫停時另列全程（含暫停）＝後端 avg_pace
+  expect(screen.getByTestId('sum-avg')).toBeTruthy();
+  expect(screen.getByTestId('sum-avg-hint').props.children).toMatch(/^Overall incl\. pauses: /);
+  expect(screen.queryByTestId('sum-unsaved')).toBeNull(); // 這筆全部落地
   // 實機回饋：「立即同步」按了沒反應——現在會說明原因；未登入 → 就地登入卡，簽完自動同步
   expect(screen.getByTestId('sum-sync').props.children).toBe('Saved on this phone · not synced yet');
   sync.mockRejectedValueOnce(new ApiErrorCtor(401, 'NO_SESSION', 'Sign in required'));
@@ -264,4 +271,19 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   expect(screen.getByText(/^Sustained speed: 1 stretch/)).toBeTruthy();
   await fireEvent.press(screen.getByTestId('sum-done'));
   expect(mockNav.navigate).toHaveBeenCalledWith('Workouts');
+});
+
+test('review 5（第二輪）：meta.unsavedPoints > 0 → 摘要頁明確說明有幾個定位點未保存、路線不完整', async () => {
+  const store = new LocalWorkoutStore();
+  const meta = await store.create({ sessionId: 'unsaved-1', sport: 'run', intent: 'run', goal: null, environment: 'outdoor', autoLapMm: null, splitLengthMm: 1_000_000, status: 'recording', startedAtUtc: 1_000_000, startedMonoMs: 1_000_000, processId: 'p' });
+  meta.status = 'needs_review';
+  meta.endedAtUtc = 1_600_000;
+  meta.unsavedPoints = 42;
+  meta.summary = { rulesVersion: 3, distanceMm: 1_800_000, elapsedMs: 600_000, movingMs: 600_000, pausedMs: 0, avgSpeedKmh: 10.8, avgPaceSPerKm: 333, movingAvgSpeedKmh: 10.8, movingAvgPaceSPerKm: 333, maxSpeed5sKmh: 12, splits: [], laps: [], fastestSplit: null, trackEquivalent: null, quality: { accepted: 558, rejected: { not_finite: 0, out_of_order: 0, duplicate: 0, low_accuracy: 0, speed_spike: 0, paused: 0, not_recording: 0 }, stationary: 0, segments: 1, gaps: 0, coverageRatio: 1, complete: true }, integrity: { flags: [], mockPoints: 0, sustainedSpeeding: 0, gapTeleports: 0, clockDriftMs: 0, motionProbes: { total: 0, mismatched: 0 } } } as never;
+  await store.writeMeta(meta);
+  mockRoute = { params: { sessionId: 'unsaved-1' } };
+  await render(<WorkoutSummaryScreen />, { wrapper: Wrapper });
+  expect(screen.getByTestId('sum-unsaved')).toBeTruthy();
+  expect(screen.getByText(/42 points could not be written/)).toBeTruthy();
+  expect(screen.queryByTestId('sum-avg-hint')).toBeNull(); // 無暫停就不列全程
 });

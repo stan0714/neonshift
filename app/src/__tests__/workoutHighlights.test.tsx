@@ -39,8 +39,15 @@ test('unfinished and free goals do not show achievement', async () => {
   expect(screen.queryByTestId('record-goal-bar')).toBeNull();
 });
 
-test('time goal uses elapsed time consistently and formats extra duration', async () => {
-  await show({ goal: { kind: 'time', target: 600, unit: 's', version: 1 }, elapsedMs: 660_000 });
+test('time goal uses moving time (not elapsed) and formats extra duration', async () => {
+  // review 2：暫停 5 分鐘不算進時間目標——elapsed 960 s 但 moving 660 s → 110%
+  await show({ goal: { kind: 'time', target: 600, unit: 's', version: 2 }, movingMs: 660_000, elapsedMs: 960_000, pausedMs: 300_000 });
   expect(screen.getByText('110%')).toBeTruthy();
   expect(screen.getByText('+1:00')).toBeTruthy();
+});
+
+test('time goal not reached while paused time accumulates', async () => {
+  await show({ goal: { kind: 'time', target: 600, unit: 's', version: 2 }, goalReached: false, movingMs: 480_000, elapsedMs: 900_000, pausedMs: 420_000 });
+  expect(screen.queryByTestId('record-goal-achievement')).toBeNull();
+  expect(screen.getByTestId('record-goal-bar').props.accessibilityValue.now).toBe(80);
 });

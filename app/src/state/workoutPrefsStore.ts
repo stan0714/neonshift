@@ -13,14 +13,31 @@ export type TraceLayerPref = 'grid' | 'mars' | 'chain' | 'space';
 /** autoPause：靜止自動暫停（預設關；Style 23.7） */
 /** cueEvery：語音／震動提示的距離間隔——每 500 m、每 1 km、或目標距離的一半（無距離目標時視同 1 km） */
 export type CueEvery = '500' | '1000' | 'half';
-export type WorkoutPrefs = { mode: WorkoutMode; goal: WorkoutGoal; voice: boolean; haptic: boolean; showRoute: boolean; traceLayer: TraceLayerPref; autoPause: boolean; cueEvery: CueEvery };
-export const GOAL_VERSION = 1;
+export type WorkoutPrefs = {
+  mode: WorkoutMode;
+  goal: WorkoutGoal;
+  voice: boolean;
+  haptic: boolean;
+  showRoute: boolean;
+  traceLayer: TraceLayerPref;
+  autoPause: boolean;
+  cueEvery: CueEvery;
+  /** 記錄中螢幕常亮（review 10）；暫停中一律允許休眠以省電 */
+  keepAwake: boolean;
+  /** 記錄頁詳細模式（review 9）：預設精簡（配速／距離／運動時間／暫停／計圈）；開啟才顯示分段表、軌跡、速度曲線與配速比較 */
+  detailView: boolean;
+};
+/**
+ * 目標快照版本。v1：時間目標以總時間（含暫停）判定。
+ * v2（2026-09-19 review 2）：時間目標以**運動時間**（不含暫停）判定，與畫面主時間一致，暫停中不會默默達標。
+ */
+export const GOAL_VERSION = 2;
 export const FREE_GOAL: WorkoutGoal = { kind: 'free', target: 0, unit: 's', version: GOAL_VERSION };
 const KEY = 'neonshift.workout.prefs.v1';
-const initial: WorkoutPrefs = { mode: 'run', goal: FREE_GOAL, voice: false, haptic: false, showRoute: true, traceLayer: 'grid', autoPause: false, cueEvery: '1000' };
+const initial: WorkoutPrefs = { mode: 'run', goal: FREE_GOAL, voice: false, haptic: false, showRoute: true, traceLayer: 'grid', autoPause: false, cueEvery: '1000', keepAwake: true, detailView: false };
 
 type State = WorkoutPrefs & { loaded: boolean; load: () => Promise<WorkoutPrefs>; set: (patch: Partial<WorkoutPrefs>) => Promise<void> };
-const pick = (s: State): WorkoutPrefs => ({ mode: s.mode, goal: s.goal, voice: s.voice, haptic: s.haptic, showRoute: s.showRoute, traceLayer: s.traceLayer, autoPause: s.autoPause, cueEvery: s.cueEvery });
+const pick = (s: State): WorkoutPrefs => ({ mode: s.mode, goal: s.goal, voice: s.voice, haptic: s.haptic, showRoute: s.showRoute, traceLayer: s.traceLayer, autoPause: s.autoPause, cueEvery: s.cueEvery, keepAwake: s.keepAwake, detailView: s.detailView });
 
 export const useWorkoutPrefs = create<State>((set, get) => ({
   ...initial,

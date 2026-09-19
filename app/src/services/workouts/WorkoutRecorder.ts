@@ -22,6 +22,14 @@ import { resetLocationSeq, setLocationSink, WORKOUT_LOCATION_TASK } from './loca
  * - flush 寫入成功才移除待存點；失敗保留在佇列、標示 storage.failing 並以退避重試；結束時仍未落地的點數寫入 meta.unsavedPoints。
  * - 定位服務的 start／更新通知／stop 經同一條序列化佇列，並以 session id 檢查，結束後排隊中的更新不會再把定位叫起來。
  * - 感測器探測回來時確認仍是同一個 engine／session，舊運動的量測不會落到新運動。
+ *
+ * 2026-09-19 第二輪 review：
+ * - 時間目標以運動時間（不含暫停）判定（goal.version 2），與畫面主時間一致。
+ * - 配速過期：最後**採用**的定位點超過 10 s 即不再顯示速度／配速（`paceStale`），即使仍有被拒絕的點進來；距離保留。
+ * - 自動繼續：改用引擎可採用門檻（50 m）並要求連續 2 個可用點都離暫停位置 ≥ 15 m，避免精度介於 20～50 m 時已起跑仍暫停。
+ * - `active()` 回報進行中的 session；`markRecoverable()` 不再把它列成可恢復紀錄。
+ * - finish 持久化失敗：狀態停在 finishing 並保留摘要，`retryFinish()` 可重試，不會卡死也不會遺失摘要。
+ * - 自動暫停／繼續會發出事件（`onEvent`），提示服務據此震動或語音，不依賴畫面。
  */
 export type RecorderState = 'idle' | 'starting' | 'recording' | 'paused' | 'finishing' | 'saved' | 'needs_review';
 export type RecorderSnapshot = {
@@ -57,6 +65,11 @@ export type RecorderSnapshot = {
   speedSamples: { monotonicMs: number; speedMs: number }[];
   /** 最後一點的水平精度（m）；無點 → null */
   lastAccuracyM: number | null;
+  /**
+   * 配速過期（review 3）：記錄中超過 10 s 沒有任何點被**採用**（含「有點進來但全被拒」）。
+   * 此時 currentSpeedMs／currentPaceSPerKm 為 null，畫面顯示「—／定位恢復中」；距離不受影響。
+   */
+  paceStale: boolean;
   /** 本次收到的定位點總數（含被拒絕的） */
   fixes: number;
   /**
@@ -75,7 +88,11 @@ export type RecorderSnapshot = {
    * `failing` 表示最近一次寫入失敗、正在退避重試。畫面距離會先累加，這裡讓使用者知道「還沒存好」。
    */
   storage: { pendingPoints: number; failing: boolean; lastError: string | null };
+  /** finish 持久化失敗（review 5）：摘要已算好但寫不進本機；畫面提供重試。null＝沒有此情況 */
+  finishError: string | null;
 };
+/** Recorder 事件（review 4／7）：提示服務用，不經畫面 */
+export type RecorderEvent = { kind: 'auto_pause' } | { kind: 'auto_resume' } | { kind: 'session_start'; sessionId: string } | { kind: 'session_end'; sessionId: string };
 
 type LocationApi = Pick<typeof Location, 'requestForegroundPermissionsAsync' | 'getForegroundPermissionsAsync' | 'startLocationUpdatesAsync' | 'stopLocationUpdatesAsync' | 'hasStartedLocationUpdatesAsync'>;
 /** 感測器探測：回 true＝機身有步態、false＝沒有、null＝無法量測（無感測器／忙碌／背景） */
@@ -88,8 +105,15 @@ export const NOTIFICATION_UPDATE_MS = 30_000;
 const defaultForegroundText: ForegroundText = (s) => ({ title: s.state === 'paused' ? 'NeonShift · paused' : 'NeonShift is recording', body: `${(s.distanceMm / 1_000_000).toFixed(2)} km · ${Math.floor(s.elapsedMs / 60000)}:${String(Math.floor((s.elapsedMs / 1000) % 60)).padStart(2, '0')} · tap to return` });
 type Deps = { store?: LocalWorkoutStore; location?: LocationApi; now?: () => number; sync?: (input: WorkoutImportInput) => Promise<{ sessionId: string | null }>; foreground?: ForegroundText; motionProbe?: MotionProbe | null; probeIntervalMs?: number; /** 單調時鐘（預設 performance.now）；null＝不做時鐘漂移偵測 */ monotonic?: (() => number) | null };
 
-/** 自動暫停（Style 23.7）：5 秒窗速度 < 0.5 m/s 持續 ≥ 10 s → 自動暫停；暫停中任一可用點距暫停位置 ≥ 15 m → 自動繼續 */
-export const AUTO_PAUSE = { minSpeedMs: 0.5, stillMs: 10_000, resumeDistanceM: 15, maxAccuracyM: GPS_QUALITY.autoResumeMaxAccuracyM } as const;
+/**
+ * 自動暫停（Style 23.7）：5 秒窗速度 < 0.5 m/s 持續 ≥ 10 s → 自動暫停。
+ * 自動繼續（review 4）：暫停中連續 `resumeConsecutive` 個可用點（精度 ≤ 引擎可採用門檻、非模擬）都離暫停位置 ≥ 15 m → 繼續。
+ * 之前只看單一點且精度須 ≤ 20 m，而一般記錄接受到 50 m；精度 20～50 m 的路口起跑會一直停在暫停。
+ * 改成連續兩點可抵擋單點飄移，門檻與引擎一致則「引擎會採計的移動」也能解除暫停。
+ */
+export const AUTO_PAUSE = { minSpeedMs: 0.5, stillMs: 10_000, resumeDistanceM: 15, maxAccuracyM: GPS_QUALITY.acceptMaxAccuracyM, resumeConsecutive: 2 } as const;
+/** 配速過期門檻（ms）：超過此時間沒有點被採用就不顯示速度／配速 */
+export const PACE_STALE_MS = 10_000;
 
 /** 本機寫入失敗的重試退避（ms）：1 s 起倍增，最長 30 s；結束時最多再試 3 次 */
 export const STORAGE_RETRY = { baseMs: 1_000, maxMs: 30_000, finishAttempts: 3 } as const;
@@ -128,8 +152,12 @@ const syncOutcomeOf = (e: unknown): SyncOutcome => {
   return { ok: false, code: 'UNKNOWN', message: e instanceof Error ? e.message : String(e) };
 };
 
-/** PG-U-01：目標達成判定（時間用含暫停的 elapsed；距離用接受距離）；free 永不達 */
-export const goalReached = (goal: WorkoutGoal | null, elapsedMs: number, distanceMm: number) => !!goal && goal.kind !== 'free' && goal.target > 0 && (goal.kind === 'time' ? elapsedMs >= goal.target * 1000 : distanceMm >= goal.target);
+/**
+ * PG-U-01：目標達成判定；free 永不達。
+ * review 2：時間目標用**運動時間**（不含暫停），與畫面主時間一致——之前用含暫停的 elapsed，休息時會默默達標。
+ * 距離目標用接受距離。
+ */
+export const goalReached = (goal: WorkoutGoal | null, movingMs: number, distanceMm: number) => !!goal && goal.kind !== 'free' && goal.target > 0 && (goal.kind === 'time' ? movingMs >= goal.target * 1000 : distanceMm >= goal.target);
 
 /** meta → 引擎設定（舊 meta 無 trackLapMm → null） */
 const engineConfigOf = (meta: SessionMeta) => ({ autoLapMm: meta.autoLapMm, trackLapMm: meta.trackLapMm ?? null, splitLengthMm: meta.splitLengthMm });
@@ -151,6 +179,12 @@ export class WorkoutRecorder {
   // 自動暫停狀態：靜止起算時間、自動暫停時的錨點（不持久化；跨 process 恢復後重算）
   private stillSince: number | null = null;
   private autoPausedAt: { lat: number; lon: number } | null = null;
+  /** 自動暫停中連續「已離開暫停位置」的可用點數（review 4） */
+  private resumeStreak = 0;
+  private eventListeners = new Set<(e: RecorderEvent) => void>();
+  /** finish 持久化失敗時保留的摘要與時間，供 retryFinish（review 5） */
+  private finishPending: { summary: Summary; endedAt: number; unsaved: number } | null = null;
+  private finishError: string | null = null;
   private engine: GpsMetricsEngine | null = null;
   private meta: SessionMeta | null = null;
   private state: RecorderState = 'idle';
@@ -256,6 +290,19 @@ export class WorkoutRecorder {
     this.listeners.add(fn);
     return () => { this.listeners.delete(fn); };
   }
+  /** 訂閱事件（自動暫停／繼續、session 開始／結束）；提示服務用 */
+  onEvent(fn: (e: RecorderEvent) => void): () => void {
+    this.eventListeners.add(fn);
+    return () => { this.eventListeners.delete(fn); };
+  }
+  private emitEvent(e: RecorderEvent) {
+    for (const l of this.eventListeners) l(e);
+  }
+  /** 進行中的 session（recording／paused／finishing）；畫面用來提供「返回目前運動」入口（review 6） */
+  active(): { sessionId: string; state: RecorderState; sport: 'run' | 'walk' } | null {
+    if (!this.meta || (this.state !== 'recording' && this.state !== 'paused' && this.state !== 'finishing')) return null;
+    return { sessionId: this.meta.sessionId, state: this.state, sport: this.meta.sport };
+  }
   private emit() {
     for (const l of this.listeners) l();
   }
@@ -269,6 +316,8 @@ export class WorkoutRecorder {
     const startedAt = this.meta?.startedMonoMs ?? t;
     const sinceFix = t - (this.lastPointAt || startedAt);
     const sinceAccepted = t - (this.lastAcceptedAt || startedAt);
+    // review 3：以「最後採用點」判斷配速是否過期；只要 10 s 內沒有點被採用（不管有沒有點進來）就不展示舊速度
+    const paceStale = this.state === 'recording' && sinceAccepted > PACE_STALE_MS;
     const gpsIssue: RecorderSnapshot['gpsIssue'] =
       this.state !== 'recording' ? null
       : sinceFix >= GPS_ISSUE.noFixMs ? { kind: 'no_fix', sinceMs: sinceFix }
@@ -282,9 +331,9 @@ export class WorkoutRecorder {
       movingMs,
       pausedMs,
       distanceMm: e?.distanceMm ?? 0,
-      // PG-U-02：定位失效（> 10 s 無點）不持續展示舊速度
-      currentSpeedMs: gps === 'searching' ? null : (e?.currentSpeedMs() ?? null),
-      currentPaceSPerKm: gps === 'searching' ? null : (e?.currentPaceSPerKm() ?? null),
+      // PG-U-02／review 3：定位失效或持續不合格（> 10 s 無採用點）不展示舊速度
+      currentSpeedMs: gps === 'searching' || paceStale ? null : (e?.currentSpeedMs() ?? null),
+      currentPaceSPerKm: gps === 'searching' || paceStale ? null : (e?.currentPaceSPerKm() ?? null),
       gps,
       accepted: this.meta?.acceptedCount ?? 0,
       splits: e ? [...e.splits] : [],
@@ -293,16 +342,18 @@ export class WorkoutRecorder {
       interrupted: this.meta?.interrupted ?? false,
       intent: this.meta?.intent ?? null,
       goal: this.meta?.goal ?? null,
-      goalReached: goalReached(this.meta?.goal ?? null, movingMs + pausedMs, e?.distanceMm ?? 0),
+      goalReached: goalReached(this.meta?.goal ?? null, movingMs, e?.distanceMm ?? 0),
       integrityFlags: e ? e.integrity().flags : [],
       path: e ? e.recentPath() : [],
       speedSamples: e ? e.recentSpeeds() : [],
       lastAccuracyM: this.lastAccuracy,
+      paceStale,
       fixes: this.fixes,
       gpsIssue,
       pauseKind: this.state === 'paused' ? (this.meta?.pauses[this.meta.pauses.length - 1]?.kind ?? 'manual') : null,
       autoPausedMs: (this.meta?.pauses ?? []).filter((p) => p.kind === 'auto').reduce((n, p) => n + ((p.resumedAtMs ?? this.now()) - p.atMs), 0),
       storage: { ...this.storage, pendingPoints: this.pending.length },
+      finishError: this.finishError,
     };
   }
   private pausedTotal() {
@@ -337,6 +388,9 @@ export class WorkoutRecorder {
       this.clockOffset0 = null;
       this.stillSince = null;
       this.autoPausedAt = null;
+      this.resumeStreak = 0;
+      this.finishPending = null;
+      this.finishError = null;
       this.pending = [];
       this.resetStorageState();
       this.lastNotifyAt = t;
@@ -351,6 +405,7 @@ export class WorkoutRecorder {
       this.state = 'recording';
       this.startProbes();
       this.emit();
+      this.emitEvent({ kind: 'session_start', sessionId });
       return this.meta;
     } catch (e) {
       this.locationSession = null;
@@ -382,8 +437,13 @@ export class WorkoutRecorder {
       this.lastPointAt = this.now();
       this.lastAccuracy = p.accuracyM;
       this.fixes += 1;
-      // 自動暫停中：離暫停位置 ≥ 15 m（且精度可用、非模擬）→ 自動繼續（本批之後的點照常餵引擎）
-      if (this.autoPausedAt && this.state === 'paused' && !p.mocked && p.accuracyM <= AUTO_PAUSE.maxAccuracyM && haversineMm(this.autoPausedAt.lat, this.autoPausedAt.lon, p.lat, p.lon) >= AUTO_PAUSE.resumeDistanceM * 1000) autoResume = true;
+      // 自動暫停中（review 4）：連續 N 個可用點（精度 ≤ 引擎可採用門檻、非模擬）都離暫停位置 ≥ 15 m → 自動繼續；單點飄移歸零重數
+      if (this.autoPausedAt && this.state === 'paused') {
+        const usable = !p.mocked && p.accuracyM <= AUTO_PAUSE.maxAccuracyM;
+        const away = usable && haversineMm(this.autoPausedAt.lat, this.autoPausedAt.lon, p.lat, p.lon) >= AUTO_PAUSE.resumeDistanceM * 1000;
+        this.resumeStreak = away ? this.resumeStreak + 1 : 0;
+        if (this.resumeStreak >= AUTO_PAUSE.resumeConsecutive) autoResume = true;
+      }
       const r = this.engine.addPoint(p);
       if (r.accepted) { this.meta.acceptedCount += 1; this.lastAcceptedAt = this.now(); }
       this.meta.lastSeq = Math.max(this.meta.lastSeq, p.seq);
@@ -409,7 +469,8 @@ export class WorkoutRecorder {
     if (t - this.stillSince >= AUTO_PAUSE.stillMs) {
       this.stillSince = null;
       this.autoPausedAt = { lat: last.lat, lon: last.lon };
-      void this.pause('auto');
+      this.resumeStreak = 0;
+      void this.pause('auto').then((ok) => { if (ok) this.emitEvent({ kind: 'auto_pause' }); });
     }
   }
   private resetStorageState() {
@@ -472,12 +533,14 @@ export class WorkoutRecorder {
     void this.refreshForeground(true);
     return true;
   }
-  async resume(_by: 'manual' | 'auto' = 'manual') {
+  async resume(by: 'manual' | 'auto' = 'manual') {
     if (this.state !== 'paused' || !this.engine || !this.meta) return false;
     const t = this.now();
     this.engine.resume(t);
     this.autoPausedAt = null;
     this.stillSince = null;
+    this.resumeStreak = 0;
+    if (by === 'auto') this.emitEvent({ kind: 'auto_resume' });
     const last = this.meta.pauses[this.meta.pauses.length - 1];
     if (last && last.resumedAtMs === null) last.resumedAtMs = t;
     this.meta.status = 'recording';
@@ -522,14 +585,31 @@ export class WorkoutRecorder {
     const last = this.meta.pauses[this.meta.pauses.length - 1];
     if (last && last.resumedAtMs === null) last.resumedAtMs = t;
     const summary = this.engine.finish(t);
-    this.meta.endedAtUtc = t;
-    this.meta.summary = summary;
     // review 2：儲存失敗時再試幾次；仍未落地的點數記入 meta，讓摘要與後端都知道這筆不完整
     for (let i = 0; i < STORAGE_RETRY.finishAttempts && this.pending.length; i++) await this.flush();
-    const unsaved = this.pending.length;
+    this.finishPending = { summary, endedAt: t, unsaved: this.pending.length };
+    return this.persistFinish();
+  }
+  /**
+   * finish 的持久化段（review 5）：寫 meta 失敗時狀態停在 finishing、保留摘要並記錄 finishError，
+   * 畫面可呼叫 `retryFinish()`；成功才重設為 idle。之前寫入拋錯會讓畫面停在「結束中」且無法再試。
+   */
+  private async persistFinish(): Promise<{ meta: SessionMeta; summary: Summary; sync: Promise<SyncOutcome> }> {
+    if (!this.meta || !this.finishPending) throw new Error('nothing to finish');
+    const { summary, endedAt, unsaved } = this.finishPending;
+    this.meta.endedAtUtc = endedAt;
+    this.meta.summary = summary;
     if (unsaved > 0) this.meta.unsavedPoints = unsaved;
     this.meta.status = summary.quality.complete && !this.meta.interrupted && summary.integrity.flags.length === 0 && unsaved === 0 ? 'saved' : 'needs_review';
-    await this.store.writeMeta(this.meta);
+    try {
+      await this.store.writeMeta(this.meta);
+    } catch (e) {
+      this.finishError = e instanceof Error ? e.message : String(e);
+      this.emit();
+      throw e;
+    }
+    this.finishError = null;
+    this.finishPending = null;
     this.state = this.meta.status;
     this.emit();
     const meta = this.meta;
@@ -540,7 +620,16 @@ export class WorkoutRecorder {
     this.resetStorageState();
     this.state = 'idle';
     this.emit();
+    this.emitEvent({ kind: 'session_end', sessionId: meta.sessionId });
     return out;
+  }
+  /** 重試 finish 的本機保存（review 5）；只在 finish 因寫入失敗停在 finishing 時有效 */
+  async retryFinish(): Promise<{ meta: SessionMeta; summary: Summary; sync: Promise<SyncOutcome> }> {
+    if (this.state !== 'finishing' || !this.finishPending) throw new Error('no failed finish to retry');
+    // 再給待存點一次機會
+    for (let i = 0; i < STORAGE_RETRY.finishAttempts && this.pending.length; i++) await this.flush();
+    this.finishPending.unsaved = this.pending.length;
+    return this.persistFinish();
   }
   /** 背景同步：完成後 emit，讓已開啟的摘要頁重讀 meta；syncMeta 不會 reject */
   private syncInBackground(meta: SessionMeta): Promise<SyncOutcome> {
@@ -638,6 +727,9 @@ export class WorkoutRecorder {
       this.meta = meta;
       this.pending = [];
       this.resetStorageState();
+      this.resumeStreak = 0;
+      this.finishPending = null;
+      this.finishError = null;
       this.state = engine.status === 'paused' ? 'paused' : 'recording';
       meta.status = this.state;
       await this.store.writeMeta(meta);
@@ -645,6 +737,7 @@ export class WorkoutRecorder {
       resetLocationSeq(meta.lastSeq + 1);
       setLocationSink((pts) => this.ingest(pts));
       this.emit();
+      this.emitEvent({ kind: 'session_start', sessionId: meta.sessionId });
       return { meta };
     }
     // 跨 process 或選擇結束：以最後一點時間結束，不用負時間補段
@@ -657,9 +750,10 @@ export class WorkoutRecorder {
     return { meta, summary, sync: this.syncInBackground(meta) };
   }
 
-  /** 啟動時：把仍在 recording／paused 的 session 標為 recoverable（不自動續錄） */
+  /** 啟動時：把仍在 recording／paused 的 session 標為 recoverable（不自動續錄）；進行中的 session 不在其列（review 6） */
   async markRecoverable(): Promise<SessionMeta[]> {
-    const list = this.store.recoverable();
+    const activeId = this.active()?.sessionId ?? null;
+    const list = this.store.recoverable().filter((m) => m.sessionId !== activeId);
     for (const m of list) {
       if (m.processId !== this.processId && m.status !== 'recoverable') {
         m.status = 'recoverable';

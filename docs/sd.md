@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.37（靜態 review 修正：Recorder／Store／ApiClient） |
+| 文件版本 | v0.38（第二輪靜態 review：跑者記錄體驗） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -972,6 +972,7 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
 | v0.35 | 2026-09-15 | PG-U-04：探索冊 schema（migration 0017）、任務判定與領取／撤銷、API |
+| v0.38 | 2026-09-19 | 第二輪靜態 review：運動平均配速、時間目標用運動時間、配速過期、自動繼續門檻、finish 重試、返回運動入口、session 驅動提示、精簡記錄頁、常亮偏好 |
 | v0.37 | 2026-09-19 | 靜態 review 修正：Recorder 可重試啟動、寫入失敗不掉點、finish 不等同步、定位服務序列化、探測綁定 session；meta 原子寫入與損毀列出；ApiClient 逾時與 refresh 失敗分類；GPS 門檻單一來源 |
 | v0.34 | 2026-09-15 | PG-U-01：workout intent／goal_snapshot（migration 0016）、三模式與目標流程 |
 | v0.33 | 2026-09-15 | PG-V-05：IncidentFreeze PDA、set_incident_freeze、凍結期不升不降、6044 |
@@ -1114,6 +1115,16 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 - `meta.json` 改為「寫 `meta.json.tmp` → `File.move(overwrite)`」原子替換；讀取做最低限度 schema 檢查（`isSessionMeta`），主檔壞掉退回暫存檔，兩者皆壞由 `store.corrupted()` 列出 sessionId 與原因，目錄與點檔保留，不再從清單無聲消失。
 - GPS 精度門檻集中於 `app/src/domain/gps/thresholds.ts`：`acceptMaxAccuracyM` 50（引擎可採用、軌跡預覽）、`goodAccuracyM` 20（狀態列 ok／poor）、`autoResumeMaxAccuracyM` 20（自動繼續）；摘要文案的數值由此插值，不再寫死。
 - 運動紀錄頁的本機清單（可恢復／未同步）改在取得焦點與 recorder 變化時重讀，不只首次掛載。
+
+**2026-09-19 第二輪靜態 review 修正（跑者可否安心記錄、看懂數字、少操作）**：
+- `Summary` 新增 `movingAvgPaceSPerKm`／`movingAvgSpeedKmh`（距離 ÷ 運動時間）。既有 `avgPaceSPerKm`／`avgSpeedKmh`（距離 ÷ elapsed，含暫停）保留，與後端 `avg_pace_s_per_km` 的定義一致。App 記錄頁與摘要主數字一律用運動平均；摘要在有暫停時另列全程。後端契約不變。
+- 時間目標判定改用運動時間（`goalReached(goal, movingMs, distanceMm)`），`GOAL_VERSION` 升為 2；`goal.version === 1` 的舊快照在 App 內同樣以運動時間呈現（判定只在 App，後端只存快照）。
+- `RecorderSnapshot.paceStale`：記錄中超過 `PACE_STALE_MS`（10 s）沒有點被採用即為 true，`currentSpeedMs`／`currentPaceSPerKm` 為 null；距離不受影響。判斷依據是 `lastAcceptedAt`，不是「有沒有點進來」。
+- 自動繼續：`AUTO_PAUSE.maxAccuracyM` 改引用 `GPS_QUALITY.acceptMaxAccuracyM`（50），並要求 `resumeConsecutive`（2）個連續可用點都離暫停位置 ≥ 15 m；單點飄回即歸零。
+- `RecorderSnapshot.storage` 與 `finishError` 接到記錄頁；`finish()` 的持久化段獨立為 `persistFinish()`，寫入失敗時狀態停在 `finishing`、摘要保留在 `finishPending`，`retryFinish()` 重試；成功才轉 `idle`。`meta.unsavedPoints` 在摘要頁具體說明。
+- `active()` 回報進行中 session（recording／paused／finishing）；`markRecoverable()` 以此排除，不再把進行中的運動列為可恢復。Home／運動清單／開始頁依 `active()` 提供「返回運動」。
+- `onEvent()` 事件：`session_start`／`session_end`／`auto_pause`／`auto_resume`。`services/workouts/cueController.ts` 於 App 啟動安裝，訂閱 recorder 驅動 `WorkoutCues`（session 開始 reset、每次更新 onSnapshot、自動暫停／繼續 announce）；記錄頁不再驅動提示。`WorkoutCues.reset` 的時間基準改取最後一個完整分段的 `endElapsedMs`。
+- `workoutPrefs` 新增 `keepAwake`（預設 true；只在 recording 啟用常亮）與 `detailView`（預設 false；記錄頁精簡／詳細）。
 
 同步契約須拒絕非有限數值、負距離／時長、圈界越界及不支援的 sport／版本；伺服器衍生欄位不可由客戶端覆寫。相同 revision 重試返回同結果，過期 revision 回傳衝突，刪除 tombstone 阻止離線舊資料重建。裝置摘要仍屬裝置來源，欄位合法不等於運動真實性已驗證。
 

@@ -2,6 +2,8 @@
  * 運動中提示（PG-U-02；sport-experience-gameplay 3）：依距離間隔（每 500 m／每 1 km／目標一半）與自訂圈可選語音或震動；預設關閉。
  * 2026-09-16 實機回饋：手機在口袋、螢幕關閉時也要播（前景服務持續記錄，TTS 在背景可播）；來電時由系統音訊焦點處理。
  * 只在新跨過的距離界線／新完成的圈觸發一次；不補播過期提示（以計數比較，不重播已過的界線）。
+ * 2026-09-19 review 7／8：播報以 session 為單位由 `cueController` 驅動（訂閱 recorder，不依賴記錄頁）；
+ * `reset()` 的時間基準改取引擎最後一個完整分段的結束時間，不再用「目前運動時間」，返回畫面也不會算出異常配速。
  */
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
@@ -81,8 +83,23 @@ export class WorkoutCues {
     this.seenLaps = snapshot?.laps.length ?? 0;
     const interval = cueIntervalMm(prefs?.cueEvery, snapshot?.goal ?? null);
     this.seenBoundary = Math.floor((snapshot?.distanceMm ?? 0) / interval);
-    this.lastBoundaryMs = snapshot?.movingMs ?? 0;
     this.lastBoundaryMm = this.seenBoundary * interval;
+    // review 8：時間基準取「上一條界線」的實際時間。界線與引擎分段長度一致時用最後一個完整分段的結束時間；
+    // 否則（尚無界線）從 0 起算。之前用「目前運動時間」配「上一個完整公里」，在 1.8 km 返回會播出 0.2 km 的時間除以 1 km。
+    const completed = (snapshot?.splits ?? []).filter((l) => !l.isPartial);
+    const lastSplit = completed[completed.length - 1];
+    const splitMatchesInterval = !!lastSplit && Math.abs(lastSplit.distanceMm - interval) < 1000;
+    this.lastBoundaryMs = this.seenBoundary === 0 ? 0 : splitMatchesInterval && completed.length === this.seenBoundary ? lastSplit!.endElapsedMs : (snapshot?.movingMs ?? 0);
+  }
+
+  /** 自動暫停／繼續的即時確認（review 4）：震動一次；語音開啟時說一句。不看距離界線 */
+  announce(kind: 'auto_pause' | 'auto_resume', prefs: CuePrefs): string | null {
+    if (!prefs.voice && !prefs.haptic) return null;
+    if (!this.deps.canPlay()) return null;
+    const text = kind === 'auto_pause' ? (prefs.locale === 'zh-TW' ? '自動暫停' : 'Auto-paused') : prefs.locale === 'zh-TW' ? '自動繼續' : 'Resumed';
+    if (prefs.haptic) void this.deps.haptic().catch(() => {});
+    if (prefs.voice) this.deps.speak(text, { language: prefs.locale === 'zh-TW' ? 'zh-TW' : 'en-US' });
+    return text;
   }
 
   /** 每次 snapshot 更新呼叫；回傳本次觸發的提示文字（測試用） */

@@ -28,11 +28,14 @@ export function WorkoutsScreen() {
   const [notice, setNotice] = useState<{ kind: 'success' | 'info' | 'warning'; title: string } | null>(null);
   const navigation = useNavigation();
   const [recoverable, setRecoverable] = useState<SessionMeta[]>([]);
+  // review 6：進行中的運動有固定入口，不會被當成中斷紀錄
+  const [active, setActive] = useState(() => workoutRecorder.active());
   const [unsynced, setUnsynced] = useState<SessionMeta[]>([]);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   // review 9：本機清單（可恢復／未同步）不只在首次掛載讀一次。
   // 頁面留在導覽堆疊時，從記錄頁或摘要頁返回會重新取得焦點 → 重讀；recorder 狀態變化（結束、背景同步完成）→ 重讀。
   const reloadLocal = useCallback(() => {
+    setActive(workoutRecorder.active());
     void workoutRecorder.markRecoverable().then(setRecoverable).catch(() => setRecoverable([]));
     setUnsynced(workoutRecorder.unsynced());
   }, []);
@@ -124,6 +127,9 @@ export function WorkoutsScreen() {
       </Text>
       <Button label={t('wo.record')} style={styles.mt} onPress={() => navigation.navigate('WorkoutStart')} testID="workouts-record" />
       <Button label={t('wo.import')} variant="secondary" style={styles.mtS} onPress={() => void doImport()} loading={importing} loadingLabel={t('wo.importing')} testID="workouts-import" />
+      {active ? (
+        <InlineState kind="info" title={t('wo.ongoing.title')} body={t('wo.ongoing.body')} action={{ label: t('wo.ongoing.return'), onPress: () => navigation.navigate('WorkoutRecord') }} testID="workouts-ongoing" />
+      ) : null}
       {recoverable.map((m) => (
         <InlineState key={m.sessionId} kind="warning" title={t('wo.recoverTitle')} body={t('wo.recoverBody')} action={{ label: t('wo.recoverSave'), onPress: () => void recover(m, 'finish') }} secondaryAction={{ label: t('wo.recoverDiscard'), onPress: () => void recover(m, 'discard') }} testID={`workouts-recover-${m.sessionId}`} />
       ))}

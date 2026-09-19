@@ -13,7 +13,8 @@ import type { ClaimInput, ClaimPhase } from '@/services/claim/ClaimFlow';
 import { estimateReward, formatTskr, sleepProgress, stepsProgress, useDashboardStore } from '@/state/dashboardStore';
 import { healthConnect, type HealthPermissionSummary } from '@/services/health/HealthConnectService';
 import { useLevelRevealStore } from '@/state/levelRevealStore';
-import { useWorkoutPrefs } from '@/state/workoutPrefsStore';
+import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
+import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text, useTheme, glowStyle } from '@/theme';
 
@@ -62,6 +63,9 @@ export function HomeScreen() {
   const greeting = hour < 12 ? t('home.morning') : hour < 18 ? t('home.afternoon') : t('home.evening');
 
   const prefs = useWorkoutPrefs();
+  // review 6：追蹤進行中的運動（recorder 狀態變化與取得焦點時更新）
+  const [active, setActive] = useState(() => workoutRecorder.active());
+  useEffect(() => workoutRecorder.subscribe(() => setActive(workoutRecorder.active())), []);
   useEffect(() => { if (!prefs.loaded) void prefs.load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const startClaim = (type: TaskType) => {
@@ -128,6 +132,23 @@ export function HomeScreen() {
       </View>
 
       {/* PG-U-01：固定「開始運動」主入口（mint 主按鈕，帶最近模式）＋ 四格快捷入口（圖示＋文字，等寬、≥ 48dp） */}
+      {active ? (
+        /* review 6：有進行中的運動時，主入口直接回到原 session，不是再開一場 */
+        <Pressable onPress={() => navigation.navigate('WorkoutRecord')} accessibilityRole="button" accessibilityLabel={`${t('home.returnWorkout')} · ${t(active.state === 'paused' ? 'home.returnWorkout.paused' : 'home.returnWorkout.recording', { mode: t(`wo.mode.${modeOfIntent(active.sport, null) ?? (active.sport === 'run' ? 'run' : 'walk')}` as TKey) })}`} style={({ pressed }) => [styles.startWorkout, glowStyle('medium', color.mint), pressed && styles.pressed]} testID="home-return-workout">
+          <View style={styles.startIcon}>
+            <Feather name={active.state === 'paused' ? 'pause' : 'activity'} size={26} color={color.onMint} />
+          </View>
+          <View style={styles.flex}>
+            <Text variant="heading2" style={styles.onMint}>
+              {t('home.returnWorkout')}
+            </Text>
+            <Text variant="caption" style={styles.onMintMuted}>
+              {t(active.state === 'paused' ? 'home.returnWorkout.paused' : 'home.returnWorkout.recording', { mode: t(`wo.mode.${modeOfIntent(active.sport, null) ?? (active.sport === 'run' ? 'run' : 'walk')}` as TKey) })}
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={22} color={color.onMint} />
+        </Pressable>
+      ) : (
       <Pressable onPress={() => navigation.navigate('WorkoutStart')} accessibilityRole="button" accessibilityLabel={`${t('home.startWorkout')} · ${t('home.recentMode', { mode: t(`wo.mode.${prefs.mode}` as TKey) })}`} style={({ pressed }) => [styles.startWorkout, glowStyle('medium', color.mint), pressed && styles.pressed]} testID="home-start-workout">
         <View style={styles.startIcon}>
           <Feather name="play" size={26} color={color.onMint} />
@@ -142,6 +163,7 @@ export function HomeScreen() {
         </View>
         <Feather name="chevron-right" size={22} color={color.onMint} />
       </Pressable>
+      )}
       <View style={styles.quick} accessibilityRole="menu">
         {([
           { key: 'workouts', icon: 'list', route: 'Workouts', testID: 'home-workouts-link' },

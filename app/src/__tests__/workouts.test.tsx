@@ -118,6 +118,19 @@ describe('WorkoutsScreen', () => {
   });
 });
 
+test('review 6（第二輪）：有進行中的運動 → 清單顯示「返回運動」卡並導向記錄頁；它不會出現在可恢復清單', async () => {
+  const { workoutRecorder } = jest.requireActual('@/services/workouts/WorkoutRecorder') as typeof import('@/services/workouts/WorkoutRecorder');
+  jest.spyOn(workoutRecorder, 'active').mockReturnValue({ sessionId: 'live-1', state: 'recording', sport: 'run' });
+  jest.spyOn(workoutRecorder, 'markRecoverable').mockResolvedValue([]);
+  jest.spyOn(workoutRecorder, 'unsynced').mockReturnValue([]);
+  (jest.requireMock('@/services/api/ApiClient') as { apiClient: { myWorkouts: jest.Mock } }).apiClient.myWorkouts.mockResolvedValue({ items: [], rules_version: 1 });
+  await render(<WorkoutsScreen />, { wrapper: Wrapper });
+  expect(screen.getByTestId('workouts-ongoing')).toBeTruthy();
+  expect(screen.getByText('Workout in progress')).toBeTruthy();
+  expect(screen.queryByTestId('workouts-recover-live-1')).toBeNull();
+  expect(screen.getByText('Return to workout')).toBeTruthy();
+});
+
 test('review 9：本機清單不只掛載時讀一次——recorder 發出變化（結束／背景同步完成）時重讀；重新取得焦點時重讀', async () => {
   const { workoutRecorder } = jest.requireActual('@/services/workouts/WorkoutRecorder') as typeof import('@/services/workouts/WorkoutRecorder');
   const meta = { sessionId: 'local-9', sport: 'walk', intent: 'brisk', goal: null, environment: 'outdoor', status: 'saved', startedAtUtc: Date.UTC(2026, 8, 18, 8), startedMonoMs: 0, processId: 'p', pauses: [], manualLapsAtMs: [], lastSeq: 0, acceptedCount: 10, interrupted: false, endedAtUtc: null, syncedSessionId: null, updatedAt: 0, summary: { distanceMm: 2_000_000, elapsedMs: 1_500_000 } } as never;
