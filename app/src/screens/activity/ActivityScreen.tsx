@@ -128,13 +128,17 @@ export function ActivityScreen() {
         <Text variant="caption" tone={pending > 0 ? 'warning' : 'muted'} style={styles.flex} testID="activity-sync-line">
           {ob.owner ? `${t('sync.pending', { n: pending })} · ${t(ob.autoSync ? 'sync.listAutoOn' : 'sync.listAutoOff')}` : t('actv.guestNote')}
         </Text>
-        {ob.owner && pending > 0 ? <Button label={t('sum.syncNow')} variant="secondary" onPress={() => void workoutOutbox.run(ob.owner!, { manual: true })} loading={ob.summary.running} loadingLabel={t('sum.syncing')} testID="activity-sync-now" /> : null}
-        {ob.owner && ob.unassigned.length > 0 ? <Button label={t('sync.assign.btn', { n: ob.unassigned.length })} variant="secondary" onPress={assignGuest} testID="activity-sync-assign" /> : null}
         <Pressable onPress={() => void prefs.set({ activityOrder: prefs.activityOrder === 'asc' ? 'desc' : 'asc' })} accessibilityRole="button" hitSlop={8} style={styles.orderBtn} testID="activity-order">
           <Feather name={prefs.activityOrder === 'asc' ? 'arrow-up' : 'arrow-down'} size={14} color={color.textSecondary} />
           <Text variant="caption" tone="secondary">{t(prefs.activityOrder === 'asc' ? 'actv.order.asc' : 'actv.order.desc')}</Text>
         </Pressable>
       </View>
+      {ob.owner && (pending > 0 || ob.unassigned.length > 0) ? (
+        <View style={styles.syncBtns}>
+          {pending > 0 ? <Button label={t('sum.syncNow')} variant="secondary" onPress={() => void workoutOutbox.run(ob.owner!, { manual: true })} loading={ob.summary.running} loadingLabel={t('sum.syncing')} testID="activity-sync-now" /> : null}
+          {ob.unassigned.length > 0 ? <Button label={t('sync.assign.btn', { n: ob.unassigned.length })} variant="secondary" onPress={assignGuest} testID="activity-sync-assign" /> : null}
+        </View>
+      ) : null}
       {remoteErr && ob.owner ? (
         <Text variant="caption" tone="muted" testID={`activity-remote-${remoteErr.code === 'NO_SESSION' ? 'signin' : 'offline'}`}>
           {t(remoteErr.code === 'NO_SESSION' ? 'actv.remoteSignin' : 'actv.remoteOffline')}
@@ -201,6 +205,7 @@ const styles = StyleSheet.create({
   segmentOn: { backgroundColor: color.mint },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: space.s },
   syncRow: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.s },
+  syncBtns: { gap: space.xs, marginTop: space.xs },
   orderBtn: { flexDirection: 'row', alignItems: 'center', gap: space.xxs, minHeight: 44 },
   calendar: { marginTop: space.s },
   week: { flexDirection: 'row' },
