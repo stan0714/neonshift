@@ -829,6 +829,6 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-LINK-02 | opt-in 自動同步與統一佇列 | WIP | 全入口同鎖、舊到新、重試／幂等、關閉不發新請求；2026-09-19 App 實作（Style 23.14：syncPrefsStore 預設關、WorkoutOutbox 單 worker 舊到新、退避／blocked／排除、結束／啟動／回前景／網路恢復入口、單筆同步不跳過、訪客歸屬、Profile 資料與同步區）；Jest 373；待實機驗收（三筆離線 17→18→19） |
 | PG-LINK-03 | 晚到、修正、刪除重算 | WIP | PB／首次章／等級歷史、跨裝置、tombstone；2026-09-19：後端晚到更早紀錄端到端測試（PB 重排／撤銷、首次章換來源、成就來源更正、幂等／stale、ACK accepted_revision＋recompute）、App tombstone 刪除走佇列（Style 23.15）；vitest 26（pb／workouts／milestones）、Jest 374；待部署與實機 |
 | PG-LINK-04 | Activity 月曆、篩選與詳情 | WIP | 本機遠端合併、分頁、缺值、離線與保留範圍；2026-09-19 App＋後端實作（Style 23.16：domain/activity 合併去重／時區日曆日／篩選排序／月總覽、ActivityScreen 月曆清單、ActivityDetail、Home 最近運動、Profile 入口、/me/workouts 查詢擴充）；Jest 381、vitest 27；待實機驗收 |
-| PG-LINK-05 | 實機驗收與 Demo 素材 | TODO | 三條新流程實錄；目前簡報為設計預覽 |
+| PG-LINK-05 | 實機驗收與 Demo 素材 | WIP | 三條新流程實錄；目前簡報為設計預覽。2026-09-20 Seeker 裝 `aeacff4`（LINK-01～04）初檢：Home 最近運動卡、Gear 我的跑鞋／背景開關、Profile 資料與同步（預設關、歸屬 7 筆訪客紀錄）、我的運動清單／月曆／篩選皆正常；修正 Activity 頁缺歸屬按鈕、待審核未明示、按鈕擠壓文字（1bfa21c／aeacff4）。待：Lv.2+ 錢包切鞋→關背景、三筆離線依序同步、詳情頁；Demo 錄影 |
 
 新增工期與負責人待排，與 PG-R／V／WILD 既有基礎整合，不重複計完成度。
