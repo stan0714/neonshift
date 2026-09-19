@@ -11,6 +11,8 @@ import { ApiError, apiClient, type WorkoutSummary } from '@/services/api/ApiClie
 import { importFromHealthConnect } from '@/services/workouts/importer';
 import type { SessionMeta } from '@/services/workouts/LocalWorkoutStore';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
+import { outboxOrder, workoutOutbox } from '@/services/workouts/WorkoutOutbox';
+import { useOutbox } from '@/hooks/useOutbox';
 import { PersonalBests } from './workouts/PersonalBests';
 import { color, radius, space, Text } from '@/theme';
 
@@ -25,7 +27,7 @@ export function WorkoutsScreen() {
   const [error, setError] = useState<{ message: string; code: string; ref?: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [notice, setNotice] = useState<{ kind: 'success' | 'info' | 'warning'; title: string } | null>(null);
+  const [notice, setNotice] = useState<{ kind: 'success' | 'info' | 'warning'; title: string; body?: string } | null>(null);
   const navigation = useNavigation();
   const [recoverable, setRecoverable] = useState<SessionMeta[]>([]);
   // review 6：進行中的運動有固定入口，不會被當成中斷紀錄
@@ -41,18 +43,30 @@ export function WorkoutsScreen() {
   }, []);
   useFocusEffect(useCallback(() => { reloadLocal(); }, [reloadLocal]));
   useEffect(() => workoutRecorder.subscribe(reloadLocal), [reloadLocal]);
+  // PG-LINK-02：單筆「立即同步」走同一條有序佇列（從最早那筆開始，不跳過）；訪客紀錄先歸屬到目前錢包
+  const ob = useOutbox();
   const syncLocal = async (m: SessionMeta) => {
+    if (!ob.owner) { setNotice({ kind: 'warning', title: t('wo.local.needSignin') }); return; }
     setSyncingId(m.sessionId);
     setNotice(null);
     try {
-      const r = await workoutRecorder.syncMeta(m);
-      if (r.ok) { setNotice({ kind: 'success', title: t('wo.local.synced') }); await load(); }
-      else if (r.code === 'NO_SESSION') setNotice({ kind: 'warning', title: t('wo.local.needSignin') });
-      else setNotice({ kind: 'warning', title: t('wo.local.syncFailed', { message: r.message }) });
+      if (!m.owner) await workoutOutbox.assign([m.sessionId], ob.owner);
+      const r = await workoutOutbox.run(ob.owner, { manual: true, target: m.sessionId });
+      const o = r.target ?? { ok: false as const, code: 'UNKNOWN' as const, message: '' };
+      if (o.ok) { setNotice({ kind: 'success', title: t('wo.local.synced') }); await load(); }
+      else if (o.code === 'NO_SESSION') setNotice({ kind: 'warning', title: t('wo.local.needSignin') });
+      else if (o.code === 'BLOCKED_EARLIER') setNotice({ kind: 'warning', title: t('sync.blockedEarlier'), body: r.stoppedAt && !r.stoppedAt.outcome.ok ? t(`sync.err.${r.stoppedAt.outcome.code}` as TKey, { message: r.stoppedAt.outcome.message }) : undefined });
+      else setNotice({ kind: 'warning', title: t('wo.local.syncFailed', { message: o.message }) });
     } finally {
       setSyncingId(null);
       setUnsynced(workoutRecorder.unsynced());
     }
+  };
+  const excludeLocal = (m: SessionMeta, reason: string) => {
+    Alert.alert(t('sync.exclude.title'), t('sync.exclude.body'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('sync.exclude.confirm'), style: 'destructive', onPress: () => void workoutOutbox.exclude(m.sessionId, reason) },
+    ]);
   };
   const deleteLocal = (m: SessionMeta) => {
     Alert.alert(t('wo.local.deleteTitle'), t('wo.local.deleteBody'), [
@@ -133,18 +147,34 @@ export function WorkoutsScreen() {
       {recoverable.map((m) => (
         <InlineState key={m.sessionId} kind="warning" title={t('wo.recoverTitle')} body={t('wo.recoverBody')} action={{ label: t('wo.recoverSave'), onPress: () => void recover(m, 'finish') }} secondaryAction={{ label: t('wo.recoverDiscard'), onPress: () => void recover(m, 'discard') }} testID={`workouts-recover-${m.sessionId}`} />
       ))}
-      {notice ? <InlineState kind={notice.kind} title={notice.title} testID={`workouts-${notice.kind}`} /> : null}
+      {notice ? <InlineState kind={notice.kind} title={notice.title} body={notice.body} testID={`workouts-${notice.kind}`} /> : null}
       {unsynced.length ? (
         <Surface style={styles.mt} testID="workouts-unsynced">
           <Text variant="title">{t('wo.local.title', { n: unsynced.length })}</Text>
-          <Text variant="caption" tone="secondary">{t('wo.local.body')}</Text>
-          {unsynced.map((m) => (
+          <Text variant="caption" tone="secondary">{t('wo.local.body')} {t(ob.autoSync ? 'sync.listAutoOn' : 'sync.listAutoOff')}</Text>
+          {ob.summary.head && (ob.summary.head.status === 'blocked' || ob.summary.head.status === 'retry_wait') && ob.summary.pending > 1 ? (
+            <Text variant="caption" tone="warning" style={styles.mtXs} testID="workouts-head-stuck">{t('sync.headStuck', { when: new Date(ob.summary.head.meta.startedAtUtc).toLocaleDateString(), reason: t(`sync.err.${ob.summary.head.lastError?.code ?? 'UNKNOWN'}` as TKey, { message: ob.summary.head.lastError?.message ?? '' }) })}</Text>
+          ) : null}
+          {/* 同步永遠由舊到新：清單也用同一順序，並標示目前處理項與狀態 */}
+          {[...ob.list.map((e) => ({ m: e.meta, e })), ...ob.unassigned.map((m) => ({ m, e: null }))].sort((a, b) => outboxOrder(a.m, b.m)).map(({ m, e }) => (
             <View key={m.sessionId} style={styles.localRow} testID={`workouts-local-${m.sessionId}`}>
               <Pressable style={styles.flex} onPress={() => navigation.navigate('WorkoutSummary', { sessionId: m.sessionId })} accessibilityRole="button" testID={`workouts-local-open-${m.sessionId}`}>
                 <Text variant="body">{modeLabel(t, m.sport, m.intent)} · {formatKm(String(m.summary?.distanceMm ?? 0))} · {formatDuration(String(m.summary?.elapsedMs ?? 0))}</Text>
                 <Text variant="caption" tone="muted">{new Date(m.startedAtUtc).toLocaleString()}{m.status === 'needs_review' ? ` · ${t('sum.needsReviewShort')}` : ''}</Text>
+                <Text variant="caption" tone={e?.status === 'blocked' ? 'warning' : e?.status === 'excluded' ? 'danger' : 'muted'} testID={`workouts-local-status-${m.sessionId}`}>
+                  {e ? t(`sync.status.${e.status}` as TKey) : t('sync.status.guest')}{e?.lastError && (e.status === 'blocked' || e.status === 'retry_wait') ? ` · ${t(`sync.err.${e.lastError.code}` as TKey, { message: e.lastError.message })}` : ''}
+                </Text>
               </Pressable>
-              <Button label={t('sum.syncNow')} variant="secondary" onPress={() => void syncLocal(m)} loading={syncingId === m.sessionId} loadingLabel={t('sum.syncing')} testID={`workouts-local-sync-${m.sessionId}`} />
+              {e?.status === 'excluded' ? (
+                <Button label={t('sync.unexclude')} variant="secondary" onPress={() => void workoutOutbox.unexclude(m.sessionId)} testID={`workouts-local-unexclude-${m.sessionId}`} />
+              ) : (
+                <Button label={t('sum.syncNow')} variant="secondary" onPress={() => void syncLocal(m)} loading={syncingId === m.sessionId || e?.status === 'sending'} loadingLabel={t('sum.syncing')} testID={`workouts-local-sync-${m.sessionId}`} />
+              )}
+              {e?.status === 'blocked' && e.lastError?.code === 'REJECTED' ? (
+                <Pressable onPress={() => excludeLocal(m, e.lastError!.message)} accessibilityRole="button" accessibilityLabel={t('sync.exclude.btn')} hitSlop={8} style={styles.trash} testID={`workouts-local-exclude-${m.sessionId}`}>
+                  <Text variant="label" tone="warning">{t('sync.exclude.btn')}</Text>
+                </Pressable>
+              ) : null}
               <Pressable onPress={() => deleteLocal(m)} accessibilityRole="button" accessibilityLabel={t('wo.local.delete')} hitSlop={8} style={styles.trash} testID={`workouts-local-delete-${m.sessionId}`}>
                 <Text variant="label" tone="danger">{t('wo.local.delete')}</Text>
               </Pressable>

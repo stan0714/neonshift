@@ -152,7 +152,6 @@ test('記錄頁：健走顯示速度、時間／距離；目標進度 → 達標
   clock += 480_000;
   await act(async () => {});
   await waitFor(() => expect(screen.getByTestId('record-goal').props.children).toBe('Goal reached — nice! Keep going, or pause and finish.'), { timeout: 3000 });
-  sync.mockRejectedValueOnce(new ApiErrorCtor(401, 'NO_SESSION', 'Sign in required')); // 未登入：Finish 後留在手機、摘要頁可補同步
   expect(recorder.snapshot().state).toBe('recording');
   expect(screen.getByTestId('record-track-laps').props.children).toBe('Lap 0 + 357 m'); // 跑道模式：依距離估算
   expect(screen.getByText('400 m per lap · estimated by distance')).toBeTruthy();
@@ -199,9 +198,11 @@ test('記錄頁：健走顯示速度、時間／距離；目標進度 → 達標
   expect(screen.getByTestId('record-goal-bar').props.accessibilityValue.now).toBe(100);
   await fireEvent.press(screen.getByTestId('record-finish'));
   await waitFor(() => expect(mockNav.dispatch).toHaveBeenCalled());
-  const summaryId = recorder.snapshot().state === 'idle' ? (sync.mock.calls[0]![0] as { external_record_id: string }[])[0]!.external_record_id : '';
+  // PG-LINK-02：自動同步預設關閉 → 結束後只保存本機、不發請求；摘要頁「立即同步」才上傳
+  expect(recorder.snapshot().state).toBe('idle');
+  expect(sync).not.toHaveBeenCalled();
+  const summaryId = recorder.localStore().list()[0]!.sessionId;
   expect(summaryId).toBeTruthy();
-  expect((sync.mock.calls[0]![0] as { intent: string; goal: { kind: string; target: number } }[])[0]).toMatchObject({ sport: 'walk', intent: 'brisk', goal: { kind: 'time', target: 600 } }); // PG-U-01 同步 payload
   mockRoute = { params: { sessionId: summaryId } };
   await act(async () => {});
 });
@@ -228,14 +229,16 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   expect(screen.queryByTestId('sum-unsaved')).toBeNull(); // 這筆全部落地
   // 實機回饋：「立即同步」按了沒反應——現在會說明原因；未登入 → 就地登入卡，簽完自動同步
   expect(screen.getByTestId('sum-sync').props.children).toBe('Saved on this phone · not synced yet');
-  sync.mockRejectedValueOnce(new ApiErrorCtor(401, 'NO_SESSION', 'Sign in required'));
-  await fireEvent.press(screen.getByTestId('sum-sync-now'));
+  await fireEvent.press(screen.getByTestId('sum-sync-now')); // 未連錢包 → 就地登入卡；不發請求
   await waitFor(() => expect(screen.getByTestId('sum-sync-signin')).toBeTruthy());
+  expect(sync).not.toHaveBeenCalled();
   useWalletStore.setState({ status: 'connected', session: { address: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU', publicKey: new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU'), walletUriBase: '', label: 'Phantom' }, error: null } as never);
   await act(async () => {});
   await fireEvent.press(screen.getByTestId('sum-sync-signin-btn'));
   await waitFor(() => expect(screen.getByTestId('sum-sync').props.children).toBe('Synced to your account'));
   expect(screen.queryByTestId('sum-sync-signin')).toBeNull();
+  expect((sync.mock.calls[0]![0] as { intent: string; goal: { kind: string; target: number } }[])[0]).toMatchObject({ sport: 'walk', intent: 'brisk', goal: { kind: 'time', target: 600 } }); // PG-U-01 同步 payload
+  expect(recorder.localStore().readMeta(mockRoute.params.sessionId!)?.owner).toBe('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU'); // 訪客紀錄按同步時歸屬到目前錢包
   expect(screen.getByTestId('sum-split-1')).toBeTruthy();
   expect(screen.getByText('Partial')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('sum-tab-laps'));

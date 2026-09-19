@@ -156,7 +156,7 @@ export class SyncRejected extends Error {
   constructor(public readonly reasons: string[]) { super(reasons.join(', ') || 'invalid'); }
 }
 /** 同步結果（實機回饋：按「立即同步」沒有任何反應——之前所有錯誤都被吞掉） */
-export type SyncOutcome = { ok: true } | { ok: false; code: 'NO_SESSION' | 'NETWORK_ERROR' | 'REJECTED' | 'UNKNOWN'; message: string };
+export type SyncOutcome = { ok: true } | { ok: false; code: 'NO_SESSION' | 'NETWORK_ERROR' | 'REJECTED' | 'UNKNOWN' | /** PG-LINK-02：自動同步關閉，只保存本機 */ 'DISABLED' | /** 較早紀錄待處理，本筆未輪到 */ 'BLOCKED_EARLIER' | /** 使用者已排除 */ 'EXCLUDED'; message: string };
 const syncOutcomeOf = (e: unknown): SyncOutcome => {
   if (e instanceof SyncRejected) return { ok: false, code: 'REJECTED', message: e.message };
   if (e instanceof ApiError) return { ok: false, code: e.code === 'NO_SESSION' ? 'NO_SESSION' : e.code === 'NETWORK_ERROR' ? 'NETWORK_ERROR' : 'UNKNOWN', message: e.message };
@@ -237,6 +237,15 @@ export class WorkoutRecorder {
   /** 前景通知文案（在地化由畫面提供；記錄中會定期以最新距離／時間更新，點通知回到 App） */
   setForegroundText(fn: ForegroundText) {
     this.foreground = fn;
+  }
+  /** PG-LINK-02：結束運動後的上傳掛鉤（由 WorkoutOutbox 安裝：依自動同步開關與有序佇列處理）；未安裝＝直接同步（測試／舊行為） */
+  setAfterFinish(fn: ((meta: SessionMeta) => Promise<SyncOutcome>) | null) {
+    this.afterFinish = fn;
+  }
+  private afterFinish: ((meta: SessionMeta) => Promise<SyncOutcome>) | null = null;
+  /** 佇列／日誌需要直接讀本機 session（WorkoutOutbox、Activity） */
+  localStore(): LocalWorkoutStore {
+    return this.store;
   }
   private locationOptions() {
     const text = this.foreground(this.snapshot());
@@ -726,7 +735,7 @@ export class WorkoutRecorder {
   }
   /** 背景同步：完成後 emit，讓已開啟的摘要頁重讀 meta；syncMeta 不會 reject */
   private syncInBackground(meta: SessionMeta): Promise<SyncOutcome> {
-    return this.syncMeta(meta).then((r) => {
+    return (this.afterFinish ? this.afterFinish(meta) : this.syncMeta(meta)).then((r) => {
       this.emit();
       return r;
     });

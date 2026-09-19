@@ -49,6 +49,8 @@ export type SessionMeta = {
   shoeSnapshot?: { shoeId: string; level: 1 | 2 | 3 | 4 | 5; variant: string | null } | null;
   /** PG-LINK-02：建立時綁定的玩家（錢包地址）；null＝訪客紀錄，首次歸屬須確認 */
   owner?: string | null;
+  /** PG-LINK-02：上傳佇列狀態（WorkoutOutbox）；缺欄位＝從未嘗試 */
+  sync?: { attempt: number; nextAttemptAt: number | null; lastError: { code: string; message: string } | null; revision: number; excluded?: { at: number; reason: string } };
 };
 
 const META = 'meta.json';

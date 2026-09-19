@@ -154,29 +154,59 @@ test('review 9：本機清單不只掛載時讀一次——recorder 發出變化
   expect(listeners.size).toBe(before); // 卸載時取消訂閱
 });
 
-test('本機未同步紀錄：列出（模式／距離／時間）、可同步（未登入 → 提示先登入；成功 → 已同步並從清單移除）、可刪除', async () => {
+test('本機未同步紀錄（PG-LINK-02）：由舊到新列出並標狀態；單筆同步走佇列（未連錢包 → 提示登入；較早一筆卡住 → 本筆 BLOCKED_EARLIER；成功 → 已同步並移除）；訪客紀錄同步時歸屬；可刪除', async () => {
   const { workoutRecorder } = jest.requireActual('@/services/workouts/WorkoutRecorder') as typeof import('@/services/workouts/WorkoutRecorder');
-  const meta = { sessionId: 'local-1', sport: 'run', intent: 'run', goal: null, environment: 'outdoor', status: 'saved', startedAtUtc: Date.UTC(2026, 8, 17, 12), startedMonoMs: 0, processId: 'p', pauses: [], manualLapsAtMs: [], lastSeq: 0, acceptedCount: 10, interrupted: false, endedAtUtc: null, syncedSessionId: null, updatedAt: 0, summary: { distanceMm: 1_230_000, elapsedMs: 420_000 } } as never;
-  const unsynced = jest.spyOn(workoutRecorder, 'unsynced').mockReturnValue([meta]);
-  const sync = jest.spyOn(workoutRecorder, 'syncMeta').mockResolvedValueOnce({ ok: false, code: 'NO_SESSION', message: 'Sign in required' });
+  const { useWalletStore } = jest.requireActual('@/state/walletStore') as typeof import('@/state/walletStore');
+  const { PublicKey } = jest.requireActual('@solana/web3.js') as typeof import('@solana/web3.js');
+  jest.restoreAllMocks(); // 上一個測試 spy 了 unsynced／markRecoverable
+  const owner = '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU';
+  const store = workoutRecorder.localStore();
+  const mk = async (id: string, day: number, own: string | null) => {
+    const m = await store.create({ sessionId: id, sport: 'run', intent: 'run', goal: null, environment: 'outdoor', autoLapMm: null, splitLengthMm: 1_000_000, status: 'saved', startedAtUtc: Date.UTC(2026, 8, day, 12), startedMonoMs: 0, processId: 'p', owner: own });
+    m.endedAtUtc = m.startedAtUtc + 420_000;
+    m.summary = { distanceMm: 1_230_000, elapsedMs: 420_000 } as never;
+    await store.writeMeta(m);
+  };
+  await mk('local-19', 19, owner); // UI 若倒序也必須 17 → 18 → 19 上傳
+  await mk('local-17', 17, owner);
+  await mk('local-18', 18, null); // 訪客紀錄
+  const sync = jest.spyOn(workoutRecorder, 'syncMeta');
   const del = jest.spyOn(workoutRecorder, 'deleteLocal').mockImplementation(() => {});
   (jest.requireMock('@/services/api/ApiClient') as { apiClient: { myWorkouts: jest.Mock } }).apiClient.myWorkouts.mockResolvedValue({ items: [], rules_version: 1 });
+  useWalletStore.setState({ status: 'disconnected', session: null, error: null } as never);
   await render(<WorkoutsScreen />, { wrapper: Wrapper });
   expect(screen.getByTestId('workouts-unsynced')).toBeTruthy();
-  expect(screen.getByText(/Run · 1\.23 km · 7:00/)).toBeTruthy();
-  await fireEvent.press(screen.getByTestId('workouts-local-sync-local-1'));
-  await waitFor(() => expect(screen.getByText(/Sign in first/)).toBeTruthy());
-  sync.mockResolvedValueOnce({ ok: true });
-  unsynced.mockReturnValue([]);
-  await fireEvent.press(screen.getByTestId('workouts-local-sync-local-1'));
-  await waitFor(() => expect(screen.queryByTestId('workouts-unsynced')).toBeNull());
-  expect(screen.getByText('Synced to your account')).toBeTruthy();
+  expect(screen.getAllByText(/Run · 1\.23 km · 7:00/).length).toBe(1); // 未連錢包：只列訪客紀錄
+  useWalletStore.setState({ status: 'connected', session: { address: owner, publicKey: new PublicKey(owner), walletUriBase: '', label: 'Phantom' }, error: null } as never);
+  await waitFor(() => expect(screen.getAllByText(/Run · 1\.23 km · 7:00/).length).toBe(3));
+  const rows = screen.getAllByTestId(/^workouts-local-(local-\d+)$/).map((r) => r.props.testID);
+  expect(rows).toEqual(['workouts-local-local-17', 'workouts-local-local-18', 'workouts-local-local-19']); // 由舊到新
+  expect(screen.getByTestId('workouts-local-status-local-18').props.children.join('')).toMatch(/^Guest workout/);
+  // 按最新那筆同步：佇列從 17 開始；17 未登入被擋 → 19 回「較早紀錄待處理」
+  sync.mockResolvedValueOnce({ ok: false, code: 'NO_SESSION', message: 'Sign in required' });
+  await fireEvent.press(screen.getByTestId('workouts-local-sync-local-19'));
+  await waitFor(() => expect(screen.getByText(/An earlier workout is pending/)).toBeTruthy());
+  expect(sync).toHaveBeenCalledTimes(1);
+  expect((sync.mock.calls[0]![0] as { sessionId: string }).sessionId).toBe('local-17');
+  await waitFor(() => expect(screen.getByTestId('workouts-local-status-local-17').props.children.join('')).toMatch(/Needs your action/));
+  expect(screen.getByTestId('workouts-head-stuck')).toBeTruthy();
+  // 再按 19：這次 17、18（訪客已歸屬）、19 依序成功；訪客紀錄歸屬到目前錢包
+  sync.mockImplementation(async (m) => { m.syncedSessionId = `srv-${m.sessionId}`; await store.writeMeta(m); return { ok: true }; });
+  await fireEvent.press(screen.getByTestId('workouts-local-sync-local-19'));
+  await waitFor(() => expect(screen.getByText('Synced to your account')).toBeTruthy());
+  expect(sync.mock.calls.slice(1).map((c) => (c[0] as { sessionId: string }).sessionId)).toEqual(['local-17', 'local-19']); // 訪客紀錄不會被自動歸屬
+  expect(store.readMeta('local-18')?.owner).toBeNull();
+  // 本人對訪客紀錄按同步 → 歸屬到目前錢包後上傳
+  await fireEvent.press(screen.getByTestId('workouts-local-sync-local-18'));
+  await waitFor(() => expect(store.readMeta('local-18')?.syncedSessionId).toBe('srv-local-18'));
+  expect(store.readMeta('local-18')?.owner).toBe(owner);
+  sync.mockRestore();
   // 刪除：確認對話框 → deleteLocal
-  unsynced.mockReturnValue([meta]);
+  await mk('local-20', 20, owner);
   jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, b) => b?.find((x) => x.style === 'destructive')?.onPress?.());
   await act(async () => {});
   cleanup();
   await render(<WorkoutsScreen />, { wrapper: Wrapper });
-  await fireEvent.press(screen.getByTestId('workouts-local-delete-local-1'));
-  expect(del).toHaveBeenCalledWith('local-1');
+  await fireEvent.press(screen.getByTestId('workouts-local-delete-local-20'));
+  expect(del).toHaveBeenCalledWith('local-20');
 });

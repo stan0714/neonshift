@@ -826,7 +826,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | ID | 工作 | 狀態 | 驗收 |
 |---|---|---|---|
 | PG-LINK-01 | 多鞋選擇與可關閉場景 | WIP | 取得資格、降級外觀、持久化與換帳號隔離；2026-09-19 App 實作（Style 23.13：我的跑鞋卡片＋使用這雙、外觀 vs 有效等級標示、HabitatScene 四場景、背景開關 Gear／Profile 共用、錢包分區偏好、新鞋立即使用／稍後、session 鞋款快照）；Jest 367；待實機驗收 |
-| PG-LINK-02 | opt-in 自動同步與統一佇列 | TODO | 全入口同鎖、舊到新、重試／幂等、關閉不發新請求 |
+| PG-LINK-02 | opt-in 自動同步與統一佇列 | WIP | 全入口同鎖、舊到新、重試／幂等、關閉不發新請求；2026-09-19 App 實作（Style 23.14：syncPrefsStore 預設關、WorkoutOutbox 單 worker 舊到新、退避／blocked／排除、結束／啟動／回前景／網路恢復入口、單筆同步不跳過、訪客歸屬、Profile 資料與同步區）；Jest 373；待實機驗收（三筆離線 17→18→19） |
 | PG-LINK-03 | 晚到、修正、刪除重算 | TODO | PB／首次章／等級歷史、跨裝置、tombstone |
 | PG-LINK-04 | Activity 月曆、篩選與詳情 | TODO | 本機遠端合併、分頁、缺值、離線與保留範圍 |
 | PG-LINK-05 | 實機驗收與 Demo 素材 | TODO | 三條新流程實錄；目前簡報為設計預覽 |

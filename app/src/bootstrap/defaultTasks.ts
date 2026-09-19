@@ -2,6 +2,8 @@ import { healthConnect } from '@/services/health/HealthConnectService';
 import { walletService } from '@/services/wallet/WalletService';
 import { isOnboardingComplete, useOnboardingStore } from '@/state/onboardingStore';
 import { useWalletStore } from '@/state/walletStore';
+import { useSyncPrefs } from '@/state/syncPrefsStore';
+import { workoutOutbox } from '@/services/workouts/WorkoutOutbox';
 
 import type { BootstrapTask } from './types';
 import { LOADING_COPY } from './types';
@@ -49,6 +51,10 @@ export const defaultBootstrapTasks: readonly BootstrapTask[] = [
       }
       const session = await useWalletStore.getState().restore();
       ctx.walletConnected = session !== null;
+      // PG-LINK-02：載入該玩家的同步偏好；已開啟自動同步才會在啟動／回前景／網路恢復時上傳（預設關閉）
+      await useSyncPrefs.getState().load(session?.address ?? null);
+      workoutOutbox.installTriggers();
+      void workoutOutbox.kick('startup');
       return session ? { status: 'done', detail: session.address } : { status: 'failed', detail: 'Wallet session could not be read' };
     },
   },

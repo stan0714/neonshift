@@ -55,6 +55,27 @@ describe('PG-A-21 Profile', () => {
     expect(screen.getByTestId('profile-running-history')).toBeTruthy();
     await act(async () => {});
   });
+  test('PG-LINK-02：資料與同步——自動同步預設關閉、開啟後依錢包保存並觸發佇列；待傳筆數與「立即同步」；外觀設定區塊', async () => {
+    const { useSyncPrefs } = jest.requireActual('@/state/syncPrefsStore') as typeof import('@/state/syncPrefsStore');
+    const { workoutOutbox } = jest.requireActual('@/services/workouts/WorkoutOutbox') as typeof import('@/services/workouts/WorkoutOutbox');
+    const kick = jest.spyOn(workoutOutbox, 'kick').mockResolvedValue(null);
+    useSyncPrefs.setState({ owner: null, loaded: false, autoSyncWorkouts: false, lastSuccessAt: null });
+    await render(<ProfileScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(useSyncPrefs.getState().loaded).toBe(true));
+    expect(screen.getByTestId('profile-autosync-switch').props.value).toBe(false);
+    expect(screen.getByText('0 pending')).toBeTruthy();
+    expect(screen.getByTestId('profile-sync-now').props.accessibilityState.disabled).toBe(true);
+    await fireEvent(screen.getByTestId('profile-autosync-switch'), 'valueChange', true);
+    await waitFor(() => expect(screen.getByTestId('profile-autosync-switch').props.value).toBe(true));
+    expect(kick).toHaveBeenCalledWith('toggle');
+    const SecureStore = jest.requireMock('expo-secure-store') as { getItemAsync: (k: string) => Promise<string | null> };
+    expect(JSON.parse((await SecureStore.getItemAsync('neonshift.sync.v1.7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU'))!)).toMatchObject({ autoSyncWorkouts: true });
+    expect(screen.getByTestId('profile-bg-switch')).toBeTruthy();
+    expect(screen.getByTestId('profile-open-gear')).toBeTruthy();
+    kick.mockRestore();
+    await act(async () => {});
+  });
+
   test('刪除資料：確認後呼叫 API、清快取、停背景同步、顯示完成（204）', async () => {
     await render(<ProfileScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByText('Signed in')).toBeTruthy());

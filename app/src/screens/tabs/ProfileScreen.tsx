@@ -5,6 +5,9 @@ import { Alert, Linking, Pressable, StyleSheet, Switch, View } from 'react-nativ
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import { useAppearance } from '@/hooks/useAppearance';
+import { useOutbox } from '@/hooks/useOutbox';
+import { workoutOutbox } from '@/services/workouts/WorkoutOutbox';
+import { useSyncPrefs } from '@/state/syncPrefsStore';
 import { useAppearanceStore } from '@/state/appearanceStore';
 import { stageName } from '@/domain/collectibles';
 import { APP_CONFIG } from '@/config/app';
@@ -29,6 +32,33 @@ export function ProfileScreen() {
   const wallet = useWalletStore();
   const ap = useAppearance();
   const setBackground = useAppearanceStore((s) => s.setBackground);
+  // PG-LINK-02：資料與同步
+  const ob = useOutbox();
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncNote, setSyncNote] = useState<{ kind: 'success' | 'warning' | 'info'; title: string; body?: string } | null>(null);
+  const setAutoSync = async (v: boolean) => {
+    await useSyncPrefs.getState().setAutoSync(v);
+    if (v) void workoutOutbox.kick('toggle');
+  };
+  const syncAllNow = async () => {
+    if (!ob.owner) return;
+    setSyncBusy(true);
+    setSyncNote(null);
+    try {
+      const r = await workoutOutbox.run(ob.owner, { manual: true });
+      if (!r.stoppedAt) setSyncNote({ kind: 'success', title: t('sync.done', { n: r.sent }) });
+      else setSyncNote({ kind: 'warning', title: t('sync.stopped', { n: r.sent }), body: t(`sync.err.${r.stoppedAt.outcome.ok ? 'UNKNOWN' : r.stoppedAt.outcome.code}` as TKey, { message: r.stoppedAt.outcome.ok ? '' : r.stoppedAt.outcome.message }) });
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+  const assignGuest = () => {
+    if (!ob.owner) return;
+    Alert.alert(t('sync.assign.title', { n: ob.unassigned.length }), t('sync.assign.body'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('sync.assign.confirm'), onPress: () => void workoutOutbox.assign(ob.unassigned.map((m) => m.sessionId), ob.owner!) },
+    ]);
+  };
   const onboarding = useOnboardingStore();
   const dashboard = useDashboardStore();
   const [health, setHealth] = useState<HealthPermissionSummary | null>(null);
@@ -160,6 +190,26 @@ export function ProfileScreen() {
         </View>
         <Text variant="caption" tone="muted" style={styles.mtXs}>{t(wallet.session ? 'profile.lookBody' : 'gear.bg.guest')}</Text>
         <Button label={t('profile.lookOpenGear')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('Main', { screen: 'Gear' })} testID="profile-open-gear" />
+      </Section>
+
+      <Section title={t('sync.title')}>
+        <View style={styles.rowBetween}>
+          <Text variant="bodySmall" tone="secondary" style={styles.flex}>{t('sync.auto')}</Text>
+          <Switch value={ob.autoSync} onValueChange={(v) => void setAutoSync(v)} disabled={!wallet.session} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('sync.auto')} testID="profile-autosync-switch" />
+        </View>
+        <Text variant="caption" tone="muted" style={styles.mtXs}>{t('sync.autoBody')}</Text>
+        <Row icon="upload-cloud" label={t('sync.pending', { n: ob.summary.pending })} detail={ob.lastSuccessAt ? t('sync.lastSuccess', { when: new Date(ob.lastSuccessAt).toLocaleString() }) : t('sync.never')} tint={ob.summary.pending > 0 ? color.warning : color.success} />
+        {ob.summary.head?.status === 'blocked' || ob.summary.head?.status === 'retry_wait' ? (
+          <Text variant="bodySmall" tone="warning" style={styles.mtXs} testID="profile-sync-head-error">
+            {t('sync.headStuck', { when: new Date(ob.summary.head.meta.startedAtUtc).toLocaleDateString(), reason: t(`sync.err.${ob.summary.head.lastError?.code ?? 'UNKNOWN'}` as TKey, { message: ob.summary.head.lastError?.message ?? '' }) })}
+          </Text>
+        ) : null}
+        {ob.unassigned.length ? (
+          <Button label={t('sync.assign.btn', { n: ob.unassigned.length })} variant="secondary" style={styles.btn} onPress={assignGuest} disabled={!wallet.session} testID="profile-sync-assign" />
+        ) : null}
+        <Button label={t('sum.syncNow')} variant="secondary" style={styles.btn} onPress={() => void syncAllNow()} loading={syncBusy || ob.summary.running} loadingLabel={t('sum.syncing')} disabled={!wallet.session || ob.summary.pending === 0} disabledReason={!wallet.session ? t('common.reasonConnectWallet') : ob.summary.pending === 0 ? t('sync.nothing') : undefined} testID="profile-sync-now" />
+        {syncNote ? <InlineState kind={syncNote.kind} title={syncNote.title} body={syncNote.body} testID="profile-sync-note" /> : null}
+        <Text variant="caption" tone="muted" style={styles.mtXs}>{t('sync.footnote')}</Text>
       </Section>
 
       <Section title={t('profile.galleryTitle')}>

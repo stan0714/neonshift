@@ -17,6 +17,8 @@ import { apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
 import type { RootParamList } from '@/navigation/types';
 import { LocalWorkoutStore, type SessionMeta } from '@/services/workouts/LocalWorkoutStore';
 import { goalReached, workoutRecorder, type SyncOutcome } from '@/services/workouts/WorkoutRecorder';
+import { workoutOutbox } from '@/services/workouts/WorkoutOutbox';
+import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
 
 const store = new LocalWorkoutStore();
@@ -74,11 +76,15 @@ export function WorkoutSummaryScreen() {
   const goalLabel = meta?.goal ? (meta.goal.kind === 'time' ? t('rec.goal.min', { n: Math.round(meta.goal.target / 60) }) : t('rec.goal.km', { n: meta.goal.target / 1_000_000 })) : '';
   if (!meta || !s) return <Screen testID="workout-summary-screen"><InlineState kind="error" title={t('common.somethingInterrupted')} /></Screen>;
   const isWalk = meta.sport === 'walk';
+  // PG-LINK-02：「立即同步」是一次授權，走同一條由舊到新的佇列；較早紀錄卡住時本筆回 BLOCKED_EARLIER
   const syncNow = async () => {
     setSyncing(true);
     try {
-      const r = await workoutRecorder.syncMeta(meta);
-      setSyncOutcome(r);
+      const owner = useWalletStore.getState().session?.address ?? null;
+      if (!owner) { setSyncOutcome({ ok: false, code: 'NO_SESSION', message: 'wallet not connected' }); return; }
+      if (!meta.owner) await workoutOutbox.assign([meta.sessionId], owner); // 訪客紀錄：本人按下同步即歸屬到目前錢包
+      const r = await workoutOutbox.run(owner, { manual: true, target: meta.sessionId });
+      setSyncOutcome(r.target ?? { ok: false, code: 'UNKNOWN', message: 'not processed' });
       reload();
     } finally {
       setSyncing(false);
@@ -165,7 +171,7 @@ export function WorkoutSummaryScreen() {
         syncOutcome.code === 'NO_SESSION' ? (
           <SignInState title={t('sum.sync.signinTitle')} body={t('sum.sync.signinBody')} onSignedIn={syncNow} testID="sum-sync-signin" />
         ) : (
-          <InlineState kind={syncOutcome.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={t(syncOutcome.code === 'NETWORK_ERROR' ? 'sum.sync.offlineTitle' : syncOutcome.code === 'REJECTED' ? 'sum.sync.rejectedTitle' : 'sum.sync.failedTitle')} body={t(syncOutcome.code === 'NETWORK_ERROR' ? 'sum.sync.offlineBody' : syncOutcome.code === 'REJECTED' ? 'sum.sync.rejectedBody' : 'sum.sync.failedBody', { message: syncOutcome.message })} action={syncOutcome.code === 'REJECTED' ? undefined : { label: t('common.tryAgain'), onPress: () => void syncNow(), loading: syncing }} testID={`sum-sync-${syncOutcome.code.toLowerCase()}`} />
+          <InlineState kind={syncOutcome.code === 'NETWORK_ERROR' || syncOutcome.code === 'BLOCKED_EARLIER' ? 'warning' : 'error'} title={t(syncOutcome.code === 'NETWORK_ERROR' ? 'sum.sync.offlineTitle' : syncOutcome.code === 'REJECTED' ? 'sum.sync.rejectedTitle' : syncOutcome.code === 'BLOCKED_EARLIER' ? 'sync.blockedEarlier' : 'sum.sync.failedTitle')} body={syncOutcome.code === 'BLOCKED_EARLIER' ? t('sync.blockedEarlierBody', { message: syncOutcome.message }) : t(syncOutcome.code === 'NETWORK_ERROR' ? 'sum.sync.offlineBody' : syncOutcome.code === 'REJECTED' ? 'sum.sync.rejectedBody' : 'sum.sync.failedBody', { message: syncOutcome.message })} action={syncOutcome.code === 'REJECTED' ? undefined : syncOutcome.code === 'BLOCKED_EARLIER' ? { label: t('sync.openQueue'), onPress: () => navigation.navigate('Workouts') } : { label: t('common.tryAgain'), onPress: () => void syncNow(), loading: syncing }} testID={`sum-sync-${syncOutcome.code.toLowerCase()}`} />
         )
       ) : null}
       <View style={styles.tabs} accessibilityRole="tablist">
