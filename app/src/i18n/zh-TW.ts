@@ -35,6 +35,8 @@ export const zhTW: Record<keyof typeof en, string> = {
   'guide.start.health': "設定健康資料與活動權限：讓 App 讀取任務需要的資料。",
   'guide.start.shoe': "領取初始跑鞋：依畫面提示完成錢包確認。",
   'guide.start.mission': "回首頁查看今天的任務：達標、同步，再完成第一次打卡。",
+  'common.demoData': 'DEMO DATA',
+  'common.reasonDemo': '展示版：等級為模擬，不能打卡。',
   'common.devnet': 'DEVNET',
   'common.demo': 'DEMO',
   'common.retry': '重試',

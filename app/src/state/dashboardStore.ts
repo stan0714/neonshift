@@ -46,6 +46,16 @@ type State = {
   rollDay: (nowUnix: number) => boolean;
 };
 
+/** 展示版（FEATURES.demoLevel）：把 profile 顯示成指定鞋階；沒有 profile 也造一個。純顯示，不能打卡 */
+export function demoProfile(profile: PlayerProfile | null, wallet: PublicKey, config: ChainConfig | null): PlayerProfile | null {
+  const lv = FEATURES.demoLevel;
+  if (!lv) return profile;
+  const xp = config?.shoeXpThresholds?.[lv - 1] ?? 0n;
+  const today = Math.floor(Date.now() / 86_400_000);
+  const base: PlayerProfile = profile ?? { wallet, coreLevel: 1, shoeLevel: 1, xp: 0n, lastTaskDate: 0, streakDays: 0, maxStreakDays: 0, claimedToday: 0n, todayDate: today, migrated: true, highestLevel: 1, epochAnchor: today, lastSettledEpoch: 0, epochPoints: 0, epochBitmap: 0, maintenanceRulesVersion: 2 };
+  return { ...base, coreLevel: lv, shoeLevel: lv, highestLevel: Math.max(lv, base.highestLevel), xp: xp > base.xp ? xp : base.xp };
+}
+
 export const sleepMinutesOf = (sleep: SleepResult | null) => sleep?.sessions.reduce((n, s) => n + s.minutes, 0) ?? 0;
 
 export type WorkoutEvidence = { serverId: string | null; localId: string; distanceM: number; movingMs: number; synced: boolean; underReview: boolean };
@@ -133,7 +143,7 @@ export const useDashboardStore = create<State>((set, get) => ({
         FEATURES.sleep ? claimSubmitter.receiptExists(claimPda(wallet, taskDate, TASK_CODE.sleep)) : Promise.resolve(false),
         claimSubmitter.receiptExists(claimPda(wallet, taskDate, TASK_CODE.workout)),
       ]);
-      set({ config, profile, freeze, balance, chainSyncedAt: Date.now(), chainError: null });
+      set({ config, profile: demoProfile(profile, wallet, config), freeze, balance, chainSyncedAt: Date.now(), chainError: null });
       if (stepsReceipt) get().dispatch('steps', { kind: 'receipt_exists' });
       if (sleepReceipt) get().dispatch('sleep', { kind: 'receipt_exists' });
       if (workoutReceipt) get().dispatch('workout', { kind: 'receipt_exists' });

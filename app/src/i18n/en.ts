@@ -34,6 +34,8 @@ export const en = {
   'guide.start.shoe': "Claim your starter shoes and follow the wallet confirmation prompts.",
   'guide.start.mission': "Return to Home: meet a target, sync, and complete your first check-in.",
   // ---- common ----
+  'common.demoData': 'DEMO DATA',
+  'common.reasonDemo': 'Demo build: level is simulated, claims are disabled.',
   'common.devnet': 'DEVNET',
   'common.demo': 'DEMO',
   'common.retry': 'Retry',

@@ -14,6 +14,7 @@ import { freezeActive } from "@/chain/accounts";
 import { shoeSection, type ShoeSection } from "@/domain/collectibles";
 import type { PlayerProfile } from "@/chain/accounts";
 import { APP_CONFIG } from "@/config/app";
+import { FEATURES } from "@/config/features";
 import { SHOE_PROGRESSION, type ShoeLevel } from "@/config/shoeProgression";
 import {
   COLLECTIBLES,
@@ -101,6 +102,7 @@ export function GearScreen() {
     if (!APP_CONFIG.chainConfigured) return t("common.reasonChain");
     if (!d.profile) return t("gear.reasonStarter");
     if (d.config?.paused) return t("common.reasonPaused");
+    if (FEATURES.demoLevel) return t("common.reasonDemo");
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, d.profile, d.config, locale]);
@@ -130,6 +132,7 @@ export function GearScreen() {
       <View style={styles.header}>
         <Text variant="heading1">{t("gear.title")}</Text>
         <Chip label={t("common.devnet")} kind="devnet" />
+        {FEATURES.demoLevel ? <Chip label={t("common.demoData")} kind="devnet" /> : null}
       </View>
 
       <Surface hero style={styles.heroCard} testID="gear-hero">

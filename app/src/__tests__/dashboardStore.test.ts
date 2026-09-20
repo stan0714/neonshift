@@ -1,11 +1,12 @@
 import { PublicKey } from '@solana/web3.js';
 
-import { useDashboardStore, formatTskr, estimateReward, workoutEvidenceFor, workoutProgress } from '@/state/dashboardStore';
+import { useDashboardStore, formatTskr, estimateReward, workoutEvidenceFor, workoutProgress, demoProfile } from '@/state/dashboardStore';
 import { healthConnect } from '@/services/health/HealthConnectService';
 
 jest.mock('@/services/health/HealthConnectService', () => ({
   healthConnect: { readStepsForTaskDate: jest.fn(), readSleepForTaskDate: jest.fn(), cacheSummary: jest.fn(), readCachedSummary: jest.fn() },
 }));
+jest.mock('@/config/features', () => ({ FEATURES: { sleep: false, demoLevel: 0 } }));
 jest.mock('@/services/chain/ClaimSubmitter', () => ({ claimSubmitter: { receiptExists: jest.fn(async () => false) } }));
 
 const hc = healthConnect as jest.Mocked<typeof healthConnect>;
@@ -104,4 +105,16 @@ test('維持規則 v2 運動任務：同 UTC 日、非刪除、已同步且 save
   expect(workoutProgress(only).met).toBe(false);
   // 已同步但移動不到 10 分鐘 → 不達標
   expect(workoutProgress(workoutEvidenceFor([mk('g', { summary: { distanceMm: 2_000_000, movingMs: 300_000 } })], day)).met).toBe(false);
+});
+
+test('展示版覆寫（FEATURES.demoLevel）：關閉時 profile 原樣；開啟時鞋階／最高階／XP 顯示為指定值，沒有 profile 也造一個（純顯示）', () => {
+  const wallet = new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
+  const cfg = { shoeXpThresholds: [0n, 450n, 1500n, 3600n, 7500n] } as never;
+  const real = { wallet, coreLevel: 1, shoeLevel: 1, xp: 120n, lastTaskDate: 0, streakDays: 2, maxStreakDays: 2, claimedToday: 0n, todayDate: 0, migrated: true, highestLevel: 1, epochAnchor: 0, lastSettledEpoch: 0, epochPoints: 100, epochBitmap: 1, maintenanceRulesVersion: 2 };
+  expect(demoProfile(real, wallet, cfg)).toBe(real); // 預設 demoLevel=0
+  const features = jest.requireMock('@/config/features') as { FEATURES: { demoLevel: number } };
+  features.FEATURES.demoLevel = 3;
+  expect(demoProfile(real, wallet, cfg)).toMatchObject({ coreLevel: 3, shoeLevel: 3, highestLevel: 3, xp: 1500n, streakDays: 2, epochPoints: 100 });
+  expect(demoProfile(null, wallet, cfg)).toMatchObject({ coreLevel: 3, highestLevel: 3, xp: 1500n, migrated: true });
+  features.FEATURES.demoLevel = 0;
 });

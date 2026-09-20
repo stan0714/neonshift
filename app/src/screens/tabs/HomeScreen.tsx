@@ -114,6 +114,7 @@ export function HomeScreen() {
     if (!APP_CONFIG.chainConfigured) return t('common.reasonChain');
     if (!APP_CONFIG.backendConfigured) return t('common.reasonBackend');
     if (d.config?.paused) return t('common.reasonPaused');
+    if (FEATURES.demoLevel) return t('common.reasonDemo');
     if (d.health?.error && !d.health.steps) return t('home.reasonHealth');
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -123,7 +124,7 @@ export function HomeScreen() {
   const sleepReward = estimateReward(d.config, d.profile, 'sleep');
   const workoutReward = estimateReward(d.config, d.profile, 'workout');
   // 運動任務只擋錢包／鏈／後端／暫停（不看 Health Connect）；未同步／待審由卡片文字說明
-  const workoutDisabledReason = !session ? t('common.reasonConnectWallet') : !APP_CONFIG.chainConfigured ? t('common.reasonChain') : !APP_CONFIG.backendConfigured ? t('common.reasonBackend') : d.config?.paused ? t('common.reasonPaused') : undefined;
+  const workoutDisabledReason = FEATURES.demoLevel ? t('common.reasonDemo') : !session ? t('common.reasonConnectWallet') : !APP_CONFIG.chainConfigured ? t('common.reasonChain') : !APP_CONFIG.backendConfigured ? t('common.reasonBackend') : d.config?.paused ? t('common.reasonPaused') : undefined;
   const ap = useAppearance(); // PG-LINK-01：跑鞋外觀與棲地背景
   const recent = useMemo(() => {
     const owner = session?.address ?? null;
@@ -148,6 +149,7 @@ export function HomeScreen() {
           </Text>
         </View>
         <Chip label={t('common.devnet')} kind="devnet" />
+        {FEATURES.demoLevel ? <Chip label={t('common.demoData')} kind="devnet" accessibilityLabel={t("common.demoData")} /> : null}
       </View>
 
       {/* PG-U-01：固定「開始運動」主入口（mint 主按鈕，帶最近模式）＋ 四格快捷入口（圖示＋文字，等寬、≥ 48dp） */}
