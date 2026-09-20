@@ -56,6 +56,8 @@ export type SessionMeta = {
   recordedTimeZone?: string | null;
   /** PG-LINK-03：使用者要求刪除的時間（tombstone）；已同步者等伺服器確認刪除後才移除本機，未確認前顯示「刪除待同步」，且不會被一般上傳復活 */
   deletedAt?: number | null;
+  /** LINK-10：首次穿這雙運動的紀念卡已被關閉（只在該紀錄上記一次） */
+  firstWearDismissed?: boolean;
   /** PG-LINK-02：上傳佇列狀態（WorkoutOutbox）；缺欄位＝從未嘗試 */
   sync?: { attempt: number; nextAttemptAt: number | null; lastError: { code: string; message: string } | null; revision: number; excluded?: { at: number; reason: string } };
 };

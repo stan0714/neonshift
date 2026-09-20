@@ -1476,6 +1476,8 @@ export const en = {
   'sum.max5s': 'Top speed (5 s avg)',
   'sum.kcal': 'Active kcal',
   'sum.shoe': 'Shoes worn',
+  'sum.firstWear.title': 'First workout in {shoe}',
+  'sum.firstWear.body': 'Saved as a keepsake on this workout. Cosmetic only: no XP, no NFT, no effect on records.',
   'sum.shoeUnknown': 'Not set',
   'sum.tab.splits': 'Splits',
   'sum.tab.laps': 'Laps',

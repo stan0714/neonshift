@@ -2,7 +2,7 @@
 import { PublicKey } from '@solana/web3.js';
 
 import type { PlayerProfile } from '@/chain/accounts';
-import { appearanceLevel, highestOwnedLevel, ownedShoes, resolveTraceLayer, sceneOf, shoeMileage, shoeSnapshotOf } from '@/domain/appearance';
+import { appearanceLevel, highestOwnedLevel, ownedShoes, isFirstWear, resolveTraceLayer, sceneOf, shoeMileage, shoeSnapshotOf } from '@/domain/appearance';
 import { useAppearanceStore } from '@/state/appearanceStore';
 
 const wallet = new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
@@ -83,4 +83,17 @@ test('LINK-10 每雙鞋歷程：依鞋款快照歸組、只算該玩家（訪客
   const rows = [s({}), s({ summary: { distanceMm: 2_000_000 } }), s({ status: 'needs_review' }), s({ deletedAt: 1 }), s({ owner: 'other' }), s({ shoeSnapshot: null }), s({ owner: null, shoeSnapshot: { shoeId: 'wild-guardians-v1:1' } }), s({ status: 'recording' })];
   expect(shoeMileage(rows, owner)).toEqual({ 'wild-guardians-v1:2': { count: 2, distanceMm: 5_000_000, review: 2 } });
   expect(shoeMileage(rows, null)).toEqual({ 'wild-guardians-v1:1': { count: 1, distanceMm: 3_000_000, review: 0 } });
+});
+
+test('LINK-10 首次穿新鞋：同玩家同鞋款最早 saved 場次；待審／刪除／訪客／Lv.1 不算', () => {
+  const base = { status: 'saved', owner, shoeSnapshot: { shoeId: 'wild-guardians-v1:2', level: 2 } };
+  const rows = [
+    { sessionId: 'b', startedAtUtc: 2, ...base },
+    { sessionId: 'a', startedAtUtc: 1, ...base },
+    { sessionId: 'r', startedAtUtc: 0, ...base, status: 'needs_review' },
+    { sessionId: 'g', startedAtUtc: 0, ...base, owner: null },
+    { sessionId: 'l1', startedAtUtc: 0, ...base, shoeSnapshot: { shoeId: 'wild-guardians-v1:1', level: 1 } },
+  ];
+  expect(rows.map((r) => isFirstWear(rows, r.sessionId))).toEqual([false, true, false, false, false]);
+  expect(isFirstWear(rows.map((r) => (r.sessionId === 'a' ? { ...r, deletedAt: 1 } : r)), 'b')).toBe(true); // a 刪除後 b 成為第一場
 });

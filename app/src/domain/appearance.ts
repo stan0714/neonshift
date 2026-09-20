@@ -111,3 +111,18 @@ export function shoeMileage(
   }
   return out;
 }
+
+/**
+ * 升階後首次運動紀念（LINK-10 候選）：該玩家第一次穿某雙 Lv.2+ 跑鞋、狀態 saved（品質審核通過、非待審／刪除）的 session。
+ * 判定純粹看本機紀錄（同玩家＋同 shoeId 中 startedAtUtc 最早的 saved 者＝這場）；每玩家＋鞋款只會有一場；不鑄 NFT、不加 XP。
+ */
+export function isFirstWear(
+  sessions: { sessionId: string; startedAtUtc: number; status: string; owner?: string | null; deletedAt?: number | null; shoeSnapshot?: { shoeId: string; level: number } | null }[],
+  sessionId: string,
+): boolean {
+  const me = sessions.find((s) => s.sessionId === sessionId);
+  if (!me || !me.shoeSnapshot || me.shoeSnapshot.level < 2 || me.status !== 'saved' || me.deletedAt || !me.owner) return false;
+  const same = sessions.filter((s) => s.owner === me.owner && s.shoeSnapshot?.shoeId === me.shoeSnapshot!.shoeId && s.status === 'saved' && !s.deletedAt);
+  same.sort((a, b) => a.startedAtUtc - b.startedAtUtc || (a.sessionId < b.sessionId ? -1 : 1));
+  return same[0]?.sessionId === sessionId;
+}

@@ -1455,6 +1455,8 @@ export const zhTW: Record<keyof typeof en, string> = {
   'sum.max5s': '最高速度（5 秒平均）',
   'sum.kcal': '活動 kcal',
   'sum.shoe': '當時跑鞋',
+  'sum.firstWear.title': '第一次穿{shoe}完成運動',
+  'sum.firstWear.body': '已記在這筆紀錄上作為紀念。純外觀：不加 XP、不鑄 NFT、不影響成績。',
   'sum.shoeUnknown': '未指定',
   'sum.tab.splits': '分段',
   'sum.tab.laps': '圈數',

@@ -844,7 +844,7 @@ PG-LINK-09：Activity 視覺與篩選一致性修正、睡眠停用讀取／權�
 
 ## PG-LINK-10：跑鞋連動與路線外觀固定（2026-09-20）
 
-WIP：運動前預覽／選擇、開始頁鞋款一致、本機不可改寫快照、記錄／摘要／Activity 一致、同步 extras 與後端更正版保留原背景。新增測試涵蓋保存後換偏好、重啟及 source revision；待實機與 PostgreSQL 整合驗收。每鞋里程已實作（2026-09-20，Style 23.20，Gear 卡片 `gear-shoe-<lv>-mileage`）；社群圖片分享、升階首次運動紀念列候選，尚未實作。詳見 [設計](design/shoe-route-linkage.md)。
+WIP：運動前預覽／選擇、開始頁鞋款一致、本機不可改寫快照、記錄／摘要／Activity 一致、同步 extras 與後端更正版保留原背景。新增測試涵蓋保存後換偏好、重啟及 source revision；待實機與 PostgreSQL 整合驗收。每鞋里程已實作（2026-09-20，Style 23.20，Gear 卡片 `gear-shoe-<lv>-mileage`）；升階首次運動紀念已實作（Style 23.21，摘要頁 `sum-first-wear`）；社群圖片分享列候選，尚未實作（需 react-native-view-shot／expo-sharing 原生依賴，另立工作）。詳見 [設計](design/shoe-route-linkage.md)。
 
 
 ## 2026-09-20 特殊圖案路線挑戰（新增開發內容）

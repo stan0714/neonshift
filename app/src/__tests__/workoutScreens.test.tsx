@@ -277,6 +277,8 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   expect(mockNav.navigate).toHaveBeenCalledWith('Workouts');
 });
 
+const SUMMARY = { rulesVersion: 3, distanceMm: 1_800_000, elapsedMs: 600_000, movingMs: 600_000, pausedMs: 0, avgSpeedKmh: 10.8, avgPaceSPerKm: 333, movingAvgSpeedKmh: 10.8, movingAvgPaceSPerKm: 333, maxSpeed5sKmh: 12, splits: [], laps: [], fastestSplit: null, trackEquivalent: null, quality: { accepted: 558, rejected: { not_finite: 0, out_of_order: 0, duplicate: 0, low_accuracy: 0, speed_spike: 0, paused: 0, not_recording: 0 }, stationary: 0, segments: 1, gaps: 0, coverageRatio: 1, complete: true }, integrity: { flags: [], mockPoints: 0, sustainedSpeeding: 0, gapTeleports: 0, clockDriftMs: 0, motionProbes: { total: 0, mismatched: 0 } } };
+
 test('review 5（第二輪）：meta.unsavedPoints > 0 → 摘要頁明確說明有幾個定位點未保存、路線不完整', async () => {
   const store = new LocalWorkoutStore();
   const meta = await store.create({ sessionId: 'unsaved-1', sport: 'run', intent: 'run', goal: null, environment: 'outdoor', autoLapMm: null, splitLengthMm: 1_000_000, status: 'recording', startedAtUtc: 1_000_000, startedMonoMs: 1_000_000, processId: 'p' });
@@ -299,4 +301,35 @@ test('路線背景只在開始前選擇，未取得棲地不可選', async () =>
   expect(screen.getByTestId('start-route-layer-snow').props.accessibilityState.disabled).toBe(true);
   await fireEvent.press(screen.getByTestId('start-route-layer-mars'));
   expect(useWorkoutPrefs.getState().traceLayer).toBe('mars');
+});
+
+test('LINK-10 首次穿新鞋紀念：同玩家同鞋款最早的 saved 場次顯示紀念卡；關閉記在該紀錄；第二場、待審、Lv.1、訪客都不顯示', async () => {
+  const store = new LocalWorkoutStore();
+  const owner = '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU';
+  const mk = async (id: string, startedAtUtc: number, o: Record<string, unknown>) => {
+    const m = await store.create({ sessionId: id, sport: 'run', intent: 'run', goal: null, environment: 'outdoor', autoLapMm: null, splitLengthMm: 1_000_000, status: 'recording', startedAtUtc, startedMonoMs: 0, processId: 'p', owner, shoeSnapshot: { shoeId: 'wild-guardians-v1:3', level: 3, variant: 'dawn' } } as never);
+    m.status = 'saved';
+    m.endedAtUtc = startedAtUtc + 600_000;
+    m.summary = SUMMARY as never;
+    Object.assign(m, o);
+    await store.writeMeta(m);
+  };
+  await mk('fw-2', 2_000_000, {});
+  await mk('fw-1', 1_000_000, {});
+  await mk('fw-review', 500_000, { status: 'needs_review' }); // 更早但待審 → 不算
+  await mk('fw-lv1', 100_000, { shoeSnapshot: { shoeId: 'wild-guardians-v1:1', level: 1, variant: null } });
+  await mk('fw-guest', 200_000, { owner: null });
+  mockRoute = { params: { sessionId: 'fw-1' } };
+  await render(<WorkoutSummaryScreen />, { wrapper: Wrapper });
+  expect(screen.getByTestId('sum-first-wear')).toBeTruthy();
+  expect(screen.getByText('First workout in Hawksbill')).toBeTruthy();
+  await fireEvent.press(screen.getByTestId('sum-first-wear-close'));
+  await waitFor(() => expect(screen.queryByTestId('sum-first-wear')).toBeNull());
+  expect(store.readMeta('fw-1')?.firstWearDismissed).toBe(true);
+  for (const id of ['fw-2', 'fw-review', 'fw-lv1', 'fw-guest']) {
+    mockRoute = { params: { sessionId: id } };
+    screen.unmount();
+    await render(<WorkoutSummaryScreen />, { wrapper: Wrapper });
+    expect(screen.queryByTestId('sum-first-wear')).toBeNull();
+  }
 });

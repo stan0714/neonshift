@@ -5,7 +5,8 @@ import { Pressable, Share, StyleSheet, Switch, View } from 'react-native';
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import { SignInState } from '@/components/SignInState';
 import { RouteTrace } from '@/components/RouteTrace';
-import { routeAppearanceOf } from '@/domain/appearance';
+import { isFirstWear, routeAppearanceOf } from '@/domain/appearance';
+import { ShoeHero } from '@/components/ShoeHero';
 import { WorkoutActionFeedback } from '@/components/WorkoutActionMotion';
 import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import type { Lap, RawPoint } from '@/domain/gps/engine';
@@ -40,6 +41,9 @@ export function WorkoutSummaryScreen() {
   useEffect(() => workoutRecorder.subscribe(reload), [reload]);
 
   const s = meta?.summary;
+  // LINK-10：第一次穿這雙（Lv.2+）完成且通過審核的運動 → 一張小紀念卡；關閉記在該紀錄上，不鑄 NFT、不加 XP
+  const firstWear = !!meta && !meta.firstWearDismissed && isFirstWear(store.list(), meta.sessionId);
+  const dismissFirstWear = () => { if (!meta) return; store.writeMeta({ ...meta, firstWearDismissed: true }); reload(); };
   // 軌跡預覽（預設開啟，可在此關閉並記住）：讀本機加密點，只在畫面上畫折線，不上傳
   const prefs = useWorkoutPrefs();
   const layer = routeAppearanceOf(meta?.routeAppearance).layer;
@@ -131,6 +135,20 @@ export function WorkoutSummaryScreen() {
         {/* PG-LINK-01：當時跑鞋（開始時快照；未綁定玩家／舊紀錄＝未指定） */}
         <Stat label={t('sum.shoe')} value={meta.shoeSnapshot ? `Lv.${meta.shoeSnapshot.level} · ${stageName(t, meta.shoeSnapshot.level)}` : t('sum.shoeUnknown')} testID="sum-shoe" />
       </View>
+      {firstWear && meta.shoeSnapshot ? (
+        <Surface active style={styles.card} testID="sum-first-wear">
+          <View style={styles.firstWearRow}>
+            <ShoeHero level={meta.shoeSnapshot.level} size={64} badge={false} active={false} />
+            <View style={styles.flex}>
+              <Text variant="title">{t('sum.firstWear.title', { shoe: stageName(t, meta.shoeSnapshot.level) })}</Text>
+              <Text variant="caption" tone="secondary" style={styles.mtXs}>{t('sum.firstWear.body')}</Text>
+            </View>
+            <Pressable onPress={dismissFirstWear} accessibilityRole="button" accessibilityLabel={t('common.close')} hitSlop={8} style={styles.closeBtn} testID="sum-first-wear-close">
+              <Text variant="label" tone="secondary">✕</Text>
+            </Pressable>
+          </View>
+        </Surface>
+      ) : null}
       {(meta.unsavedPoints ?? 0) > 0 ? (
         <InlineState kind="warning" title={t('sum.unsaved.title')} body={t('sum.unsaved.body', { n: meta.unsavedPoints ?? 0 })} testID="sum-unsaved" />
       ) : null}
@@ -288,6 +306,9 @@ function Stat({ label, value, hint, testID }: { label: string; value: string; hi
 }
 
 const styles = StyleSheet.create({
+  firstWearRow: { flexDirection: 'row', alignItems: 'center', gap: space.s },
+  closeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  mtXs: { marginTop: space.xxs },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.xs, minHeight: 44 },
   hero: { alignItems: 'center', marginTop: space.m },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: space.m, gap: space.s },
