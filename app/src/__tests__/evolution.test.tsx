@@ -46,6 +46,20 @@ describe('levelRevealStore', () => {
     await useLevelRevealStore.getState().observe(3);
     expect(useLevelRevealStore.getState().pending).toBeNull();
   });
+  test('展示版覆寫：reveal 照播但不寫入已看等級，換回正式版不會出現假降階', async () => {
+    const features = jest.requireActual('@/config/features') as { FEATURES: { demoLevel: number } };
+    features.FEATURES.demoLevel = 3;
+    try {
+      await useLevelRevealStore.getState().observe(1);
+      expect(await SecureStore.getItemAsync('neonshift.shoe.lastSeenLevel.v1')).toBeNull();
+      await useLevelRevealStore.getState().observe(3);
+      expect(useLevelRevealStore.getState().pending).toEqual({ from: 1, to: 3 });
+      await useLevelRevealStore.getState().acknowledge();
+      expect(await SecureStore.getItemAsync('neonshift.shoe.lastSeenLevel.v1')).toBeNull();
+    } finally {
+      features.FEATURES.demoLevel = 0;
+    }
+  });
 });
 
 describe('EvolutionReveal', () => {

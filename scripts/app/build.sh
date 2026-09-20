@@ -22,6 +22,8 @@ case "$VARIANT" in
     [ -f android/keystore.properties ] || { echo "缺少 android/keystore.properties（Runbook 8.1／8.2）；release 不得以 debug 金鑰簽章" >&2; exit 2; }
     # 後端只有 http://（dev 直連 l1:6080）時才開啟明文流量；https 一律關（Runbook 8.5）
     CLEARTEXT=false; case "$EXPO_PUBLIC_API_URL" in http://*) CLEARTEXT=true ;; esac
+    # EXPO_PUBLIC_* 不是 Gradle 的 task input：換環境變數（如 EXPO_PUBLIC_DEMO_LEVEL）不會觸發重新打包 JS，故每次 release 先清掉上次的 bundle
+    rm -rf android/app/build/generated/assets/react android/app/build/generated/res/createBundleReleaseJsAndAssets android/app/build/generated/sourcemaps
     (cd android && ./gradlew :app:assembleRelease -q -PcleartextTraffic="$CLEARTEXT" -PreactNativeArchitectures="${APP_ARCHS:-armeabi-v7a,arm64-v8a,x86,x86_64}")
     OUT="android/app/build/outputs/apk/release/app-release.apk"
     # 8.4：驗證簽章不是 debug 金鑰

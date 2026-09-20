@@ -5,9 +5,16 @@
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 
+import { FEATURES } from '@/config/features';
 import type { ShoeLevel } from '@/config/shoeProgression';
 
 const KEY = 'neonshift.shoe.lastSeenLevel.v1';
+
+/** 展示版覆寫（FEATURES.demoLevel）顯示的等級不是鏈上真值：reveal 照播，但不寫入已看等級，換回正式版不會出現假降階 */
+async function persist(level: ShoeLevel) {
+  if (FEATURES.demoLevel > 0) return;
+  await SecureStore.setItemAsync(KEY, String(level)).catch(() => {});
+}
 
 type State = {
   lastSeen: ShoeLevel | null;
@@ -44,7 +51,7 @@ export const useLevelRevealStore = create<State>((set, get) => ({
     if (lastSeen === null) {
       // 第一次看到（新裝置／剛建立 profile）：不播，只記錄
       set({ lastSeen: level });
-      await SecureStore.setItemAsync(KEY, String(level)).catch(() => {});
+      await persist(level);
       return;
     }
     if (level !== lastSeen && !pending) set({ pending: { from: lastSeen, to: level } });
@@ -56,6 +63,6 @@ export const useLevelRevealStore = create<State>((set, get) => ({
     const p = get().pending;
     if (!p) return;
     set({ pending: null, lastSeen: p.to });
-    await SecureStore.setItemAsync(KEY, String(p.to)).catch(() => {});
+    await persist(p.to);
   },
 }));
