@@ -52,6 +52,8 @@ flowchart LR
 
 ## 文件
 
+[特殊圖案路線挑戰規劃](docs/design/pattern-route-challenges.md)：GPS 路線匯出／分享、匯入收藏與日後沿線挑戰（TODO）。
+
 [Activity 改善與睡眠停用盤點](docs/activity-sleep-review.md)：App 已停止睡眠讀取；歷史協議保留，Lv5 維持門檻仍需調整決策。
 
 | 文件 | 用途 |

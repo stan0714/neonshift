@@ -992,6 +992,10 @@ Home 「Workouts ›」進入 `WorkoutsScreen`：每筆一張 Surface — 標題
 
 - `FEATURES.sleep=false`：Home 只剩步數卡（全寬）與步數任務；Health Connect 只要求步數權限（只有步數＝granted，不再 partial）；上手「用 Health Connect 驅動任務」只列步數；Profile 權限列顯示「步數」；Home 健康關閉提示改「任務需要步數」。鏈上 task_type=2、後端睡眠規則、打卡紀錄裡過去已領的睡眠任務保留。開回只改旗標。
 
+### 23.20 每雙鞋的運動歷程（LINK-10 候選，2026-09-20；設計見 design/shoe-route-linkage.md）
+
+- Gear「我的跑鞋」每張卡第三行：`{n} 次 · {km} km`（＋`· {n} 筆待審`），沒穿過顯示「還沒穿這雙運動過」（muted）。資料＝本機已保存紀錄依開始時 `shoeSnapshot.shoeId` 歸組、只算目前錢包（訪客只算無 owner 的紀錄）；待審／刪除中不計入次數與距離；沒有快照的舊紀錄不歸任何鞋。recorder 變化即重算。純展示，不影響 XP、倍率或資格。
+
 ## 24. 三模式運動與探索冊體驗
 
 依 [補充規格](./sport-experience-gameplay.md) 第 1～5 章。延續深色霓虹設計，三模式使用文字＋圖示，不只靠顏色；健走不呈現成跑步等級。運動中三項大數字、狀態與主要操作優先，慶祝與 NFT 預覽延至保存後。探索冊使用可逐格點亮的抽象城市章節，不展示真實位置；分列「探索進度」「鞋階維持」，不可合成同一進度條。大字、讀屏、減少動態設定須驗收。

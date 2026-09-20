@@ -1190,3 +1190,10 @@ Indoor 不啟用 GPS 推算距離，僅接可信裝置／已標記來源；缺�
 新增 owner 分區外觀／同步偏好、持久化 outbox、單 worker、revision 幂等及晚到重算契約；沿用運動端點擴充查詢／詳情／刪除。
 
 完整需求、畫面、資料契約及驗收以 [整合設計](./shoe-sync-activity.md) 為準。
+
+
+## 2026-09-20 特殊圖案路線挑戰（新增開發內容）
+
+規劃新增 RouteTemplate／Rules／Attempt／ShareGrant；GPX 分享先本機完成。分享連結的模板座標上傳需獨立同意與專用儲存，不混入 workout 摘要或鏈上 metadata。原始 session 與背景不因建立分享模板而更改。
+
+完整流程、資料與驗收：[特殊路線挑戰規格](design/pattern-route-challenges.md)。

@@ -2,7 +2,7 @@
 import { PublicKey } from '@solana/web3.js';
 
 import type { PlayerProfile } from '@/chain/accounts';
-import { appearanceLevel, highestOwnedLevel, ownedShoes, resolveTraceLayer, sceneOf, shoeSnapshotOf } from '@/domain/appearance';
+import { appearanceLevel, highestOwnedLevel, ownedShoes, resolveTraceLayer, sceneOf, shoeMileage, shoeSnapshotOf } from '@/domain/appearance';
 import { useAppearanceStore } from '@/state/appearanceStore';
 
 const wallet = new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
@@ -76,4 +76,11 @@ test('PG-LINK-07 路線底圖跟隨跑鞋：shoe → 目前外觀的棲地（Lv.
   expect(resolveTraceLayer('snow', 2, 5)).toBe('snow'); // 曾取得 Lv.5 → 可選雪林
   expect(resolveTraceLayer('snow', 2, 2)).toBe('forest'); // 未取得 → 跟隨跑鞋
   expect(resolveTraceLayer('mars', 5, 5)).toBe('mars');
+});
+
+test('LINK-10 每雙鞋歷程：依鞋款快照歸組、只算該玩家（訪客只算無 owner）、待審／刪除中另計、無快照不歸任何鞋', () => {
+  const s = (o: Record<string, unknown>) => ({ status: 'saved', owner, shoeSnapshot: { shoeId: 'wild-guardians-v1:2' }, summary: { distanceMm: 3_000_000 }, ...o });
+  const rows = [s({}), s({ summary: { distanceMm: 2_000_000 } }), s({ status: 'needs_review' }), s({ deletedAt: 1 }), s({ owner: 'other' }), s({ shoeSnapshot: null }), s({ owner: null, shoeSnapshot: { shoeId: 'wild-guardians-v1:1' } }), s({ status: 'recording' })];
+  expect(shoeMileage(rows, owner)).toEqual({ 'wild-guardians-v1:2': { count: 2, distanceMm: 5_000_000, review: 2 } });
+  expect(shoeMileage(rows, null)).toEqual({ 'wild-guardians-v1:1': { count: 1, distanceMm: 3_000_000, review: 0 } });
 });

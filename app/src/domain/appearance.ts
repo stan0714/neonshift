@@ -89,3 +89,25 @@ export function routeAppearanceOf(value: unknown): RouteAppearance {
   const layers = ['grid', 'mars', 'chain', 'space', ...HABITAT_SCENES];
   return v?.version === 1 && layers.includes(v.layer ?? '') ? { version: 1, layer: v.layer! } : { version: 1, layer: 'grid' };
 }
+
+/**
+ * 每雙鞋的運動歷程（LINK-10 候選；design/shoe-route-linkage.md）：依 session 開始時的 `shoeSnapshot.shoeId` 歸組，
+ * 只算本機已保存且屬於該玩家（或訪客）的紀錄；待審／刪除中另計、不加 XP 或獎勵。沒有快照的舊紀錄不推算、不歸任何鞋。
+ */
+export type ShoeMileage = { count: number; distanceMm: number; review: number };
+export function shoeMileage(
+  sessions: { shoeSnapshot?: { shoeId: string } | null; owner?: string | null; status: string; deletedAt?: number | null; summary?: { distanceMm: number | null } | null }[],
+  owner: string | null,
+): Record<string, ShoeMileage> {
+  const out: Record<string, ShoeMileage> = {};
+  for (const m of sessions) {
+    if (!m.shoeSnapshot || (m.status !== 'saved' && m.status !== 'needs_review')) continue;
+    if (owner ? m.owner !== owner : !!m.owner) continue;
+    const k = m.shoeSnapshot.shoeId;
+    const cur = (out[k] ??= { count: 0, distanceMm: 0, review: 0 });
+    if (m.deletedAt || m.status === 'needs_review') { cur.review += 1; continue; }
+    cur.count += 1;
+    cur.distanceMm += m.summary?.distanceMm ?? 0;
+  }
+  return out;
+}

@@ -25,7 +25,9 @@ import {
   type Collectible,
   type CollectibleStatus,
 } from "@/domain/collectibles";
+import { shoeMileage } from "@/domain/appearance";
 import { useAppearance } from "@/hooks/useAppearance";
+import { workoutRecorder } from "@/services/workouts/WorkoutRecorder";
 import { useAppearanceStore } from "@/state/appearanceStore";
 import { useCollectibleStore } from "@/state/collectibleStore";
 import { useDashboardStore } from "@/state/dashboardStore";
@@ -51,6 +53,10 @@ export function GearScreen() {
   const [previewLevel, setPreviewLevel] = useState<ShoeLevel | null>(null);
   /** PG-LINK-01：外觀（可切換的已取得跑鞋＋棲地背景）與有效等級分開 */
   const ap = useAppearance();
+  // 每雙鞋的運動歷程（本機紀錄，依開始時鞋款快照歸組；recorder 變化時重算）
+  const [mileTick, setMileTick] = useState(0);
+  useEffect(() => workoutRecorder.subscribe(() => setMileTick((n) => n + 1)), []);
+  const mileage = useMemo(() => { void mileTick; return shoeMileage(workoutRecorder.localStore().list(), ap.owner); }, [mileTick, ap.owner]);
   const selectShoe = useAppearanceStore((s) => s.selectShoe);
   const setBackground = useAppearanceStore((s) => s.setBackground);
   const dismissOffer = useAppearanceStore((s) => s.dismissOffer);
@@ -283,6 +289,11 @@ export function GearScreen() {
                 </Text>
                 <Text variant="caption" tone="muted" numberOfLines={1}>
                   {when ? t("gear.acquiredOn", { date: new Date(when).toLocaleDateString() }) : t("gear.acquiredUnknown")}
+                </Text>
+                <Text variant="caption" tone={mileage[shoe.id]?.count ? "secondary" : "muted"} numberOfLines={1} testID={`gear-shoe-${shoe.level}-mileage`}>
+                  {mileage[shoe.id]?.count
+                    ? `${t("gear.mileage", { n: mileage[shoe.id]!.count, km: (mileage[shoe.id]!.distanceMm / 1_000_000).toFixed(1) })}${mileage[shoe.id]!.review ? ` · ${t("gear.mileageReview", { n: mileage[shoe.id]!.review })}` : ""}`
+                    : t("gear.mileageNone")}
                 </Text>
                 {inUse ? <View style={styles.mtXs}><Chip label={t("gear.inUse")} kind="level" /></View> : null}
               </Surface>

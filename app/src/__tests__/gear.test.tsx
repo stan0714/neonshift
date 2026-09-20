@@ -5,6 +5,7 @@ import type { PropsWithChildren } from 'react';
 
 import type { PlayerProfile } from '@/chain/accounts';
 import { GearScreen } from '@/screens/tabs/GearScreen';
+import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { useCollectibleStore } from '@/state/collectibleStore';
 import { useDashboardStore } from '@/state/dashboardStore';
 import { useWalletStore } from '@/state/walletStore';
@@ -161,10 +162,23 @@ describe('PG-A-14 Gear', () => {
     const { useAppearanceStore } = jest.requireActual('@/state/appearanceStore') as typeof import('@/state/appearanceStore');
     useAppearanceStore.setState({ owner: null, loaded: false, selectedShoeId: null, shoeBackgroundEnabled: true, acquiredAt: {}, offer: null });
     useDashboardStore.setState({ profile: profile({ coreLevel: 2, shoeLevel: 2, highestLevel: 4, xp: BigInt(4000) }), config, syncChain: jest.fn(async () => {}) } as never);
+    const store = workoutRecorder.localStore();
+    const mk = async (id: string, o: Record<string, unknown>) => {
+      const m = await store.create({ sessionId: id, sport: 'run', intent: 'run', goal: null, environment: 'outdoor', autoLapMm: null, splitLengthMm: 1_000_000, status: 'saved', startedAtUtc: Date.UTC(2026, 8, 10), startedMonoMs: 0, processId: 'p', owner: wallet.toBase58(), shoeSnapshot: { shoeId: 'wild-guardians-v1:2', level: 2, variant: 'dawn' } } as never);
+      m.summary = { distanceMm: 4_000_000, elapsedMs: 1_500_000, movingMs: 1_500_000, movingAvgPaceSPerKm: 375, avgPaceSPerKm: 375, movingAvgSpeedKmh: null, avgSpeedKmh: null, splits: [], laps: [] } as never;
+      Object.assign(m, o);
+      await store.writeMeta(m);
+    };
+    await mk('m1', {});
+    await mk('m2', {});
+    await mk('m3', { status: 'needs_review' });
     await render(<GearScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(useAppearanceStore.getState().loaded).toBe(true));
     // 已取得 Lv.1–4（highest 4），Lv.5 不在列
     expect(screen.getByTestId('gear-shoe-1')).toBeTruthy();
+    // 每雙鞋的運動歷程（LINK-10）：依開始時鞋款快照歸組；待審另計；沒穿過 → 提示
+    expect(screen.getByTestId('gear-shoe-2-mileage').props.children).toBe('2 workouts · 8.0 km · 1 under review');
+    expect(screen.getByTestId('gear-shoe-1-mileage').props.children).toBe('No workouts in these shoes yet');
     expect(screen.getByTestId('gear-shoe-4')).toBeTruthy();
     expect(screen.queryByTestId('gear-shoe-5')).toBeNull();
     expect(screen.queryByTestId('gear-appearance-chip')).toBeNull(); // 跟隨有效等級 Lv.2
