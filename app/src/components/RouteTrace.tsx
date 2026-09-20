@@ -2,21 +2,26 @@ import { useState } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Circle, Defs, G, Line, Polygon, Polyline, RadialGradient, Rect, Stop } from 'react-native-svg';
 
+import { HabitatArt } from '@/components/HabitatScene';
+import { HABITAT_SCENES, type HabitatSceneKind } from '@/domain/appearance';
 import type { RawPoint } from '@/domain/gps/engine';
 import { buildTrace, scaleBarMeters } from '@/domain/gps/trace';
 import { useT } from '@/i18n';
 import { color, radius, space, Text } from '@/theme';
 
 /** 軌跡底圖圖層（Style 23.5）：不揭露真實位置的趣味圖層；`geo`（真實地圖）待地圖供應商定案，UI 以「尚未啟用」呈現 */
-export type TraceLayer = 'grid' | 'mars' | 'chain' | 'space';
+export type TraceLayer = 'grid' | 'mars' | 'chain' | 'space' | HabitatSceneKind;
 export const TRACE_LAYERS: readonly TraceLayer[] = ['grid', 'mars', 'chain', 'space'];
+/** 棲地底圖（PG-LINK-07）：與跑鞋場景同一組畫，曾取得該鞋階才可選 */
+export const HABITAT_LAYERS: readonly HabitatSceneKind[] = HABITAT_SCENES;
 
 /** 決定性偽隨機（同一畫布同一圖層每次一樣，不用 Math.random 以免重繪跳動） */
 const prng = (seed: number) => () => { seed = (seed * 1_664_525 + 1_013_904_223) % 4_294_967_296; return seed / 4_294_967_296; };
 
 /** 圖層本體：純 SVG 程序繪製，無網路、無座標依賴（只用畫布尺寸）。火星／太空的色票是圖層專屬美術色（同 ShoeHero 各階 tint），不是 UI token；折線與起終點仍用 token */
-function LayerArt({ layer, width, height }: { layer: TraceLayer; width: number; height: number }) {
+export function LayerArt({ layer, width, height }: { layer: TraceLayer; width: number; height: number }) {
   const rnd = prng(width * 31 + height * 17 + layer.length);
+  if ((HABITAT_LAYERS as readonly string[]).includes(layer)) return <HabitatArt kind={layer as HabitatSceneKind} width={width} height={height} />;
   if (layer === 'mars') {
     const craters = Array.from({ length: 14 }, () => ({ x: rnd() * width, y: rnd() * height, r: 6 + rnd() * 26 }));
     return (

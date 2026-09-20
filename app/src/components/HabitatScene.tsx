@@ -34,6 +34,19 @@ export function HabitatScene({ kind, height = HABITAT_SCENE_HEIGHT }: { kind: Ha
   );
 }
 
+/** 同一組場景作為其他 Svg 的底圖（路線畫布，PG-LINK-07）：巢狀 Svg 依畫布尺寸裁切鋪滿，再壓一層 canvas 半透明讓折線對比不變 */
+export function HabitatArt({ kind, width, height }: { kind: HabitatSceneKind; width: number; height: number }) {
+  return (
+    <G testID={`habitat-art-${kind}`}>
+      <Rect x={0} y={0} width={width} height={height} fill={TINT[kind]} />
+      <Svg x={0} y={0} width={width} height={height} viewBox="0 0 400 360" preserveAspectRatio="xMidYMax slice">
+        {kind === 'forest' ? <Forest /> : kind === 'ocean' ? <Ocean /> : kind === 'jungle' ? <Jungle /> : <Snow />}
+      </Svg>
+      <Rect x={0} y={0} width={width} height={height} fill={color.canvas} opacity={0.35} />
+    </G>
+  );
+}
+
 const TINT: Record<HabitatSceneKind, string> = { forest: '#0E3A2A', ocean: '#0B2A5C', jungle: '#3A2A0E', snow: '#2A2050' };
 
 /** 森林：三層林冠剪影（圓弧樹冠），越近越深 */

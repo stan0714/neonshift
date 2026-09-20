@@ -8,8 +8,8 @@ export type WorkoutMode = 'walk' | 'brisk' | 'run';
 export const modeToSport = (m: WorkoutMode): { sport: 'run' | 'walk'; intent: WorkoutIntent } => (m === 'run' ? { sport: 'run', intent: 'run' } : { sport: 'walk', intent: m === 'brisk' ? 'brisk' : 'casual' });
 export const modeOfIntent = (sport: 'run' | 'walk', intent: WorkoutIntent | null | undefined): WorkoutMode | null => (sport === 'run' ? 'run' : intent === 'brisk' ? 'brisk' : intent === 'casual' ? 'walk' : null);
 /** showRoute：摘要頁顯示本機軌跡折線（預設開啟；只在畫面上畫，不上傳） */
-export type TraceLayerPref = 'grid' | 'mars' | 'chain' | 'space';
-/** traceLayer：軌跡底圖（趣味圖層，不含地理資訊；真實地圖待供應商） */
+/** traceLayer：軌跡底圖（趣味圖層，不含地理資訊；真實地圖待供應商）。`shoe`＝跟隨目前跑鞋的棲地（PG-LINK-07，預設）；棲地需曾取得該鞋階 */
+export type TraceLayerPref = 'shoe' | 'grid' | 'mars' | 'chain' | 'space' | 'forest' | 'ocean' | 'jungle' | 'snow';
 /** autoPause：靜止自動暫停（預設關；Style 23.7） */
 /** cueEvery：語音／震動提示的距離間隔——每 500 m、每 1 km、或目標距離的一半（無距離目標時視同 1 km） */
 export type CueEvery = '500' | '1000' | 'half';
@@ -29,6 +29,8 @@ export type WorkoutPrefs = {
   /** PG-LINK-04：日誌排序（預設由舊到新，與同步順序一致）與檢視（清單／月曆）——瀏覽偏好，不影響同步 */
   activityOrder: 'asc' | 'desc';
   activityView: 'list' | 'calendar';
+  /** PG-LINK-06：儀表板期間（週／月／年／全部） */
+  activityPeriod: 'week' | 'month' | 'year' | 'all';
 };
 /**
  * 目標快照版本。v1：時間目標以總時間（含暫停）判定。
@@ -37,10 +39,10 @@ export type WorkoutPrefs = {
 export const GOAL_VERSION = 2;
 export const FREE_GOAL: WorkoutGoal = { kind: 'free', target: 0, unit: 's', version: GOAL_VERSION };
 const KEY = 'neonshift.workout.prefs.v1';
-const initial: WorkoutPrefs = { mode: 'run', goal: FREE_GOAL, voice: false, haptic: false, showRoute: true, traceLayer: 'grid', autoPause: false, cueEvery: '1000', keepAwake: true, detailView: false, activityOrder: 'asc', activityView: 'list' };
+const initial: WorkoutPrefs = { mode: 'run', goal: FREE_GOAL, voice: false, haptic: false, showRoute: true, traceLayer: 'shoe', autoPause: false, cueEvery: '1000', keepAwake: true, detailView: false, activityOrder: 'asc', activityView: 'list', activityPeriod: 'month' };
 
 type State = WorkoutPrefs & { loaded: boolean; load: () => Promise<WorkoutPrefs>; set: (patch: Partial<WorkoutPrefs>) => Promise<void> };
-const pick = (s: State): WorkoutPrefs => ({ mode: s.mode, goal: s.goal, voice: s.voice, haptic: s.haptic, showRoute: s.showRoute, traceLayer: s.traceLayer, autoPause: s.autoPause, cueEvery: s.cueEvery, keepAwake: s.keepAwake, detailView: s.detailView, activityOrder: s.activityOrder, activityView: s.activityView });
+const pick = (s: State): WorkoutPrefs => ({ mode: s.mode, goal: s.goal, voice: s.voice, haptic: s.haptic, showRoute: s.showRoute, traceLayer: s.traceLayer, autoPause: s.autoPause, cueEvery: s.cueEvery, keepAwake: s.keepAwake, detailView: s.detailView, activityOrder: s.activityOrder, activityView: s.activityView, activityPeriod: s.activityPeriod });
 
 export const useWorkoutPrefs = create<State>((set, get) => ({
   ...initial,

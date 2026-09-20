@@ -261,9 +261,12 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   expect(screen.queryByTestId('route-trace')).toBeNull();
   expect(useWorkoutPrefs.getState().showRoute).toBe(false);
   await fireEvent(screen.getByTestId('sum-route-toggle'), 'valueChange', true);
-  // 底圖圖層：預設格線；切火星並記住；真實地圖顯示尚未啟用；完整性檢查無旗標
+  // 底圖圖層：預設「跟隨跑鞋」（Lv.1 → 格線；PG-LINK-07）、棲地未取得顯示鎖定；切火星並記住；真實地圖顯示尚未啟用；完整性檢查無旗標
   await fireEvent(screen.getByTestId('route-trace'), 'layout', { nativeEvent: { layout: { width: 320, height: 220 } } });
   await waitFor(() => expect(screen.getByTestId('route-trace-layer-grid')).toBeTruthy());
+  expect(useWorkoutPrefs.getState().traceLayer).toBe('shoe');
+  expect(screen.getByTestId('sum-route-layer-shoe').props.accessibilityState.selected).toBe(true);
+  expect(screen.getByTestId('sum-route-layer-forest-locked')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('sum-route-layer-mars'));
   await fireEvent(screen.getByTestId('route-trace'), 'layout', { nativeEvent: { layout: { width: 320, height: 220 } } });
   expect(useWorkoutPrefs.getState().traceLayer).toBe('mars');

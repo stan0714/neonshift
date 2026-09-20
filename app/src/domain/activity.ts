@@ -183,3 +183,92 @@ export const monthRangeUtc = (month: string) => {
   const [y, m] = month.split('-').map(Number) as [number, number];
   return { from: new Date(Date.UTC(y, m - 1, 1) - 86_400_000).toISOString(), to: new Date(Date.UTC(y, m, 1) + 86_400_000).toISOString() };
 };
+
+// ---- PG-LINK-06：儀表板（週／月／年／全部）----
+
+export type ActivityPeriod = 'week' | 'month' | 'year' | 'all';
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const localDay = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const addDays = (day: string, n: number) => { const [y, m, d] = day.split('-').map(Number) as [number, number, number]; const x = new Date(Date.UTC(y, m - 1, d + n)); return `${x.getUTCFullYear()}-${pad2(x.getUTCMonth() + 1)}-${pad2(x.getUTCDate())}`; };
+const mondayOf = (day: string) => { const [y, m, d] = day.split('-').map(Number) as [number, number, number]; const wd = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7; return addDays(day, -wd); };
+
+/** 目前期間的錨點（裝置時區）：week → 該週週一 YYYY-MM-DD；month → YYYY-MM；year → YYYY；all → '' */
+export function periodAnchorNow(kind: ActivityPeriod, now = new Date()): string {
+  const day = localDay(now);
+  return kind === 'week' ? mondayOf(day) : kind === 'month' ? day.slice(0, 7) : kind === 'year' ? day.slice(0, 4) : '';
+}
+export function shiftPeriod(kind: ActivityPeriod, anchor: string, delta: number): string {
+  if (kind === 'week') return addDays(anchor, 7 * delta);
+  if (kind === 'month') return shiftMonth(anchor, delta);
+  if (kind === 'year') return String(Number(anchor) + delta);
+  return anchor;
+}
+/** 期間涵蓋的日曆日 [from, to)（字串比較即可）；all → 無界 */
+export function periodDays(kind: ActivityPeriod, anchor: string): { from: string | null; to: string | null } {
+  if (kind === 'week') return { from: anchor, to: addDays(anchor, 7) };
+  if (kind === 'month') return { from: `${anchor}-01`, to: `${shiftMonth(anchor, 1)}-01` };
+  if (kind === 'year') return { from: `${anchor}-01-01`, to: `${Number(anchor) + 1}-01-01` };
+  return { from: null, to: null };
+}
+/** 伺服器查詢用 UTC 範圍（前後放寬一天涵蓋時區差；細分再由 calendarDay 決定）；all → 不帶範圍（伺服器保留期內全部） */
+export function periodRangeUtc(kind: ActivityPeriod, anchor: string): { from?: string; to?: string } {
+  const { from, to } = periodDays(kind, anchor);
+  if (!from || !to) return {};
+  return { from: new Date(Date.parse(`${addDays(from, -1)}T00:00:00Z`)).toISOString(), to: new Date(Date.parse(`${addDays(to, 1)}T00:00:00Z`)).toISOString() };
+}
+export function inPeriod(it: ActivityItem, kind: ActivityPeriod, anchor: string): boolean {
+  const { from, to } = periodDays(kind, anchor);
+  const day = dayOfItem(it);
+  return (!from || day >= from) && (!to || day < to);
+}
+
+export type ActivityBucket = { key: string; label: string; count: number; distanceMm: number; elapsedMs: number; isToday: boolean };
+/**
+ * 期間總覽：只計有效（非待審、非排除、非刪除中）且去重後的紀錄；待審／排除另列筆數。
+ * 平均配速＝總經過時間／總距離（跑步 s/km），平均速度＝總距離／總經過時間（km/h）；沒有距離 → null。
+ * 長條分桶：週＝7 天（key YYYY-MM-DD，label 週幾鍵 Mo…Su）、月＝每天（label 日）、年＝12 個月（label 月）、全部＝最早紀錄年至今年（label 年）。
+ */
+export function periodSummary(items: ActivityItem[], kind: ActivityPeriod, anchor: string, now = new Date()) {
+  const inRange = items.filter((it) => inPeriod(it, kind, anchor));
+  const counted = inRange.filter((it) => !it.needsReview && it.status !== 'excluded' && it.status !== 'delete_pending');
+  const distanceMm = counted.reduce((a, it) => a + (it.distanceMm ?? 0), 0);
+  const elapsedMs = counted.reduce((a, it) => a + (it.elapsedMs ?? 0), 0);
+  const today = localDay(now);
+  const bucketKey = (day: string) => (kind === 'week' || kind === 'month' ? day : kind === 'year' ? day.slice(0, 7) : day.slice(0, 4));
+  const keys: { key: string; label: string }[] = [];
+  if (kind === 'week') for (let i = 0; i < 7; i++) { const d = addDays(anchor, i); keys.push({ key: d, label: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'][i]! }); }
+  if (kind === 'month') for (const d of calendarGrid(anchor)) if (d) keys.push({ key: d, label: String(Number(d.slice(8))) });
+  if (kind === 'year') for (let m = 1; m <= 12; m++) keys.push({ key: `${anchor}-${pad2(m)}`, label: String(m) });
+  if (kind === 'all') {
+    const years = counted.map((it) => Number(dayOfItem(it).slice(0, 4)));
+    const first = years.length ? Math.min(...years) : now.getFullYear();
+    for (let y = first; y <= now.getFullYear(); y++) keys.push({ key: String(y), label: String(y) });
+  }
+  const agg = counted.reduce<Record<string, { count: number; distanceMm: number; elapsedMs: number }>>((acc, it) => {
+    const k = bucketKey(dayOfItem(it));
+    acc[k] = { count: (acc[k]?.count ?? 0) + 1, distanceMm: (acc[k]?.distanceMm ?? 0) + (it.distanceMm ?? 0), elapsedMs: (acc[k]?.elapsedMs ?? 0) + (it.elapsedMs ?? 0) };
+    return acc;
+  }, {});
+  const buckets: ActivityBucket[] = keys.map((k) => ({ ...k, count: agg[k.key]?.count ?? 0, distanceMm: agg[k.key]?.distanceMm ?? 0, elapsedMs: agg[k.key]?.elapsedMs ?? 0, isToday: k.key === bucketKey(today) }));
+  const active = buckets.filter((b) => b.count > 0);
+  return {
+    count: counted.length,
+    distanceMm,
+    hasDistance: counted.some((it) => it.distanceMm !== null),
+    elapsedMs,
+    avgPaceSPerKm: distanceMm > 0 ? Math.round(elapsedMs / 1000 / (distanceMm / 1_000_000)) : null,
+    avgSpeedKmh: distanceMm > 0 && elapsedMs > 0 ? distanceMm / 1_000_000 / (elapsedMs / 3_600_000) : null,
+    excluded: inRange.length - counted.length,
+    buckets,
+    /** 有紀錄的桶平均距離（虛線） */
+    avgBucketMm: active.length ? active.reduce((a, b) => a + b.distanceMm, 0) / active.length : 0,
+  };
+}
+
+/** 自動命名的時段（依 session 時區的開始小時） */
+export type TimeOfDay = 'early' | 'morning' | 'midday' | 'afternoon' | 'evening' | 'night';
+export function timeOfDay(utcMs: number, timeZone: string | null): TimeOfDay {
+  let h: number;
+  try { h = Number(new Intl.DateTimeFormat('en-US', { timeZone: timeZone ?? undefined, hour: 'numeric', hour12: false }).format(new Date(utcMs))) % 24; } catch { h = new Date(utcMs).getHours(); }
+  return h < 5 ? 'early' : h < 11 ? 'morning' : h < 14 ? 'midday' : h < 17 ? 'afternoon' : h < 20 ? 'evening' : 'night';
+}

@@ -66,3 +66,18 @@ export const shoeSnapshotOf = (owner: string | null, profile: PlayerProfile | nu
   const level = appearanceLevel(profile, selectedShoeId);
   return { shoeId: shoeId(DEFAULT_SHOE_SERIES, level), level, variant: shoeVariant(owner, level) };
 };
+
+/** 場景對應的鞋階（路線底圖解鎖條件用） */
+export const SCENE_LEVEL: Record<HabitatSceneKind, ShoeLevel> = { forest: 2, ocean: 3, jungle: 4, snow: 5 };
+export const HABITAT_SCENES: readonly HabitatSceneKind[] = ['forest', 'ocean', 'jungle', 'snow'];
+
+/**
+ * 路線底圖與跑鞋連動（PG-LINK-07）：`shoe`＝跟隨目前外觀的棲地（Lv.1 原點 → 格線）；
+ * 明確選棲地只在曾取得該鞋階時有效，否則（換帳號／降級不影響取得）退回跟隨跑鞋。不受頁面背景開關影響——畫布本來就是一張圖。
+ */
+export function resolveTraceLayer(pref: 'shoe' | 'grid' | 'mars' | 'chain' | 'space' | HabitatSceneKind, level: ShoeLevel, highestOwned: ShoeLevel): 'grid' | 'mars' | 'chain' | 'space' | HabitatSceneKind {
+  const follow = sceneOf(level) ?? 'grid';
+  if (pref === 'shoe') return follow;
+  if (pref in SCENE_LEVEL) return SCENE_LEVEL[pref as HabitatSceneKind] <= highestOwned ? pref : follow;
+  return pref;
+}

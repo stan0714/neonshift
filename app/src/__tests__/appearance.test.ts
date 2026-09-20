@@ -2,7 +2,7 @@
 import { PublicKey } from '@solana/web3.js';
 
 import type { PlayerProfile } from '@/chain/accounts';
-import { appearanceLevel, highestOwnedLevel, ownedShoes, sceneOf, shoeSnapshotOf } from '@/domain/appearance';
+import { appearanceLevel, highestOwnedLevel, ownedShoes, resolveTraceLayer, sceneOf, shoeSnapshotOf } from '@/domain/appearance';
 import { useAppearanceStore } from '@/state/appearanceStore';
 
 const wallet = new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
@@ -67,4 +67,13 @@ test('偏好依錢包分區；訪客預設且不保存；新鞋只在有明確�
   useAppearanceStore.setState({ loaded: false });
   await useAppearanceStore.getState().load('11111111111111111111111111111112');
   expect(useAppearanceStore.getState()).toMatchObject({ selectedShoeId: null, shoeBackgroundEnabled: true });
+});
+
+test('PG-LINK-07 路線底圖跟隨跑鞋：shoe → 目前外觀的棲地（Lv.1 → 格線）；明確選棲地需曾取得該鞋階，否則退回跟隨；基本圖層不變', () => {
+  expect(resolveTraceLayer('shoe', 1, 1)).toBe('grid');
+  expect(resolveTraceLayer('shoe', 3, 3)).toBe('ocean');
+  expect(resolveTraceLayer('shoe', 2, 4)).toBe('forest'); // 降級外觀沿用 Lv.2 → 森林
+  expect(resolveTraceLayer('snow', 2, 5)).toBe('snow'); // 曾取得 Lv.5 → 可選雪林
+  expect(resolveTraceLayer('snow', 2, 2)).toBe('forest'); // 未取得 → 跟隨跑鞋
+  expect(resolveTraceLayer('mars', 5, 5)).toBe('mars');
 });

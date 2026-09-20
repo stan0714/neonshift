@@ -9,10 +9,12 @@ import { Alert, Animated, BackHandler, Easing, Linking, Pressable, ScrollView, S
 import { Chip, InlineState, Screen } from '@/components';
 import { RouteTrace } from '@/components/RouteTrace';
 import { SpeedSparkline } from '@/components/SpeedSparkline';
+import { resolveTraceLayer } from '@/domain/appearance';
 import { WorkoutActionFeedback, type WorkoutAction } from '@/components/WorkoutActionMotion';
 import { paceVsAvg, profileOf, speedZone } from '@/domain/modes';
 import { formatDuration, formatPace } from '@/domain/workouts';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
+import { useAppearance } from '@/hooks/useAppearance';
 import { useT, type TKey } from '@/i18n';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
@@ -76,6 +78,8 @@ export function WorkoutRecordScreen() {
 
   // PG-U-02 的距離提示改由 services/workouts/cueController 以 session 驅動（review 7），離開本頁仍會播、返回不重設基準
   const prefs = useWorkoutPrefs();
+  const ap = useAppearance();
+  const traceLayer = resolveTraceLayer(prefs.traceLayer, ap.level, ap.owned.reduce((m, o) => (o.level > m ? o.level : m), 1 as (typeof ap.owned)[number]['level']));
   const detail = prefs.detailView;
   // GPS 有問題時即使精簡模式也把診斷列展開（review 9）
   const showDiag = detail || !!s.gpsIssue || s.gps !== 'ok' || s.paceStale || s.gpsRestarts > 0 || s.gpsFallback;
@@ -359,7 +363,7 @@ export function WorkoutRecordScreen() {
         </Text>
       ) : null}
       {/* 即時軌跡＋速度曲線（Style 23.6）：只用記憶體內最近接受點與 5 秒窗樣本，不讀磁碟——詳細模式 */}
-      {detail && s.path.length >= 2 ? <RouteTrace points={s.path} height={150} layer={prefs.traceLayer} testID="record-trace" /> : null}
+      {detail && s.path.length >= 2 ? <RouteTrace points={s.path} height={150} layer={traceLayer} testID="record-trace" /> : null}
       {detail ? <>
         <View style={styles.sparkHead}>
           <Text variant="label" tone="muted" uppercase>{s.sport === 'walk' ? t('rec.spark.speed') : t('rec.spark.pace')}</Text>

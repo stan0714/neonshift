@@ -1,5 +1,5 @@
 /** PG-LINK-04：Activity 純函式——合併去重、時區日曆日（跨午夜歸開始日）、篩選、穩定排序、月總覽只計有效、月曆格。 */
-import { calendarDay, calendarGrid, filterActivity, itemFromRemote, mergeActivity, monthRangeUtc, monthSummary, shiftMonth, sortActivity } from '@/domain/activity';
+import { calendarDay, calendarGrid, filterActivity, inPeriod, itemFromRemote, mergeActivity, monthRangeUtc, monthSummary, periodAnchorNow, periodDays, periodRangeUtc, periodSummary, shiftMonth, shiftPeriod, sortActivity, timeOfDay } from '@/domain/activity';
 import type { WorkoutSummary } from '@/services/api/ApiClient';
 import type { SessionMeta } from '@/services/workouts/LocalWorkoutStore';
 import type { OutboxEntry } from '@/services/workouts/WorkoutOutbox';
@@ -57,4 +57,39 @@ test('篩選（模式／來源／狀態／日）、穩定排序（預設由舊�
   expect(s).toMatchObject({ count: 2, distanceMm: 7_400_000, elapsedMs: 3_300_000, excluded: 1 });
   expect(Object.keys(s.byDay).sort()).toEqual(['2026-09-17', '2026-09-18', '2026-09-20']);
   expect(monthSummary(items, '2026-10').count).toBe(1);
+});
+
+test('PG-LINK-06 期間：錨點／位移／日曆日範圍；週＝週一起 7 天、年＝12 桶、全部＝最早年至今；總覽只計有效、平均配速＝總時間／總距離、桶平均只算有紀錄的桶', () => {
+  const now = new Date(2026, 8, 20, 10); // 週日
+  expect(periodAnchorNow('week', now)).toBe('2026-09-14');
+  expect(periodAnchorNow('month', now)).toBe('2026-09');
+  expect(periodAnchorNow('year', now)).toBe('2026');
+  expect(shiftPeriod('week', '2026-09-14', -1)).toBe('2026-09-07');
+  expect(shiftPeriod('year', '2026', 1)).toBe('2027');
+  expect(periodDays('week', '2026-09-14')).toEqual({ from: '2026-09-14', to: '2026-09-21' });
+  expect(periodDays('year', '2026')).toEqual({ from: '2026-01-01', to: '2027-01-01' });
+  expect(periodRangeUtc('all', '')).toEqual({});
+  expect(periodRangeUtc('month', '2026-09')).toEqual({ from: '2026-08-31T00:00:00.000Z', to: '2026-10-02T00:00:00.000Z' });
+
+  const items = [
+    itemFromRemote(remote('a', '2026-09-17T01:00:00Z', { sport: 'run', intent: 'run', elapsed_ms: '1800000', metrics: { ...remote('a', '2026-09-17T01:00:00Z').metrics, distance: { value_mm: '5000000', method: 'gps' } } })),
+    itemFromRemote(remote('b', '2026-09-19T01:00:00Z', { sport: 'run', intent: 'run', elapsed_ms: '1800000', metrics: { ...remote('b', '2026-09-19T01:00:00Z').metrics, distance: { value_mm: '4000000', method: 'gps' } } })),
+    itemFromRemote(remote('c', '2026-09-19T05:00:00Z', { status: 'needs_review' })), // 待審不計
+    itemFromRemote(remote('d', '2025-03-01T05:00:00Z')),
+  ];
+  expect(items.map((it) => inPeriod(it, 'week', '2026-09-14'))).toEqual([true, true, true, false]);
+  const wk = periodSummary(items, 'week', '2026-09-14', now);
+  expect(wk).toMatchObject({ count: 2, distanceMm: 9_000_000, elapsedMs: 3_600_000, avgPaceSPerKm: 400, excluded: 1 });
+  expect(wk.buckets.map((b) => b.label)).toEqual(['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']);
+  expect(wk.buckets.find((b) => b.key === '2026-09-19')).toMatchObject({ count: 1, distanceMm: 4_000_000 });
+  expect(wk.buckets.find((b) => b.isToday)?.key).toBe('2026-09-20');
+  expect(wk.avgBucketMm).toBe(4_500_000);
+  expect(periodSummary(items, 'year', '2026', now).buckets.map((b) => b.key)).toHaveLength(12);
+  const all = periodSummary(items, 'all', '', now);
+  expect(all.buckets.map((b) => b.key)).toEqual(['2025', '2026']);
+  expect(all.count).toBe(3);
+  // 時段依 session 時區
+  expect(timeOfDay(Date.parse('2026-09-17T01:00:00Z'), 'Asia/Taipei')).toBe('morning'); // 09:00
+  expect(timeOfDay(Date.parse('2026-09-17T11:30:00Z'), 'Asia/Taipei')).toBe('evening'); // 19:30
+  expect(timeOfDay(Date.parse('2026-09-17T18:00:00Z'), 'Asia/Taipei')).toBe('early'); // 02:00
 });

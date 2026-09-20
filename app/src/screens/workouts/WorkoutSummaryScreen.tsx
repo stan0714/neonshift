@@ -4,7 +4,9 @@ import { Pressable, Share, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import { SignInState } from '@/components/SignInState';
-import { RouteTrace, TRACE_LAYERS } from '@/components/RouteTrace';
+import { HABITAT_LAYERS, RouteTrace, TRACE_LAYERS } from '@/components/RouteTrace';
+import { resolveTraceLayer, SCENE_LEVEL, sceneOf } from '@/domain/appearance';
+import { useAppearance } from '@/hooks/useAppearance';
 import { WorkoutActionFeedback } from '@/components/WorkoutActionMotion';
 import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import type { Lap, RawPoint } from '@/domain/gps/engine';
@@ -41,6 +43,10 @@ export function WorkoutSummaryScreen() {
   const s = meta?.summary;
   // 軌跡預覽（預設開啟，可在此關閉並記住）：讀本機加密點，只在畫面上畫折線，不上傳
   const prefs = useWorkoutPrefs();
+  // PG-LINK-07：底圖預設跟隨目前跑鞋的棲地；棲地底圖要曾取得該鞋階才可選（換帳號／不再擁有 → 退回跟隨）
+  const ap = useAppearance();
+  const highestOwned = ap.owned.reduce((m, o) => (o.level > m ? o.level : m), 1 as (typeof ap.owned)[number]['level']);
+  const layer = resolveTraceLayer(prefs.traceLayer, ap.level, highestOwned);
   const [points, setPoints] = useState<RawPoint[] | null>(null);
   useEffect(() => {
     if (!prefs.showRoute || meta?.environment === 'indoor') return;
@@ -138,16 +144,28 @@ export function WorkoutSummaryScreen() {
             <Text variant="title">{t('sum.route')}</Text>
             <Switch value={prefs.showRoute} onValueChange={(v) => void prefs.set({ showRoute: v })} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('sum.routeToggle')} testID="sum-route-toggle" />
           </View>
-          {prefs.showRoute ? <RouteTrace points={points ?? []} layer={prefs.traceLayer} /> : null}
+          {prefs.showRoute ? <RouteTrace points={points ?? []} layer={layer} /> : null}
           {prefs.showRoute ? (
             <View style={styles.layerRow} accessibilityRole="radiogroup" testID="sum-route-layers">
-              {TRACE_LAYERS.map((l) => (
+              {(['shoe', ...TRACE_LAYERS] as const).map((l) => (
                 <Pressable key={l} onPress={() => void prefs.set({ traceLayer: l })} accessibilityRole="radio" accessibilityState={{ selected: prefs.traceLayer === l }} style={[styles.layerChip, prefs.traceLayer === l && styles.layerChipOn]} testID={`sum-route-layer-${l}`}>
                   <Text variant="caption" tone={prefs.traceLayer === l ? undefined : 'secondary'} style={prefs.traceLayer === l && styles.layerChipOnText}>
-                    {t(`sum.layer.${l}` as TKey)}
+                    {l === 'shoe' ? `${t('sum.layer.shoe')} · ${t(`sum.layer.${sceneOf(ap.level) ?? 'grid'}` as TKey)}` : t(`sum.layer.${l}` as TKey)}
                   </Text>
                 </Pressable>
               ))}
+              {HABITAT_LAYERS.map((l) => {
+                const locked = SCENE_LEVEL[l] > highestOwned;
+                return locked ? (
+                  <View key={l} style={[styles.layerChip, styles.layerChipDisabled]} accessible accessibilityLabel={`${t(`sum.layer.${l}` as TKey)} · ${t('sum.layer.locked', { n: SCENE_LEVEL[l] })}`} testID={`sum-route-layer-${l}-locked`}>
+                    <Text variant="caption" tone="muted">{t(`sum.layer.${l}` as TKey)} · {t('sum.layer.locked', { n: SCENE_LEVEL[l] })}</Text>
+                  </View>
+                ) : (
+                  <Pressable key={l} onPress={() => void prefs.set({ traceLayer: l })} accessibilityRole="radio" accessibilityState={{ selected: prefs.traceLayer === l }} style={[styles.layerChip, prefs.traceLayer === l && styles.layerChipOn]} testID={`sum-route-layer-${l}`}>
+                    <Text variant="caption" tone={prefs.traceLayer === l ? undefined : 'secondary'} style={prefs.traceLayer === l && styles.layerChipOnText}>{t(`sum.layer.${l}` as TKey)}</Text>
+                  </Pressable>
+                );
+              })}
               <View style={[styles.layerChip, styles.layerChipDisabled]} accessible accessibilityLabel={`${t('sum.layer.geo')} · ${t('sum.layer.geoPending')}`} testID="sum-route-layer-geo">
                 <Text variant="caption" tone="muted">
                   {t('sum.layer.geo')} · {t('sum.layer.geoPending')}
