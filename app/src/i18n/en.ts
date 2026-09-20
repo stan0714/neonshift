@@ -226,7 +226,7 @@ export const en = {
   'home.evening': 'Good evening',
   'home.today': 'Today',
   'home.gallery': 'Gallery',
-  'home.activity': 'Events',
+  'home.activity': 'Clock-ins',
   'home.workouts': 'Workouts',
   'home.steps': 'Steps',
   'home.stepsUnit': 'steps',

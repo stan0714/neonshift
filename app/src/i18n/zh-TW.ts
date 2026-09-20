@@ -217,7 +217,7 @@ export const zhTW: Record<keyof typeof en, string> = {
   'home.evening': '晚安',
   'home.today': '今日',
   'home.gallery': '藝廊',
-  'home.activity': '活動',
+  'home.activity': '打卡紀錄',
   'home.workouts': '運動紀錄',
   'home.steps': '步數',
   'home.stepsUnit': '步',

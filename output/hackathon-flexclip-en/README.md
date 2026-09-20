@@ -54,3 +54,8 @@ python3 -m venv /tmp/neonshift-deck-venv
 ## 2026-09-20 Activity 與睡眠清理
 
 第 1 頁 EARLY BUILD 截圖仍含舊睡眠卡；現行 App 已停用睡眠讀取與入口，正式影片須替換新 APK 實錄。本次不將歷史截圖修飾成新實機證據。
+
+
+## 2026-09-20 實機截圖（USB）
+
+[captures/2026-09-20/](captures/2026-09-20/README.md)：APK `373a180` 的 Home（含新「Workout mission」）、Activity 儀表板／月曆／卡片、Workouts、Gear（Origin 詳情、系列一覽、維持期）、Profile 共 20 張，可直接替換第 1 頁 EARLY BUILD 與第 2 頁靜態預覽；第 3（完整打卡）、4（Lv.2+ 切鞋與棲地背景）、5（活動雙角色）仍待實機錄影。擷取工具 `scripts/demo/capture.sh`；錢包授權視窗為 secure surface，需相機側拍。
