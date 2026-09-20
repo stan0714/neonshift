@@ -29,6 +29,7 @@ APK 以 `EXPO_PUBLIC_DEMO_LEVEL=3 scripts/app/build.sh dev release` 建置（Git
 | 01-home-forest-demo、02-activity-forest-demo、02-activity-cards-forest-demo | 04／02 | 森林背景鋪 Home／Activity，卡片縮圖同底圖 |
 | 02-workout-start-route-picker-demo、02-workout-start-route-forest-demo | 04 路線底圖 | 開始前選底圖：Forest／Ocean 可選，Jungle Lv.4／Snow Lv.5 鎖定 |
 | 02-summary-top-demo、02-summary-route-demo | 02 | 摘要頁（含當時跑鞋、已固定背景） |
+| 04-gear-elephant-story-demo、04-gear-elephant-milestone-demo | 04／WWF 信件附圖 | 亞洲象故事卡（物種說明、IUCN EN、小行動）與族群參考里程碑（fewer than 50,000、來源連結、非即時計數）；縮圖版收在 docs/legal/wwf-notice-2026-09-20/img |
 | 04-gear-bg-switch-on-demo、-off-demo、01-home-bg-off-demo | 04 關背景 | 「跟隨跑鞋背景」關閉後 Home 回基本底、所選鞋不變 |
 
 真實 Lv.2+ 帳號的同畫面待維持規則 v2 跑滿一期後再重截替換。
