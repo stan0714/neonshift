@@ -905,6 +905,7 @@ export const en = {
   'nav.gear': 'Gear',
   'nav.arena': 'Arena',
   'nav.profile': 'Profile',
+  'nav.activityTab': 'Activity',
   'nav.activity': 'Activity',
   'nav.gallery': 'Gallery',
   'nav.player': 'Player',

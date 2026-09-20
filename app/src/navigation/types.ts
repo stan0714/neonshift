@@ -3,6 +3,8 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 /** 底部四分頁（Style 2.2 / SD 5.2） */
 export type TabParamList = {
   Home: undefined;
+  /** 我的運動（PG-LINK-06；2026-09-20 改為分頁）；root 的 Activity（帶 month）保留給深連結／月份跳轉 */
+  ActivityTab: undefined;
   Gear: undefined;
   Arena: undefined;
   Profile: undefined;

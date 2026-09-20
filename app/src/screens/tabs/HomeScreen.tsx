@@ -194,7 +194,7 @@ export function HomeScreen() {
 
       {/* PG-LINK-04：最近運動入口（本機最新一筆；點入我的運動日誌） */}
       {recent ? (
-        <Pressable onPress={() => navigation.navigate('Activity')} accessibilityRole="button" style={({ pressed }) => [styles.recent, pressed && styles.pressed]} testID="home-recent-workout">
+        <Pressable onPress={() => navigation.navigate('Main', { screen: 'ActivityTab' })} accessibilityRole="button" style={({ pressed }) => [styles.recent, pressed && styles.pressed]} testID="home-recent-workout">
           <View style={styles.flex}>
             <Text variant="label" tone="muted" uppercase>{t('home.recentWorkout')}</Text>
             <Text variant="body" numeric>{modeLabel(t, recent.sport, recent.intent)} · {recent.summary ? formatKm(String(recent.summary.distanceMm)) : '—'} · {recent.summary ? formatDuration(String(recent.summary.elapsedMs)) : '—'}</Text>

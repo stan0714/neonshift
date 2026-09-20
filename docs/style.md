@@ -63,18 +63,19 @@ Dashboard
 
 ### 2.2 Navigation
 
-登入後使用固定四分頁 bottom navigation：
+登入後使用固定五分頁 bottom navigation（2026-09-20 加入「運動」分頁，負責人要求可從底部快速瀏覽運動內容）：
 
 | 分頁 | Icon 語意 | 用途 |
 |---|---|---|
 | Home | house / pulse | 今日數據、任務與打卡 |
+| 運動 Activity | bar-chart | 我的運動儀表板（Style 23.17）：期間總覽、長條圖、最近活動卡 |
 | Gear | shoe / layers | 跑鞋狀態、升級與進化 |
 | Arena | trophy | 週末錦標賽、排名與質押 |
 | Profile | user / settings | 錢包、權限、隱私與設定 |
 
 - 必須同時顯示 icon 和 label，不使用只有 icon 的猜測式導覽。
 - Active item 使用青綠色文字、實心 icon 與低強度 glow；inactive 使用 `Text Muted`。
-- Activity history 從 Home 的次要入口進入，不占用首版主要 tab。
+- 打卡紀錄（Activity history）從 Home 的次要入口進入，不占用主要 tab；Profile「我的運動」與 Home「最近運動」卡都切到「運動」分頁；root 的 `Activity`（帶 month）保留給月份跳轉。
 
 ---
 

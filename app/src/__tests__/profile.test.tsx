@@ -9,7 +9,8 @@ import { useWalletStore } from '@/state/walletStore';
 import { ThemeProvider } from '@/theme';
 
 const mockReset = jest.fn();
-jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => ({ navigate: jest.fn(), reset: mockReset, goBack: jest.fn() }) }));
+const mockNavigate = jest.fn();
+jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => ({ navigate: mockNavigate, reset: mockReset, goBack: jest.fn() }) }));
 jest.mock('@/services/api/ApiClient', () => ({
   ...jest.requireActual('@/services/api/ApiClient'),
   apiClient: { hasSession: jest.fn(async () => true), galleryPrivacy: jest.fn(async () => ({ hidden: false })), setGalleryPrivacy: jest.fn(async (hidden: boolean) => ({ hidden })), signOut: jest.fn(async () => {}), deleteData: jest.fn(async () => ({ status: 204, body: null })) },
@@ -95,6 +96,11 @@ describe('PG-A-21 Profile', () => {
     await waitFor(() => expect(screen.getByTestId('deletion-scheduled')).toBeTruthy());
   });
 
+  test('「我的運動」切到 Activity 分頁（2026-09-20 改為底部分頁）', async () => {
+    await render(<ProfileScreen />, { wrapper: Wrapper });
+    await fireEvent.press(screen.getByTestId('profile-activity'));
+    expect(mockNavigate).toHaveBeenCalledWith('Main', { screen: 'ActivityTab' });
+  });
   test('斷開錢包：登出後端、撤銷授權、回 Landing（FR-01.4）', async () => {
     await render(<ProfileScreen />, { wrapper: Wrapper });
     await fireEvent.press(screen.getByText('Disconnect wallet'));

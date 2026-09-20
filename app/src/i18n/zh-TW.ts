@@ -886,6 +886,7 @@ export const zhTW: Record<keyof typeof en, string> = {
   'nav.gear': '裝備',
   'nav.arena': '競技場',
   'nav.profile': '個人',
+  'nav.activityTab': '運動',
   'nav.activity': '活動紀錄',
   'nav.gallery': '藝廊',
   'nav.player': '玩家',
