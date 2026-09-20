@@ -61,6 +61,21 @@ describe('PG-A-13 ClaimFlow', () => {
     expect(s.sleep_sessions).toEqual([{ start_unix: 1, end_unix: 27_001, package: 'p', recording_method: 'automatic' }]);
     expect(s.sensor_summary).toBeNull();
     expect(s.data_origins).toEqual([]);
+    // 維持規則 v2：運動任務 body 不帶健康資料，只帶（可選）伺服器 session id；challenge task_type 3
+    const w = buildClaimBody(input({ taskType: 'workout', steps: null, sleep: null, workout: { serverId: 'srv-1', distanceM: 5000, movingMs: 1_500_000 } }), null);
+    expect(w).toMatchObject({ task_type: 'workout', task_date: 20_706, steps: null, sleep_minutes: null, workout_session_id: 'srv-1', step_rate_summary: null, data_origins: [], sensor_summary: null });
+    expect(w).not.toHaveProperty('sleep_sessions');
+    expect(buildClaimBody(input({ taskType: 'workout', workout: { serverId: null, distanceM: 0, movingMs: 0 } }), null)).not.toHaveProperty('workout_session_id');
+  });
+
+  test('運動任務：不跑 live motion，直接 verifying → challenge（task_type 3）→ claim → 簽章 → confirmed', async () => {
+    const d = deps();
+    const phases: ClaimPhase['kind'][] = [];
+    const final = await runClaimFlow(input({ deps: d, taskType: 'workout', steps: null, sleep: null, workout: { serverId: 'srv-1', distanceM: 5000, movingMs: 1_500_000 } }), (p) => phases.push(p.kind));
+    expect(final.kind).toBe('confirmed');
+    expect(phases).toEqual(['verifying', 'awaiting_signature', 'confirmed']);
+    expect(d.raw.api.authorizeClaim).toHaveBeenCalledWith('claim', expect.any(Uint8Array), 20_706, 3);
+    expect(d.raw.lm.run).not.toHaveBeenCalled();
   });
 
   test('步數：live motion → verifying → challenge → claim → awaiting_signature → confirmed；順序與參數', async () => {

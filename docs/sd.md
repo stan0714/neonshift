@@ -159,7 +159,7 @@ graph TB
 |---|---|---|
 | `wallet` | Pubkey | — |
 | `task_date` | u32 | UTC 日序 |
-| `task_type` | u8 | 1 = steps，2 = sleep |
+| `task_type` | u8 | 1 = steps，2 = sleep（維持規則 v2 起退役，6045），3 = workout（v2，DEC-04） |
 | `amount` | u64 | 實發金額 |
 | `nonce` | [u8; 16] | attestation nonce |
 | `claimed_at` | i64 | — |
@@ -310,7 +310,7 @@ let amount = amount.min(remaining);         // BR-04
 | 52 | 1 | `cluster_id` | 1 = devnet |
 | 53 | 32 | `wallet` | 領取者 |
 | 85 | 4 | `task_date` | UTC 日序 u32 |
-| 89 | 1 | `task_type` | 1 steps / 2 sleep |
+| 89 | 1 | `task_type` | 1 steps / 2 sleep（退役）/ 3 workout |
 | 90 | 2 | `rules_version` | u16 |
 | 92 | 32 | `evidence_hash` | SHA-256(判定輸入摘要) |
 | 124 | 8 | `issued_at` | i64 |
@@ -356,7 +356,8 @@ let amount = amount.min(remaining);         // BR-04
 | 6025 | `RewardParamsChangeRequiresPause` | BR-24：未 pause 或 pause 未滿 600 秒即更新影響獎勵金額的參數（實作期新增） |
 | 6026 | `Unauthorized` | 管理指令簽章者不是 `Config.admin`（實作期新增） |
 | 6027 | `InvalidAttestationWindow` | attestation 時間欄位不滿足 `issued_at <= not_before <= expiry`（實作期新增；步驟 7 的前半） |
-| 6028 | `InvalidTaskType` | task_type 不是 1／2（實作期新增；SD 3.4 程式片段原引用此名稱） |
+| 6028 | `InvalidTaskType` | task_type 不是 1／2／3（實作期新增；SD 3.4 程式片段原引用此名稱） |
+| 6045 | `TaskTypeRetired` | 維持規則 v2（DEC-04）：睡眠任務（2）退役，不再接受申請；歷史 receipt 保留 |
 | 6029 | `CollectibleNotEligible` | `claim_collectible`：尚未達成該 kind 的資格（含錦標賽名次在 C-14 接入前一律不合格） |
 | 6030 | `InvalidCollectibleKind` | `claim_collectible`：kind 不在 1～5／101／102／111～119 |
 | 6031 | `InvalidTournamentParam` | `create_tournament` 參數超出範圍（實作期新增） |
@@ -1079,6 +1080,8 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 **實作（2026-09-15，PG-V-04）**：`GET /gallery/players?board=active|lifetime`（active＝目前有效等級 → XP → 錢包；lifetime＝`highest_level` → 收藏數 → XP → 錢包；回 `board`、每列 `highest_level`）；`galleryRankOf(wallet, board)`。App `domain/maintenance.ts`（與 rules.mjs 同版：期索引／期末時間／點數／活躍日／維持、升階、回歸目標與差額；`migration_required`／`settlement_pending`）、`shoeSection`（目前裝備／曾經達成／尚未解鎖）、跑鞋資格依 `highestLevel`；Gear 儀表與收藏三區、藝廊雙榜（Style 21.1）。
 
 **實作（2026-09-15，PG-V-05 凍結治理／版本／攻擊測試）**：`IncidentFreeze` PDA `["freeze"]`（start／end／set_at／reason_hash；admin `set_incident_freeze(start, end, reason_hash)` init_if_needed；視窗 end > start、≤ 28 天、start ≥ now − 7 天（不回寫更早已結束週期）否則 6044；(0,0) 清除；emit `IncidentFreezeSet`）。`clock_in`／`settle_player_epochs` 增 `freeze: Option<Account>`（不存在傳 program id）；與凍結視窗重疊的週期結算不降不升（highest 不變、期內累計重置），`EpochSettled.frozen = true`；不接受玩家自報離線保級。版本：`maintenance_rules_version` 寫入 profile／事件，改參數需升級程式並提高版本、只向未來生效（既有玩家 `migrate_player` 保留等級自當日起新週期）。攻擊／邊界 LiteSVM：非 admin 拒絕、視窗三種非法、凍結期缺席不降／全勤不升、非重疊期照常、清除後恢復、傳錯 freeze 帳戶被 seeds 拒絕；先前：重送去重、6041 落後、bounded batch、v1 遷移 6042／6043。App：dashboard 讀 freeze 帳戶、打卡／結算指令帶 freeze PDA 或 program id、Gear 顯示凍結提示；chain-admin `set-freeze <start|0> <end|0> [reason]`（原文請公開於事故公告，鏈上存 sha256）。待：實機驗收、devnet 升級。
+
+**實作（2026-09-20，維持規則 v2／DEC-04 方案 B）**：鏈上 `MAINTENANCE_RULES_VERSION=2`、`TASK_WORKOUT=3`（`MAINTENANCE_POINTS_WORKOUT=100`、`XP_WORKOUT=100`、獎勵基礎沿用 `Config.base_sleep_reward` 作第二任務基礎，Config 版面不變）、`clock_in` 步驟 7b 拒收 `TASK_SLEEP`（6045），日上限自然為 200；門檻／活躍日／結算不變故不重新錨定，profile 於下次 clock_in 直接標 v2。attestation-core 解析接受 task_type 3。後端：claim `task_type="workout"`（可帶 `workout_session_id`），證據＝本人 `workouts` 表中同 UTC 日、`origin=gps`、`status=saved` 且 distance ≥ `goals.workout.min_distance_mm`、移動（elapsed − paused）≥ `min_moving_ms` 的最長一筆；拒絕碼 `WORKOUT_NOT_SYNCED`／`WORKOUT_UNDER_REVIEW`／`TASK_NOT_MET`（effective_value＝距離 mm）；evidence_hash 含 session id／距離／移動／revision；規則檔 `rules/v4.json`（睡眠規則移除）；migration 0018 放寬 `health_snapshots`／`attestations` task_type CHECK 為 (1,2,3)；`/auth/challenge` task_type 允許 3；schema 不再接受 `sleep`。App：`TASK_CODE`、dashboard `workout` 證據（本機已同步 session）、Home「運動任務」卡取代睡眠卡、ClaimFlow 不跑 live motion、拒絕碼文案。
 
 ## 15. 首次成就 NFT 契約補充
 

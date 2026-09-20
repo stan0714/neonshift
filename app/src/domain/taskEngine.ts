@@ -5,8 +5,13 @@
 export const SECONDS_PER_DAY = 86_400;
 export const STEPS_GOAL = 8_000;
 export const SLEEP_GOAL_MINUTES = 420;
+/** 維持規則 v2（DEC-04）：運動任務＝當日已同步且審核通過的 GPS 跑步／健走，距離 ≥ 1 km 且移動 ≥ 10 分鐘（value 以公尺計） */
+export const WORKOUT_GOAL_M = 1_000;
+export const WORKOUT_GOAL_MOVING_MS = 600_000;
 
-export type TaskType = 'steps' | 'sleep';
+export type TaskType = 'steps' | 'sleep' | 'workout';
+/** 鏈上／後端 task_type 代碼（attestation、ClaimReceipt seed、challenge） */
+export const TASK_CODE: Record<TaskType, 1 | 2 | 3> = { steps: 1, sleep: 2, workout: 3 };
 
 /** SA 6.3 每日任務狀態 */
 export type TaskStatus =
@@ -30,7 +35,7 @@ export function secondsUntilUtcMidnight(unixSeconds: number): number {
 }
 
 export function progress(type: TaskType, value: number): TaskProgress {
-  const goal = type === 'steps' ? STEPS_GOAL : SLEEP_GOAL_MINUTES;
+  const goal = type === 'steps' ? STEPS_GOAL : type === 'workout' ? WORKOUT_GOAL_M : SLEEP_GOAL_MINUTES;
   const v = Math.max(0, Math.floor(value));
   return { type, value: v, goal, met: v >= goal, remaining: Math.max(0, goal - v), ratio: Math.min(1, v / goal) };
 }

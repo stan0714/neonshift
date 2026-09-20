@@ -18,7 +18,7 @@ type Props = {
 };
 
 /** SA 附錄 A 拒絕碼 → 使用者可見文案（不揭露門檻；i18n key `clock.reject.<code>.*`） */
-const REJECT_CODES = ['SRC_UNATTRIBUTED', 'SRC_MANUAL', 'NO_SENSOR', 'LIVE_MOTION_INCOMPLETE', 'TASK_NOT_MET', 'SLEEP_RANGE', 'RISK_SCORE'];
+const REJECT_CODES = ['SRC_UNATTRIBUTED', 'SRC_MANUAL', 'NO_SENSOR', 'LIVE_MOTION_INCOMPLETE', 'TASK_NOT_MET', 'SLEEP_RANGE', 'RISK_SCORE', 'WORKOUT_NOT_SYNCED', 'WORKOUT_UNDER_REVIEW'];
 
 /**
  * 打卡引導（PG-A-13，Style 7.3／15）：live motion 倒數 → Verifying → Open wallet → Confirming → Confirmed／Failed。
@@ -58,7 +58,7 @@ export function ClockInSheet({ visible, input, onClose, onPhase }: Props) {
     <Modal visible={visible} transparent animationType="fade" onRequestClose={cancel}>
       <View style={styles.scrim}>
         <Surface hero style={styles.sheet} testID="clockin-sheet">
-          <Text variant="heading2">{input?.taskType === 'steps' ? t('mission.steps') : t('mission.sleep')}</Text>
+          <Text variant="heading2">{input?.taskType === 'steps' ? t('mission.steps') : input?.taskType === 'workout' ? t('mission.workout') : t('mission.sleep')}</Text>
           {phase ? <PhaseView phase={phase} taskType={input?.taskType ?? 'steps'} /> : null}
           <View style={styles.actions}>
             {terminal ? <Button label={t('clock.done')} onPress={onClose} /> : <Button label={phase?.kind === 'live_motion' ? t('clock.cancelCheck') : t('common.cancel')} variant="secondary" onPress={cancel} disabled={phase?.kind === 'awaiting_signature' || phase?.kind === 'confirming'} disabledReason={phase?.kind === 'confirming' ? t('clock.waitingNetwork') : undefined} />}
@@ -102,7 +102,7 @@ function PhaseView({ phase, taskType }: { phase: ClaimPhase; taskType: TaskType 
       return <Step icon="clock" text={t('clock.confirming')} tint={color.cyan} testID="phase-confirming" />;
     case 'confirmed':
       return (
-        <InlineState kind="success" title={taskType === 'steps' ? t('clock.claimed.steps') : t('clock.claimed.sleep')} body={phase.signature ? t('clock.claimed.bodyTx', { tx: phase.signature.slice(0, 8) }) : t('clock.claimed.body')} testID="phase-confirmed" />
+        <InlineState kind="success" title={taskType === 'steps' ? t('clock.claimed.steps') : taskType === 'workout' ? t('clock.claimed.workout') : t('clock.claimed.sleep')} body={phase.signature ? t('clock.claimed.bodyTx', { tx: phase.signature.slice(0, 8) }) : t('clock.claimed.body')} testID="phase-confirmed" />
       );
     case 'already_claimed':
       return <InlineState kind="info" title={t('clock.already.title')} body={t('clock.already.body')} testID="phase-already" />;

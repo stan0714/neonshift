@@ -135,7 +135,7 @@ export type EventBenefit = { benefit_id: string; kind: 'physical' | 'digital_bad
 export type RedemptionStatus = 'reserved' | 'fulfilled' | 'expired' | 'cancelled';
 export type Redemption = { redemption_id: string; benefit_id: string; quantity: number; status: RedemptionStatus; claim_code: string | null; reserved_at: string; reserved_until: string; fulfilled_at: string | null; credential_id: string | null };
 export type PartnerMe = { organizations: { org_id: string; role: string; name: string | null }[]; event_roles: { event_id: string; role: string; checkpoint_id: string | null }[] };
-export type HistoryItem = { task_date: number; task_type: 'steps' | 'sleep'; issued_at: string; expires_at: string; redeemed_signature: string | null; amount: string | null; xp: number | null; shoe_level: number | null };
+export type HistoryItem = { task_date: number; task_type: 'steps' | 'sleep' | 'workout'; issued_at: string; expires_at: string; redeemed_signature: string | null; amount: string | null; xp: number | null; shoe_level: number | null };
 export type HistoryResponse = { days: number; retention_days: number; total_earned: string; items: HistoryItem[] };
 
 async function readTokens(): Promise<Tokens | null> {
@@ -268,7 +268,7 @@ export class ApiClient {
   // ---------------- claim ----------------
 
   /** SD 4.2：先算 request_hash → /auth/challenge → MWA 簽 `domain||nonce||request_hash||expiry_le` */
-  async authorizeClaim(purpose: 'claim' | 'tournament_steps', requestHash: Uint8Array, taskDate: number, taskType: 1 | 2) {
+  async authorizeClaim(purpose: 'claim' | 'tournament_steps', requestHash: Uint8Array, taskDate: number, taskType: 1 | 2 | 3) {
     const c = await this.request<ChallengeResponse>('POST', '/auth/challenge', {
       purpose,
       request_hash_b64: Buffer.from(requestHash).toString('base64'),

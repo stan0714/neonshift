@@ -12,7 +12,7 @@ import { maintenanceNeeds } from '@/chain/accounts';
 import { APP_CONFIG } from '@/config/app';
 import { secondsUntilUtcMidnight, type TaskType } from '@/domain/taskEngine';
 import type { ClaimInput, ClaimPhase } from '@/services/claim/ClaimFlow';
-import { estimateReward, formatTskr, sleepProgress, stepsProgress, useDashboardStore } from '@/state/dashboardStore';
+import { estimateReward, formatTskr, sleepProgress, stepsProgress, useDashboardStore, workoutProgress } from '@/state/dashboardStore';
 import { healthConnect, type HealthPermissionSummary } from '@/services/health/HealthConnectService';
 import { useLevelRevealStore } from '@/state/levelRevealStore';
 import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
@@ -59,6 +59,8 @@ export function HomeScreen() {
 
   const steps = stepsProgress(d.health);
   const sleep = sleepProgress(d.health);
+  // 維持規則 v2：運動任務（當日已同步、審核通過的 GPS 紀錄）；recorder／outbox 變化時重算
+  const workout = workoutProgress(d.workout);
   const syncedAgoMin = d.health?.syncedAt ? Math.round((Date.now() - d.health.syncedAt) / 60_000) : null;
   const outdated = d.health?.syncedAt ? Date.now() - d.health.syncedAt > OUTDATED_MS : false;
   const stepsStatus = syncedAgoMin === null ? t('home.notSynced') : outdated ? t('home.outdated') : d.health?.error ? t('home.offlineCached') : t('home.updatedAgo', { n: syncedAgoMin });
@@ -70,6 +72,7 @@ export function HomeScreen() {
   // review 6：追蹤進行中的運動（recorder 狀態變化與取得焦點時更新）
   const [active, setActive] = useState(() => workoutRecorder.active());
   useEffect(() => workoutRecorder.subscribe(() => setActive(workoutRecorder.active())), []);
+  useEffect(() => { d.refreshWorkout(); return workoutRecorder.subscribe(() => d.refreshWorkout()); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [d.taskDate, isFocused]);
   useEffect(() => { if (!prefs.loaded) void prefs.load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const startClaim = (type: TaskType) => {
@@ -80,6 +83,7 @@ export function HomeScreen() {
       taskDate: d.taskDate,
       steps: d.health?.steps ?? null,
       sleep: d.health?.sleep ?? null,
+      workout: d.workout,
       chain: { mint: d.config.mint, rewardVault: d.config.rewardVault },
       maintenance: maintenanceNeeds(d.profile, d.taskDate, d.freeze !== null),
       client: { appVersion: '0.1.0', deviceModel: 'Android', osApi: 34, sdkExtension: 0 },
@@ -117,6 +121,9 @@ export function HomeScreen() {
 
   const stepsReward = estimateReward(d.config, d.profile, 'steps');
   const sleepReward = estimateReward(d.config, d.profile, 'sleep');
+  const workoutReward = estimateReward(d.config, d.profile, 'workout');
+  // 運動任務只擋錢包／鏈／後端／暫停（不看 Health Connect）；未同步／待審由卡片文字說明
+  const workoutDisabledReason = !session ? t('common.reasonConnectWallet') : !APP_CONFIG.chainConfigured ? t('common.reasonChain') : !APP_CONFIG.backendConfigured ? t('common.reasonBackend') : d.config?.paused ? t('common.reasonPaused') : undefined;
   const ap = useAppearance(); // PG-LINK-01：跑鞋外觀與棲地背景
   const recent = useMemo(() => {
     const owner = session?.address ?? null;
@@ -240,6 +247,7 @@ export function HomeScreen() {
       </Pressable>
 
       <MissionCard type="steps" status={d.tasks.steps} progress={steps} rewardLabel={stepsReward !== null ? `${formatTskr(stepsReward)} tSKR` : null} onPress={() => startClaim('steps')} disabledReason={disabledReason} testID="mission-steps" />
+      {!FEATURES.sleep ? <MissionCard type="workout" status={d.tasks.workout} progress={workout} rewardLabel={workoutReward !== null ? `${formatTskr(workoutReward)} tSKR` : null} onPress={() => startClaim('workout')} disabledReason={workoutDisabledReason} evidence={d.workout} testID="mission-workout" /> : null}
       {FEATURES.sleep ? <MissionCard type="sleep" status={d.tasks.sleep} progress={sleep} rewardLabel={sleepReward !== null ? `${formatTskr(sleepReward)} tSKR` : null} onPress={() => startClaim('sleep')} disabledReason={disabledReason} testID="mission-sleep" /> : null}
 
       <Text variant="caption" tone="muted" style={styles.disclaimer}>

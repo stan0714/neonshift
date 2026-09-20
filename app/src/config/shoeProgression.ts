@@ -5,7 +5,7 @@ export type ShoeLevel = 1 | 2 | 3 | 4 | 5;
 /** Design defaults for preview only; live rewards and levels must come from chain Config/Profile. */
 export const SHOE_PROGRESSION = {
   version: 2,
-  xpPerClaim: { steps: 100, sleep: 50 },
+  xpPerClaim: { steps: 100, sleep: 50, workout: 100 },
   stages: [
     { level: 1, name: 'Origin', xp: 0, tint: color.textSecondary, accent: color.textMuted, material: color.elevated, detail: 'Graphite mesh · single light rail' },
     { level: 2, name: 'Asian Elephant', xp: 450, tint: color.cyan, accent: color.mint, material: color.borderSubtle, detail: 'Ear-shaped guard · trunk seam' },

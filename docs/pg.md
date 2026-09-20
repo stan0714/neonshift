@@ -259,7 +259,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | DEC-01 | 全部 | 團隊人數、角色與至少 5 FTE 的容量安排（BRD Q-01） | 專案負責人 | 2026-09-10 | OPEN |
 | DEC-02 | PG-I-08、PG-D-02 | SKR integration track 是否接受 tSKR（BRD Q-08） | 專案負責人 | 2026-09-10 | OPEN |
 | DEC-03 | PG-D-06、SD 6.2 | 改以遊戲／獎勵解耦、全站已撥款預算、現金與代幣庫存分帳評估（economics/stepn-risk-review.md）；比例／結算週期／切換方案待決。降低輸家退款不是總消耗來源 | 專案負責人 | 2026-09-21 | OPEN |
-| DEC-04 | PG-V-01、PG-V-02 | 睡眠停用後所有玩家被鎖 Lv4（步數 700 < Lv5 900）。2026-09-20 提案規則 v2（docs/economics/maintenance-v2.md，模擬 `simulate-v2.mjs`）：**建議 B**＝第二任務改「運動 session」+100、日上限 200、門檻不變 → Lv5＝每日步數＋每週 2～3 次運動（可留一天休息），只走步數最高 Lv4；A（運動 +50）Lv5 需每週 4 次運動；C（Lv5 改 700／7）不運動也能 Lv5。採用後需鏈上 TASK_WORKOUT=3／後端 claim 驗證／App 任務卡（估 3.0 人天） | 專案負責人 | 2026-09-22 | OPEN（待選 B 與 session 門檻） |
+| DEC-04 | PG-V-01、PG-V-02 | 睡眠停用後所有玩家被鎖 Lv4（步數 700 < Lv5 900）。2026-09-20 提案規則 v2（docs/economics/maintenance-v2.md，模擬 `simulate-v2.mjs`）：**建議 B**＝第二任務改「運動 session」+100、日上限 200、門檻不變 → Lv5＝每日步數＋每週 2～3 次運動（可留一天休息），只走步數最高 Lv4；A（運動 +50）Lv5 需每週 4 次運動；C（Lv5 改 700／7）不運動也能 Lv5。採用後需鏈上 TASK_WORKOUT=3／後端 claim 驗證／App 任務卡（估 3.0 人天） | 專案負責人 | 2026-09-22 | **DECIDED 2026-09-20：採 B**（運動 +100、上限 200、門檻不變；session ≥ 1 km 且移動 ≥ 10 分、只認 App 內 GPS 記錄）；實作見 PG-V-06 |
 
 DEC-02 若判定必須整合主網官方 SKR，PG-I-08 的 tSKR 路線、SA 5.4 與鏈上金庫設計都必須重估；不得在現有四週估算內直接替換。
 
@@ -722,6 +722,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-V-02 | Active／Highest／週期帳戶、結算及 migration | shoe-gameplay 7；SD 14 | BR-41～43 | 5.0 | WIP | 2026-09-15：PlayerProfile ＋6 欄位（71→85）、`maintenance.rs` 純規則（與 rules.mjs 同版）、`settle_player_epochs`（任何 payer、≤ 64 期、冪等）、`migrate_player`（保留等級、當日起新週期）、clock_in 順帶結算 ≤ 8 期／6041、獎勵用結算後等級、期內點數／bitmap、`EpochSettled`／`PlayerMigrated` 事件、鞋階 NFT 依 highest；App 解碼／前置指令；indexer 投影；chain-admin migrate／settle；Rust 100 測試、Jest 211、vitest 193。待：devnet 升級＋migrate-players、實機 |
 | PG-V-03 | 倍率與歷史鑄造／活動／PB 能力快照 | shoe-gameplay 5、7 | FR-16.4、BR-44 | 3.0 | WIP | 2026-09-15：migration 0015 `level_history`＋`gallery_players.highest_level`；投影 init／migrate／epoch；PB NFT 需達成日 Lv3（`LEVEL_REQUIRED`／`LEVEL_HISTORY_UNKNOWN`，回填無歷史只留私人 PB）、能力快照寫入 metadata（簽章綁定）；`/me/personal-bests.nft_eligibility`；App 顯示原因；鞋階依 highest、活動章 Lv2 快照、首次章 Lv1；vitest、PG 整合 17、Jest 211。待：實機 |
 | PG-V-04 | Gear 維持儀表、歷史收藏、現役／歷史榜 | shoe-gameplay 6；Style 21 | FR-16.1～3 | 3.0 | WIP | 2026-09-15：App `domain/maintenance.ts`＋4 測試；Gear Active／Highest Chip、本期維持區塊（倒數、點數／活躍日、維持／升階／回歸差額、未遷移／待結算狀態）、收藏三區與 History 標籤（鞋階資格依歷史最高）；藝廊「現役排行／歷史成就」雙榜（後端 `board=lifetime`）；Jest 218、vitest 193。待：實機、48／24 小時提醒（通知權限未實作） |
+| PG-V-06 | 維持規則 v2：運動任務取代睡眠（DEC-04 方案 B） | shoe-gameplay 3；SD 3、14；economics/maintenance-v2 | FR-16 | 3.0 | WIP | 2026-09-20：鏈上 TASK_WORKOUT=3／6045／v2 常數（LiteSVM＋單元 121 全過）、後端 claim workout＋rules v4＋migration 0018（vitest 207）、App 運動任務卡／ClaimFlow／dashboard（Jest）；待 devnet 程式升級、l1 部署（RULES_FILE=v4）、實機打卡驗收 |
 | PG-V-05 | 凍結治理、版本遷移、結算／撤銷攻擊與實機驗收 | shoe-gameplay 4、8 | FR-16.5、BR-45 | 3.0 | WIP | 2026-09-15：`IncidentFreeze` PDA＋`set_incident_freeze`（admin、視窗檢查 6044、(0,0) 清除、事件）；結算凍結期不升不降、`EpochSettled.frozen`；規則版本寫入 profile／事件、遷移保留等級；LiteSVM 攻擊／邊界（非 admin、非法視窗、重疊／非重疊期、清除後恢復、錯誤 freeze 帳戶、重送、6041、6042／6043）Rust 101；App freeze 帳戶讀取／指令帶入／Gear 提示；chain-admin `set-freeze`。待：實機驗收、devnet 升級（含 migrate-players） |
 
 ### 18.4 依賴、批次及排程狀態

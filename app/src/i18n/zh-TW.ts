@@ -187,6 +187,14 @@ export const zhTW: Record<keyof typeof en, string> = {
 
   'mission.steps': '步數任務',
   'mission.sleep': '睡眠任務',
+  'mission.workout': '運動任務',
+  'mission.workout.reached': '今天已同步 {km} km 的跑步／健走，可以打卡',
+  'mission.workout.none': '在 NeonShift 記錄一場至少 1 km（移動 10 分鐘）的跑步或健走，同步後即可打卡。',
+  'mission.workout.notSynced': '今天已記錄 {km} km，尚未同步。到「資料與同步」同步後才能打卡。',
+  'mission.workout.review': '今天的運動仍在審核中，暫時不能打卡。',
+  'mission.workout.tooShort': '今天最長的已同步運動 {km} km，至少需要 1 km。',
+  'mission.workout.tooShortTime': '已同步 {km} km，但移動時間不到 10 分鐘。',
+
   'mission.headline.ready': '可以打卡了',
   'mission.headline.claimed': '今日已領取',
   'mission.headline.rejected': '未通過驗證',
@@ -244,6 +252,7 @@ export const zhTW: Record<keyof typeof en, string> = {
   'clock.confirming': '交易已送出，等待 devnet 確認…',
   'clock.claimed.steps': '步數任務已領取',
   'clock.claimed.sleep': '睡眠任務已領取',
+  'clock.claimed.workout': '運動任務已領取',
   'clock.claimed.bodyTx': 'tSKR 已送到你的錢包。交易 {tx}…',
   'clock.claimed.body': 'tSKR 已送到你的錢包。',
   'clock.already.title': '今天已領取',
@@ -263,6 +272,10 @@ export const zhTW: Record<keyof typeof en, string> = {
   'clock.reject.TASK_NOT_MET.body': '經過篩選後，你的驗證進度低於目標。繼續加油。',
   'clock.reject.SLEEP_RANGE.title': '睡眠時長超出範圍',
   'clock.reject.SLEEP_RANGE.body': '3 到 12 小時之間的睡眠才符合條件。',
+  'clock.reject.WORKOUT_NOT_SYNCED.title': '今天沒有已同步的運動',
+  'clock.reject.WORKOUT_NOT_SYNCED.body': '請先在 NeonShift 記錄跑步或健走並同步後再打卡；匯入的運動不計。',
+  'clock.reject.WORKOUT_UNDER_REVIEW.title': '運動審核中',
+  'clock.reject.WORKOUT_UNDER_REVIEW.body': '今天的運動仍在審核中，暫時不能打卡。',
   'clock.reject.RISK_SCORE.title': '打卡無法通過驗證',
   'clock.reject.RISK_SCORE.body': '這次打卡未通過驗證，明天可以再試。',
 

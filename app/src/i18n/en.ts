@@ -195,6 +195,14 @@ export const en = {
   // ---- mission card / task engine ----
   'mission.steps': 'Step mission',
   'mission.sleep': 'Sleep mission',
+  'mission.workout': 'Workout mission',
+  'mission.workout.reached': 'Today\'s run or walk synced: {km} km · ready to clock in',
+  'mission.workout.none': 'Record a run or walk of at least 1 km (10 min moving) in NeonShift, then sync it.',
+  'mission.workout.notSynced': '{km} km recorded today, not synced yet. Sync it from Data & sync to clock in.',
+  'mission.workout.review': 'Today\'s workout is under review and cannot be claimed.',
+  'mission.workout.tooShort': 'Longest synced workout today: {km} km. Needs at least 1 km.',
+  'mission.workout.tooShortTime': '{km} km synced, but under 10 minutes of moving time.',
+
   'mission.headline.ready': 'READY TO CLOCK IN',
   'mission.headline.claimed': 'CLAIMED TODAY',
   'mission.headline.rejected': 'NOT VERIFIED',
@@ -254,6 +262,7 @@ export const en = {
   'clock.confirming': 'Transaction sent. Waiting for devnet confirmation…',
   'clock.claimed.steps': 'Step mission claimed',
   'clock.claimed.sleep': 'Sleep mission claimed',
+  'clock.claimed.workout': 'Workout mission claimed',
   'clock.claimed.bodyTx': 'tSKR sent to your wallet. Tx {tx}…',
   'clock.claimed.body': 'tSKR sent to your wallet.',
   'clock.already.title': 'Already claimed today',
@@ -273,6 +282,10 @@ export const en = {
   'clock.reject.TASK_NOT_MET.body': 'After filtering, your verified progress is below the goal. Keep moving.',
   'clock.reject.SLEEP_RANGE.title': 'Sleep duration out of range',
   'clock.reject.SLEEP_RANGE.body': 'Sessions between 3 and 12 hours qualify.',
+  'clock.reject.WORKOUT_NOT_SYNCED.title': 'No synced workout today',
+  'clock.reject.WORKOUT_NOT_SYNCED.body': 'Record a run or walk in NeonShift and sync it before clocking in. Imported workouts do not count.',
+  'clock.reject.WORKOUT_UNDER_REVIEW.title': 'Workout under review',
+  'clock.reject.WORKOUT_UNDER_REVIEW.body': 'Today\'s workout is still under review and cannot be claimed.',
   'clock.reject.RISK_SCORE.title': 'Claim could not be verified',
   'clock.reject.RISK_SCORE.body': 'This claim did not pass verification. You can try again tomorrow.',
 

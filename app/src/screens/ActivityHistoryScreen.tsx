@@ -77,7 +77,7 @@ export function ActivityHistoryScreen() {
             <Surface style={styles.row}>
               <Feather name={i.task_type === 'steps' ? 'activity' : 'moon'} size={20} color={i.task_type === 'steps' ? color.mint : color.violet} />
               <View style={styles.rowText}>
-                <Text variant="title">{i.task_type === 'steps' ? t('mission.steps') : t('mission.sleep')}</Text>
+                <Text variant="title">{i.task_type === 'steps' ? t('mission.steps') : i.task_type === 'workout' ? t('mission.workout') : t('mission.sleep')}</Text>
                 <Text variant="caption" tone="muted" numeric>
                   {t('act.dateXp', { date: dateOf(i.task_date) })}{i.xp !== null ? ` · ${t('common.xp', { n: i.xp })}` : ''}
                 </Text>
