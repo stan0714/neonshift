@@ -15,3 +15,20 @@
 | 05-arena / -arena-events-link | 05 Connect with community | ⚠️ | 需先簽 SIWS 才能進活動頁；雙角色流程待測試活動建立後錄影 |
 
 USB 抓不到：Seed Vault／MWA 錢包授權視窗（secure surface → 黑畫面）、戶外起步鏡頭、Explorer 交易頁（用電腦瀏覽器截）。錄影用 `scripts/demo/capture.sh rec <name> [秒]`（無聲、單檔 ≤ 3 分鐘），操作前先 `capture.sh touches on`。
+
+## `*-demo*.png`：展示版覆寫（DEMO DATA，非真實鏈上等級）
+
+APK 以 `EXPO_PUBLIC_DEMO_LEVEL=3 scripts/app/build.sh dev release` 建置（Git 29fb41c）；App 把鏈上 Lv.1 profile **顯示**成 Lv.3，畫面右上固定「DEMO DATA」、打卡／鑄造停用。影片中這些鏡頭必須標 **DESIGN PREVIEW／DEMO DATA**，不得標 REAL DEVICE · DEVNET。鏈上、後端、提交 APK 都未變。
+
+| 檔案 | 場景 | 內容 |
+|---|---|---|
+| 01-home-top-demo-lv3、04-reveal-story-demo、-story2、-footer | 04 揭曉 → 鞋面 → 物種故事 | 覆寫觸發「GEAR EVOLVED Lv.1 → Lv.3」揭曉儀式：Hawksbill 鞋面、設計解說、玳瑁棲地與保育行動、WWF 故事連結 |
+| 01-home-ocean-demo-lv3 | 04／01 | Home 海洋棲地背景（Lv.3） |
+| 04-gear-top-demo-lv3、04-gear-my-shoes-demo-lv3 | 04 已取得鞋款 | 我的跑鞋 3 雙（Origin／Asian Elephant／Hawksbill）、本期維持 0／700 |
+| 04-gear-elephant-detail-demo、04-gear-after-use-elephant-demo、04-gear-top-forest-look-demo | 04 切鞋 | 詳情「Use this pair」→ 外觀 Lv.2 亞洲象、森林背景；有效等級仍 Lv.3 |
+| 01-home-forest-demo、02-activity-forest-demo、02-activity-cards-forest-demo | 04／02 | 森林背景鋪 Home／Activity，卡片縮圖同底圖 |
+| 02-workout-start-route-picker-demo、02-workout-start-route-forest-demo | 04 路線底圖 | 開始前選底圖：Forest／Ocean 可選，Jungle Lv.4／Snow Lv.5 鎖定 |
+| 02-summary-top-demo、02-summary-route-demo | 02 | 摘要頁（含當時跑鞋、已固定背景） |
+| 04-gear-bg-switch-on-demo、-off-demo、01-home-bg-off-demo | 04 關背景 | 「跟隨跑鞋背景」關閉後 Home 回基本底、所選鞋不變 |
+
+真實 Lv.2+ 帳號的同畫面待維持規則 v2 跑滿一期後再重截替換。
