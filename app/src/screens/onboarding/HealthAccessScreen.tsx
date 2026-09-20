@@ -6,6 +6,7 @@ import { HealthError, healthConnect, type HealthPermissionSummary } from '@/serv
 import { useOnboardingStore } from '@/state/onboardingStore';
 import { color } from '@/theme';
 import { useT } from '@/i18n';
+import { FEATURES } from '@/config/features';
 
 type Phase = 'idle' | 'checking' | 'requesting' | 'granted' | 'denied' | 'unavailable' | 'update_required' | 'unsupported';
 
@@ -74,7 +75,7 @@ export function HealthAccessScreen() {
     <OnboardingLayout
       step={2}
       title={t('health.title')}
-      lead={t('health.lead')}
+      lead={t(FEATURES.sleep ? 'health.lead' : 'health.leadSteps')}
       testID="onboarding-health"
       actions={
         <>
@@ -91,7 +92,7 @@ export function HealthAccessScreen() {
       }
     >
       <Bullet icon="activity" text={t('health.bullet1')} />
-      <Bullet icon="moon" text={t('health.bullet2')} tint={color.violet} />
+      {FEATURES.sleep ? <Bullet icon="moon" text={t('health.bullet2')} tint={color.violet} /> : null}
       <Bullet icon="database" text={t('health.bullet3')} tint={color.cyan} />
       <Bullet icon="settings" text={t('health.bullet4')} tint={color.textSecondary} />
 

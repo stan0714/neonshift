@@ -6,7 +6,7 @@ import { Alert } from 'react-native';
 
 import { formatDuration, formatKm, formatPace, sportOf, toImportInput } from '@/domain/workouts';
 import { WorkoutsScreen } from '@/screens/WorkoutsScreen';
-import { importFromHealthConnect } from '@/services/workouts/importer';
+import { importFromHealthConnect, previewHealthConnect } from '@/services/workouts/importer';
 import { ThemeProvider } from '@/theme';
 
 jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { myWorkouts: jest.fn(), importWorkouts: jest.fn(), deleteWorkout: jest.fn(), personalBests: jest.fn(async () => ({ rules_major: 1, imported_since: '2026-09-01T00:00:00Z', groups: [{ key: 'k', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', current: { pb_id: 'p2', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', rules_major: 1, value: '1500000', unit: 'ms', source: { kind: 'workout', id: 's1', revision: 1 }, achieved_at: '2026-09-05T00:00:00Z', status: 'current', is_baseline: false, previous_pb_id: 'p1', invalidated_at: null, reason: null }, history: [{ pb_id: 'p1', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', rules_major: 1, value: '1600000', unit: 'ms', source: { kind: 'workout', id: 's0', revision: 1 }, achieved_at: '2026-09-01T00:00:00Z', status: 'historical', is_baseline: true, previous_pb_id: null, invalidated_at: null, reason: null }] }, { key: 'k2', category: 'longest_run', environment: 'outdoor', verification_class: 'organizer', timing_basis: 'elapsed', current: null, history: [{ pb_id: 'p3', category: 'longest_run', environment: 'outdoor', verification_class: 'organizer', timing_basis: 'elapsed', rules_major: 1, value: '5000000', unit: 'mm', source: { kind: 'result', id: 'r1', revision: 1 }, achieved_at: '2026-10-03T00:00:00Z', status: 'invalidated', is_baseline: true, previous_pb_id: null, invalidated_at: '2026-10-04T00:00:00Z', reason: 'source_removed_or_corrected' }] }] })) } }));
@@ -63,6 +63,16 @@ describe('importer', () => {
     expect(api.importWorkouts.mock.calls[0]![0]).toHaveLength(50);
     expect(api.importWorkouts.mock.calls[1]![0]).toHaveLength(9);
     expect(r).toEqual({ kind: 'ok', imported: 57, superseded: 2, skipped: 1 });
+  });
+  test('預檢：不提示權限、不上傳；對照伺服器 (source_id, external_record_id, revision) 算尚未匯入筆數；權限未授予 → unknown', async () => {
+    const sessions = [{ ...hc, recordId: 'r1', version: 1 }, { ...hc, recordId: 'r2', version: 2 }, { ...hc, recordId: 'r3', version: 1 }];
+    const existing = [{ source: { source_id: hc.dataOrigin, external_record_id: 'r1', source_revision: 1 } }, { source: { source_id: hc.dataOrigin, external_record_id: 'r2', source_revision: 1 } }];
+    const requestPermissions = jest.fn();
+    expect(await previewHealthConnect(existing, { reader: { readExerciseSessions: async () => ({ sessions }), requestPermissions } })).toEqual({ kind: 'ok', pending: 2, total: 3 }); // r2 有新版本、r3 全新
+    expect(await previewHealthConnect(sessions.map((x) => ({ source: { source_id: hc.dataOrigin, external_record_id: x.recordId, source_revision: 2 } })), { reader: { readExerciseSessions: async () => ({ sessions }) } })).toEqual({ kind: 'ok', pending: 0, total: 3 });
+    expect(await previewHealthConnect([], { reader: { PERMISSION_READ_EXERCISE: 'p', getGrantedPermissions: async () => [], requestPermissions, readExerciseSessions: async () => ({ sessions }) } })).toEqual({ kind: 'unknown' });
+    expect(requestPermissions).not.toHaveBeenCalled();
+    expect(api.importWorkouts).not.toHaveBeenCalled();
   });
 });
 

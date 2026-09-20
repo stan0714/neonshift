@@ -37,7 +37,7 @@ describe('PG-A-21 Profile', () => {
   test('顯示錢包、權限狀態、隱私說明與 tSKR 免責', async () => {
     await render(<ProfileScreen />, { wrapper: Wrapper });
     expect(screen.getByText('7xKXtg…osgAsU')).toBeTruthy();
-    await waitFor(() => expect(screen.getByText(/Steps & Sleep · background/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/^Steps · background/)).toBeTruthy());
     expect(screen.getByText('Allowed')).toBeTruthy();
     expect(screen.getByText(/at most 30 days/)).toBeTruthy();
     expect(screen.getByText(/not the official SKR/)).toBeTruthy();

@@ -23,6 +23,7 @@ import { color, radius, space, Text, useTheme, glowStyle } from '@/theme';
 
 import { ClockInSheet } from './ClockInSheet';
 import { useT, type TKey } from '@/i18n';
+import { FEATURES } from '@/config/features';
 
 const OUTDATED_MS = 30 * 60 * 1000;
 
@@ -208,8 +209,8 @@ export function HomeScreen() {
       </Text>
       <View style={styles.cards}>
         <DataCard icon="activity" label={t('home.steps')} value={steps.value.toLocaleString()} unit={t('home.stepsUnit')} goalLabel={t('home.goal', { n: steps.goal })} ratio={steps.ratio} tint={color.mint} statusText={stepsStatus} outdated={outdated || Boolean(d.health?.error)} testID="card-steps" />
-        <View style={styles.gap} />
-        <DataCard icon="moon" label={t('home.sleep')} value={t('home.sleepValue', { h: Math.floor(sleep.value / 60), m: sleep.value % 60 })} unit="" goalLabel={t('home.goalSleep')} ratio={sleep.ratio} tint={color.violet} statusText={d.health?.sleep && d.health.sleep.sessions.length === 0 ? t('home.noSleep') : ''} testID="card-sleep" />
+        {FEATURES.sleep ? <View style={styles.gap} /> : null}
+        {FEATURES.sleep ? <DataCard icon="moon" label={t('home.sleep')} value={t('home.sleepValue', { h: Math.floor(sleep.value / 60), m: sleep.value % 60 })} unit="" goalLabel={t('home.goalSleep')} ratio={sleep.ratio} tint={color.violet} statusText={d.health?.sleep && d.health.sleep.sessions.length === 0 ? t('home.noSleep') : ''} testID="card-sleep" /> : null}
       </View>
       <Text variant="caption" tone="muted" style={styles.utc}>
         {t('home.utcReset', { h: Math.floor(untilMidnight / 3600), m: Math.floor((untilMidnight % 3600) / 60) })}
@@ -217,7 +218,7 @@ export function HomeScreen() {
 
       {/* Style 14 inline states：說明發生什麼、資料是否安全、下一步 */}
       {permissions && permissions.state !== 'granted' ? (
-        <InlineState kind="warning" title={t('home.healthOff.title')} body={t('home.healthOff.body')} action={{ label: t('home.healthOff.action'), onPress: () => navigation.navigate('Onboarding', { screen: 'HealthAccess' }) }} testID="state-health-off" />
+        <InlineState kind="warning" title={t('home.healthOff.title')} body={t(FEATURES.sleep ? 'home.healthOff.body' : 'home.healthOff.bodySteps')} action={{ label: t('home.healthOff.action'), onPress: () => navigation.navigate('Onboarding', { screen: 'HealthAccess' }) }} testID="state-health-off" />
       ) : null}
       {d.health?.error && permissions?.state === 'granted' ? (
         <InlineState kind="warning" title={t('home.healthErr.title')} body={t('home.healthErr.body', { error: d.health.error })} action={{ label: t('common.tryAgain'), onPress: () => void d.syncHealth(), loading: d.healthSyncing }} testID="state-health-error" />
@@ -239,7 +240,7 @@ export function HomeScreen() {
       </Pressable>
 
       <MissionCard type="steps" status={d.tasks.steps} progress={steps} rewardLabel={stepsReward !== null ? `${formatTskr(stepsReward)} tSKR` : null} onPress={() => startClaim('steps')} disabledReason={disabledReason} testID="mission-steps" />
-      <MissionCard type="sleep" status={d.tasks.sleep} progress={sleep} rewardLabel={sleepReward !== null ? `${formatTskr(sleepReward)} tSKR` : null} onPress={() => startClaim('sleep')} disabledReason={disabledReason} testID="mission-sleep" />
+      {FEATURES.sleep ? <MissionCard type="sleep" status={d.tasks.sleep} progress={sleep} rewardLabel={sleepReward !== null ? `${formatTskr(sleepReward)} tSKR` : null} onPress={() => startClaim('sleep')} disabledReason={disabledReason} testID="mission-sleep" /> : null}
 
       <Text variant="caption" tone="muted" style={styles.disclaimer}>
         {t('common.testToken')}

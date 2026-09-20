@@ -8,7 +8,7 @@ import { formatDuration, formatKcal, formatKm, formatPace, qualityKind, modeLabe
 import { useT, type TKey } from '@/i18n';
 import { localTimeZone, matchesMode, weeklyReview, type ModeFilter } from '@/domain/review';
 import { ApiError, apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
-import { importFromHealthConnect } from '@/services/workouts/importer';
+import { importFromHealthConnect, previewHealthConnect, type ImportPreview } from '@/services/workouts/importer';
 import type { SessionMeta } from '@/services/workouts/LocalWorkoutStore';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { outboxOrder, workoutOutbox } from '@/services/workouts/WorkoutOutbox';
@@ -81,11 +81,15 @@ export function WorkoutsScreen() {
     else await load();
   };
 
+  // 匯入預檢：伺服器清單載入後對照 Health Connect（不提示權限）；全部已匯入 → 不顯示匯入按鈕，只留一行說明
+  const [preview, setPreview] = useState<ImportPreview>({ kind: 'unknown' });
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setItems((await apiClient.myWorkouts({ limit: 100 })).items);
+      const list = (await apiClient.myWorkouts({ limit: 100 })).items;
+      setItems(list);
       setError(null);
+      previewHealthConnect(list).then(setPreview).catch(() => setPreview({ kind: 'unknown' }));
     } catch (e) {
       setError(e instanceof ApiError ? { message: e.message, code: e.code, ...(e.requestId ? { ref: e.requestId } : {}) } : { message: String(e), code: 'UNKNOWN' });
     } finally {
@@ -149,7 +153,11 @@ export function WorkoutsScreen() {
         {t('wo.intro')}
       </Text>
       <Button label={t('wo.record')} style={styles.mt} onPress={() => navigation.navigate('WorkoutStart')} testID="workouts-record" />
-      <Button label={t('wo.import')} variant="secondary" style={styles.mtS} onPress={() => void doImport()} loading={importing} loadingLabel={t('wo.importing')} testID="workouts-import" />
+      {preview.kind === 'ok' && preview.pending === 0 ? (
+        <Text variant="caption" tone="muted" style={styles.mtS} testID="workouts-import-uptodate">{t('wo.importUpToDate', { n: preview.total })}</Text>
+      ) : (
+        <Button label={preview.kind === 'ok' ? t('wo.importPending', { n: preview.pending }) : t('wo.import')} variant="secondary" style={styles.mtS} onPress={() => void doImport()} loading={importing} loadingLabel={t('wo.importing')} testID="workouts-import" />
+      )}
       {active ? (
         <InlineState kind="info" title={t('wo.ongoing.title')} body={t('wo.ongoing.body')} action={{ label: t('wo.ongoing.return'), onPress: () => navigation.navigate('WorkoutRecord') }} testID="workouts-ongoing" />
       ) : null}

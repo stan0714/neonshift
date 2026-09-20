@@ -19,6 +19,7 @@ import { useOnboardingStore } from '@/state/onboardingStore';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
 import { useLocaleStore, useT, type TKey } from '@/i18n';
+import { FEATURES } from '@/config/features';
 
 type Deletion = { state: 'idle' | 'working' | 'done' | 'scheduled' | 'error'; dueAt?: string; message?: string; referenceId?: string };
 
@@ -159,7 +160,7 @@ export function ProfileScreen() {
       </Section>
 
       <Section title={t('profile.permissions')}>
-        <Row icon="activity" label={t('profile.healthConnect')} detail={health ? (health.state === 'granted' ? `${t('profile.stepsSleep')}${health.backgroundGranted ? t('profile.background') : ''}` : health.state === 'partial' ? t('profile.partial') : t('profile.off')) : '…'} tint={health?.state === 'granted' ? color.success : color.warning} />
+        <Row icon="activity" label={t('profile.healthConnect')} detail={health ? (health.state === 'granted' ? `${t(FEATURES.sleep ? 'profile.stepsSleep' : 'profile.stepsOnly')}${health.backgroundGranted ? t('profile.background') : ''}` : health.state === 'partial' ? t('profile.partial') : t('profile.off')) : '…'} tint={health?.state === 'granted' ? color.success : color.warning} />
         <Row icon="bar-chart-2" label={t('profile.activity')} detail={activity === null ? '…' : activity ? t('profile.allowed') : t('profile.off')} tint={activity ? color.success : color.warning} />
         <View style={styles.rowBtns}>
           <Button label={t('profile.hcSettings')} variant="secondary" style={styles.half} onPress={() => void healthConnect.openSettings()} />

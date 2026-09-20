@@ -44,3 +44,22 @@ export async function importFromHealthConnect(opts: { days?: number; reader?: Re
   }
   return { kind: 'ok', imported, superseded, skipped: sessions.length - inputs.length };
 }
+
+/**
+ * 預檢（不提示權限、不上傳）：讀最近 N 天的 Health Connect 紀錄，對照伺服器已有的 (source_id, external_record_id, revision) 算出「尚未匯入」筆數。
+ * 用於 Workouts 頁只在真的有新紀錄時才顯示匯入按鈕；權限未授予／原生模組缺 → unknown（維持顯示按鈕）。
+ */
+export type ImportPreview = { kind: 'ok'; pending: number; total: number } | { kind: 'unknown' };
+export async function previewHealthConnect(existing: { source: { source_id: string; external_record_id: string; source_revision: number } }[], opts: { days?: number; reader?: Reader } = {}): Promise<ImportPreview> {
+  const reader = opts.reader ?? (require('../../../modules/neonshift-health/src/NeonshiftHealthModule') as { default: Reader }).default;
+  if (typeof reader.readExerciseSessions !== 'function') return { kind: 'unknown' };
+  const need = reader.PERMISSION_READ_EXERCISE;
+  if (need && reader.getGrantedPermissions && !(await reader.getGrantedPermissions()).includes(need)) return { kind: 'unknown' };
+  const end = Math.floor(Date.now() / 1000);
+  const { sessions } = await reader.readExerciseSessions(end - (opts.days ?? 30) * 86_400, end);
+  const inputs = sessions.map((s) => toImportInput(s, { stepLengthMm: null })).filter((x): x is NonNullable<typeof x> => x !== null);
+  const keyOf = (sourceId: string, recordId: string) => `${sourceId}|${recordId}`;
+  const have = new Map(existing.map((w) => [keyOf(w.source.source_id, w.source.external_record_id), w.source.source_revision]));
+  const pending = inputs.filter((x) => (have.get(keyOf(x.source_id, x.external_record_id)) ?? 0) < (x.source_revision ?? 1)).length;
+  return { kind: 'ok', pending, total: inputs.length };
+}
