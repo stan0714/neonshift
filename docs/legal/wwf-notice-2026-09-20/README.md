@@ -1,7 +1,15 @@
 # Notice to WWF — educational references to WWF species content in NeonShift
 
 > Draft prepared 2026-09-20. Send as an email (paste the body below; attach the five PNGs in `img/`) or as a PDF exported from this file.
-> Suggested recipients: WWF-US via the worldwildlife.org "Contact us" form (all species pages linked are WWF-US), cc WWF-UK via wwf.org.uk contact form (Amur leopard figure). Verify the current brand/licensing contact on wwf.panda.org before sending.
+> **Where to send** (checked 2026-09-20 on the WWF sites; addresses may change):
+>
+> | Office | Why | Channel |
+> |---|---|---|
+> | WWF-US (worldwildlife.org) — owner of the four species pages and two story pages we link | Primary recipient | Web form: https://help.worldwildlife.org/hc/en-us/requests/new (the Contact-us page lists no general email). Press desk: media@wwfus.org. The site-terms page names a "Copyright Agent, c/o General Counsel, World Wildlife Fund, Inc., 1250 24th Street NW, Washington, DC 20037" — for infringement notices only, not permission requests; the address is shown on https://www.worldwildlife.org/legal-notices/site-terms/. |
+> | WWF International (wwf.panda.org) — owns the "WWF" trademark and publishes the content-sharing rules | cc, for trademark / attribution guidance | Sharing-content policy: https://wwf.panda.org/using_site_content/ (text is CC BY-NC 4.0; just link back; the letters "WWF" must not be used to endorse or promote products; logo needs express permission; images need photo@wwfint.org). Press: news@wwfint.org. No general enquiry mailbox is published. |
+> | WWF-UK (wwf.org.uk) — source of the Amur leopard figure | cc | Supporter care: supportercare@wwf.org.uk · UK press office: press@wwf.org.uk, +44 (0)1483 412383 |
+>
+> Note: WWF-International's own policy already answers most of the letter — link back, no endorsement, no logo — so the letter mainly serves as notice and as a request for any preferred wording.
 
 ---
 
