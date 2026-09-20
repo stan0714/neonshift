@@ -23,7 +23,8 @@ pub fn effective_streak_days(profile: &PlayerProfile, task_date: u32) -> Result<
 pub fn raw_reward(config: &Config, core_level: u8, task_type: u8, streak_days: u16) -> Result<u64> {
     let base: u64 = match task_type {
         TASK_STEPS => config.base_steps_reward,
-        TASK_SLEEP => config.base_sleep_reward,
+        // v2：運動任務沿用 Config 的第二任務基礎欄位（原睡眠），避免 Config 版面遷移；睡眠本身已退役（clock_in 拒收）
+        TASK_SLEEP | TASK_WORKOUT => config.base_sleep_reward,
         _ => return Err(error!(ErrorCode::InvalidTaskType)),
     };
     let idx = core_level.checked_sub(1).ok_or(ErrorCode::InvalidCoreLevel)? as usize;
@@ -52,6 +53,7 @@ pub fn xp_for(task_type: u8) -> Result<u64> {
     match task_type {
         TASK_STEPS => Ok(XP_STEPS),
         TASK_SLEEP => Ok(XP_SLEEP),
+        TASK_WORKOUT => Ok(XP_WORKOUT),
         _ => Err(error!(ErrorCode::InvalidTaskType)),
     }
 }
@@ -145,7 +147,10 @@ mod tests {
         let c = cfg();
         assert!(raw_reward(&c, 0, TASK_STEPS, 1).is_err());
         assert!(raw_reward(&c, 6, TASK_STEPS, 1).is_err());
-        assert!(raw_reward(&c, 1, 3, 1).is_err());
+        assert!(raw_reward(&c, 1, 4, 1).is_err());
+        // v2：運動任務沿用第二任務基礎；XP 100
+        assert_eq!(raw_reward(&c, 3, TASK_WORKOUT, 1).unwrap(), 7_500_000);
+        assert_eq!(xp_for(TASK_WORKOUT).unwrap(), XP_WORKOUT);
     }
 
     #[test]
