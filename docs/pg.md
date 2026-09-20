@@ -259,7 +259,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | DEC-01 | 全部 | 團隊人數、角色與至少 5 FTE 的容量安排（BRD Q-01） | 專案負責人 | 2026-09-10 | OPEN |
 | DEC-02 | PG-I-08、PG-D-02 | SKR integration track 是否接受 tSKR（BRD Q-08） | 專案負責人 | 2026-09-10 | OPEN |
 | DEC-03 | PG-D-06、SD 6.2 | 改以遊戲／獎勵解耦、全站已撥款預算、現金與代幣庫存分帳評估（economics/stepn-risk-review.md）；比例／結算週期／切換方案待決。降低輸家退款不是總消耗來源 | 專案負責人 | 2026-09-21 | OPEN |
-| DEC-04 | PG-V-01、PG-V-02 | 睡眠不可用者最高只能 Lv4（步數 700 < Lv5 900）：(a) 接受並明示、(b) 全體一致替代挑戰（跑步 session +50）、(c) Lv5 改 700／7 日（docs/economics/maintenance-sim.md） | 專案負責人 | 2026-09-22 | OPEN |
+| DEC-04 | PG-V-01、PG-V-02 | 睡眠停用後所有玩家被鎖 Lv4（步數 700 < Lv5 900）。2026-09-20 提案規則 v2（docs/economics/maintenance-v2.md，模擬 `simulate-v2.mjs`）：**建議 B**＝第二任務改「運動 session」+100、日上限 200、門檻不變 → Lv5＝每日步數＋每週 2～3 次運動（可留一天休息），只走步數最高 Lv4；A（運動 +50）Lv5 需每週 4 次運動；C（Lv5 改 700／7）不運動也能 Lv5。採用後需鏈上 TASK_WORKOUT=3／後端 claim 驗證／App 任務卡（估 3.0 人天） | 專案負責人 | 2026-09-22 | OPEN（待選 B 與 session 門檻） |
 
 DEC-02 若判定必須整合主網官方 SKR，PG-I-08 的 tSKR 路線、SA 5.4 與鏈上金庫設計都必須重估；不得在現有四週估算內直接替換。
 
