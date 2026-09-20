@@ -5,6 +5,8 @@
  */
 import type { ClaimRequest } from "../claim/schema.js";
 import { attributeAndClampSteps, mergeSleepMinutes, type StepsAttribution } from "../claim/steps.js";
+import type { WorkoutSession } from "../store/types.js";
+import { qualifyWorkout, type WorkoutEvidence } from "../claim/workout.js";
 import type { RuleSet } from "./rules.js";
 
 export type RejectCode =
@@ -14,7 +16,9 @@ export type RejectCode =
   | "NO_SENSOR"
   | "LIVE_MOTION_INCOMPLETE"
   | "TASK_NOT_MET"
-  | "RISK_SCORE";
+  | "RISK_SCORE"
+  | "WORKOUT_NOT_SYNCED"
+  | "WORKOUT_UNDER_REVIEW";
 
 export type RiskDecision = {
   decision: "pass" | "reject";
@@ -30,9 +34,13 @@ export type RiskDecision = {
   steps: StepsAttribution | null;
   sleepMinutes: number | null;
   sleepOverlapMinutes: number | null;
+  /** 運動任務：採用的 session 證據（distance／moving／revision） */
+  workout: WorkoutEvidence | null;
 };
 
-export function evaluate(req: ClaimRequest, rules: RuleSet): RiskDecision {
+export type EvaluateContext = { workouts?: WorkoutSession[] };
+
+export function evaluate(req: ClaimRequest, rules: RuleSet, ctx: EvaluateContext = {}): RiskDecision {
   const cfg = rules.config;
   const matched: string[] = [];
   const base = { rulesVersion: rules.version, rulesHash: rules.hash, threshold: cfg.threshold };
@@ -45,9 +53,20 @@ export function evaluate(req: ClaimRequest, rules: RuleSet): RiskDecision {
     steps: null,
     sleepMinutes: null,
     sleepOverlapMinutes: null,
+    workout: null,
     ...base,
     ...extra,
   });
+
+  // 維持規則 v2（DEC-04）：運動 session 任務——不要求步數／SPN／live motion；證據來自伺服器已審核的 GPS session
+  if (req.task_type === "workout") {
+    if (!cfg.goals.workout) return reject("TASK_NOT_MET", { effectiveValue: 0 });
+    const q = qualifyWorkout(ctx.workouts ?? [], req.task_date, cfg.goals.workout, req.workout_session_id);
+    if (q.kind === "not_synced") return reject("WORKOUT_NOT_SYNCED", { effectiveValue: 0 });
+    if (q.kind === "under_review") return reject("WORKOUT_UNDER_REVIEW", { workout: q.best, effectiveValue: q.best.distanceMm });
+    if (q.kind === "not_met") return reject("TASK_NOT_MET", { workout: q.best, effectiveValue: q.best.distanceMm });
+    return { decision: "pass", rejectCode: null, score: 0, matched, effectiveValue: q.best.distanceMm, steps: null, sleepMinutes: null, sleepOverlapMinutes: null, workout: q.best, ...base };
+  }
 
   if (req.task_type === "steps") {
     const steps = attributeAndClampSteps(req.data_origins, req.step_rate_summary);
@@ -104,10 +123,10 @@ export function evaluate(req: ClaimRequest, rules: RuleSet): RiskDecision {
       }
     }
     if (score >= cfg.threshold) return reject("RISK_SCORE", { steps, score, matched: [...matched], effectiveValue: steps.effectiveSteps });
-    return { decision: "pass", rejectCode: null, score, matched, effectiveValue: steps.effectiveSteps, steps, sleepMinutes: null, sleepOverlapMinutes: null, ...base };
+    return { decision: "pass", rejectCode: null, score, matched, effectiveValue: steps.effectiveSteps, steps, sleepMinutes: null, sleepOverlapMinutes: null, workout: null, ...base };
   }
 
-  // sleep：不要求步數、SPN 或 live motion（SD 4.4）
+  // sleep（v1 保留供舊規則檔／稽核重算；claim schema 已不接受 "sleep"）：不要求步數、SPN 或 live motion（SD 4.4）
   const sessions = req.sleep_sessions ?? [];
   const sleepMinutes = sessions.length > 0 ? mergeSleepMinutes(sessions) : (req.sleep_minutes ?? 0);
   const overlap = req.steps && req.step_rate_summary ? overlapMinutesWithSteps(sessions, req.step_rate_summary.buckets, req.task_date) : 0;
@@ -127,7 +146,7 @@ export function evaluate(req: ClaimRequest, rules: RuleSet): RiskDecision {
     }
   }
   if (score >= cfg.threshold) return reject("RISK_SCORE", { sleepMinutes, sleepOverlapMinutes: overlap, score, matched: [...matched], effectiveValue: sleepMinutes });
-  return { decision: "pass", rejectCode: null, score, matched, effectiveValue: sleepMinutes, steps: null, sleepMinutes, sleepOverlapMinutes: overlap, ...base };
+  return { decision: "pass", rejectCode: null, score, matched, effectiveValue: sleepMinutes, steps: null, sleepMinutes, sleepOverlapMinutes: overlap, workout: null, ...base };
 }
 
 /** 睡眠期間出現高步頻的分鐘數（BR-12：短暫重疊不直接拒絕，只加風險分） */

@@ -59,7 +59,7 @@ export async function authRoutes(app: FastifyInstance, opts: { auth: AuthService
           purpose: { type: "string", enum: ["claim", "tournament_steps"] },
           request_hash_b64: { type: "string", minLength: 44, maxLength: 44 },
           task_date: { type: "integer", minimum: 0 },
-          task_type: { type: "integer", enum: [1, 2] },
+          task_type: { type: "integer", enum: [1, 2, 3] },
         },
         additionalProperties: false,
       },

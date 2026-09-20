@@ -6,7 +6,7 @@ import { randomBytes } from "node:crypto";
 import bs58 from "bs58";
 
 import { CHAIN_CLOCK_SKEW_SECONDS } from "../lib/achievement.js";
-import { type Attestation, encode, MAX_TTL_SECONDS, TASK_SLEEP, TASK_STEPS, validate, VERSION } from "../lib/attestation.js";
+import { type Attestation, encode, MAX_TTL_SECONDS, TASK_SLEEP, TASK_STEPS, TASK_WORKOUT, validate, VERSION } from "../lib/attestation.js";
 import type { AttestorSigner } from "./types.js";
 
 export type IssueInput = {
@@ -14,7 +14,7 @@ export type IssueInput = {
   clusterId: number;
   wallet: string;
   taskDate: number;
-  taskType: "steps" | "sleep";
+  taskType: "steps" | "sleep" | "workout";
   rulesVersion: number;
   evidenceHash: Uint8Array;
   issuedAt: Date;
@@ -50,7 +50,7 @@ export class AttestationSigner {
       clusterId: input.clusterId,
       wallet: Buffer.from(bs58.decode(input.wallet)),
       taskDate: input.taskDate,
-      taskType: input.taskType === "steps" ? TASK_STEPS : TASK_SLEEP,
+      taskType: input.taskType === "steps" ? TASK_STEPS : input.taskType === "workout" ? TASK_WORKOUT : TASK_SLEEP,
       rulesVersion: input.rulesVersion,
       evidenceHash: Buffer.from(input.evidenceHash),
       issuedAt: BigInt(issuedAt),

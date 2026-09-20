@@ -46,7 +46,7 @@ export class ChallengeService {
   async issue(wallet: string, req: ChallengeRequest): Promise<ChallengeResponse> {
     if (req.requestHash.length !== 32) throw new ApiError(400, "VALIDATION", "request_hash must be 32 bytes");
     if (!Number.isInteger(req.taskDate) || req.taskDate < 0 || req.taskDate > 0xffff_ffff) throw new ApiError(400, "VALIDATION", "task_date out of range");
-    if (req.taskType !== 1 && req.taskType !== 2) throw new ApiError(400, "VALIDATION", "task_type must be 1 or 2");
+    if (req.taskType !== 1 && req.taskType !== 2 && req.taskType !== 3) throw new ApiError(400, "VALIDATION", "task_type must be 1, 2 or 3");
     const now = this.now();
     const nonce = randomBytes(32);
     // 到期以整秒保存，與簽章 bytes 的 expiry_le 一致

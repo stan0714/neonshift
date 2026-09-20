@@ -4,7 +4,9 @@
  */
 import { z } from "zod";
 
-export const TASK_TYPES = { steps: 1, sleep: 2 } as const;
+/** 鏈上 task_type：steps=1、sleep=2（維持規則 v2 起退役，不再接受申請）、workout=3（DEC-04） */
+export const TASK_TYPES = { steps: 1, workout: 3 } as const;
+export const TASK_SLEEP_RETIRED = 2;
 export type TaskTypeName = keyof typeof TASK_TYPES;
 
 const sourceKind = z.enum(["android_legacy", "current_device_spn", "manual", "third_party"]);
@@ -64,13 +66,15 @@ export const sleepSessionSchema = z.object({
 
 export const claimRequestSchema = z
   .object({
-    task_type: z.enum(["steps", "sleep"]),
+    task_type: z.enum(["steps", "workout"]),
     task_date: z.number().int().min(0).max(0xffff_ffff),
     claim_authorization: claimAuthorizationSchema,
     steps: z.number().int().min(0).max(10_000_000).nullable(),
     sleep_minutes: z.number().int().min(0).max(24 * 60).nullable(),
     /** 睡眠任務：結束時間落在任務日的 session 清單（BR-05；重疊去重在後端） */
     sleep_sessions: z.array(sleepSessionSchema).max(50).optional(),
+    /** 運動任務：指定要用的伺服器 session id（可省略，後端取該日最長的合格紀錄） */
+    workout_session_id: z.string().min(1).max(64).optional(),
     step_rate_summary: stepRateSummarySchema.nullable(),
     data_origins: z.array(dataOriginSchema).max(50),
     sensor_summary: sensorSummarySchema.nullable(),

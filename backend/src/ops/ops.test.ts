@@ -59,9 +59,11 @@ describe("PG-B-18 速率限制、稽核、指標、告警", () => {
     const n = (await app.inject({ method: "POST", url: "/v1/auth/nonce", payload: { wallet } })).json();
     const sig = Buffer.from(nacl.sign.detached(new TextEncoder().encode(n.message), kp.secretKey)).toString("base64");
     const token = (await app.inject({ method: "POST", url: "/v1/auth/verify", payload: { message: n.message, signature_b64: sig } })).json().access_token as string;
-    const body = { task_type: "sleep", task_date: 20_710, steps: null, sleep_minutes: 450, sleep_sessions: [], step_rate_summary: null, data_origins: [], sensor_summary: null, motion_summary: null, client: { app_version: "0.1.0", device_model: "Seeker", os_api: 36, sdk_extension: 22 } };
+    // 維持規則 v2：運動任務證據＝已同步且審核通過的 GPS session
+    await store.upsertWorkout({ sessionId: "w1", wallet, sport: "run", environment: "outdoor", origin: "gps", intent: "run", goalSnapshot: null, sourceId: "cc.neonshift.app/gps", externalRecordId: "w1", sourceRevision: 1, startedAt: new Date(20_710 * 86_400_000 + 3_600_000), endedAt: new Date(20_710 * 86_400_000 + 5_400_000), elapsedMs: 1_800_000n, pausedMs: 0n, status: "saved", quality: "complete", rulesVersion: 1, distanceMm: 5_000_000n, distanceMethod: "gps", steps: null, activeEnergyMkcal: null, energyMethod: null, totalEnergyMkcal: null, stepLengthMm: null, pbEligible: true, reviewReasons: [], extras: {}, requestHash: Buffer.alloc(32) }, new Date());
+    const body = { task_type: "workout", task_date: 20_710, steps: null, sleep_minutes: null, step_rate_summary: null, data_origins: [], sensor_summary: null, motion_summary: null, client: { app_version: "0.1.0", device_model: "Seeker", os_api: 36, sdk_extension: 22 } };
     const rh = requestHashOf(body as never);
-    const c = (await app.inject({ method: "POST", url: "/v1/auth/challenge", headers: { authorization: `Bearer ${token}` }, payload: { purpose: "claim", request_hash_b64: rh.toString("base64"), task_date: 20_710, task_type: 2 } })).json();
+    const c = (await app.inject({ method: "POST", url: "/v1/auth/challenge", headers: { authorization: `Bearer ${token}` }, payload: { purpose: "claim", request_hash_b64: rh.toString("base64"), task_date: 20_710, task_type: 3 } })).json();
     const msg = challengeMessage("claim", Buffer.from(c.challenge_b64, "base64"), rh, c.expires_at);
     const payload = { ...body, claim_authorization: { challenge_b64: c.challenge_b64, expires_at: c.expires_at, signature_b64: Buffer.from(nacl.sign.detached(msg, kp.secretKey)).toString("base64") } };
     // 直接呼叫 service 以避開速率限制，模擬 12 次重放
@@ -71,7 +73,7 @@ describe("PG-B-18 速率限制、稽核、指標、告警", () => {
     expect(app.metrics.get("neonshift_replay_attempts_total")).toBe(12);
     expect(webhookCalls).toHaveLength(1);
     expect(webhookCalls[0]).toMatchObject({ kind: "REPLAY_WALLET", detail: { wallet, n: 11 } });
-    expect(app.metrics.get("neonshift_attestations_issued_total", { task: "sleep" })).toBe(1);
+    expect(app.metrics.get("neonshift_attestations_issued_total", { task: "workout" })).toBe(1);
   });
 
   it("簽發量超過 15 分鐘基線 3 倍 → ISSUANCE_SPIKE 告警（每小時一次）", async () => {

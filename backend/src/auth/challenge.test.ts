@@ -86,7 +86,7 @@ describe("PG-B-05 /auth/challenge", () => {
 
   it("參數檢查", async () => {
     expect(await code(svc.issue(wallet, { ...req, requestHash: randomBytes(31) }))).toBe("VALIDATION");
-    expect(await code(svc.issue(wallet, { ...req, taskType: 3 }))).toBe("VALIDATION");
+    expect(await code(svc.issue(wallet, { ...req, taskType: 4 }))).toBe("VALIDATION"); // 3＝運動任務（維持規則 v2）為合法
     expect(await code(svc.issue(wallet, { ...req, taskDate: -1 }))).toBe("VALIDATION");
   });
 });

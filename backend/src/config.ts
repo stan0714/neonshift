@@ -39,7 +39,7 @@ export const configSchema = z.object({
   /** access JWT HS256 密鑰；正式環境必填且 ≥ 32 bytes，local／test 未給時以隨機值啟動（重啟即失效） */
   JWT_SECRET: z.string().min(32).optional(),
   /** 規則集檔案（PG-B-07） */
-  RULES_FILE: z.string().default("rules/v3.json"),
+  RULES_FILE: z.string().default("rules/v4.json"),
   /** attestor signer：`http:<url>`（隔離 signer service，配 SIGNER_TOKEN）或 dev 用 `local:<keypair 路徑|base58>` */
   ATTESTOR_SIGNER: z.string().optional(),
   SIGNER_TOKEN: z.string().optional(),
