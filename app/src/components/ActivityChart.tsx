@@ -55,7 +55,7 @@ export function ActivityChart({ buckets, selected, onSelect, avgMm, testID = 'ac
           <View style={[styles.axis, { left: plotW }]} pointerEvents="none">
             <Text variant="caption" tone="muted" numeric style={styles.axisTop}>{maxKm}</Text>
             <Text variant="caption" tone="muted" numeric style={[styles.axisMid, { top: yOf(maxKm / 2) - 8 }]}>{maxKm / 2}</Text>
-            {avgKm > 0 ? <Text variant="caption" tone="muted" numeric style={[styles.axisMid, { top: yOf(avgKm) - 8 }]} testID={`${testID}-avg`}>{avgKm.toFixed(1)}</Text> : null}
+            {avgKm > 0 && Math.abs(yOf(avgKm) - yOf(maxKm)) > 14 && Math.abs(yOf(avgKm) - yOf(maxKm / 2)) > 14 ? <Text variant="caption" tone="muted" numeric style={[styles.axisMid, { top: yOf(avgKm) - 8 }]} testID={`${testID}-avg`}>{avgKm.toFixed(1)}</Text> : null}
             <Text variant="caption" tone="muted" numeric style={styles.axisBottom}>0 km</Text>
           </View>
           <View style={[styles.touch, { width: plotW }]}>
@@ -64,11 +64,9 @@ export function ActivityChart({ buckets, selected, onSelect, avgMm, testID = 'ac
             ))}
           </View>
           <View style={[styles.labels, { width: plotW }]} pointerEvents="none">
-            {buckets.map((b, i) => (
-              <View key={b.key} style={styles.labelCell}>
-                {showLabel(i) ? <Text variant="caption" tone={b.isToday ? undefined : 'muted'} numeric style={b.isToday && styles.today}>{buckets.length === 7 ? t(`actv.wd.${b.label}` as TKey) : b.label}</Text> : null}
-              </View>
-            ))}
+            {buckets.map((b, i) => (showLabel(i) ? (
+              <Text key={b.key} variant="caption" tone={b.isToday ? undefined : 'muted'} numeric numberOfLines={1} style={[styles.label, { left: i * slot + slot / 2 - 20 }, b.isToday && styles.today]}>{buckets.length === 7 ? t(`actv.wd.${b.label}` as TKey) : b.label}</Text>
+            ) : null))}
           </View>
         </>
       ) : null}
@@ -84,7 +82,7 @@ const styles = StyleSheet.create({
   axisBottom: { position: 'absolute', bottom: -6, right: space.xxs },
   touch: { position: 'absolute', top: 0, left: 0, height: CHART_H + 4, flexDirection: 'row' },
   touchCell: { flex: 1, minHeight: 44, borderRadius: radius.s },
-  labels: { flexDirection: 'row', marginTop: space.xs },
-  labelCell: { flex: 1, alignItems: 'center' },
+  labels: { height: 18, marginTop: space.xs },
+  label: { position: 'absolute', width: 40, textAlign: 'center' },
   today: { fontWeight: '700' },
 });
