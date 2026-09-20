@@ -1,6 +1,6 @@
 # NeonShift
 
-Solana Mobile 健康追蹤 dApp。將每日跑步／健走與睡眠轉化為「打卡」任務，由後端驗證 Health Connect 摘要並簽發 attestation，鏈上程式驗簽後發放 tSKR 測試代幣、累積 XP、免費升級跑鞋；達成等級／里程碑可免費領取 Metaplex Core 成就 NFT，週末以質押制步數錦標賽競賽，藝廊展示全站排行。
+Solana Mobile 健康追蹤 dApp。將每日跑步／健走轉化為「打卡」任務，由後端驗證 Health Connect 摘要並簽發 attestation，鏈上程式驗簽後發放 tSKR 測試代幣、累積 XP、免費升級跑鞋；達成等級／里程碑可免費領取 Metaplex Core 成就 NFT，週末以質押制步數錦標賽競賽，藝廊展示全站排行。
 
 > **tSKR 是 devnet 測試代幣，無金錢價值，不是官方 SKR。** 目標裝置 Solana Mobile Seeker（Android 14+）；iOS 不在範圍。正式網域 `neonshift.cc`，Android package `cc.neonshift.app`。
 
@@ -13,7 +13,7 @@ Solana Mobile 健康追蹤 dApp。將每日跑步／健走與睡眠轉化為「�
 ```mermaid
 flowchart LR
   subgraph Phone["Seeker（Android）"]
-    HC[Health Connect<br/>Steps／Sleep] --> App
+    HC[Health Connect<br/>Steps] --> App
     Sensors[Motion sensors] --> App
     App[NeonShift App<br/>Expo／React Native] <--> MWA[Mobile Wallet Adapter<br/>Seed Vault／Phantom]
   end
@@ -51,6 +51,8 @@ flowchart LR
 | `docs/` | BRD、SA、SD、Style、PG 進度、Runbook、實機證據截圖 |
 
 ## 文件
+
+[Activity 改善與睡眠停用盤點](docs/activity-sleep-review.md)：App 已停止睡眠讀取；歷史協議保留，Lv5 維持門檻仍需調整決策。
 
 | 文件 | 用途 |
 |---|---|

@@ -28,7 +28,7 @@
 
   <h2>1. What stays on your phone</h2>
   <ul>
-    <li><strong>Raw Health Connect records</strong> (individual step records, sleep sessions, their timestamps and source apps) are read on the device only. They are never uploaded.</li>
+    <li><strong>Raw Health Connect records</strong> (individual step records, their timestamps and source apps) are read on the device only. They are never uploaded.</li>
     <li><strong>Raw motion sensor samples</strong> used for the optional 20-second motion check are processed on the device and discarded.</li>
     <li><strong>GPS routes</strong> recorded when you start a run or walk in the app are encrypted and kept only on this phone. We upload a summary (distance, elapsed time, pace, splits and a GPS-quality score) — never coordinates. Deleting a workout deletes its route. Precise location is requested only while you use the app; a visible notification shows while recording continues on the lock screen.</li>
     <li><strong>Exercise sessions imported from Health Connect</strong> (runs and walks, distance, steps and calories from the same source app) are read on the device; only the per-session summary is uploaded, labelled with its source.</li>
@@ -39,7 +39,7 @@
   <table>
     <tr><th>Data</th><th>Purpose</th><th>Retention</th></tr>
     <tr><td>Wallet address</td><td>Sign-in (Sign In With Solana), linking your claims to your wallet</td><td>Until you delete your data</td></tr>
-    <tr><td>Daily step total and per-minute step counts for the mission day; sleep session minutes; the Health Connect source app names</td><td>Verifying that a mission goal was met and detecting fake data before we sign an onchain attestation</td><td>At most 30 days</td></tr>
+    <tr><td>Daily step total and per-minute step counts for the mission day; the Health Connect source app names</td><td>Verifying that a mission goal was met and detecting fake data before we sign an onchain attestation</td><td>At most 30 days</td></tr>
     <tr><td>Motion-check statistics (cadence, rhythm, amplitude summaries — not raw samples)</td><td>Anti-cheat signal for step claims</td><td>At most 30 days</td></tr>
     <tr><td>Tournament step totals reported during a weekend tournament</td><td>Leaderboard and settlement</td><td>At most 30 days after the tournament</td></tr>
     <tr><td>App version, device model, Android API level</td><td>Compatibility and fraud detection</td><td>At most 30 days</td></tr>
@@ -48,6 +48,7 @@
   <p>We never receive your health data outside of a mission or tournament claim you initiate, and we never sell or share it with third parties. There are no advertising SDKs in the app.</p>
 
   <h2>3. What is public on the blockchain</h2>
+  <p>The current app does not request sleep access or read sleep sessions. Historical sleep mission receipts and the legacy server/onchain protocol remain; historical blockchain records cannot be removed.</p>
   <p>Your wallet address, mission claim receipts (task day and type, tSKR amount), gear level and XP, tournament entries and results, and achievement collectibles (NFTs) are recorded on Solana devnet. Blockchain data is public and permanent; it cannot be deleted by us. No step counts, sleep durations or other health values are written onchain — only whether a mission goal was met.</p>
   <p>The in-app Gallery shows other players' wallet address, level, XP, streak and collectibles, all derived from public onchain events. It never shows health values.</p>
 
@@ -57,7 +58,7 @@
 
   <h2>5. Permissions we ask for</h2>
   <ul>
-    <li><strong>Health Connect: Steps, Sleep</strong> (and optional background read) — to check daily missions.</li>
+    <li><strong>Health Connect: Steps</strong> (and optional background read) — to check daily missions.</li>
     <li><strong>Activity recognition / motion sensors</strong> — optional 20-second on-device motion check.</li>
     <li><strong>Internet</strong> — to talk to our API and Solana devnet.</li>
   </ul>

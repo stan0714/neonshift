@@ -112,7 +112,7 @@ test('離線／未登入：伺服器失敗仍列本機紀錄並說明；訪客�
   await render(<ActivityScreen />, { wrapper: Wrapper });
   await waitFor(() => expect(screen.getByTestId('activity-remote-offline')).toBeTruthy());
   expect(screen.getAllByTestId(/^activity-item-(l17|srv-18|l19)$/)).toHaveLength(3);
-  useWalletStore.setState({ status: 'disconnected', session: null, error: null } as never);
+  await act(async () => { useWalletStore.setState({ status: 'disconnected', session: null, error: null } as never); });
   await waitFor(() => expect(screen.getByText(/No wallet connected/)).toBeTruthy());
   expect(screen.queryByTestId('activity-item-l17')).toBeNull();
   await act(async () => {});
@@ -198,4 +198,35 @@ test('回首頁：有待同步且在線 → 先問；「不同步」直接回首
   expect(runSpy).toHaveBeenCalledWith(owner, { manual: true });
   alert.mockRestore();
   runSpy.mockRestore();
+});
+
+test('篩選同步更新總覽；年圖表月份可點選並獨立清除', async () => {
+  await render(<ActivityScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByTestId('activity-item-srv-hc')).toBeTruthy());
+  await fireEvent.press(screen.getByTestId('activity-filters-toggle'));
+  await fireEvent.press(screen.getByTestId('activity-mode-brisk'));
+  expect(screen.getByTestId('activity-hero-count').props.children).toBe(1);
+  expect(screen.getByTestId('activity-hero-km').props.children).toBe('2.4');
+  expect(screen.getByTestId('activity-hero-pace').props.children).toBe('5.8 km/h');
+  await fireEvent.press(screen.getByTestId('activity-filters-clear'));
+  await fireEvent.press(screen.getByTestId('activity-period-year'));
+  await waitFor(() => expect(screen.getByTestId('activity-month').props.children).toBe('2026'));
+  await fireEvent(screen.getByTestId('activity-chart'), 'layout', { nativeEvent: { layout: { width: 360, height: 180 } } });
+  await fireEvent.press(screen.getByTestId('activity-bar-2026-09'));
+  expect(screen.getAllByTestId(/^activity-item-(l17|srv-18|l19|srv-hc)$/)).toHaveLength(4);
+  await fireEvent.press(screen.getByTestId('activity-clear-day'));
+  expect(screen.queryByTestId('activity-clear-day')).toBeNull();
+});
+
+test('較舊請求晚回來，不覆蓋新月份紀錄', async () => {
+  let resolveOld!: (value: unknown) => void;
+  api.myWorkouts.mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve; }));
+  await render(<ActivityScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(api.myWorkouts).toHaveBeenCalledTimes(1));
+  api.myWorkouts.mockResolvedValueOnce({ items: [remote('oct', '2026-10-02T01:00:00Z')], next_cursor: null });
+  await fireEvent.press(screen.getByTestId('activity-next-month'));
+  await waitFor(() => expect(screen.getByTestId('activity-item-oct')).toBeTruthy());
+  await act(async () => { resolveOld({ items: [remote('sep', '2026-09-02T01:00:00Z')], next_cursor: null }); });
+  expect(screen.getByTestId('activity-item-oct')).toBeTruthy();
+  expect(screen.queryByTestId('activity-item-sep')).toBeNull();
 });

@@ -67,3 +67,17 @@ describe('PG-A-12／A-19 dashboardStore', () => {
     expect(estimateReward(cfg, { coreLevel: 3 } as never, 'sleep')).toBe(7_500_000n);
   });
 });
+
+test('睡眠停用不讀取、不接受舊快取睡眠進度，步數同步照常', async () => {
+  hc.readStepsForTaskDate.mockResolvedValue(steps(8_500));
+  await useDashboardStore.getState().syncHealth();
+  expect(hc.readSleepForTaskDate).not.toHaveBeenCalled();
+  expect(useDashboardStore.getState().health?.sleep).toBeNull();
+  expect(useDashboardStore.getState().tasks.steps).toBe('ready');
+  expect(hc.cacheSummary).toHaveBeenCalledWith(expect.objectContaining({ sleep: { sessions: [] } }));
+  useDashboardStore.setState({ health: null });
+  hc.readCachedSummary.mockResolvedValueOnce({ taskDate: useDashboardStore.getState().taskDate, steps: steps(9_000), sleep: sleep(480), syncedAt: 5, source: 'background' });
+  await useDashboardStore.getState().loadCachedHealth();
+  expect(useDashboardStore.getState().health?.sleep).toBeNull();
+  expect(useDashboardStore.getState().tasks.sleep).toBe('not_met');
+});

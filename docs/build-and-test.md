@@ -189,7 +189,6 @@ npm install lottie-react-native
         "android.permission.ACTIVITY_RECOGNITION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.health.READ_STEPS",
-        "android.permission.health.READ_SLEEP",
         "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"
       ],
       // FR-07.3 只用粗粒度定位；expo-location 預設會加 FINE，明確擋掉
@@ -416,7 +415,6 @@ adb shell pm revoke cc.neonshift.app android.permission.health.READ_EXERCISE
 
 ```bash
 adb shell pm revoke cc.neonshift.app android.permission.health.READ_STEPS
-adb shell pm revoke cc.neonshift.app android.permission.health.READ_SLEEP
 adb shell pm revoke cc.neonshift.app android.permission.ACTIVITY_RECOGNITION
 adb shell pm revoke cc.neonshift.app android.permission.ACCESS_COARSE_LOCATION
 
@@ -428,7 +426,7 @@ adb shell pm clear cc.neonshift.app
 
 真實步數要靠走路，但驗證讀取邏輯時可以用其他健身 App 寫入 Health Connect，再確認本 App 的來源歸因（BR-07、BR-08）能正確排除非裝置來源。
 
-**開發診斷頁**：debug build 內建 `Health Connect (dev)` 畫面（`src/screens/dev/HealthDiagnosticsScreen.tsx`，只在 `__DEV__` 註冊），可逐項呼叫 getStatus／權限／readSteps／readSleep 並顯示原始回傳。開啟方式：`EXPO_PUBLIC_DEV_ROUTE=DevHealth npx expo start --dev-client`，冷啟動後會直接疊在 Landing 之上。`EXPO_PUBLIC_DEV_ROUTE=Main` 則在錢包已連線但尚未建立鏈上 profile（程式未部署）時直接進入 tabs 檢查版面。
+**開發診斷頁**：debug build 內建 `Health Connect (dev)` 畫面（`src/screens/dev/HealthDiagnosticsScreen.tsx`，只在 `__DEV__` 註冊），可逐項呼叫 getStatus／權限／readSteps（本版隱藏 readSleep） 並顯示原始回傳。開啟方式：`EXPO_PUBLIC_DEV_ROUTE=DevHealth npx expo start --dev-client`，冷啟動後會直接疊在 Landing 之上。`EXPO_PUBLIC_DEV_ROUTE=Main` 則在錢包已連線但尚未建立鏈上 profile（程式未部署）時直接進入 tabs 檢查版面。
 
 **Metro 注意**：修改 `src/` 後若實機仍載入舊畫面，重啟 `npx expo start --clear`（本機 watchman 監看偶爾失效）。原生模組（`modules/`）改動一律要重新 `assembleDebug`。
 
@@ -859,7 +857,7 @@ adb reverse --remove-all
 ### M1 健康資料
 
 - [ ] 實機顯示今日步數，與 Health Connect 設定畫面數值一致（誤差 ≤ 1 步）
-- [ ] 顯示昨夜睡眠時長，跨午夜歸屬正確
+- [ ] 本版不顯示睡眠任務、不讀睡眠資料，合併 manifest 不含 READ_SLEEP
 - [ ] 拒絕權限時出現引導畫面與前往設定按鈕
 - [ ] 第三方 App 寫入的步數**未**被計入
 - [ ] 手動輸入的步數**未**被計入
@@ -966,7 +964,7 @@ set -euo pipefail
 PKG="cc.neonshift.app"
 
 adb shell pm clear "$PKG"
-for p in health.READ_STEPS health.READ_SLEEP health.READ_HEALTH_DATA_IN_BACKGROUND \
+for p in health.READ_STEPS health.READ_HEALTH_DATA_IN_BACKGROUND \
          ACTIVITY_RECOGNITION ACCESS_COARSE_LOCATION; do
   adb shell pm revoke "$PKG" "android.permission.$p" 2>/dev/null || true
 done

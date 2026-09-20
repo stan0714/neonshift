@@ -101,6 +101,7 @@ describe('WorkoutRecorder', () => {
     sync.mockResolvedValueOnce({ sessionId: 'server-2' } as never);
     expect((await rec.syncMeta(store.readMeta(meta.sessionId)!)).ok).toBe(true);
     expect((sync.mock.calls[1]![0] as { client_flags: string[] }).client_flags).toContain('gps_gap');
+    expect(sync.mock.calls[1]![0].extras.route_appearance).toEqual({ version: 1, layer: 'grid' });
   });
 
   test('恢復：另一個 process 的未結束 session 標 recoverable／interrupted，continue 被拒改為結束（以最後一點時間、不補負時間）；discard 清除路線', async () => {
@@ -648,4 +649,19 @@ describe('2026-09-19 第二輪 review：配速一致、暫停不達標、配速�
     await rec.finish();
     expect(rec.active()).toBeNull();
   });
+});
+
+test('route 外觀保存後跨重啟、同步 metadata 更新不可改寫；新 session 可有不同背景', async () => {
+  const store = new LocalWorkoutStore();
+  const meta = await store.create({ sessionId: 'frozen-art', sport: 'run', environment: 'outdoor', autoLapMm: null, splitLengthMm: 1000000, status: 'recording', startedAtUtc: 1000, startedMonoMs: 1000, processId: 'p1', routeAppearance: { version: 1, layer: 'ocean' } });
+  meta.status = 'saved';
+  await store.writeMeta(meta);
+  const reopened = new LocalWorkoutStore();
+  const changed = reopened.readMeta(meta.sessionId)!;
+  changed.routeAppearance = { version: 1, layer: 'snow' };
+  changed.syncedSessionId = 'remote-art';
+  await reopened.writeMeta(changed);
+  expect(reopened.readMeta(meta.sessionId)).toMatchObject({ routeAppearance: { version: 1, layer: 'ocean' }, syncedSessionId: 'remote-art' });
+  const second = await store.create({ ...meta, sessionId: 'new-art', routeAppearance: { version: 1, layer: 'mars' } });
+  expect(second.routeAppearance?.layer).toBe('mars');
 });

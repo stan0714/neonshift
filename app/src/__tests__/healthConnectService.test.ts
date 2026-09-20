@@ -83,3 +83,9 @@ describe('讀取', () => {
     expect((err as HealthError).code).toBe('HC_READ_FAILED');
   });
 });
+
+test('睡眠關閉時即使舊版本已授權也不呼叫原生睡眠讀取', async () => {
+  native.readSleepSessions.mockClear();
+  await expect(healthConnect.readSleepForTaskDate(20_706)).resolves.toEqual({ sessions: [] });
+  expect(native.readSleepSessions).not.toHaveBeenCalled();
+});

@@ -1,12 +1,11 @@
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import { ActivityChart } from '@/components/ActivityChart';
 import { RouteThumb, useRoutePoints } from '@/components/RouteThumb';
-import { resolveTraceLayer } from '@/domain/appearance';
 import { calendarGrid, dayOfItem, filterActivity, inPeriod, mergeActivity, monthSummary, periodAnchorNow, periodRangeUtc, periodSummary, shiftPeriod, sortActivity, timeOfDay, type ActivityFilter, type ActivityItem, type ActivityPeriod } from '@/domain/activity';
 import { stageName } from '@/domain/collectibles';
 import { formatDuration, formatKm, formatPace, modeLabel } from '@/domain/workouts';
@@ -40,7 +39,7 @@ export function ActivityScreen() {
   const [kind, setKind] = useState<ActivityPeriod>(params?.month ? 'month' : prefs.activityPeriod);
   const [anchors, setAnchors] = useState<Record<ActivityPeriod, string>>(() => ({ week: periodAnchorNow('week'), month: params?.month ?? periodAnchorNow('month'), year: periodAnchorNow('year'), all: '' }));
   const anchor = anchors[kind];
-  const periodKey = `${kind}:${anchor}`;
+  const periodKey = `${ob.owner ?? 'guest'}:${kind}:${anchor}`;
   const setPeriod = (k: ActivityPeriod) => { setKind(k); void prefs.set({ activityPeriod: k }); setFilter((f) => ({ ...f, day: null })); };
   const shift = (delta: number) => { setAnchors((a) => ({ ...a, [kind]: shiftPeriod(kind, anchor, delta) })); setFilter((f) => ({ ...f, day: null })); };
   const [filter, setFilter] = useState<ActivityFilter>({ mode: 'all', source: 'all', status: 'all', day: null });
@@ -48,9 +47,14 @@ export function ActivityScreen() {
   const [remoteErr, setRemoteErr] = useState<{ code: string; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
+  const requestVersion = useRef(0);
+  const [truncated, setTruncated] = useState(false);
 
   const loadRemote = useCallback(async (k: ActivityPeriod, a: string) => {
+    const version = ++requestVersion.current;
     setLoading(true);
+    setRemoteErr(null);
+    setTruncated(false);
     try {
       const { from, to } = periodRangeUtc(k, a);
       const items: WorkoutSummary[] = [];
@@ -59,19 +63,22 @@ export function ActivityScreen() {
       for (let i = 0; i < 10; i++) {
         const r = await apiClient.myWorkouts({ from, to, order: 'asc', limit: 100, cursor });
         items.push(...r.items);
-        if (!r.next_cursor) break;
-        cursor = r.next_cursor;
+        cursor = r.next_cursor ?? undefined;
+        if (!cursor) break;
       }
-      setRemote({ key: `${k}:${a}`, items });
+      if (version !== requestVersion.current) return;
+      setTruncated(!!cursor);
+      setRemote({ key: `${ob.owner ?? 'guest'}:${k}:${a}`, items });
       setRemoteErr(null);
     } catch (e) {
+      if (version !== requestVersion.current) return;
       // 未登入／離線：仍能看本機已保存紀錄（登入失效不清掉本機日誌）
       setRemoteErr(e instanceof ApiError ? { code: e.code, message: e.message } : { code: 'UNKNOWN', message: String(e) });
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
-  }, []);
-  useEffect(() => { void loadRemote(kind, anchor); }, [kind, anchor, loadRemote]);
+  }, [ob.owner]);
+  useEffect(() => { void loadRemote(kind, anchor); return () => { requestVersion.current++; }; }, [kind, anchor, loadRemote]);
   useFocusEffect(useCallback(() => { setTick((n) => n + 1); }, []));
   useEffect(() => workoutRecorder.subscribe(() => setTick((n) => n + 1)), []);
   useEffect(() => workoutOutbox.subscribe(() => setTick((n) => n + 1)), []);
@@ -82,11 +89,11 @@ export function ActivityScreen() {
     const merged = mergeActivity(local, remote?.key === periodKey ? remote.items : [], ob.list);
     return merged.filter((it) => inPeriod(it, kind, anchor));
   }, [tick, remote, periodKey, kind, anchor, ob.owner, ob.list]);
-  const summary = useMemo(() => periodSummary(items, kind, anchor), [items, kind, anchor]);
-  const month = useMemo(() => monthSummary(items, anchor), [items, anchor]); // 月曆用（只在月檢視）
+  const scoped = useMemo(() => filterActivity(items, { ...filter, day: null }), [items, filter]);
+  const summary = useMemo(() => periodSummary(scoped, kind, anchor), [scoped, kind, anchor]);
+  const month = useMemo(() => monthSummary(scoped, anchor), [scoped, anchor]); // 月曆用（只在月檢視）
   const visible = useMemo(() => sortActivity(filterActivity(items, filter), prefs.activityOrder), [items, filter, prefs.activityOrder]);
-  const highestOwned = ap.owned.reduce((m, o) => (o.level > m ? o.level : m), 1 as (typeof ap.owned)[number]['level']);
-  const thumbLayer = resolveTraceLayer(prefs.traceLayer, ap.level, highestOwned);
+
 
   const open = (it: ActivityItem) => {
     if (it.localId) navigation.navigate('WorkoutSummary', { sessionId: it.localId });
@@ -111,7 +118,8 @@ export function ActivityScreen() {
   };
   // 篩選預設收合（Style 23.17）：只顯示「篩選」＋作用中數量；展開才列模式／來源／狀態
   const [showFilters, setShowFilters] = useState(false);
-  const activeFilters = (filter.mode !== 'all' ? 1 : 0) + (filter.source !== 'all' ? 1 : 0) + (filter.status !== 'all' ? 1 : 0);
+  const clearFilters = () => setFilter({ mode: 'all', source: 'all', status: 'all', day: null });
+  const activeFilters = (filter.day ? 1 : 0) + (filter.mode !== 'all' ? 1 : 0) + (filter.source !== 'all' ? 1 : 0) + (filter.status !== 'all' ? 1 : 0);
   // 升版前／未連錢包錄的紀錄沒有 owner：需本人確認歸屬後才進佇列（Style 23.14）
   const assignGuest = () => {
     if (!ob.owner) return;
@@ -144,29 +152,34 @@ export function ActivityScreen() {
         ))}
       </View>
 
+      <Surface style={styles.overview}>
       <View style={styles.monthRow}>
         {kind !== 'all' ? <Pressable onPress={() => shift(-1)} accessibilityRole="button" accessibilityLabel={t('actv.prevPeriod')} hitSlop={8} style={styles.monthBtn} testID="activity-prev-month"><Feather name="chevron-left" size={22} color={color.textPrimary} /></Pressable> : null}
-        <Text variant="heading2" testID="activity-month">{periodLabel}</Text>
+        <Text variant="title" style={styles.periodTitle} testID="activity-month">{periodLabel}</Text>
         {kind !== 'all' ? <Pressable onPress={() => shift(1)} accessibilityRole="button" accessibilityLabel={t('actv.nextPeriod')} hitSlop={8} style={styles.monthBtn} testID="activity-next-month"><Feather name="chevron-right" size={22} color={color.textPrimary} /></Pressable> : null}
-        <View style={styles.flex} />
+
+      </View>
+
+      <View style={styles.viewToolbar}>
         {kind === 'month' ? (
           <View style={styles.segment} accessibilityRole="tablist">
             {(['list', 'calendar'] as const).map((v) => (
-              <Pressable key={v} onPress={() => void prefs.set({ activityView: v })} accessibilityRole="tab" accessibilityState={{ selected: prefs.activityView === v }} style={[styles.segmentItem, prefs.activityView === v && styles.segmentOn]} testID={`activity-view-${v}`}>
+              <Pressable key={v} onPress={() => void prefs.set({ activityView: v })} accessibilityRole="tab" accessibilityLabel={t(v === 'list' ? 'actv.viewChart' : 'actv.viewCalendar')} accessibilityState={{ selected: prefs.activityView === v }} style={[styles.segmentItem, prefs.activityView === v && styles.segmentOn]} testID={`activity-view-${v}`}>
                 <Feather name={v === 'list' ? 'bar-chart-2' : 'calendar'} size={16} color={prefs.activityView === v ? color.onMint : color.textSecondary} />
               </Pressable>
             ))}
           </View>
         ) : null}
       </View>
-
+      {kind !== 'all' && anchor !== periodAnchorNow(kind) ? <Pressable onPress={() => { setAnchors((a) => ({ ...a, [kind]: periodAnchorNow(kind) })); setFilter((f) => ({ ...f, day: null })); }} style={styles.filterBtn} accessibilityRole="button" testID="activity-current-period"><Text variant="caption" tone="mint">{t('actv.currentPeriod')}</Text></Pressable> : null}
       <View style={styles.hero} testID="activity-hero">
+        <Text variant="label" tone="mint">{t('actv.overview')}</Text>
         <Text variant="displayL" numeric style={styles.heroKm} testID="activity-hero-km">{summary.hasDistance ? (summary.distanceMm / 1_000_000).toFixed(1) : '—'}</Text>
         <Text variant="bodySmall" tone="secondary">{t('actv.kmUnit')}</Text>
         <View style={styles.heroStats}>
           <View style={styles.heroStat}><Text variant="heading2" numeric testID="activity-hero-count">{summary.count}</Text><Text variant="caption" tone="secondary">{t(countLabel)}</Text></View>
           <View style={styles.heroStat}><Text variant="heading2" numeric testID="activity-hero-pace">{walkMode ? (summary.avgSpeedKmh === null ? '—' : `${summary.avgSpeedKmh.toFixed(1)} km/h`) : formatPace(summary.avgPaceSPerKm)}</Text><Text variant="caption" tone="secondary">{t(walkMode ? 'actv.hero.speed' : 'actv.hero.pace')}</Text></View>
-          <View style={styles.heroStat}><Text variant="heading2" numeric testID="activity-hero-time">{formatDuration(String(summary.elapsedMs))}</Text><Text variant="caption" tone="secondary">{t('actv.hero.time')}</Text></View>
+          <View style={styles.heroStat}><Text variant="heading2" numeric testID="activity-hero-time">{summary.hasTime ? formatDuration(String(summary.elapsedMs)) : '—'}</Text><Text variant="caption" tone="secondary">{t('actv.hero.time')}</Text></View>
         </View>
         {summary.excluded > 0 ? <Text variant="caption" tone="muted" testID="activity-summary">{t('actv.excludedCount', { n: summary.excluded })}</Text> : null}
       </View>
@@ -177,6 +190,10 @@ export function ActivityScreen() {
         </>
       ) : null}
 
+      <Text variant="caption" tone="secondary" style={styles.mtXs}>{t('actv.scopeNote')}</Text>
+      </Surface>
+      {truncated ? <InlineState kind="warning" title={t('actv.partialResults')} body={t('actv.partialResultsBody')} testID="activity-partial" /> : null}
+
       <View style={styles.filterRow}>
         <Pressable onPress={() => setShowFilters((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: showFilters }} style={styles.filterBtn} testID="activity-filters-toggle">
           <Feather name="sliders" size={14} color={activeFilters ? color.mint : color.textSecondary} />
@@ -184,12 +201,14 @@ export function ActivityScreen() {
           <Feather name={showFilters ? 'chevron-up' : 'chevron-down'} size={14} color={color.textSecondary} />
         </Pressable>
         {activeFilters ? (
-          <Pressable onPress={() => setFilter((f) => ({ ...f, mode: 'all', source: 'all', status: 'all' }))} accessibilityRole="button" hitSlop={8} style={styles.filterBtn} testID="activity-filters-clear">
+          <Pressable onPress={clearFilters} accessibilityRole="button" hitSlop={8} style={styles.filterBtn} testID="activity-filters-clear">
             <Text variant="caption" tone="secondary">{t('actv.filtersClear')}</Text>
           </Pressable>
         ) : null}
       </View>
-      {showFilters ? <>
+      {filter.day ? <Pressable onPress={() => setFilter((f) => ({ ...f, day: null }))} accessibilityRole="button" accessibilityLabel={t('actv.clearSelection')} style={styles.selection} testID="activity-clear-day"><Feather name="calendar" size={16} color={color.mint} /><Text variant="bodySmall" style={styles.flex}>{filter.day}</Text><Text variant="caption" tone="mint">{t('actv.filtersClear')}</Text><Feather name="x" size={16} color={color.mint} /></Pressable> : null}
+      {showFilters ? <Surface style={styles.filterPanel}>
+      <Text variant="label" tone="muted">{t('actv.filterMode')}</Text>
       <View style={styles.chips}>
         {(['all', 'run', 'brisk', 'walk'] as const).map((m) => <Pressable key={m} onPress={() => setFilter((f) => ({ ...f, mode: m }))} accessibilityRole="button" accessibilityState={{ selected: filter.mode === m }} testID={`activity-mode-${m}`}><Chip label={t(m === 'all' ? 'actv.filter.all' : `wo.mode.${m}` as TKey)} kind={filter.mode === m ? 'level' : 'neutral'} /></Pressable>)}
       </View>
@@ -197,7 +216,7 @@ export function ActivityScreen() {
         {(['all', 'device_gps', 'imported'] as const).map((s) => <Pressable key={s} onPress={() => setFilter((f) => ({ ...f, source: s }))} accessibilityRole="button" accessibilityState={{ selected: filter.source === s }} testID={`activity-source-${s}`}><Chip label={t(`actv.source.${s}` as TKey)} kind={filter.source === s ? 'level' : 'neutral'} /></Pressable>)}
         {(['local', 'synced', 'review', 'failed'] as const).map((s) => <Pressable key={s} onPress={() => setFilter((f) => ({ ...f, status: f.status === s ? 'all' : s }))} accessibilityRole="button" accessibilityState={{ selected: filter.status === s }} testID={`activity-status-${s}`}><Chip label={t(`actv.statusFilter.${s}` as TKey)} kind={filter.status === s ? 'level' : 'neutral'} /></Pressable>)}
       </View>
-      </> : null}
+      </Surface> : null}
 
       <View style={styles.syncRow}>
         <Text variant="caption" tone={pending > 0 ? 'warning' : 'muted'} style={styles.flex} testID="activity-sync-line">
@@ -239,17 +258,17 @@ export function ActivityScreen() {
       ) : null}
 
       <View style={styles.recentHead}>
-        <Text variant="heading2">{t('actv.recent')}</Text>
+        <View style={styles.flex}><Text variant="heading2">{t('actv.recent')}</Text><Text variant="caption" tone="secondary" testID="activity-result-count">{t('actv.results', { n: visible.length })}</Text></View>
         <Pressable onPress={() => void prefs.set({ activityOrder: prefs.activityOrder === 'asc' ? 'desc' : 'asc' })} accessibilityRole="button" hitSlop={8} style={styles.orderBtn} testID="activity-order">
           <Feather name={prefs.activityOrder === 'asc' ? 'arrow-up' : 'arrow-down'} size={14} color={color.textSecondary} />
           <Text variant="caption" tone="secondary">{t(prefs.activityOrder === 'asc' ? 'actv.order.asc' : 'actv.order.desc')}</Text>
         </Pressable>
       </View>
       {visible.length === 0 ? (
-        <InlineState kind="info" title={t(items.length ? 'actv.empty.filtered' : 'actv.empty.title')} body={t(items.length ? 'actv.empty.filteredBody' : 'actv.empty.body')} action={items.length ? undefined : { label: t('home.startWorkout'), onPress: () => navigation.navigate('WorkoutStart') }} secondaryAction={items.length ? undefined : { label: t('actv.empty.import'), onPress: () => navigation.navigate('Workouts') }} testID="activity-empty" />
+        <InlineState kind="info" title={t(items.length ? 'actv.empty.filtered' : 'actv.empty.title')} body={t(items.length ? 'actv.empty.filteredBody' : 'actv.empty.body')} action={items.length ? { label: t('actv.filtersClear'), onPress: clearFilters } : { label: t('home.startWorkout'), onPress: () => navigation.navigate('WorkoutStart') }} secondaryAction={items.length ? undefined : { label: t('actv.empty.import'), onPress: () => navigation.navigate('Workouts') }} testID="activity-empty" />
       ) : (
         <View style={styles.list} testID="activity-list">
-          {visible.map((it) => <ActivityCard key={it.id} it={it} layer={thumbLayer} onPress={() => open(it)} />)}
+          {visible.map((it) => <ActivityCard key={it.id} it={it} onPress={() => open(it)} />)}
         </View>
       )}
       <Text variant="caption" tone="muted" style={styles.footnote}>{t('actv.retentionNote')}</Text>
@@ -261,7 +280,7 @@ const localDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).pad
 const fmtDay = (day: string, locale: string) => new Date(Date.parse(`${day}T00:00:00Z`)).toLocaleDateString(locale, { month: 'numeric', day: 'numeric', timeZone: 'UTC' });
 
 /** 最近活動卡（Style 23.17）：路線縮圖＋日期（今天／昨天／日期）＋自動命名（週幾＋時段＋模式）＋距離／配速或速度／時間＋狀態 */
-function ActivityCard({ it, layer, onPress }: { it: ActivityItem; layer: Parameters<typeof RouteThumb>[0]['layer']; onPress: () => void }) {
+function ActivityCard({ it, onPress }: { it: ActivityItem; onPress: () => void }) {
   const { t, locale } = useT();
   const points = useRoutePoints(it.localId);
   const day = dayOfItem(it);
@@ -272,19 +291,19 @@ function ActivityCard({ it, layer, onPress }: { it: ActivityItem; layer: Paramet
   const title = t('actv.autoTitle', { wd, tod: t(`actv.tod.${timeOfDay(it.startedAtUtc, it.timeZone)}` as TKey), mode: modeLabel(t, it.sport, it.intent) });
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${dateLabel} · ${title}`} testID={`activity-item-${it.id}`}>
-      <Surface style={styles.card}>
+      <Surface style={[styles.card, { borderLeftColor: it.sport === 'run' ? color.mint : it.intent === 'brisk' ? color.cyan : color.violet }]}>
         <View style={styles.cardHead}>
-          <RouteThumb points={points} layer={layer} testID={`activity-thumb-${it.id}`} />
+          <RouteThumb points={points} layer={it.routeAppearance.layer} testID={`activity-thumb-${it.id}`} />
           <View style={styles.flex}>
-            <Text variant="bodySmall" tone="secondary" numeric>{dateLabel}</Text>
+            <Text variant="caption" tone="secondary" numeric>{dateLabel} · {new Date(it.startedAtUtc).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', timeZone: it.timeZone ?? undefined })}</Text>
             <Text variant="title" testID={`activity-item-title-${it.id}`}>{title}</Text>
           </View>
           <Feather name="chevron-right" size={18} color={color.textMuted} />
         </View>
         <View style={styles.cardStats}>
-          <View style={styles.flex}><Text variant="heading2" numeric>{it.distanceMm === null ? '—' : formatKm(String(it.distanceMm)).replace(/ km$/, '')}</Text><Text variant="caption" tone="secondary">km</Text></View>
-          <View style={styles.flex}><Text variant="heading2" numeric>{it.sport === 'run' ? formatPace(it.avgPaceSPerKm) : it.avgSpeedKmh === null ? '—' : it.avgSpeedKmh.toFixed(1)}</Text><Text variant="caption" tone="secondary">{it.sport === 'run' ? t('actv.hero.pace') : `${t('actv.hero.speed')} km/h`}</Text></View>
-          <View style={styles.flex}><Text variant="heading2" numeric>{it.elapsedMs === null ? '—' : formatDuration(String(it.elapsedMs))}</Text><Text variant="caption" tone="secondary">{t('actv.hero.time')}</Text></View>
+          <View style={styles.cardMetric}><Text variant="heading2" numeric>{it.distanceMm === null ? '—' : formatKm(String(it.distanceMm)).replace(/ km$/, '')}</Text><Text variant="caption" tone="secondary">km</Text></View>
+          <View style={styles.cardMetric}><Text variant="heading2" numeric>{it.sport === 'run' ? formatPace(it.avgPaceSPerKm) : it.avgSpeedKmh === null ? '—' : it.avgSpeedKmh.toFixed(1)}</Text><Text variant="caption" tone="secondary">{it.sport === 'run' ? t('actv.hero.pace') : `${t('actv.hero.speed')} km/h`}</Text></View>
+          <View style={styles.cardMetric}><Text variant="heading2" numeric>{it.elapsedMs === null ? '—' : formatDuration(String(it.elapsedMs))}</Text><Text variant="caption" tone="secondary">{t('actv.hero.time')}</Text></View>
         </View>
         <Text variant="caption" tone={it.status === 'sync_failed' || it.status === 'delete_pending' ? 'warning' : it.needsReview || it.status === 'excluded' ? 'danger' : 'muted'} testID={`activity-item-status-${it.id}`}>
           {[it.shoe ? stageName(t, it.shoe.level) : null, t(`actv.source.${it.source}` as TKey), t(`actv.status.${it.status}` as TKey), it.needsReview && it.status !== 'needs_review' ? t('actv.status.needs_review') : null].filter(Boolean).join(' · ')}
@@ -295,37 +314,43 @@ function ActivityCard({ it, layer, onPress }: { it: ActivityItem; layer: Paramet
 }
 
 const styles = StyleSheet.create({
+  viewToolbar: { alignItems: 'flex-end', marginTop: space.xxs },
+  overview: { marginTop: space.xs },
+  periodTitle: { flex: 1, textAlign: 'center', flexShrink: 1 },
+  filterPanel: { marginTop: space.xs },
+  selection: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 48, paddingHorizontal: space.s, borderRadius: radius.m, backgroundColor: color.elevated },
   periods: { flexDirection: 'row', borderRadius: radius.l, borderWidth: 1, borderColor: color.borderSubtle, overflow: 'hidden', marginBottom: space.s },
-  periodItem: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  periodItem: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   periodOn: { backgroundColor: color.mint },
   periodOnText: { color: color.onMint },
   hero: { marginTop: space.m, gap: space.xxs },
   heroKm: { fontSize: 64, lineHeight: 70, fontStyle: 'italic' },
-  heroStats: { flexDirection: 'row', gap: space.l, marginTop: space.s },
-  heroStat: { minWidth: 72 },
+  heroStats: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.s, paddingTop: space.s, borderTopWidth: 1, borderTopColor: color.borderSubtle },
+  heroStat: { flexGrow: 1, minWidth: 80, gap: space.xxs },
   recentHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.l, marginBottom: space.xs },
-  card: { gap: space.s },
+  card: { gap: space.s, borderLeftWidth: 3 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: space.s },
-  cardStats: { flexDirection: 'row', gap: space.s },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.s },
+  cardMetric: { flexGrow: 1, flexBasis: 80, gap: space.xxs },
+  cardStats: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, borderTopWidth: 1, borderTopColor: color.borderSubtle, paddingTop: space.s },
+  header: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, justifyContent: 'space-between', alignItems: 'center', marginBottom: space.s },
   headerLinks: { flexDirection: 'row', alignItems: 'center', gap: space.m },
-  link: { minHeight: 44, justifyContent: 'center' },
+  link: { minHeight: 48, justifyContent: 'center' },
   homeBtn: { flexDirection: 'row', alignItems: 'center', gap: space.xxs },
   filterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.s },
-  filterBtn: { flexDirection: 'row', alignItems: 'center', gap: space.xxs, minHeight: 44 },
+  filterBtn: { flexDirection: 'row', alignItems: 'center', gap: space.xxs, minHeight: 48 },
   monthRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  monthBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  monthBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
   segment: { flexDirection: 'row', borderRadius: radius.m, borderWidth: 1, borderColor: color.borderSubtle, overflow: 'hidden' },
-  segmentItem: { width: 44, height: 36, alignItems: 'center', justifyContent: 'center' },
+  segmentItem: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   segmentOn: { backgroundColor: color.mint },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: space.s },
   syncRow: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.s },
   syncBtns: { gap: space.xs, marginTop: space.xs },
-  orderBtn: { flexDirection: 'row', alignItems: 'center', gap: space.xxs, minHeight: 44 },
+  orderBtn: { flexDirection: 'row', alignItems: 'center', gap: space.xxs, minHeight: 48 },
   calendar: { marginTop: space.s },
   week: { flexDirection: 'row' },
-  cell: { flex: 1, alignItems: 'center', minHeight: 44, justifyContent: 'center', textAlign: 'center' },
+  cell: { flex: 1, alignItems: 'center', minHeight: 48, justifyContent: 'center', textAlign: 'center' },
   dayCell: { borderRadius: radius.s, paddingVertical: space.xxs },
   dayOn: { backgroundColor: color.elevated },
   dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: color.mint, marginTop: 2 },

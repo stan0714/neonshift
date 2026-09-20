@@ -1,3 +1,4 @@
+import { routeAppearanceOf, type RouteAppearance } from '@/domain/appearance';
 /**
  * 我的運動 Activity（PG-LINK-04，docs/shoe-sync-activity.md §4）：純函式——合併本機與伺服器紀錄、以 canonical id 去重、
  * 月／日分組依 session 保存的當地時區（跨午夜歸開始日）、篩選、穩定排序、月總覽（只計有效且去重的紀錄，待審另列）。
@@ -12,6 +13,7 @@ export type ActivitySource = 'device_gps' | 'imported' | 'manual';
 export type ActivityItem = {
   /** canonical id：已同步／伺服器 → 伺服器 session id；純本機 → 本機 sessionId */
   id: string;
+  routeAppearance: RouteAppearance;
   localId: string | null;
   serverId: string | null;
   sport: 'run' | 'walk';
@@ -50,6 +52,7 @@ export function itemFromLocal(m: SessionMeta, entry: OutboxEntry | null): Activi
     : entry ? 'queued'
     : 'local';
   return {
+    routeAppearance: routeAppearanceOf(m.routeAppearance),
     id: m.syncedSessionId ?? m.sessionId, localId: m.sessionId, serverId: m.syncedSessionId ?? null,
     sport: m.sport, intent: m.intent ?? (m.sport === 'run' ? 'run' : null),
     startedAtUtc: m.startedAtUtc, endedAtUtc: m.endedAtUtc, timeZone: m.recordedTimeZone ?? null,
@@ -66,6 +69,7 @@ export function itemFromLocal(m: SessionMeta, entry: OutboxEntry | null): Activi
 export function itemFromRemote(w: WorkoutSummary): ActivityItem {
   const extras = (w.extras ?? {}) as { splits?: { distanceMm: number; durationMs: number; paceSPerKm: number | null; isPartial: boolean }[]; laps?: unknown[]; recorded_time_zone?: string; moving_ms?: number; shoe?: { level: 1 | 2 | 3 | 4 | 5; shoeId: string } };
   return {
+    routeAppearance: routeAppearanceOf(w.extras?.route_appearance),
     id: w.session_id, localId: null, serverId: w.session_id,
     sport: w.sport, intent: w.intent ?? (w.sport === 'run' ? 'run' : null),
     startedAtUtc: Date.parse(w.started_at), endedAtUtc: Date.parse(w.ended_at), timeZone: extras.recorded_time_zone ?? null,
@@ -137,7 +141,8 @@ export function filterActivity(items: ActivityItem[], f: ActivityFilter): Activi
       if (f.status === 'review' && !review) return false;
       if (f.status === 'failed' && !failed) return false;
     }
-    if (f.day && dayOfItem(it) !== f.day) return false;
+    // Chart selection can be a day, month or year; use calendar boundaries.
+    if (f.day && !(dayOfItem(it) === f.day || dayOfItem(it).startsWith(`${f.day}-`))) return false;
     return true;
   });
 }
@@ -233,6 +238,9 @@ export function periodSummary(items: ActivityItem[], kind: ActivityPeriod, ancho
   const counted = inRange.filter((it) => !it.needsReview && it.status !== 'excluded' && it.status !== 'delete_pending');
   const distanceMm = counted.reduce((a, it) => a + (it.distanceMm ?? 0), 0);
   const elapsedMs = counted.reduce((a, it) => a + (it.elapsedMs ?? 0), 0);
+  const timed = counted.filter((it) => it.distanceMm !== null && it.distanceMm > 0 && it.elapsedMs !== null && it.elapsedMs > 0);
+  const timedDistanceMm = timed.reduce((sum, it) => sum + it.distanceMm!, 0);
+  const timedElapsedMs = timed.reduce((sum, it) => sum + it.elapsedMs!, 0);
   const today = localDay(now);
   const bucketKey = (day: string) => (kind === 'week' || kind === 'month' ? day : kind === 'year' ? day.slice(0, 7) : day.slice(0, 4));
   const keys: { key: string; label: string }[] = [];
@@ -256,8 +264,9 @@ export function periodSummary(items: ActivityItem[], kind: ActivityPeriod, ancho
     distanceMm,
     hasDistance: counted.some((it) => it.distanceMm !== null),
     elapsedMs,
-    avgPaceSPerKm: distanceMm > 0 ? Math.round(elapsedMs / 1000 / (distanceMm / 1_000_000)) : null,
-    avgSpeedKmh: distanceMm > 0 && elapsedMs > 0 ? distanceMm / 1_000_000 / (elapsedMs / 3_600_000) : null,
+    hasTime: counted.some((it) => it.elapsedMs !== null),
+    avgPaceSPerKm: timedDistanceMm > 0 ? Math.round(timedElapsedMs / 1000 / (timedDistanceMm / 1_000_000)) : null,
+    avgSpeedKmh: timedElapsedMs > 0 ? timedDistanceMm / 1_000_000 / (timedElapsedMs / 3_600_000) : null,
     excluded: inRange.length - counted.length,
     buckets,
     /** 有紀錄的桶平均距離（虛線） */

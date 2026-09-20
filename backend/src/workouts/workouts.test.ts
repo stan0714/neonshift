@@ -198,3 +198,14 @@ describe("POST /workouts/import、/me/workouts", () => {
     expect(await store.listWorkouts(u.wallet, 10, 0)).toEqual([]);
   });
 });
+
+it('更正運動數值或移除 extras 不得更換已保存的 route 背景', async () => {
+  const u = await login();
+  const send = (source_revision: number, extras: Record<string, unknown>) => app.inject({ method: 'POST', url: '/v1/workouts/import', headers: u.h, payload: { sessions: [{ ...base, source_revision, distance_mm: '5000000', distance_method: 'device', extras }] } });
+  const first = j(await send(1, { route_appearance: { version: 1, layer: 'ocean' } })).results[0].session;
+  const changed = j(await send(2, { route_appearance: { version: 1, layer: 'snow' }, moving_ms: 1200000 })).results[0].session;
+  expect(changed.session_id).toBe(first.session_id);
+  expect(changed.extras).toMatchObject({ route_appearance: { version: 1, layer: 'ocean' }, moving_ms: 1200000 });
+  const omitted = j(await send(3, {})).results[0].session;
+  expect(omitted.extras.route_appearance).toEqual({ version: 1, layer: 'ocean' });
+});

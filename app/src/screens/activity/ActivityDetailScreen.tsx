@@ -65,6 +65,7 @@ export function ActivityDetailScreen() {
           [t('sum.shoe'), it.shoe ? `Lv.${it.shoe.level} · ${stageName(t, it.shoe.level)}` : t('sum.shoeUnknown')],
           [t('actv.detail.pb'), it.pbEligible === null ? '—' : t(it.pbEligible ? 'actv.detail.pbYes' : 'actv.detail.pbNo')],
           [t('actv.detail.sync'), t('actv.status.server_only')],
+          [t('route.title'), t(`sum.layer.${it.routeAppearance.layer}` as TKey)],
         ] as const).map(([label, value]) => (
           <View key={label} style={styles.row}>
             <Text variant="label" tone="muted" uppercase>{label}</Text>

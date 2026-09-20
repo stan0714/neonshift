@@ -7,6 +7,7 @@ import { create } from 'zustand';
 
 import { decodeConfig, decodeIncidentFreeze, decodePlayerProfile, fetchAccount, type ChainConfig, type IncidentFreeze, type PlayerProfile } from '@/chain/accounts';
 import { claimPda, configPda, freezePda, playerPda } from '@/chain/program';
+import { FEATURES } from '@/config/features';
 import { APP_CONFIG } from '@/config/app';
 import { progress, reduce, taskDateOf, type TaskStatus, type TaskType } from '@/domain/taskEngine';
 import { getConnection } from '@/services/chain/ChainClient';
@@ -60,9 +61,9 @@ export const useDashboardStore = create<State>((set, get) => ({
     // 只在沒有更新的前景資料時採用快取
     const cur = get().health;
     if (cur && cur.syncedAt >= cached.syncedAt) return false;
-    set({ health: { taskDate: cached.taskDate, steps: cached.steps, sleep: cached.sleep, syncedAt: cached.syncedAt, error: null, source: 'cache' } });
+    set({ health: { taskDate: cached.taskDate, steps: cached.steps, sleep: FEATURES.sleep ? cached.sleep : null, syncedAt: cached.syncedAt, error: null, source: 'cache' } });
     get().dispatch('steps', { kind: 'data', value: cached.steps.total });
-    get().dispatch('sleep', { kind: 'data', value: sleepMinutesOf(cached.sleep) });
+    if (FEATURES.sleep) get().dispatch('sleep', { kind: 'data', value: sleepMinutesOf(cached.sleep) });
     return true;
   },
 
@@ -70,15 +71,15 @@ export const useDashboardStore = create<State>((set, get) => ({
     const { taskDate } = get();
     set({ healthSyncing: true });
     try {
-      const [steps, sleep] = await Promise.all([healthConnect.readStepsForTaskDate(taskDate), healthConnect.readSleepForTaskDate(taskDate)]);
+      const [steps, sleep] = await Promise.all([healthConnect.readStepsForTaskDate(taskDate), FEATURES.sleep ? healthConnect.readSleepForTaskDate(taskDate) : Promise.resolve(null)]);
       const syncedAt = Date.now();
       set({ health: { taskDate, steps, sleep, syncedAt, error: null, source: 'foreground' } });
       get().dispatch('steps', { kind: 'data', value: steps.total });
-      get().dispatch('sleep', { kind: 'data', value: sleepMinutesOf(sleep) });
-      void healthConnect.cacheSummary({ taskDate, steps, sleep, syncedAt, source: 'foreground' });
+      if (FEATURES.sleep) get().dispatch('sleep', { kind: 'data', value: sleepMinutesOf(sleep) });
+      void healthConnect.cacheSummary({ taskDate, steps, sleep: sleep ?? { sessions: [] }, syncedAt, source: 'foreground' });
     } catch (e) {
       const prev = get().health;
-      set({ health: { taskDate, steps: prev?.steps ?? null, sleep: prev?.sleep ?? null, syncedAt: prev?.syncedAt ?? 0, error: e instanceof Error ? e.message : String(e), source: prev?.source ?? 'cache' } });
+      set({ health: { taskDate, steps: prev?.steps ?? null, sleep: FEATURES.sleep ? prev?.sleep ?? null : null, syncedAt: prev?.syncedAt ?? 0, error: e instanceof Error ? e.message : String(e), source: prev?.source ?? 'cache' } });
     } finally {
       set({ healthSyncing: false });
     }
@@ -102,7 +103,7 @@ export const useDashboardStore = create<State>((set, get) => ({
         const bal = await conn.getTokenAccountBalance(associatedTokenAddress(config.mint, wallet), 'confirmed').catch(() => null);
         balance = bal ? BigInt(bal.value.amount) : 0n;
       }
-      const [stepsReceipt, sleepReceipt] = await Promise.all([claimSubmitter.receiptExists(claimPda(wallet, taskDate, 1)), claimSubmitter.receiptExists(claimPda(wallet, taskDate, 2))]);
+      const [stepsReceipt, sleepReceipt] = await Promise.all([claimSubmitter.receiptExists(claimPda(wallet, taskDate, 1)), FEATURES.sleep ? claimSubmitter.receiptExists(claimPda(wallet, taskDate, 2)) : Promise.resolve(false)]);
       set({ config, profile, freeze, balance, chainSyncedAt: Date.now(), chainError: null });
       if (stepsReceipt) get().dispatch('steps', { kind: 'receipt_exists' });
       if (sleepReceipt) get().dispatch('sleep', { kind: 'receipt_exists' });

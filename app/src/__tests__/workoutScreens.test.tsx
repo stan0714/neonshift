@@ -265,13 +265,11 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   await fireEvent(screen.getByTestId('route-trace'), 'layout', { nativeEvent: { layout: { width: 320, height: 220 } } });
   await waitFor(() => expect(screen.getByTestId('route-trace-layer-grid')).toBeTruthy());
   expect(useWorkoutPrefs.getState().traceLayer).toBe('shoe');
-  expect(screen.getByTestId('sum-route-layer-shoe').props.accessibilityState.selected).toBe(true);
-  expect(screen.getByTestId('sum-route-layer-forest-locked')).toBeTruthy();
-  await fireEvent.press(screen.getByTestId('sum-route-layer-mars'));
-  await fireEvent(screen.getByTestId('route-trace'), 'layout', { nativeEvent: { layout: { width: 320, height: 220 } } });
-  expect(useWorkoutPrefs.getState().traceLayer).toBe('mars');
-  expect(screen.getByTestId('route-trace-layer-mars')).toBeTruthy();
-  expect(screen.getByTestId('sum-route-layer-geo')).toBeTruthy();
+  expect(screen.getByTestId('sum-route-locked')).toBeTruthy();
+  expect(screen.queryByTestId('sum-route-layer-mars')).toBeNull();
+  await act(async () => { await useWorkoutPrefs.getState().set({ traceLayer: 'mars' }); });
+  expect(screen.getByTestId('route-trace-layer-grid')).toBeTruthy();
+  expect(screen.queryByTestId('route-trace-layer-mars')).toBeNull();
   // 完整性：健走以 3 m/s（10.8 km/h）持續 2 分鐘 → sustained_speed（防弊）
   expect(screen.getByTestId('sum-integrity')).toBeTruthy();
   expect(screen.getByText(/^Sustained speed: 1 stretch/)).toBeTruthy();
@@ -292,4 +290,13 @@ test('review 5（第二輪）：meta.unsavedPoints > 0 → 摘要頁明確說明
   expect(screen.getByTestId('sum-unsaved')).toBeTruthy();
   expect(screen.getByText(/42 points could not be written/)).toBeTruthy();
   expect(screen.queryByTestId('sum-avg-hint')).toBeNull(); // 無暫停就不列全程
+});
+
+test('路線背景只在開始前選擇，未取得棲地不可選', async () => {
+  await render(<WorkoutStartScreen />, { wrapper: Wrapper });
+  await fireEvent.press(screen.getByTestId('start-settings'));
+  expect(screen.getByTestId('start-route-picker')).toBeTruthy();
+  expect(screen.getByTestId('start-route-layer-snow').props.accessibilityState.disabled).toBe(true);
+  await fireEvent.press(screen.getByTestId('start-route-layer-mars'));
+  expect(useWorkoutPrefs.getState().traceLayer).toBe('mars');
 });

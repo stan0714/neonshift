@@ -93,3 +93,17 @@ test('PG-LINK-06 期間：錨點／位移／日曆日範圍；週＝週一起 7 
   expect(timeOfDay(Date.parse('2026-09-17T11:30:00Z'), 'Asia/Taipei')).toBe('evening'); // 19:30
   expect(timeOfDay(Date.parse('2026-09-17T18:00:00Z'), 'Asia/Taipei')).toBe('early'); // 02:00
 });
+
+test('月份／年份圖表篩選按日曆邊界；缺距離或時間不污染平均配速', () => {
+  const valid = itemFromRemote(remote('valid', '2026-09-20T01:00:00Z'));
+  const missingDistance = { ...valid, id: 'no-distance', distanceMm: null, elapsedMs: 9_000_000 };
+  const missingTime = { ...valid, id: 'no-time', distanceMm: 100_000_000, elapsedMs: null };
+  const otherMonth = { ...valid, id: 'oct', startedAtUtc: Date.UTC(2026, 9, 2) };
+  expect(filterActivity([valid, otherMonth], { day: '2026-09' }).map((i) => i.id)).toEqual(['valid']);
+  expect(filterActivity([valid, otherMonth], { day: '2026' })).toHaveLength(2);
+  const summary = periodSummary([valid, missingDistance, missingTime], 'month', '2026-09');
+  expect(summary.avgPaceSPerKm).toBe(625);
+  expect(summary.avgSpeedKmh).toBeCloseTo(5.76);
+  expect(periodSummary([missingTime], 'month', '2026-09').hasTime).toBe(false);
+  expect(periodSummary([missingTime], 'month', '2026-09').avgPaceSPerKm).toBeNull();
+});

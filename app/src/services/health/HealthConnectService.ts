@@ -129,6 +129,7 @@ export const healthConnect = {
 
   /** 結束時間落在任務日內的睡眠 session（BR-05） */
   async readSleepForTaskDate(taskDate: number): Promise<SleepResult> {
+    if (!FEATURES.sleep) return { sessions: [] };
     const { startUnix, endUnix } = taskDateRange(taskDate);
     try {
       return await NeonshiftHealth.readSleepSessions(startUnix, endUnix);

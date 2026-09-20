@@ -464,7 +464,7 @@ export class WorkoutRecorder {
     return r.granted;
   }
 
-  async start(opts: { sport: 'run' | 'walk'; intent?: WorkoutIntent | null; goal?: WorkoutGoal | null; environment: 'outdoor' | 'indoor'; autoLapMm?: number | null; trackLapMm?: number | null; splitLengthMm?: number; autoPause?: boolean; /** PG-LINK-01：開始時的跑鞋外觀快照 */ shoeSnapshot?: SessionMeta['shoeSnapshot']; /** PG-LINK-02：建立時的玩家 */ owner?: string | null }): Promise<SessionMeta> {
+  async start(opts: { sport: 'run' | 'walk'; intent?: WorkoutIntent | null; goal?: WorkoutGoal | null; environment: 'outdoor' | 'indoor'; autoLapMm?: number | null; trackLapMm?: number | null; splitLengthMm?: number; autoPause?: boolean; /** PG-LINK-01：開始時的跑鞋外觀快照 */ shoeSnapshot?: SessionMeta['shoeSnapshot']; routeAppearance?: SessionMeta['routeAppearance']; /** PG-LINK-02：建立時的玩家 */ owner?: string | null }): Promise<SessionMeta> {
     if (this.state !== 'idle') throw new Error('a session is already active');
     if (opts.environment === 'indoor') throw new Error('indoor sessions do not use GPS'); // Indoor 不啟用 GPS 推算距離
     const t = this.now();
@@ -474,7 +474,7 @@ export class WorkoutRecorder {
     this.emit();
     let created = false;
     try {
-      this.meta = await this.store.create({ sessionId, sport: opts.sport, intent: opts.intent ?? (opts.sport === 'run' ? 'run' : null), goal: opts.goal ?? null, environment: opts.environment, autoLapMm: opts.autoLapMm ?? null, trackLapMm: opts.trackLapMm ?? null, autoPause: opts.autoPause ?? false, splitLengthMm: opts.splitLengthMm ?? 1_000_000, status: 'recording', startedAtUtc: t, startedMonoMs: t, processId: this.processId, shoeSnapshot: opts.shoeSnapshot ?? null, owner: opts.owner ?? null, recordedTimeZone: deviceTimeZone() });
+      this.meta = await this.store.create({ sessionId, sport: opts.sport, intent: opts.intent ?? (opts.sport === 'run' ? 'run' : null), goal: opts.goal ?? null, environment: opts.environment, autoLapMm: opts.autoLapMm ?? null, trackLapMm: opts.trackLapMm ?? null, autoPause: opts.autoPause ?? false, splitLengthMm: opts.splitLengthMm ?? 1_000_000, status: 'recording', startedAtUtc: t, startedMonoMs: t, processId: this.processId, shoeSnapshot: opts.shoeSnapshot ?? null, routeAppearance: opts.routeAppearance, owner: opts.owner ?? null, recordedTimeZone: deviceTimeZone() });
       created = true;
       this.engine = new GpsMetricsEngine(opts.sport, engineConfigOf(this.meta));
       this.engine.start(t);
@@ -779,7 +779,7 @@ export class WorkoutRecorder {
         distance_mm: s.distanceMm > 0 ? String(s.distanceMm) : null,
         distance_method: s.distanceMm > 0 ? 'gps' : null,
         client_flags: flags,
-        extras: { gps_rules_version: s.rulesVersion, max_speed_5s_kmh: s.maxSpeed5sKmh, moving_ms: s.movingMs, splits: s.splits, laps: s.laps, quality: s.quality, integrity: s.integrity ?? null, track_equivalent: s.trackEquivalent, recorded_time_zone: meta.recordedTimeZone ?? null, shoe: meta.shoeSnapshot ?? null },
+        extras: { gps_rules_version: s.rulesVersion, max_speed_5s_kmh: s.maxSpeed5sKmh, moving_ms: s.movingMs, splits: s.splits, laps: s.laps, quality: s.quality, integrity: s.integrity ?? null, track_equivalent: s.trackEquivalent, recorded_time_zone: meta.recordedTimeZone ?? null, shoe: meta.shoeSnapshot ?? null, route_appearance: meta.routeAppearance ?? { version: 1, layer: 'grid' } },
       });
       if (r.sessionId) {
         meta.syncedSessionId = r.sessionId;

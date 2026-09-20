@@ -76,7 +76,7 @@ describe('10.2 Health Access', () => {
 
     await act(async () => await fireEvent.press(screen.getByText('Allow health access')));
     await waitFor(() => expect(screen.getByTestId('health-denied')).toBeTruthy());
-    expect(screen.getByText(/Only some data types/)).toBeTruthy();
+    expect(screen.getByText(/Some required access is missing/)).toBeTruthy();
     expect(screen.getByText('Open Health Connect settings')).toBeTruthy();
     expect(screen.getByText('Not now')).toBeTruthy();
     expect(mockNavigate).not.toHaveBeenCalled();

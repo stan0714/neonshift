@@ -49,3 +49,8 @@ python3 -m venv /tmp/neonshift-deck-venv
 
 
 新增需求：[跑鞋／同步／Activity 設計](../../docs/shoe-sync-activity.md)。第 2 頁示例三筆紀錄為測試文案，不是真實運動資料；預設自動同步關閉，開啟後依運動時間由舊到新。第 4 頁選擇已取得鞋款，背景可關閉且不改有效等級。
+
+
+## 2026-09-20 Activity 與睡眠清理
+
+第 1 頁 EARLY BUILD 截圖仍含舊睡眠卡；現行 App 已停用睡眠讀取與入口，正式影片須替換新 APK 實錄。本次不將歷史截圖修飾成新實機證據。

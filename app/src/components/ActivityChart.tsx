@@ -65,7 +65,7 @@ export function ActivityChart({ buckets, selected, onSelect, avgMm, testID = 'ac
           </View>
           <View style={[styles.labels, { width: plotW }]} pointerEvents="none">
             {buckets.map((b, i) => (showLabel(i) ? (
-              <Text key={b.key} variant="caption" tone={b.isToday ? undefined : 'muted'} numeric numberOfLines={1} style={[styles.label, { left: i * slot + slot / 2 - 20 }, b.isToday && styles.today]}>{buckets.length === 7 ? t(`actv.wd.${b.label}` as TKey) : b.label}</Text>
+              <Text key={b.key} variant="caption" tone={b.isToday ? undefined : 'muted'} numeric numberOfLines={1} style={[styles.label, { left: i * slot + slot / 2 - 20 }, b.isToday && styles.today]}>{['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].includes(b.label) ? t(`actv.wd.${b.label}` as TKey) : b.label}</Text>
             ) : null))}
           </View>
         </>

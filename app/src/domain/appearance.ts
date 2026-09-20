@@ -81,3 +81,11 @@ export function resolveTraceLayer(pref: 'shoe' | 'grid' | 'mars' | 'chain' | 'sp
   if (pref in SCENE_LEVEL) return SCENE_LEVEL[pref as HabitatSceneKind] <= highestOwned ? pref : follow;
   return pref;
 }
+
+/** Versioned route artwork. Version 1 IDs must keep their artwork; new art needs a new version. */
+export type RouteAppearance = { version: 1; layer: ReturnType<typeof resolveTraceLayer> };
+export function routeAppearanceOf(value: unknown): RouteAppearance {
+  const v = value as Partial<RouteAppearance> | null | undefined;
+  const layers = ['grid', 'mars', 'chain', 'space', ...HABITAT_SCENES];
+  return v?.version === 1 && layers.includes(v.layer ?? '') ? { version: 1, layer: v.layer! } : { version: 1, layer: 'grid' };
+}

@@ -22,3 +22,8 @@ python output/fundraising/build_deck.py
 
 
 新增設計與驗收：[跑鞋連動、同步與 Activity](../../docs/shoe-sync-activity.md)。本次只更新產品設計，未重新查核既有外部研究來源日期。
+
+
+## 2026-09-20 Activity 與睡眠清理
+
+募資 v4 第 3 頁移除睡眠任務宣傳，重建 PPTX、HTML 與講稿；歷史 v1–v3 保留。完整殘留／相容性與維持門檻影響見 [盤點](../../docs/activity-sleep-review.md)。

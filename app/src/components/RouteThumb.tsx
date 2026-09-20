@@ -31,7 +31,7 @@ export function useRoutePoints(localId: string | null): RawPoint[] | null {
 export const __resetRouteThumbCache = () => { cache.clear(); inflight.clear(); };
 
 /**
- * 路線縮圖（PG-LINK-06；Style 23.17）：最近活動卡左側 72dp 方塊，底圖與摘要頁同一套（跟隨跑鞋棲地，PG-LINK-07），
+ * 路線縮圖（PG-LINK-06；Style 23.17）：最近活動卡左側 72dp 方塊，底圖與摘要頁讀取同一筆固定快照（PG-LINK-10），
  * 折線由本機點畫、不上傳；伺服器摘要／室內／無點 → 只有底圖。
  */
 export function RouteThumb({ points, layer, size = 72, testID = 'route-thumb' }: { points: RawPoint[] | null; layer: TraceLayer; size?: number; testID?: string }) {

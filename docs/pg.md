@@ -835,3 +835,13 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-LINK-08 | Workouts 匯入按鈕只在有新紀錄時出現；睡眠先隱藏 | WIP | 2026-09-20 負責人提出；`previewHealthConnect` 對照伺服器 (source_id, external_record_id, revision) 不提示權限、全部已匯入改一行說明；`FEATURES.sleep=false`（Style 23.19：Home 步數卡全寬、只要求步數權限、上手／Profile 文案）；鏈上／後端睡眠規則保留 |
 
 新增工期與負責人待排，與 PG-R／V／WILD 既有基礎整合，不重複計完成度。
+
+
+## 2026-09-20 Activity 與睡眠清理
+
+PG-LINK-09：Activity 視覺與篩選一致性修正、睡眠停用讀取／權限與對外文案清理，WIP（待實機）。鏈上／後端保留；DEC-04 的 Lv5 900 點與本版僅步數 700 點上限需定案。
+
+
+## PG-LINK-10：跑鞋連動與路線外觀固定（2026-09-20）
+
+WIP：運動前預覽／選擇、開始頁鞋款一致、本機不可改寫快照、記錄／摘要／Activity 一致、同步 extras 與後端更正版保留原背景。新增測試涵蓋保存後換偏好、重啟及 source revision；待實機與 PostgreSQL 整合驗收。社群圖片分享、每鞋里程及升階首次運動紀念列候選，尚未實作。詳見 [設計](design/shoe-route-linkage.md)。

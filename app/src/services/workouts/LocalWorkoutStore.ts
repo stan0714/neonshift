@@ -1,3 +1,4 @@
+import { routeAppearanceOf, type RouteAppearance } from '@/domain/appearance';
 import { Buffer } from 'buffer';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
@@ -46,6 +47,8 @@ export type SessionMeta = {
   /** review 2：結束時仍未落地的定位點數（寫入失敗且重試耗盡）；> 0 代表摘要距離含未持久化的部分。舊 meta 無此欄位 */
   unsavedPoints?: number;
   /** PG-LINK-01：開始時的跑鞋外觀快照（之後切鞋不回寫）；null／缺欄位＝未指定（未綁定玩家或舊紀錄），不推算 */
+  /** Resolved at start, immutable across saves/sync; absent legacy records use grid v1. */
+  routeAppearance?: RouteAppearance;
   shoeSnapshot?: { shoeId: string; level: 1 | 2 | 3 | 4 | 5; variant: string | null } | null;
   /** PG-LINK-02：建立時綁定的玩家（錢包地址）；null＝訪客紀錄，首次歸屬須確認 */
   owner?: string | null;
@@ -125,6 +128,8 @@ export class LocalWorkoutStore {
    * 直接覆寫時 process 被殺會留下半截 JSON，整筆紀錄就從列表消失；rename 在同一檔案系統上是原子的。
    */
   async writeMeta(meta: SessionMeta): Promise<void> {
+    const previous = this.readMeta(meta.sessionId);
+    meta.routeAppearance = routeAppearanceOf(previous ? previous.routeAppearance : meta.routeAppearance);
     meta.updatedAt = Date.now();
     const tmp = this.fs.file(meta.sessionId, META_TMP);
     tmp.write(JSON.stringify(meta));

@@ -1,3 +1,4 @@
+import { freezeWorkoutArtwork } from "../workouts/appearance.js";
 import type pg from "pg";
 
 import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBadges, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, CosmeticEntitlement, QuestContribution, QuestEnrollment, QuestReceipt, QuestTemplate, GalleryBoard, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, LevelHistoryEntry, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
@@ -750,12 +751,14 @@ export class PostgresStore implements Store {
         if (w.sourceRevision < existing.sourceRevision) { await client.query("ROLLBACK"); return { outcome: "stale" as const, session: existing }; }
         if (w.sourceRevision === existing.sourceRevision && !existing.deletedAt) { await client.query("ROLLBACK"); return { outcome: "same" as const, session: existing }; }
         const dup = await dupOf(existing.sessionId);
+        w = { ...w, extras: freezeWorkoutArtwork(w.extras, existing.extras) };
         const sets = PostgresStore.WORKOUT_COLS.split(", ").map((c, i) => `${c} = $${i + 3}`).join(", ");
         const r = await client.query(`UPDATE workout_sessions SET ${sets}, revision = revision + 1, updated_at = $2, deleted_at = NULL, possible_duplicate_of = $${PostgresStore.WORKOUT_COLS.split(", ").length + 3} WHERE session_id = $1 RETURNING *`, [existing.sessionId, now, ...this.workoutParams(w), dup]);
         await client.query("COMMIT");
         return { outcome: "superseded" as const, session: this.workoutRow(r.rows[0] as Row) };
       }
       const dup = await dupOf(null);
+      w = { ...w, extras: freezeWorkoutArtwork(w.extras) };
       const n = PostgresStore.WORKOUT_COLS.split(", ").length;
       const placeholders = Array.from({ length: n }, (_, i) => `$${i + 3}`).join(",");
       const r = await client.query(`INSERT INTO workout_sessions (session_id, imported_at, updated_at, ${PostgresStore.WORKOUT_COLS}, possible_duplicate_of) VALUES ($1,$2,$2,${placeholders},$${n + 3}) RETURNING *`, [w.sessionId, now, ...this.workoutParams(w), dup]);

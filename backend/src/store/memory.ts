@@ -1,3 +1,4 @@
+import { freezeWorkoutArtwork } from "../workouts/appearance.js";
 import { randomUUID } from "node:crypto";
 import { compareLeaderboard } from "./leaderboard.js";
 import type { CosmeticEntitlement, QuestContribution, QuestEnrollment, QuestReceipt, QuestTemplate, GalleryBoard, LevelHistoryEntry, AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
@@ -492,10 +493,12 @@ export class MemoryStore implements Store {
       if (w.sourceRevision < existing.sourceRevision) return { outcome: "stale" as const, session: { ...existing } };
       if (w.sourceRevision === existing.sourceRevision && !existing.deletedAt) return { outcome: "same" as const, session: { ...existing } };
       const dup = this.findDuplicate(w, existing.sessionId);
+      w = { ...w, extras: freezeWorkoutArtwork(w.extras, existing.extras) };
       Object.assign(existing, { ...w, sessionId: existing.sessionId, revision: existing.revision + 1, updatedAt: now, deletedAt: null, possibleDuplicateOf: dup });
       return { outcome: "superseded" as const, session: { ...existing } };
     }
     const dup = this.findDuplicate(w, null);
+    w = { ...w, extras: freezeWorkoutArtwork(w.extras) };
     const row: WorkoutSession = { ...w, revision: 1, importedAt: now, updatedAt: now, deletedAt: null, possibleDuplicateOf: dup };
     this.workouts.set(row.sessionId, row);
     return { outcome: "created" as const, session: { ...row } };
