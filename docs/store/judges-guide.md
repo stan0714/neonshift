@@ -39,6 +39,7 @@ If your device has no qualifying Health Connect records, use the public previews
 1. **0:00–1:00**：安裝提交 APK 並冷啟動。需 Android 14+；錢包交易另需相容 MWA 錢包與 Devnet SOL。首次安裝／錢包設定可能更久。
 2. **1:00–2:00**：從歡迎頁 Demo 入口查看鞋款圖鑑與保育故事。這是系列展示，不表示已取得鞋款或 NFT。
 3. **2:00–3:00**：若要操作個人資料，連自己的測試錢包並完成 App 所需登入；沒有錢包可先看公開內容。拒絕簽章不應顯示成功。
+   - **錢包請用 Seeker 內建 Wallet（或 Jupiter）**。Phantom 26.6 在 Seeker 上簽完訊息後不會把簽章回傳給 dApp（Phantom 端錯誤 `sol_mwa_sign_messages … Readable side is not in a state that permits enqueue`，2026-09-21 實機確認），登入與打卡都會停在錢包畫面；App 會提示「錢包沒有把簽章送回來」並指引改用 Seeker Wallet（Profile → 斷開錢包 → 連接錢包 → 選「Wallet」）。若 Android 已把 Phantom 設為 `solana-wallet:` 連結預設，請到 設定 → 應用程式 → Phantom → 預設開啟 → 清除預設。
 4. **3:00–4:00**：Arena → 合作活動 → 已登錄的測試活動，查看時區、名額、規則、權益與來源。需發布有效 fixture 才能測試。
 5. **4:00–5:00**：有有效 session 時可報名並開啟報到碼；沒有 staff 協助就停在「待報到」，不可宣稱自行完成現場驗證。後續用活動手冊查驗。
 

@@ -130,6 +130,8 @@ export const en = {
   'wallet.err.SESSION_EXPIRED.body': 'Your previous authorization is no longer valid. Connect again to continue.',
   'wallet.err.NETWORK_ERROR.title': 'Devnet is taking a break',
   'wallet.err.NETWORK_ERROR.body': 'The wallet session timed out. Check your connection and retry.',
+  'wallet.err.WALLET_NO_REPLY.title': 'Your wallet did not send the signature back',
+  'wallet.err.WALLET_NO_REPLY.body': 'You approved in the wallet, but it never returned the result to NeonShift (a known Phantom issue on Seeker). Nothing was claimed. Switch to Seeker Wallet: Profile → Disconnect wallet → Connect wallet → choose “Wallet” and tap “Just once”.',
   'wallet.err.UNKNOWN.title': 'Something interrupted your shift',
   'wallet.err.UNKNOWN.body': 'The wallet did not respond as expected. Nothing was signed. Try again.',
 
@@ -701,6 +703,8 @@ export const en = {
   'signin.offlineKept': 'The message you just signed is kept, so you will not be asked to sign again.',
   'signin.rejected': 'You cancelled the signature in your wallet. It is not a transaction and costs nothing — it only proves the wallet is yours.',
   'signin.retryVerify': 'Reconnect and sign in',
+  'signin.noReply': '{wallet} approved the message but never sent the signature back to NeonShift (a known Phantom issue on Seeker). Use Seeker Wallet instead: Profile → Disconnect wallet → Connect wallet → choose “Wallet”, tap “Just once”, then sign in again.',
+  'signin.phantomHint': 'Heads-up: Phantom on Seeker currently does not return signed messages. If the wallet does not bring you back here, reconnect with Seeker Wallet (Profile → Disconnect wallet).',
   'act.errBody': '{message} Your records are safe; nothing changed.',
   'act.empty.title': 'No clock-ins yet',
   'act.empty.body': "Hit 8,000 steps and clock in from Home. Claim records show here for 30 days.",

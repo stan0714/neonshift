@@ -22,7 +22,7 @@ export type WalletSession = {
 };
 
 /** Style 10.1：rejected、wallet unavailable、session expired、network error */
-export type WalletErrorCode = 'REJECTED' | 'WALLET_UNAVAILABLE' | 'SESSION_EXPIRED' | 'NETWORK_ERROR' | 'UNKNOWN';
+export type WalletErrorCode = 'REJECTED' | 'WALLET_UNAVAILABLE' | 'SESSION_EXPIRED' | 'NETWORK_ERROR' | 'WALLET_NO_REPLY' | 'UNKNOWN';
 
 export class WalletError extends Error {
   constructor(
@@ -61,6 +61,26 @@ export function mapWalletError(e: unknown): WalletError {
   if (code === 'ERROR_SESSION_CLOSED' || code === 'ERROR_SESSION_TIMEOUT') return new WalletError('NETWORK_ERROR', msg, e);
   if (name === 'SolanaMobileWalletAdapterError') return new WalletError('UNKNOWN', msg, e);
   return new WalletError('UNKNOWN', msg, e);
+}
+
+/**
+ * 錢包簽了卻沒有把結果送回（2026-09-21 Seeker 實機：Phantom 26.6 在 Seed Vault 簽完訊息後內部出錯
+ * `sol_mwa_sign_messages … Readable side is not in a state that permits enqueue`，不回覆也不跳回 App；
+ * 等 App 回前景時 session 關閉，MWA 端拋 `CancellationException`）。與使用者主動取消（REJECTED）區分，
+ * 讓畫面能提示改用 Seeker Wallet。只在「請求已送到錢包」之後套用。
+ */
+export function mapSignError(e: unknown): WalletError {
+  const mapped = mapWalletError(e);
+  if (mapped.code === 'REJECTED' || mapped.code === 'WALLET_NO_REPLY') return mapped;
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/CancellationException|session closed/i.test(msg)) return new WalletError('WALLET_NO_REPLY', msg, e);
+  return mapped;
+}
+
+/** 已知在 Seeker 上簽訊息不會回覆的錢包（依 authorize 回傳的 label／wallet_uri_base 判斷） */
+export function isKnownNoReplyWallet(session: { label?: string; walletUriBase?: string } | null | undefined): boolean {
+  if (!session) return false;
+  return /phantom/i.test(session.label ?? '') || /phantom/i.test(session.walletUriBase ?? '');
 }
 
 async function readStored(): Promise<Stored | null> {
@@ -239,15 +259,17 @@ export const walletService = {
   async signMessage(message: Uint8Array): Promise<Uint8Array> {
     const stored = await readStored();
     if (!stored) throw new WalletError('SESSION_EXPIRED', 'No wallet session');
+    let sent = false;
     try {
       const signed = await withAuthorizedWallet(stored, async (wallet, auth) => {
+        sent = true;
         const [sig] = await wallet.signMessages({ addresses: [auth.accounts[0]!.address], payloads: [message] });
         return sig;
       });
       if (!signed) throw new WalletError('REJECTED', 'Message not signed');
       return signed;
     } catch (e) {
-      throw mapWalletError(e);
+      throw sent ? mapSignError(e) : mapWalletError(e);
     }
   },
 };

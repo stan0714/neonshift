@@ -112,7 +112,10 @@ describe('PG-A-14 Gear', () => {
     expect(screen.getByTestId('reveal-preview')).toBeTruthy();
     expect(screen.getByTestId('unbox-stage')).toBeTruthy(); // 盒子層本身由 unboxStage.test 驗證；整個檔案跑時 5.2 s 儀式可能已結束（settled）
     expect(screen.getByText('Lv.2 → Lv.3')).toBeTruthy();
-    expect(screen.getByText('Collection preview')).toBeTruthy();
+    // 2026-09-21 reward-animation-refinement：物種故事在拆盒揭曉後才渲染；儀式可能已自行結束（skip 鈕消失）
+    const skip = screen.queryByTestId('unbox-skip');
+    if (skip) await fireEvent.press(skip);
+    await waitFor(() => expect(screen.getByText('Collection preview')).toBeTruthy());
     expect(screen.queryByTestId('reveal-tx')).toBeNull();
     await fireEvent.press(screen.getByTestId('reveal-ok'));
     expect(screen.queryByTestId('evolution-reveal')).toBeNull();

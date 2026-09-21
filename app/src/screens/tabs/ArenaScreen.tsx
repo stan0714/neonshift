@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
+import { SignInState } from '@/components/SignInState';
 import { APP_CONFIG } from '@/config/app';
 import type { TournamentView } from '@/services/api/ApiClient';
 import { useArenaStore, worstCaseLoss } from '@/state/arenaStore';
@@ -76,13 +77,8 @@ export function ArenaScreen() {
         </Pressable>
       ) : null}
       {a.needsSignIn && !tt ? (
-        <Surface style={styles.card} testID="arena-signin">
-          <Text variant="title">{t('arena.signin.title')}</Text>
-          <Text variant="bodySmall" tone="secondary" style={styles.mt}>
-            {t('arena.signin.body')}
-          </Text>
-          <Button label={t('arena.signin.btn')} style={styles.mt} onPress={() => session && void a.signIn(session.publicKey)} loading={a.loading} loadingLabel={t('arena.signin.loading')} disabled={!session} disabledReason={session ? undefined : t('common.reasonConnectWallet')} testID="arena-signin-btn" />
-        </Surface>
+        // 與其他頁共用登入卡（離線／拒簽／錢包不回覆的分類與 Phantom 提醒），成功後才標記已登入並重載
+        <SignInState title={t('arena.signin.title')} body={t('arena.signin.body')} onSignedIn={async () => { useArenaStore.setState({ needsSignIn: false, error: null }); if (session) await a.refresh(session.publicKey); }} testID="arena-signin" />
       ) : null}
       {a.error && !tt ? <InlineState kind={APP_CONFIG.backendConfigured ? 'error' : 'info'} title={APP_CONFIG.backendConfigured ? t('arena.unavailable') : t('arena.noBackend')} body={APP_CONFIG.backendConfigured ? t('arena.unavailableBody', { error: a.error }) : t('arena.noBackendBody')} testID="arena-error" /> : null}
 

@@ -126,6 +126,8 @@ export const zhTW: Record<keyof typeof en, string> = {
   'wallet.err.SESSION_EXPIRED.body': '先前的授權已失效，請重新連接以繼續。',
   'wallet.err.NETWORK_ERROR.title': 'Devnet 暫時無法連線',
   'wallet.err.NETWORK_ERROR.body': '錢包連線逾時。請檢查網路後重試。',
+  'wallet.err.WALLET_NO_REPLY.title': '錢包沒有把簽章送回來',
+  'wallet.err.WALLET_NO_REPLY.body': '你已在錢包核准，但錢包沒有把結果回傳給 NeonShift（Seeker 上 Phantom 的已知問題），沒有任何東西被領取。請改用 Seeker 內建錢包：Profile → 斷開錢包 → 連接錢包 → 選「Wallet」並按「僅此一次」。',
   'wallet.err.UNKNOWN.title': '任務中途出了點狀況',
   'wallet.err.UNKNOWN.body': '錢包沒有如預期回應，沒有任何簽章。請再試一次。',
 
@@ -685,6 +687,8 @@ export const zhTW: Record<keyof typeof en, string> = {
   'signin.offlineKept': '你剛才簽好的登入訊息已保留，不必再簽一次。',
   'signin.rejected': '你在錢包取消了簽署。這不是交易、不收費，只是證明錢包是你的。',
   'signin.retryVerify': '重新連線並登入',
+  'signin.noReply': '{wallet} 已核准訊息，但沒有把簽章送回 NeonShift（Seeker 上 Phantom 的已知問題）。請改用 Seeker 內建錢包：Profile → 斷開錢包 → 連接錢包 → 選「Wallet」並按「僅此一次」，再登入一次。',
+  'signin.phantomHint': '提醒：Seeker 上的 Phantom 目前簽完訊息不會回傳結果。若簽完沒有跳回這裡，請改用 Seeker Wallet 重新連接（Profile → 斷開錢包）。',
   'act.errBody': '{message} 你的紀錄安全無虞，沒有任何變更。',
   'act.empty.title': '還沒有打卡紀錄',
   'act.empty.body': "達到 8,000 步後，從首頁打卡。打卡紀錄會在這裡保留 30 天。",

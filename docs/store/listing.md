@@ -34,6 +34,8 @@ NeonShift turns your daily movement into a game you play with your wallet.
 
 Built for Solana Mobile: Mobile Wallet Adapter sign-in, Seed Vault-compatible signing, and an onchain program you can audit.
 
+**Known issue (Sep 2026):** Phantom on Seeker does not return signed messages to apps, so sign-in and clock-in cannot complete with Phantom. Use Seeker Wallet (or Jupiter) — the app will tell you if this happens and how to switch.
+
 ## 截圖清單（1080×2400，深色）
 
 依 `docs/evidence/` 的 Seeker 截圖重拍正式版：

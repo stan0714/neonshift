@@ -10,7 +10,7 @@ jest.mock('expo-secure-store', () => ({
 }));
 
 import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
-import { base64ToBase58, mapWalletError, walletService } from '@/services/wallet/WalletService';
+import { base64ToBase58, isKnownNoReplyWallet, mapSignError, mapWalletError, walletService } from '@/services/wallet/WalletService';
 
 const mockTransact = transact as jest.MockedFunction<typeof transact>;
 const pk = PublicKey.unique();
@@ -97,6 +97,23 @@ describe('WalletService（PG-A-06，FR-01）', () => {
 
   test('signMessage：無 session → SESSION_EXPIRED', async () => {
     await expect(walletService.signMessage(new Uint8Array([1]))).rejects.toMatchObject({ code: 'SESSION_EXPIRED' });
+  });
+
+  test('signMessage：錢包簽了卻沒回覆（Phantom on Seeker 2026-09-21）→ WALLET_NO_REPLY；授權階段的 session closed 仍走原本重試分類', async () => {
+    expect(mapSignError(new Error('java.util.concurrent.CancellationException')).code).toBe('WALLET_NO_REPLY');
+    expect(mapSignError(Object.assign(new Error('session closed'), { code: 'ERROR_SESSION_CLOSED' })).code).toBe('WALLET_NO_REPLY');
+    expect(mapSignError(Object.assign(new Error(), { code: 'ERROR_ASSOCIATION_CANCELLED' })).code).toBe('REJECTED');
+    expect(mapSignError(new Error('x')).code).toBe('UNKNOWN');
+    mockStore.set('neonshift.wallet.session.v1', JSON.stringify({ authToken: 'tok', address: pk.toBase58(), walletUriBase: 'https://phantom.app/ul/v1' }));
+    const authorize = jest.fn(async () => authResult('tok'));
+    const signMessages = jest.fn(async () => { throw new Error('java.util.concurrent.CancellationException'); });
+    mockTransact.mockImplementation(async (cb) => cb({ authorize, signMessages } as never));
+    await expect(walletService.signMessage(new Uint8Array([1]))).rejects.toMatchObject({ code: 'WALLET_NO_REPLY' });
+    expect(signMessages).toHaveBeenCalledTimes(1); // 已送到錢包的請求不重送
+    expect(isKnownNoReplyWallet({ label: 'Phantom' })).toBe(true);
+    expect(isKnownNoReplyWallet({ label: 'Seeker Wallet', walletUriBase: 'https://phantom.app' })).toBe(true);
+    expect(isKnownNoReplyWallet({ label: 'Seeker Wallet' })).toBe(false);
+    expect(isKnownNoReplyWallet(null)).toBe(false);
   });
 
   describe('簽章前重新授權（實機：Phantom 撤銷舊 token 會直接關閉 session）', () => {

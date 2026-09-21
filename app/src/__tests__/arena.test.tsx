@@ -131,4 +131,18 @@ describe('PG-A-15 Arena', () => {
     await waitFor(() => expect(screen.getByTestId('arena-tournament')).toBeTruthy());
     expect(mockApi.signIn).toHaveBeenCalledWith(wallet.toBase58());
   });
+
+  test('Phantom（Seeker 已知簽完不回覆）：登入卡事前提醒；簽了沒回覆 → 改用 Seeker Wallet 的步驟', async () => {
+    const { ApiError } = jest.requireActual('@/services/api/ApiClient');
+    const { WalletError } = jest.requireActual('@/services/wallet/WalletService');
+    useWalletStore.setState({ session: { ...useWalletStore.getState().session!, label: 'Phantom' } } as never);
+    mockApi.tournamentCurrent.mockRejectedValue(new ApiError(401, 'NO_SESSION', 'Sign in required'));
+    mockApi.signIn.mockRejectedValue(new WalletError('WALLET_NO_REPLY', 'java.util.concurrent.CancellationException'));
+    await render(<ArenaScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('arena-signin')).toBeTruthy());
+    expect(screen.getByText(/Phantom on Seeker currently does not return signed messages/)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('arena-signin-btn'));
+    await waitFor(() => expect(screen.getByText(/Phantom approved the message but never sent the signature back/)).toBeTruthy());
+    expect(screen.getByText(/Disconnect wallet → Connect wallet → choose “Wallet”/)).toBeTruthy();
+  });
 });
