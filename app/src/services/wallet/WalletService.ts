@@ -272,6 +272,43 @@ export const walletService = {
     }
   },
 
+  /**
+   * SKR-01／03：在「另一條鏈」（官方 SKR 付款用主網）簽送交易。與 devnet 的授權分開：MWA 授權綁 chain，
+   * 主網授權另存 token（`neonshift.wallet.session.v1:<chain>`），第一次會多一次錢包核准；帳戶必須與 devnet session 相同。
+   * 不重用 devnet token、不改動全 App cluster（計畫 §1：禁止把現有 cluster 直接改主網）。
+   */
+  async signAndSendTransactionOn(targetChain: `solana:${string}`, tx: Transaction | VersionedTransaction, opts: { minContextSlot?: number } = {}): Promise<string> {
+    const stored = await readStored();
+    if (!stored) throw new WalletError('SESSION_EXPIRED', 'No wallet session');
+    const key = `${STORE_KEY}:${targetChain}`;
+    let token: string | null = null;
+    try { token = await SecureStore.getItemAsync(key); } catch { token = null; }
+    let sent = false;
+    const run = (authToken: string | null) =>
+      transact(async (wallet: Web3MobileWallet) => {
+        const auth = await wallet.authorize(authToken ? { identity, chain: targetChain, auth_token: authToken } : { identity, chain: targetChain });
+        const account = auth.accounts[0];
+        if (!account || base64ToBase58(account.address) !== stored.address) throw new WalletError('SESSION_EXPIRED', 'Wallet returned a different account for the payment network');
+        try { await SecureStore.setItemAsync(key, auth.auth_token); } catch { /* 下次再授權一次即可 */ }
+        sent = true;
+        const [sig] = await wallet.signAndSendTransactions({ transactions: [tx], ...(opts.minContextSlot !== undefined ? { minContextSlot: opts.minContextSlot } : {}) });
+        if (!sig) throw new WalletError('REJECTED', 'Transaction not sent');
+        return sig;
+      });
+    try {
+      try {
+        return await run(token);
+      } catch (e) {
+        if (sent || !token || !isAuthFailure(e)) throw e;
+        try { await SecureStore.deleteItemAsync(key); } catch { /* ignore */ }
+        await new Promise((r) => setTimeout(r, REAUTHORIZE_DELAY_MS));
+        return await run(null);
+      }
+    } catch (e) {
+      throw sent ? mapSignError(e) : mapWalletError(e);
+    }
+  },
+
   /** 以已授權 session 簽署任意訊息（SIWS、claim challenge，PG-A-07） */
   async signMessage(message: Uint8Array): Promise<Uint8Array> {
     const stored = await readStored();

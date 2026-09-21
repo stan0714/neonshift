@@ -122,6 +122,13 @@ export type MilestoneItem = { key: string; category: MilestoneCategory; environm
 export type QuestTemplateView = { template_id: string; version: number; kind: 'active_days' | 'goal_time'; params: Record<string, unknown>; cosmetic_id: string };
 export type QuestEnrollmentView = { enrollment_id: string; template_id: string; template_version: number; goal: Record<string, unknown>; timezone: string; period_start: string; period_end: string; late_sync_until: string; accepted_at: string; status: 'active' | 'completed' | 'claimed' | 'expired' | 'revoked'; completed_at: string | null; progress: { current: number; target: number } | null; contributions: { source: { kind: string; id: string; revision: number }; local_day: string }[] };
 export type QuestsResponse = { templates: QuestTemplateView[]; enrollments: QuestEnrollmentView[]; cosmetics: { cosmetic_id: string; receipt_id: string; status: 'active' | 'revoked'; granted_at: string }[]; rules: { min_active_minutes: number; late_sync_hours: number; gps_rewards_enabled: boolean } };
+export type SkrNetwork = 'mainnet-beta' | 'devnet';
+export type SkrOrderStatus = 'awaiting_payment' | 'confirming' | 'fulfilled' | 'expired' | 'needs_review' | 'cancelled';
+export type SkrOrderView = { order_id: string; sku: string; sku_version: number; cosmetic_id: string; network: SkrNetwork; mint: string; decimals: number; amount_base_units: string; amount_display: string; recipient: string; recipient_token_account: string; reference: string; status: SkrOrderStatus; signature: string | null; paid_amount_base_units: string | null; paid_at: string | null; failure_reason: string | null; expires_at: string; created_at: string; updated_at: string };
+export type SkrEntitlementView = { cosmetic_id: string; order_id: string; status: 'active' | 'revoked'; granted_at: string };
+export type SkrSkuView = { sku: string; version: number; cosmetic_id: string; requires: { kind: 'milestone'; category: string }; price_base_units: string; price_display: string; eligibility: 'eligible' | 'not_achieved' | 'pending_registry' | 'revoked'; achievement_id: string | null; owned: boolean; open_order: SkrOrderView | null };
+export type SkrCatalog = { enabled: false; reason: string | null } | { enabled: true; network: SkrNetwork; mint: string; decimals: number; recipient: string; recipient_token_account: string; order_ttl_sec: number; skus: SkrSkuView[]; entitlements: SkrEntitlementView[] };
+
 export type Milestones = { rules_major: number; imported_since: string | null; items: MilestoneItem[]; unlocked_by_source: { kind: 'workout' | 'result'; id: string; categories: MilestoneCategory[] }[] };
 /** PG-M-04：活動留念章（報到／完賽分開；報名時鞋階承諾） */
 export type EventBadgeKind = 'check_in' | 'finish';
@@ -394,6 +401,32 @@ export class ApiClient {
   }
   claimQuest(enrollmentId: string): Promise<{ receipt: { receipt_id: string; cosmetic_id: string; issued_at: string }; already: boolean; enrollment: QuestEnrollmentView }> {
     return this.request('POST', `/me/quests/${encodeURIComponent(enrollmentId)}/claim`, {});
+  }
+
+  // SKR-02～05：官方 SKR 外觀付款（docs/store/competition-development-plan.md §5）
+  skrCatalog(): Promise<SkrCatalog> {
+    return this.request('GET', '/me/skr/catalog');
+  }
+  skrCreateOrder(sku: string): Promise<{ order: SkrOrderView; created: boolean }> {
+    return this.request('POST', '/me/skr/orders', { sku });
+  }
+  skrOrder(orderId: string): Promise<{ order: SkrOrderView }> {
+    return this.request('GET', `/me/skr/orders/${encodeURIComponent(orderId)}`);
+  }
+  skrOrders(): Promise<{ orders: SkrOrderView[] }> {
+    return this.request('GET', '/me/skr/orders');
+  }
+  skrConfirm(orderId: string, signature: string): Promise<{ order: SkrOrderView; found: boolean; verify: string | null }> {
+    return this.request('POST', `/me/skr/orders/${encodeURIComponent(orderId)}/confirm`, { signature });
+  }
+  skrRecover(orderId: string): Promise<{ order: SkrOrderView; found: boolean; verify: string | null }> {
+    return this.request('POST', `/me/skr/orders/${encodeURIComponent(orderId)}/recover`, {});
+  }
+  skrCancel(orderId: string): Promise<{ order: SkrOrderView }> {
+    return this.request('POST', `/me/skr/orders/${encodeURIComponent(orderId)}/cancel`, {});
+  }
+  skrEntitlements(): Promise<{ entitlements: SkrEntitlementView[] }> {
+    return this.request('GET', '/me/skr/entitlements');
   }
 
   milestones(): Promise<Milestones> {

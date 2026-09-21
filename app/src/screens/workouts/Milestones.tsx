@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { Button, Chip, InlineState } from '@/components';
+import { GenesisFrameCard, genesisFrameStyle } from '@/components/GenesisFrameCard';
+import { genesisFrameActive, useSkrStore } from '@/state/skrStore';
 import { useT, type TKey } from '@/i18n';
 import { apiClient, type AchievementView, type MilestoneItem, type Milestones as Ms } from '@/services/api/ApiClient';
 import { achievementService } from '@/services/chain/AchievementService';
@@ -21,6 +23,8 @@ const IMAGE_BASE = 'https://neonshift.cc/nft/achievements/milestones/';
 export function Milestones({ reloadKey = 0 }: { reloadKey?: number }) {
   const { t } = useT();
   const session = useWalletStore((st) => st.session);
+  const skr = useSkrStore();
+  const framed = genesisFrameActive(skr, session?.address ?? null); // SKR-06：擁有且選用 Genesis 邊框時套在里程碑卡片
   const [data, setData] = useState<Ms | null>(null);
   const [achievements, setAchievements] = useState<AchievementView[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -113,7 +117,7 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number }) {
           const unlocked = state === 'minted' || state === 'claimable' || state === 'pending_registry' || (a?.status === 'approved');
           const chipKind = state === 'minted' ? 'level' : state === 'claimable' || a?.status === 'approved' ? 'synced' : state === 'revoked' ? 'offline' : state === 'pending_registry' || state === 'pending_review' ? 'devnet' : 'neutral';
           return (
-            <View key={m.key} style={[styles.card, !unlocked && styles.cardLocked]} testID={`ms-${m.category}-${m.verification_class}`} accessible accessibilityLabel={`${t(`ms.cat.${m.category}` as TKey)} · ${t(`pb.class.${m.verification_class}` as TKey)} · ${t(`ms.state.${state}` as TKey)}`}>
+            <View key={m.key} style={[styles.card, !unlocked && styles.cardLocked, framed && unlocked && genesisFrameStyle]} testID={`ms-${m.category}-${m.verification_class}`} accessible accessibilityLabel={`${t(`ms.cat.${m.category}` as TKey)} · ${t(`pb.class.${m.verification_class}` as TKey)} · ${t(`ms.state.${state}` as TKey)}`}>
               <Text variant="title">{t(`ms.cat.${m.category}` as TKey)}</Text>
               <Text variant="caption" tone="muted">
                 {t(`ms.name.${m.category}` as TKey)}
@@ -149,6 +153,7 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number }) {
         })}
       </View>
       {notice ? <InlineState kind={notice.kind} title={notice.title} body={notice.body} testID={`ms-${notice.kind}`} /> : null}
+      <GenesisFrameCard reloadKey={reloadKey} />
     </View>
   );
 }
