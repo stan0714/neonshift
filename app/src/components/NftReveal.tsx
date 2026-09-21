@@ -1,3 +1,4 @@
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useEffect } from 'react';
@@ -19,6 +20,7 @@ import { Text } from '@/theme';
 export function NftReveal() {
   const { t } = useT();
   const reduced = useReduceMotion();
+  const insets = useSafeAreaInsets();
   const reward = useNftRevealStore(s => s.queue[0]);
   const dismiss = useNftRevealStore(s => s.dismiss);
   const levelPending = useLevelRevealStore(s => s.pending);
@@ -33,7 +35,7 @@ export function NftReveal() {
   const title = item ? collectibleName(t, item) : reward.title ?? t('reveal.nftTitle');
   const distance = reward.milestone ? ({ first_5k: '5', first_10k: '10', first_half: '21.0975', first_marathon: '42.195', first_finish: null } as const)[reward.milestone] : null;
   return <Modal transparent visible animationType={reduced ? "none" : "fade"} onRequestClose={dismiss} statusBarTranslucent>
-    <ScrollView style={s.scrim} contentContainerStyle={s.content} accessibilityViewIsModal testID="nft-reveal">
+    <ScrollView style={s.scrim} contentContainerStyle={[s.content, { paddingTop: Math.max(32, insets.top + 16), paddingBottom: Math.max(32, insets.bottom + 16) }]} accessibilityViewIsModal testID="nft-reveal">
       <Text variant="label" style={s.gold}>{t('reveal.nftEyebrow')}</Text>
       <RewardStage key={reward.id} mode={reward.milestone ? "milestone" : "nft"}>
         <Text variant="caption" style={s.gold}>NEONSHIFT · NFT</Text>
@@ -45,8 +47,8 @@ export function NftReveal() {
       <Text variant="bodySmall" tone="secondary" style={s.body}>{t('reveal.nftBody')}</Text>
       {shoeLevel ? <View style={s.plate}><CollectorPlate level={shoeLevel} edition={edition} compact /></View> : null}
       {item?.shoeLevel && item.shoeLevel > 1 ? <Text variant="caption" tone="muted" style={s.body}>{t('wild.cosmetic')}</Text> : null}
-      {shoeLevel ? <GuardianMilestone key={reward.id} level={shoeLevel} autoCheck /> : null}
       <Button label={t('reveal.collect')} onPress={dismiss} style={s.button} testID="nft-reveal-ok" />
+      {shoeLevel ? <GuardianMilestone key={reward.id} level={shoeLevel} autoCheck /> : null}
     </ScrollView>
   </Modal>;
 }

@@ -27,3 +27,14 @@ test('waits for the level ceremony before opening the NFT modal', async () => {
   expect(screen.queryByTestId('nft-reveal')).toBeNull();
   expect(useNftRevealStore.getState().queue).toHaveLength(1);
 });
+
+
+test('first distance NFT displays its exact milestone without guessing from its title', async () => {
+  useNftRevealStore.getState().enqueue({ id: 'half', title: 'First half marathon', milestone: 'first_half' });
+  await render(<ThemeProvider><NftReveal /></ThemeProvider>);
+  expect(screen.getByTestId('reward-stage-milestone')).toBeTruthy();
+  expect(screen.getByText('21.0975')).toBeTruthy();
+  expect(screen.getByText('km')).toBeTruthy();
+  await fireEvent.press(screen.getByTestId('nft-reveal-ok'));
+  expect(screen.queryByTestId('nft-reveal')).toBeNull();
+});

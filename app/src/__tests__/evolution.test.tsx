@@ -70,8 +70,10 @@ describe('EvolutionReveal', () => {
     expect(screen.queryByTestId('evolution-reveal')).toBeNull();
     useDashboardStore.setState({ profile: profile(2) } as never);
     await waitFor(() => expect(screen.getByTestId('evolution-reveal')).toBeTruthy());
-    expect(screen.getByText('Lv.2 · Asian Elephant')).toBeTruthy();
+    expect(screen.queryByTestId('reveal-ok')).toBeNull(); // Hidden content cannot be activated before reveal.
     expect(screen.getByTestId('reward-stage-box')).toBeTruthy(); // Lv.2+ 升階：成長盲盒先拆開
+    await fireEvent.press(screen.getByTestId('unbox-skip'));
+    expect(screen.getByText('Lv.2 · Asian Elephant')).toBeTruthy();
     expect(screen.getByTestId('wild-silhouette-elephant', { includeHiddenElements: true })).toBeTruthy(); // 物種背影在鞋子後方
     expect(screen.getByTestId('collector-plate-no').props.children).toBe('No. ——'); // 尚未領取 NFT → 未編號
     expect(screen.getByText(/once you claim the NFT in Gear/)).toBeTruthy();
