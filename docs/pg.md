@@ -863,3 +863,18 @@ WIP：運動前預覽／選擇、開始頁鞋款一致、本機不可改寫快�
 執行依據：[參賽開發與驗收計畫](store/competition-development-plan.md)。新增 COMP-W01／W02、COMP-R01／R02 與 SKR-01～07 全部 TODO；規則追蹤 COMP-01～11。P0 優先錢包恢復、真實運動／成就流程與可安裝交付；P1 首款 SKR 成就收藏卡外觀付款，10/1 Go／No-go，10/7 內部提交。單人容量與外部資格尚待確認；估算 14–21 人日不作完成承諾。P2 延後 3D、完整特殊路線平台與真實資金 Arena。
 
 人力補充：使用者確認本次僅本人參賽、無 VC 投資；依單人容量順序推進 W01／W02 → SKR，保留至少最後 4 天回歸與素材，不能以角色欄位假設多人平行。
+
+## 2026-09-21 SKR 獨立獎工作包（負責人指示 Go）
+
+| 編號 | 名稱 | 狀態 | 備註 |
+|---|---|---|---|
+| SKR-01 | 獨立 SKR 網路配置、mint owner／decimals 驗證、單位運算、環境隔離 | WIP | backend config 守門（主網限官方 mint、devnet 需測試 mint）、啟動核對 mint；App `OFFICIAL_SKR_MINT` 雙重核對、主網 RPC 與 MWA `solana:mainnet` 獨立授權；`formatBaseUnits` 不用浮點 |
+| SKR-02 | SKU／版本、資格、wallet、價格、期限與訂單參照由服務端決定；SIWS owner 綁定 | WIP | `skr/catalog.ts`、`service.ts`；資格＝first_5k achievement approved/minted；訂單不可變欄位＋reference；migration 0019 |
+| SKR-03 | 購買預覽、SOL／SKR 不足、取消、確認中；每次交易可理解且不重扣 | WIP | App `SkrService.purchase`、`GenesisFrameCard`（確認框列金額／網路／收款人）；餘額預檢；送出後只確認不重送 |
+| SKR-04 | 確認付款、唯一 receipt、交易鎖內授權；錯 mint／收款人／網路拒絕 | WIP | `verify.ts`＋`fulfillSkrOrder`（FOR UPDATE＋signature 主鍵）；他人付款／錯 mint／金額不足／逾期 → needs_review |
+| SKR-05 | 訂單恢復、晚到付款、過期／異常付款處理、關 App 重開不重扣 | WIP | `recover`（signature／reference 反查）、寬限 600 s、confirming 取消規則、App pending 按 network＋wallet 持久化 |
+| SKR-06 | Genesis Mint 邊框在收藏卡／詳情選用、換帳戶隔離、重裝恢復 | WIP | 權限以伺服器為準、`useGenesisFrame` 按錢包；里程碑卡套邊框；Gallery 詳情尚未套用 |
+| SKR-07 | 付款對抗測試、真機成功及失敗證據；官方 SKR 小額測試前完成審查 | WIP | 自動測試 backend 11／app 12 通過；真機（devnet TEST mint 或主網小額）待負責人決定價格／收款人後執行 |
+
+DEC-02 仍 OPEN（devnet 替代展示是否被主辦方接受）；本實作以主網官方 mint 為正式路徑、devnet TEST mint 只供試跑並在 App 標示。
+

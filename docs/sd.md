@@ -1200,3 +1200,23 @@ Indoor 不啟用 GPS 推算距離，僅接可信裝置／已標記來源；缺�
 規劃新增 RouteTemplate／Rules／Attempt／ShareGrant；GPX 分享先本機完成。分享連結的模板座標上傳需獨立同意與專用儲存，不混入 workout 摘要或鏈上 metadata。原始 session 與背景不因建立分享模板而更改。
 
 完整流程、資料與驗收：[特殊路線挑戰規格](design/pattern-route-challenges.md)。
+
+## 2026-09-21 官方 SKR 外觀付款（SKR-01～06，對應參賽計畫 §1 P1／§5）
+
+**範圍**：已由伺服器驗證並登錄（`achievements.status ∈ {approved, minted}`）的 `first_5k` 里程碑 → 可用官方 SKR 購買「Genesis Mint 收藏卡邊框」（純外觀；不加 XP／排名／審核）。與 devnet tSKR、任務金庫、NFT 鑄造完全分開；不改全 App cluster。
+
+**後端**（`backend/src/skr/`）
+- 設定：`SKR_ENABLED`、`SKR_NETWORK`（mainnet-beta｜devnet）、`SKR_RPC_URL`、`SKR_MINT`（主網強制官方 `SKRbvo6…hW3`；devnet 需另指定測試 mint）、`SKR_RECIPIENT`（收款 owner；收款帳戶為其 ATA）、`SKR_GENESIS_FRAME_PRICE`（最小單位）、`SKR_ORDER_TTL_SEC`（900）、`SKR_PAYMENT_GRACE_SEC`（600）、`SKR_COMMITMENT`。啟動時向鏈上核對 mint owner＝SPL Token、讀 decimals；失敗即停用（目錄 `enabled=false, reason`）。
+- 資料：`skr_orders`（不可變：network／wallet／sku＋version／cosmetic／mint／decimals／amount／recipient／recipient_token_account／reference（唯一）／eligibility_ref／source_env／expires_at；狀態：awaiting_payment→confirming→fulfilled｜expired｜needs_review｜cancelled）、`skr_receipts`（signature 主鍵、order_id 唯一）、`skr_entitlements`（(wallet, cosmetic_id) 主鍵）。履約＝receipt＋訂單 fulfilled＋權限 active 同交易；同 signature 第二張訂單 → 409 `PAYMENT_ALREADY_USED`。
+- API（皆需 SIWS session、限本人）：`GET /me/skr/catalog`、`POST /me/skr/orders {sku}`（冪等：同 SKU 未終結訂單回既有；已擁有 409 `ALREADY_OWNED`；資格不符 409 `NOT_ELIGIBLE`）、`GET /me/skr/orders[/:id]`、`POST /me/skr/orders/:id/confirm {signature}`（RPC 未見 → `found=false` 維持 confirming；驗證失敗：`tx_failed` → 回 awaiting_payment 可重付，其餘（他人付款／錯 mint／金額不足／逾期超過寬限）→ needs_review 不履約）、`POST /me/skr/orders/:id/recover`（以記錄的 signature 或 reference 反查）、`POST /me/skr/orders/:id/cancel`（awaiting_payment 可取消；confirming 只有期限＋寬限已過且 RPC 查無此 signature 才可）、`GET /me/skr/entitlements`。
+- 查驗（`verify.ts`）：`meta.err` 為空；account keys 含 reference；收款 ATA 於該 mint 的 post−pre ≥ 金額（多付照記實收）；訂單錢包擁有的同 mint 帳戶減少 ≥ 金額（他人代付不算）；blockTime ≤ expires_at＋寬限。網路由 RPC 本身決定（devnet 簽章在主網查無 → 不履約）。
+- 錢包刪除：權限與未履約訂單刪除；已履約訂單與 receipt 保留為付款紀錄。
+
+**App**（`app/src/services/skr/`、`state/skrStore.ts`、`components/GenesisFrameCard.tsx`）
+- 目錄／訂單雙重核對：主網 mint 必須等於 `OFFICIAL_SKR_MINT`；收款帳戶必須是收款人 ATA。
+- 交易：`createAssociatedTokenAccountIdempotent(收款人)` ＋ `transferChecked(amount, decimals)`，reference 為唯讀非簽名帳戶；主網以 MWA `solana:mainnet` 另行授權（token 另存 `neonshift.wallet.session.v1:solana:mainnet`，帳戶必須與 devnet session 相同）。
+- 流程：建單 → 餘額預檢（SKR ≥ 價格；SOL ≥ 手續費＋收款 ATA 不存在時的租金）→ 開錢包 → 送出 → 伺服器確認（退避 1.5→10 s，最多 6 次）→ `fulfilled`／`confirming`（保留 recover）／`needs_review`。送出後任何錯誤不重送；錢包不回覆／網路錯誤把訂單留在本機 pending（按 network＋wallet），重開 App 顯示「查看狀態」。
+- 外觀：權限以伺服器為準（換裝置／重裝恢復）；`useGenesisFrame` 偏好按錢包保存；里程碑卡片套金色邊框。不改任何已保存路線背景。
+
+**未完成／待決**：正式價格與收款錢包（負責人決策）；主網小額實測（需負責人核准金額與收款地址）；devnet 試跑用 `scripts/chain/skr-test-mint.sh`；SKR-07 自動測試已覆蓋（backend 11、app 12），真機證據待補。
+

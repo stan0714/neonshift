@@ -129,3 +129,8 @@ SKR No-go 不自動取消主賽；主賽仍需自身資格與實機 gate 全數�
 - **待決（阻斷 COMP-R01）**：`deploy/demo.env` 的 `PROGRAM_ID`／`TSKR_MINT` 仍空——提交版若以 demo 環境建置會顯示「本版未啟用鏈上功能」。需在 9/23 決定：(a) demo 環境沿用 dev 的 devnet program／mint（改 demo.env 回填即可，不需重新部署），或 (b) 以 `~/.config/neonshift/demo/` 金鑰另行部署（需 devnet SOL 與負責人確認）。在此之前實機驗收用 `dev release`（同一 devnet program，唯一差別是環境名稱與資料保留策略）。
 - 已完成的 P0 相關修正：錢包不回覆分類與指引（`3bdb64a`）、Arena 登入卡（`c60dd14`）、錢包連接 review（`c3669e5`＋`626e5e3`）、離線狀態校正（`a86392d`）。COMP-W01 的 SDK session 中止策略仍 TODO。
 
+2026-09-21 晚（SKR Go，負責人指示）：
+- SKR-01～06 程式完成（後端 `90a8ec7`、App `7ab256f`）：設定守門、目錄／資格、訂單／reference／期限、付款查驗、receipt 唯一＋權限原子履約、復原與取消規則、App 主網獨立授權簽送、餘額預檢、confirming 退避、pending 持久化、Genesis 邊框卡與里程碑卡套用。契約見 SD「2026-09-21 官方 SKR 外觀付款」。
+- SKR-07：自動測試 backend 11（停用／資格／冪等／重放／他人付款／錯 mint／金額不足／交易失敗可重付／逾期寬限／復原／取消／刪除／設定守門）＋ App 12（指令位元組、目錄核對、餘額擋下、取消／不回覆、RPC 未見不重付、既有 confirming 不重付、卡片狀態與邊框）。**真機證據未補**。
+- **待負責人決定（阻斷 10/1 Go 宣稱）**：(1) 正式價格（最小單位，建議 2.5 SKR＝2,500,000）；(2) 收款錢包公鑰（主網，非 devnet 測試錢包；建議獨立錢包）；(3) 是否先以 devnet TEST mint 試跑（`scripts/chain/skr-test-mint.sh dev create`，需 devnet SOL）；(4) 主網小額實測的金額與時間。l1 目前 `SKR_ENABLED` 未設定＝停用，App 卡片不顯示。
+
