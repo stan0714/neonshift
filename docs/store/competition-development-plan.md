@@ -134,3 +134,10 @@ SKR No-go 不自動取消主賽；主賽仍需自身資格與實機 gate 全數�
 - SKR-07：自動測試 backend 11（停用／資格／冪等／重放／他人付款／錯 mint／金額不足／交易失敗可重付／逾期寬限／復原／取消／刪除／設定守門）＋ App 12（指令位元組、目錄核對、餘額擋下、取消／不回覆、RPC 未見不重付、既有 confirming 不重付、卡片狀態與邊框）。**真機證據未補**。
 - **待負責人決定（阻斷 10/1 Go 宣稱）**：(1) 正式價格（最小單位，建議 2.5 SKR＝2,500,000）；(2) 收款錢包公鑰（主網，非 devnet 測試錢包；建議獨立錢包）；(3) 是否先以 devnet TEST mint 試跑（`scripts/chain/skr-test-mint.sh dev create`，需 devnet SOL）；(4) 主網小額實測的金額與時間。l1 目前 `SKR_ENABLED` 未設定＝停用，App 卡片不顯示。
 
+2026-09-21 深夜（負責人授權「請給建議並直接進行」）——SKR 決策與執行：
+1. **價格**：2.5 SKR（`SKR_GENESIS_FRAME_PRICE=2500000`）。理由：純外觀、單次、與 NFT 免費領取區隔；金額小到不構成付費門檻，但足以在主網留下真實交易證據。提交前可調，訂單金額寫入時固定。
+2. **收款錢包**：新建專用金鑰 `~/.config/neonshift/skr/recipient.json`（chmod 600，不入 repo），公鑰 `8Wp3Xyfw49KiA1CYL34bPLm59KHLbcBYRotyTF3gFa1k`，主網與 devnet 共用同一收款公鑰（ATA 各網路分別）。理由：與 admin／attestor 金鑰分離、不動負責人個人錢包；正式營運前建議改為硬體或 Seed Vault 錢包並轉出。
+3. **devnet 試跑已就緒**：TEST mint `8JgVMChveNJ3ggEtiY8qHmuTHH3qayh69ijZzwXA1i5A`（dev admin 建立，6 decimals），收款 ATA 已建，負責人錢包 AcBU…vbV2 已收到 10 TEST SKR（tx `2x5MPeT…ugdt`）。l1 `/etc/neonshift/api.env` 已設 `SKR_ENABLED=true SKR_NETWORK=devnet …`，API 啟動 log `SKR ready`；實機 Gear → Milestones 底部顯示「Genesis Mint frame · TEST SKR · DEVNET · LOCKED」（無 first_5k 成就，符合資格規則）。
+4. **主網小額實測**：待負責人錢包持有真實 SKR 後，把 l1 改為 `SKR_NETWORK=mainnet-beta`、`SKR_MINT=SKRbvo6…hW3`（收款公鑰不變）並重啟，由負責人親自核准一筆 2.5 SKR；在此之前維持 devnet TEST。**提交版必須是主網設定**（config.ts 守門會拒絕 devnet 沿用官方 mint、主網沿用測試 mint）。
+5. 真機驗收前置：負責人需完成一場 ≥ 5 km 的 GPS 跑步並同步 → 後端產生 first_5k 里程碑（pending_registry）→ ops 登錄 approved（`tools/chain-admin` registry 流程）→ 卡片變為可購買。
+

@@ -13,11 +13,12 @@ common=(--url "$RPC_URL" --fee-payer "$ADMIN_KEYPAIR")
 case "$ACTION" in
   create)
     [ "$CLUSTER" = devnet ] || { echo "只允許 devnet（目前 $CLUSTER）" >&2; exit 2; }
+    RECIPIENT="${SKR_RECIPIENT:-$ADMIN}"   # 收款 owner：預設 admin；可用 SKR_RECIPIENT 指定（例如 ~/.config/neonshift/skr/recipient.json 的公鑰，與主網共用）
     MINT=$(spl-token create-token --decimals 6 --mint-authority "$ADMIN_KEYPAIR" "${common[@]}" --output json | python3 -c 'import sys,json;print(json.load(sys.stdin)["commandOutput"]["address"])')
-    spl-token create-account "$MINT" --owner "$ADMIN" "${common[@]}" --output json >/dev/null 2>&1 || true
+    spl-token create-account "$MINT" --owner "$RECIPIENT" "${common[@]}" --output json >/dev/null 2>&1 || true
     echo "SKR_NETWORK=devnet"
     echo "SKR_MINT=$MINT"
-    echo "SKR_RECIPIENT=$ADMIN"
+    echo "SKR_RECIPIENT=$RECIPIENT"
     echo "（收款 ATA 已建立；後端 SKR_GENESIS_FRAME_PRICE 以最小單位設定，例如 2.5 TEST SKR = 2500000）" ;;
   fund)
     MINT="${SKR_MINT:?請以環境變數 SKR_MINT 指定測試 mint}"; TO="${3:?wallet}"; N="${4:?amount}"
