@@ -2,7 +2,7 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { PublicKey } from '@solana/web3.js';
-import { useNetworkState } from 'expo-network';
+import { getNetworkStateAsync, useNetworkState } from 'expo-network';
 import type { PropsWithChildren } from 'react';
 
 import { InlineState, OfflineBanner } from '@/components';
@@ -37,11 +37,18 @@ beforeEach(() => {
 describe('OfflineBanner', () => {
   test('離線時顯示、在線時不顯示', async () => {
     (useNetworkState as jest.Mock).mockReturnValue({ isConnected: false, isInternetReachable: false });
+    (getNetworkStateAsync as jest.Mock).mockResolvedValue({ isConnected: false, isInternetReachable: false });
     await render(<OfflineBanner />, { wrapper: Wrapper });
     expect(screen.getByTestId('offline-banner')).toBeTruthy();
     (useNetworkState as jest.Mock).mockReturnValue({ isConnected: true, isInternetReachable: true });
     await render(<OfflineBanner />, { wrapper: Wrapper });
     expect(screen.queryByTestId('offline-banner')).toBeNull();
+  });
+  test('監聽仍說離線但主動探測已連上（Wi-Fi 回來監聽沒更新）→ 回前景後 banner 消失', async () => {
+    (useNetworkState as jest.Mock).mockReturnValue({ isConnected: false, isInternetReachable: false });
+    (getNetworkStateAsync as jest.Mock).mockResolvedValue({ isConnected: true, isInternetReachable: true });
+    await render(<OfflineBanner />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.queryByTestId('offline-banner')).toBeNull());
   });
 });
 
