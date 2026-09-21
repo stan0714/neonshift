@@ -90,9 +90,10 @@ async function readStored(): Promise<Stored | null> {
     const raw = await SecureStore.getItemAsync(STORE_KEY);
     if (!raw) return null;
     const value = JSON.parse(raw) as Stored;
-    if (!value || typeof value.authToken !== 'string' || !value.authToken || typeof value.address !== 'string' || typeof value.walletUriBase !== 'string') return null;
+    if (!value || typeof value.authToken !== 'string' || !value.authToken || typeof value.address !== 'string') return null;
     new PublicKey(value.address);
-    return value;
+    // wallet_uri_base 型別雖為 string，Seeker Wallet 實際回 undefined（2026-09-21 實機：嚴格檢查會把有效 session 當損壞，重啟後回到歡迎頁）
+    return { ...value, walletUriBase: typeof value.walletUriBase === 'string' ? value.walletUriBase : '' };
   } catch {
     return null;
   }
@@ -134,7 +135,7 @@ async function withAuthorizedWallet<T>(stored: Stored, op: (wallet: Web3MobileWa
         throw new WalletError('SESSION_EXPIRED', 'Wallet returned a different account');
       }
       cachedAuthToken = auth.auth_token;
-      await writeStored({ ...stored, authToken: auth.auth_token, label: account.label, walletUriBase: auth.wallet_uri_base });
+      await writeStored({ ...stored, authToken: auth.auth_token, label: account.label, walletUriBase: auth.wallet_uri_base ?? '' });
       return op(wallet, auth);
     });
   try {
@@ -189,11 +190,11 @@ export const walletService = {
       const account = result.accounts[0];
       if (!account) throw new WalletError('REJECTED', 'No account authorized');
       const address = base64ToBase58(account.address);
-      const stored: Stored = { authToken: result.auth_token, address, label: account.label, walletUriBase: result.wallet_uri_base };
+      const stored: Stored = { authToken: result.auth_token, address, label: account.label, walletUriBase: result.wallet_uri_base ?? '' };
       opts?.onPhase?.('saving');
       await writeStored(stored);
       cachedAuthToken = stored.authToken;
-      return toSession(address, account.label, result.wallet_uri_base);
+      return toSession(address, account.label, result.wallet_uri_base ?? '');
     } catch (e) {
       throw mapWalletError(e);
     }
@@ -210,10 +211,10 @@ export const walletService = {
       const account = result.accounts[0];
       if (!account) throw new Error('no account');
       const address = base64ToBase58(account.address);
-      const next: Stored = { authToken: result.auth_token, address, label: account.label, walletUriBase: result.wallet_uri_base };
+      const next: Stored = { authToken: result.auth_token, address, label: account.label, walletUriBase: result.wallet_uri_base ?? '' };
       await writeStored(next);
       cachedAuthToken = next.authToken;
-      return toSession(address, account.label, result.wallet_uri_base);
+      return toSession(address, account.label, result.wallet_uri_base ?? '');
     } catch (e) {
       const err = mapWalletError(e);
       // 錢包不在或授權失效：清除本機 token，回到連線流程；網路錯誤保留 token 讓使用者重試

@@ -178,6 +178,17 @@ test('corrupt stored account never breaks startup', async () => {
   expect(mockTransact).not.toHaveBeenCalled();
 });
 
+test('Seeker Wallet 不回 wallet_uri_base：保存的 session 仍有效（2026-09-21 實機：嚴格檢查把它當損壞，重啟回到歡迎頁）', async () => {
+  mockStore.set('neonshift.wallet.session.v1', JSON.stringify({ authToken: 'tok', address: pk.toBase58(), label: 'Seeker Wallet' }));
+  const peeked = await walletService.peekStoredSession();
+  expect(peeked?.address).toBe(pk.toBase58());
+  expect(peeked?.walletUriBase).toBe('');
+  mockTransact.mockImplementationOnce(async (cb) => cb({ authorize: async () => ({ accounts: [{ address: b64, label: 'Seeker Wallet' }], auth_token: 'tok-2', wallet_uri_base: undefined }) } as never));
+  const s = await walletService.connect();
+  expect(s.walletUriBase).toBe('');
+  expect(JSON.parse(mockStore.get('neonshift.wallet.session.v1')!).walletUriBase).toBe('');
+});
+
 test('connection reports its stage and surfaces optional login failure', async () => {
   const phases: string[] = [];
   const onLoginError = jest.fn();
