@@ -22,7 +22,9 @@ export type WalletSession = {
 };
 
 /** Style 10.1：rejected、wallet unavailable、session expired、network error */
-export type WalletErrorCode = 'REJECTED' | 'WALLET_UNAVAILABLE' | 'SESSION_EXPIRED' | 'NETWORK_ERROR' | 'WALLET_NO_REPLY' | 'UNKNOWN';
+export type WalletErrorCode = 'REJECTED' | 'WALLET_UNAVAILABLE' | 'SESSION_EXPIRED' | 'NETWORK_ERROR' | 'WALLET_NO_REPLY' | 'STORAGE_ERROR' | 'UNKNOWN';
+
+export type ConnectPhase = 'opening' | 'authorizing' | 'signing' | 'login' | 'saving';
 
 export class WalletError extends Error {
   constructor(
@@ -86,15 +88,23 @@ export function isKnownNoReplyWallet(session: { label?: string; walletUriBase?: 
 async function readStored(): Promise<Stored | null> {
   try {
     const raw = await SecureStore.getItemAsync(STORE_KEY);
-    return raw ? (JSON.parse(raw) as Stored) : null;
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Stored;
+    if (!value || typeof value.authToken !== 'string' || !value.authToken || typeof value.address !== 'string' || typeof value.walletUriBase !== 'string') return null;
+    new PublicKey(value.address);
+    return value;
   } catch {
     return null;
   }
 }
 
 async function writeStored(s: Stored | null): Promise<void> {
-  if (s) await SecureStore.setItemAsync(STORE_KEY, JSON.stringify(s));
-  else await SecureStore.deleteItemAsync(STORE_KEY);
+  try {
+    if (s) await SecureStore.setItemAsync(STORE_KEY, JSON.stringify(s));
+    else await SecureStore.deleteItemAsync(STORE_KEY);
+  } catch (e) {
+    throw new WalletError('STORAGE_ERROR', 'Unable to save wallet authorization on this device', e);
+  }
 }
 
 let cachedAuthToken: string | null = null;
@@ -153,20 +163,25 @@ export const walletService = {
    * `afterAuthorize`（可選）在同一個錢包 session 內接著執行（例如後端 SIWS 登入：取 nonce → 簽訊息 → verify），
    * 使用者只切換一次錢包 App、看到「連線＋簽登入訊息」兩個核准；它失敗（拒簽／後端不通）不影響錢包連線，由呼叫端另行處理。
    */
-  async connect(opts?: { afterAuthorize?: (address: string, sign: (message: Uint8Array) => Promise<Uint8Array>) => Promise<void> }): Promise<WalletSession> {
+  async connect(opts?: { onPhase?: (phase: ConnectPhase) => void; onLoginError?: (error: unknown) => void; afterAuthorize?: (address: string, sign: (message: Uint8Array) => Promise<Uint8Array>) => Promise<void> }): Promise<WalletSession> {
     try {
+      opts?.onPhase?.('opening');
       const result = await transact(async (wallet: Web3MobileWallet) => {
+        opts?.onPhase?.('authorizing');
         const auth = await wallet.authorize({ identity, chain });
         const account = auth.accounts[0];
         if (account && opts?.afterAuthorize) {
           try {
+            opts.onPhase?.('login');
             await opts.afterAuthorize(base64ToBase58(account.address), async (message) => {
+              opts.onPhase?.('signing');
               const [sig] = await wallet.signMessages({ addresses: [account.address], payloads: [message] });
               if (!sig) throw new WalletError('REJECTED', 'Message not signed');
+              opts.onPhase?.('login');
               return sig;
             });
-          } catch {
-            // 登入是附加步驟：拒簽或後端錯誤都不該讓錢包連線失敗
+          } catch (error) {
+            opts.onLoginError?.(error);
           }
         }
         return auth;
@@ -175,6 +190,7 @@ export const walletService = {
       if (!account) throw new WalletError('REJECTED', 'No account authorized');
       const address = base64ToBase58(account.address);
       const stored: Stored = { authToken: result.auth_token, address, label: account.label, walletUriBase: result.wallet_uri_base };
+      opts?.onPhase?.('saving');
       await writeStored(stored);
       cachedAuthToken = stored.authToken;
       return toSession(address, account.label, result.wallet_uri_base);

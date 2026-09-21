@@ -171,3 +171,23 @@ describe('WalletService（PG-A-06，FR-01）', () => {
     });
   });
 });
+
+test('corrupt stored account never breaks startup', async () => {
+  mockStore.set('neonshift.wallet.session.v1', JSON.stringify({ authToken: 'x', address: 'invalid!', walletUriBase: '' }));
+  expect(await walletService.peekStoredSession()).toBeNull();
+  expect(mockTransact).not.toHaveBeenCalled();
+});
+
+test('connection reports its stage and surfaces optional login failure', async () => {
+  const phases: string[] = [];
+  const onLoginError = jest.fn();
+  mockTransact.mockImplementationOnce(async cb => cb({ authorize: async () => authResult() } as never));
+  await walletService.connect({
+    onPhase: phase => phases.push(phase),
+    onLoginError,
+    afterAuthorize: async () => { throw new Error('backend unavailable'); },
+  });
+  expect(phases).toEqual(['opening', 'authorizing', 'login', 'saving']);
+  expect(onLoginError).toHaveBeenCalledTimes(1);
+  expect(await walletService.hasStoredSession()).toBe(true);
+});

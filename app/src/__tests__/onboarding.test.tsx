@@ -40,7 +40,7 @@ const Wrapper = ({ children }: PropsWithChildren) => (
 beforeEach(() => {
   mockNavigate.mockClear();
   mockReset.mockClear();
-  useWalletStore.setState({ status: 'idle', session: null, error: null });
+  useWalletStore.setState({ status: 'idle', session: null, error: null, phase: null, loginIncomplete: false });
   useOnboardingStore.setState({ healthGranted: false, activityGranted: false, healthDeferred: false, activityDeferred: false, shoeMinted: false });
 });
 
@@ -144,4 +144,14 @@ describe('10.4 Starter Shoe Claim（免費贈與，不鑄 NFT）', () => {
     expect(useOnboardingStore.getState().shoeMinted).toBe(false);
     expect(mockReset).not.toHaveBeenCalled();
   });
+});
+
+
+test('wallet connected with incomplete app sign-in explains the issue before continuing', async () => {
+  useWalletStore.setState({ status: 'connected', session: { address: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU', publicKey: {} as never, walletUriBase: '' }, loginIncomplete: true });
+  await render(<WalletConnectScreen />, { wrapper: Wrapper });
+  expect(screen.getByTestId('wallet-login-incomplete')).toBeTruthy();
+  expect(mockNavigate).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByText(/Continue as/));
+  expect(mockNavigate).toHaveBeenCalledWith('Onboarding', { screen: 'HealthAccess' });
 });
