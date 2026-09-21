@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 在 l1（Debian／Ubuntu，root）執行一次：Node 24、PostgreSQL、系統帳號、目錄、環境檔與隨機 secret。
+# 在 API 主機（l1／l2；Debian／Ubuntu，root）執行一次：Node 24、PostgreSQL（或外部 DB）、系統帳號、目錄、環境檔與隨機 secret。
 # 可重複執行；已存在的 secret 不會被覆寫。attestor 私鑰由 deploy.sh 另行放到 /etc/neonshift/keys/attestor.json。
 set -euo pipefail
 
@@ -10,11 +10,17 @@ if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split("."
   curl -fsSL https://deb.nodesource.com/setup_24.x | bash - >/dev/null
   apt-get install -y -qq nodejs >/dev/null
 fi
-if ! command -v psql >/dev/null; then
-  apt-get update -qq
-  apt-get install -y -qq postgresql postgresql-contrib rsync >/dev/null
+# 外部 DB（例如 l1／l2 共用 db2 的 pgbouncer）：給 NEONSHIFT_DATABASE_URL 時只裝 psql client、不裝本機 PostgreSQL、不建本機帳號
+EXTERNAL_DB="${NEONSHIFT_DATABASE_URL:-}"
+if [ -n "$EXTERNAL_DB" ]; then
+  command -v psql >/dev/null || { apt-get update -qq; apt-get install -y -qq postgresql-client rsync >/dev/null; }
+else
+  if ! command -v psql >/dev/null; then
+    apt-get update -qq
+    apt-get install -y -qq postgresql postgresql-contrib rsync >/dev/null
+  fi
+  systemctl enable --now postgresql >/dev/null
 fi
-systemctl enable --now postgresql >/dev/null
 
 for u in neonshift neonshift-signer; do
   id "$u" >/dev/null 2>&1 || useradd --system --home /opt/neonshift --shell /usr/sbin/nologin "$u"
@@ -25,17 +31,22 @@ chmod 755 /etc/neonshift   # 檔案各自 0640 限制群組；目錄需可穿越
 chown root:neonshift-signer /etc/neonshift/keys
 chmod 750 /etc/neonshift/keys
 
-# DB：帳號／資料庫（密碼寫入 api.env）
-DB_PASS_FILE=/etc/neonshift/.dbpass
-if [ ! -f "$DB_PASS_FILE" ]; then
-  openssl rand -hex 24 > "$DB_PASS_FILE"; chmod 600 "$DB_PASS_FILE"
+# DB：本機模式建帳號／資料庫（密碼寫入 api.env）；外部 DB 模式直接用給定 URL
+if [ -z "$EXTERNAL_DB" ]; then
+  DB_PASS_FILE=/etc/neonshift/.dbpass
+  if [ ! -f "$DB_PASS_FILE" ]; then
+    openssl rand -hex 24 > "$DB_PASS_FILE"; chmod 600 "$DB_PASS_FILE"
+  fi
+  DB_PASS=$(cat "$DB_PASS_FILE")
+  runuser -u postgres -- psql -v ON_ERROR_STOP=1 -tAc "SELECT 1 FROM pg_roles WHERE rolname='neonshift'" | grep -q 1 \
+    || runuser -u postgres -- psql -v ON_ERROR_STOP=1 -c "CREATE ROLE neonshift LOGIN PASSWORD '$DB_PASS'"
+  runuser -u postgres -- psql -v ON_ERROR_STOP=1 -c "ALTER ROLE neonshift PASSWORD '$DB_PASS'" >/dev/null
+  runuser -u postgres -- psql -v ON_ERROR_STOP=1 -tAc "SELECT 1 FROM pg_database WHERE datname='neonshift'" | grep -q 1 \
+    || runuser -u postgres -- createdb -O neonshift neonshift
+  DB_URL="postgres://neonshift:$DB_PASS@127.0.0.1:5432/neonshift"
+else
+  DB_URL="$EXTERNAL_DB"
 fi
-DB_PASS=$(cat "$DB_PASS_FILE")
-runuser -u postgres -- psql -v ON_ERROR_STOP=1 -tAc "SELECT 1 FROM pg_roles WHERE rolname='neonshift'" | grep -q 1 \
-  || runuser -u postgres -- psql -v ON_ERROR_STOP=1 -c "CREATE ROLE neonshift LOGIN PASSWORD '$DB_PASS'"
-runuser -u postgres -- psql -v ON_ERROR_STOP=1 -c "ALTER ROLE neonshift PASSWORD '$DB_PASS'" >/dev/null
-runuser -u postgres -- psql -v ON_ERROR_STOP=1 -tAc "SELECT 1 FROM pg_database WHERE datname='neonshift'" | grep -q 1 \
-  || runuser -u postgres -- createdb -O neonshift neonshift
 
 # 環境檔：第一次由 example 產生並填入隨機 secret；之後只更新 DB 密碼
 if [ ! -f /etc/neonshift/api.env ]; then
@@ -50,7 +61,7 @@ if [ ! -f /etc/neonshift/api.env ]; then
   cp /opt/neonshift/deploy/l1/signer.env.example /etc/neonshift/signer.env
   sed -i -e "s#^SIGNER_TOKEN=.*#SIGNER_TOKEN=$SIGNER_TOKEN#" /etc/neonshift/signer.env
 fi
-sed -i -e "s#^DATABASE_URL=.*#DATABASE_URL=postgres://neonshift:$DB_PASS@127.0.0.1:5432/neonshift#" /etc/neonshift/api.env
+sed -i -e "s#^DATABASE_URL=.*#DATABASE_URL=$DB_URL#" /etc/neonshift/api.env
 chown root:neonshift /etc/neonshift/api.env; chmod 640 /etc/neonshift/api.env
 chown root:neonshift-signer /etc/neonshift/signer.env; chmod 640 /etc/neonshift/signer.env
 

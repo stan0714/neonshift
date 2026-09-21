@@ -74,3 +74,11 @@ SKR_GENESIS_FRAME_PRICE=2500000      # 最小單位（6 decimals；2.5 SKR）
 
 啟動 log 會印 `SKR ready`（network／mint／decimals／recipient）；核對失敗印 `SKR 停用：…`，`/v1/me/skr/catalog` 回 `enabled=false`。
 
+## 第二台 API 主機 l2（2026-09-21）
+
+- `root@l2.neonshift.cc`（Debian 13，1 vCPU／1 GB）與 l1 共用同一個外部 PostgreSQL（`db2…:6432` pgbouncer，DATABASE_URL 與 l1 相同）；程式、systemd 單元、`/etc/neonshift/{api,signer}.env`、`keys/attestor.json` 與 l1 同構。
+- 部署：`DEPLOY_HOST=root@l2.neonshift.cc deploy/l1/deploy.sh`（第一次加 `bootstrap` 並以 `NEONSHIFT_DATABASE_URL=<與 l1 相同>` 指定外部 DB）。**兩台都要部署**才能保持同版（migration 由 `schema_migrations` 去重，任一台跑過即可）。
+- 與 l1 一致的值：`JWT_SECRET`（session 跨主機有效）、`OPS_TOKEN`、`METRICS_TOKEN`、`SKR_*`、rules 檔；各自獨立：`SIGNER_TOKEN`（本機 loopback 對）。
+- 單例工作只在 l1：`INDEXER_ENABLED`／`RETENTION_ENABLED` 在 l2 設 false（chain_cursor 沒有跨主機鎖）。**若 l1 下線，需在 l2 改為 true 並重啟**，否則鏈上事件索引與保留清理停止。
+- 導流：前端 nginx（另一台）把 `https://api.neonshift.cc` 改指 `l2.neonshift.cc:6080`（或 l1／l2 都列為 upstream）；切換前後用 `/healthz`、`/readyz`、`/v1/rules/version` 比對兩台一致。
+
