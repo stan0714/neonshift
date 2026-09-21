@@ -127,9 +127,11 @@ describe('PG-A-15 Arena', () => {
     await render(<ArenaScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('arena-signin')).toBeTruthy());
     expect(screen.queryByTestId('arena-error')).toBeNull();
+    useArenaStore.setState({ outcome: { kind: 'error', action: 'join', code: 'FAILED', message: 'java.util.concurrent.CancellationException' } }); // 先前錢包不回覆留下的失敗卡
     await fireEvent.press(screen.getByTestId('arena-signin-btn'));
     await waitFor(() => expect(screen.getByTestId('arena-tournament')).toBeTruthy());
     expect(mockApi.signIn).toHaveBeenCalledWith(wallet.toBase58());
+    expect(screen.queryByTestId('arena-error')).toBeNull(); // 登入成功後不再顯示舊的「Could not enter」
   });
 
   test('Phantom（Seeker 已知簽完不回覆）：登入卡事前提醒；簽了沒回覆 → 改用 Seeker Wallet 的步驟', async () => {
