@@ -93,7 +93,7 @@ export function RevealCeremony({ from, to, explorer = null, preview = false, onC
   const hero = <View style={unbox ? { marginTop: size * 0.12 } : null}><ShoeHero level={to} size={size} active={revealed && !reduced} badge={false} owner={preview ? null : undefined} /></View>;
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+    <Modal visible transparent animationType={reduced ? "none" : "fade"} onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <Pressable style={styles.scrim} onPress={onClose} accessibilityLabel={t('common.dismiss')} testID="reveal-scrim" />
       {/* Modal 為 edge-to-edge：外層先讓出安全區（contentContainer 的 margin 在 Android 不計入可捲範圍） */}
       <View style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom }} pointerEvents="box-none">
@@ -122,7 +122,7 @@ export function RevealCeremony({ from, to, explorer = null, preview = false, onC
             </RewardStage>
           )}
 
-          <Animated.View style={[styles.body, { opacity: content, transform: [{ translateY: content.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }]} testID="reveal-content">
+          <Animated.View style={[styles.body, { opacity: content, transform: [{ translateY: content.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }]} testID="reveal-content" pointerEvents={revealed ? "auto" : "none"} accessibilityElementsHidden={!revealed} importantForAccessibility={revealed ? "auto" : "no-hide-descendants"}>
             <Text variant="heading1" style={styles.center}>
               {t('common.lvDot', { n: to })} · {stageName(t, to)}
             </Text>
@@ -130,7 +130,6 @@ export function RevealCeremony({ from, to, explorer = null, preview = false, onC
               {preview ? t('reveal.previewBody', { level: to }) : up ? t('reveal.body', { detail: stageDetail(t, to), level: to }) : t('reveal.downBody')}
             </Text>
             {unbox ? <View style={styles.plate}><CollectorPlate level={to} edition={edition} /></View> : null}
-            {up ? <ShoeStory level={to} preview={preview} /> : null}
             {/* PG-LINK-01：有明確外觀選擇時，新鞋不強制覆蓋——提供「立即使用／稍後」 */}
             {!preview && up && offerUse ? (
               <Button label={t('gear.offer.useNow')} onPress={() => { void selectShoe(to); onClose(); }} style={styles.btn} testID="reveal-use-now" />
@@ -139,6 +138,7 @@ export function RevealCeremony({ from, to, explorer = null, preview = false, onC
             {preview && unbox ? (
               <Button label={t('reveal.replay')} variant="secondary" onPress={() => setTake((n) => n + 1)} style={styles.replay} testID="reveal-replay" />
             ) : null}
+            {up && revealed ? <ShoeStory level={to} preview={preview} /> : null}
             {explorer ? (
               <Pressable onPress={() => void Linking.openURL(explorer)} accessibilityRole="link" style={styles.link} testID="reveal-tx">
                 <Text variant="bodySmall" tone="cyan">

@@ -67,7 +67,7 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number }) {
               void (async () => {
                 try {
                   const r = await achievementService.mint(session.publicKey, intent);
-                  if (r.kind === 'minted' && !r.alreadyMinted) useNftRevealStore.getState().enqueue({ id: r.asset, title: typeof intent.metadata_preview.name === 'string' ? intent.metadata_preview.name : undefined });
+                  if (r.kind === 'minted' && !r.alreadyMinted) useNftRevealStore.getState().enqueue({ id: r.asset, milestone: data?.items.find(item => item.key === key)?.category, title: typeof intent.metadata_preview.name === 'string' ? intent.metadata_preview.name : undefined });
                   if (r.kind === 'minted') setNotice({ kind: 'success', title: t('pb.minted'), body: t('pb.mintedBody') });
                 } catch (e) {
                   const code = e instanceof ClaimError ? e.code : 'FAILED';

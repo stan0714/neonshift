@@ -1,11 +1,11 @@
-import { useIsFocused, useNavigation } from '@react-navigation/native';
+import { ShoePreview } from '@/components/ShoePreview';
+import { useNavigation } from '@react-navigation/native';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button, Chip, Screen, Surface, Wordmark } from '@/components';
 import { RevealCeremony } from '@/components/EvolutionReveal';
 import { ShoeStory } from '@/components/ShoeStory';
-import { ShoeHero } from '@/components/ShoeHero';
 import { SHOE_PROGRESSION, type ShoeLevel } from '@/config/shoeProgression';
 import { space, Text } from '@/theme';
 import { stageDetail, stageName } from '@/domain/collectibles';
@@ -16,7 +16,6 @@ import { useT } from '@/i18n';
  * 唯讀 Dashboard 內容待 PG-A-12 完成後以 demo 模式渲染；目前先呈現說明與返回。
  */
 export function DemoPreviewScreen() {
-  const isFocused = useIsFocused();
   const { t } = useT();
   const navigation = useNavigation();
   const [previewLevel, setPreviewLevel] = useState<ShoeLevel | null>(null);
@@ -38,7 +37,7 @@ export function DemoPreviewScreen() {
       {SHOE_PROGRESSION.stages.map((stage) => (
         <Surface key={stage.level} style={styles.card}>
           <Text variant="heading2">{stageName(t, stage.level)} · {t('common.lv', { n: stage.level })}</Text>
-          <View style={{ alignItems: 'center' }}><ShoeHero owner={null} level={stage.level} active={isFocused} /></View>
+          <View style={{ alignItems: 'center' }}><ShoePreview owner={null} level={stage.level} /></View>
           <ShoeStory level={stage.level} preview />
           <Text variant="body">{t('demo.totalXp', { n: stage.xp })}</Text>
           <Text variant="caption" tone="secondary">{stageDetail(t, stage.level)}</Text>

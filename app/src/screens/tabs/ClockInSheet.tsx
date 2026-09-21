@@ -1,3 +1,4 @@
+import { RewardStage } from '@/components/RewardStage';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -37,7 +38,7 @@ export function ClockInSheet({ visible, input, onClose, onPhase }: Props) {
       setPhase(p);
       onPhase(p);
     });
-    if (final.kind === 'confirmed') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (final.kind === 'confirmed') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     running.current = false;
   }, [input, onPhase]);
 
@@ -102,7 +103,9 @@ function PhaseView({ phase, taskType }: { phase: ClaimPhase; taskType: TaskType 
       return <Step icon="clock" text={t('clock.confirming')} tint={color.cyan} testID="phase-confirming" />;
     case 'confirmed':
       return (
-        <InlineState kind="success" title={taskType === 'steps' ? t('clock.claimed.steps') : taskType === 'workout' ? t('clock.claimed.workout') : t('clock.claimed.sleep')} body={phase.signature ? t('clock.claimed.bodyTx', { tx: phase.signature.slice(0, 8) }) : t('clock.claimed.body')} testID="phase-confirmed" />
+        <View accessibilityLiveRegion="polite">
+          <RewardStage mode="task"><Feather name="check" size={42} color={color.mint} /></RewardStage>
+        <InlineState kind="success" title={taskType === 'steps' ? t('clock.claimed.steps') : taskType === 'workout' ? t('clock.claimed.workout') : t('clock.claimed.sleep')} body={phase.signature ? t('clock.claimed.bodyTx', { tx: phase.signature.slice(0, 8) }) : t('clock.claimed.body')} testID="phase-confirmed" /></View>
       );
     case 'already_claimed':
       return <InlineState kind="info" title={t('clock.already.title')} body={t('clock.already.body')} testID="phase-already" />;

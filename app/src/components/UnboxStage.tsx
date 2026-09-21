@@ -9,7 +9,7 @@ import { useT } from '@/i18n';
 import { color, space, Text } from '@/theme';
 
 /** One finite ceremony; silhouette gets its own beat before the shoe arrives. */
-export const UNBOX_TIMELINE = { total: 5200, shakeStart: 1100, shakeMid: 1800, burst: 2400, revealed: 3500 } as const;
+export const UNBOX_TIMELINE = { total: 4200, shakeStart: 700, shakeMid: 1200, burst: 1700, revealed: 2800 } as const;
 const T = (ms: number) => ms / UNBOX_TIMELINE.total;
 
 type Props = {
@@ -76,9 +76,9 @@ export function UnboxStage({ accent, height, onRevealed, backdrop, children }: P
   const reveal = T(UNBOX_TIMELINE.revealed);
   const shakeIn = [0, shake];
   const shakeOut = ['0deg', '0deg'];
-  for (let i = 1; i <= 10; i++) {
-    shakeIn.push(shake + (burst - shake) * i / 10);
-    shakeOut.push(i === 10 ? '0deg' : `${(i % 2 ? -1 : 1) * (2 + i * 0.65)}deg`);
+  for (let i = 1; i <= 6; i++) {
+    shakeIn.push(shake + (burst - shake) * i / 6);
+    shakeOut.push(i === 6 ? '0deg' : `${(i % 2 ? -1 : 1) * (1.5 + i * 0.5)}deg`);
   }
   shakeIn.push(1); shakeOut.push('0deg');
 
@@ -91,8 +91,8 @@ export function UnboxStage({ accent, height, onRevealed, backdrop, children }: P
         transform: [{ scale: still ? 1 + i * 0.17 : at([0, burst, reveal, 1], [1.6 + i * 0.2, 0.75 + i * 0.1, 1.3 + i * 0.17, 1 + i * 0.17]) },
           { rotate: still ? '0deg' : p.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${i % 2 ? -65 : 65}deg`] }) }],
       }]} />)}
-      {!still ? Array.from({ length: 20 }, (_, i) => {
-        const angle = i * Math.PI / 10;
+      {!still ? Array.from({ length: 16 }, (_, i) => {
+        const angle = i * Math.PI / 8;
         const reach = Math.min(height * 0.42, 170) + (i % 3) * 10;
         return <Animated.View key={i} style={[s.spark, { backgroundColor: i % 3 ? accent : color.warning,
           opacity: at([0, burst, burst + 0.04, 0.92], [0, 0, 0.9, 0]),
@@ -143,7 +143,7 @@ export function UnboxStage({ accent, height, onRevealed, backdrop, children }: P
 
     <Animated.View style={[s.face, {
       opacity: still ? 1 : at([0, burst + 0.1, reveal], [0, 0, 1]),
-      transform: [{ scale: still ? 1 : at([burst + 0.1, reveal, reveal + 0.1], [0.5, 1.06, 1]) },
+      transform: [{ scale: still ? 1 : at([burst + 0.1, reveal, reveal + 0.1], [0.86, 1.025, 1]) },
         { translateY: still ? 0 : at([burst + 0.1, reveal], [48, 0]) }],
     }]}>{children}</Animated.View>
 

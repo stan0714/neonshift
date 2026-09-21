@@ -1,3 +1,4 @@
+import { ShoePreview } from '@/components/ShoePreview';
 import { Feather } from '@expo/vector-icons';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -452,7 +453,7 @@ function CollectibleDetailSheet({ owner, isYou, kind, claimedAt, asset, onClose 
   const explorer = `https://explorer.solana.com/address/${asset}?cluster=devnet`;
   return (
     <Sheet visible onClose={onClose} title={item ? collectibleName(t, item) : t('gal.collectibleN', { n: kind })} testID="gallery-collectible-detail" footer={<Button label={t('common.close')} variant="secondary" onPress={onClose} style={styles.flex} testID="gallery-collectible-detail-done" />}>
-      <View style={styles.detailHero}>{level ? <ShoeHero owner={owner} level={level} size={200} active={false} /> : <Feather name={item?.icon ?? 'award'} size={64} color={color.warning} />}</View>
+      <View style={styles.detailHero}>{level ? <ShoePreview owner={owner} level={level} size={260} /> : <Feather name={item?.icon ?? 'award'} size={64} color={color.warning} />}</View>
       <DetailRow label={t('gal.detail.claimed')} value={new Date(claimedAt).toLocaleString()} />
       <DetailRow label={t('gal.detail.reason')} value={item ? (level ? t('gal.detail.reasonStage', { n: level }) : t(item.unlockKey)) : '—'} />
       <DetailRow label={t('gal.detail.owner')} value={isYou ? t('common.you') : shortAddress(owner, 6)} />

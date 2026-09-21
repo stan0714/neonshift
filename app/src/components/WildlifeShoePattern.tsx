@@ -14,6 +14,10 @@ export function WildlifeShoePattern({ level, variant, tint }: { level: ShoeLevel
       <Path d="M45 96 Q54 77 72 92 Q88 116 66 129 Q46 127 45 96 Z" fill={color.elevated} stroke={tint} strokeWidth={2} />
       <Path d="M60 93 Q79 107 64 122 M81 103 Q91 121 82 128 Q77 134 73 128" fill="none" stroke={ink} strokeWidth={2.5} strokeLinecap="round" />
       <Path d="M48 97 Q58 83 71 97 Q81 113 65 124 M49 104 Q55 100 58 101 M51 112 Q57 108 60 110" fill="none" stroke={ink} strokeOpacity={0.55} strokeWidth={0.8} />
+      {/* Fine folds radiate from the ear root; double stitching gives the guard depth. */}
+      <Path d="M62 97 Q53 95 50 100 M64 102 Q55 101 51 107 M65 108 Q58 109 54 115 M65 114 Q61 119 58 121" fill="none" stroke={tint} strokeOpacity={0.55} strokeWidth={0.6} strokeLinecap="round" />
+      <Path d="M47 96 Q54 82 67 91 M48 117 Q53 126 63 127" fill="none" stroke={color.textPrimary} strokeOpacity={0.45} strokeWidth={0.7} strokeDasharray="1 2" />
+      <Path d="M82 113 l4 -1 M82 117 l5 -1 M81 122 l5 -1" stroke={color.canvas} strokeWidth={0.8} />
       <Path d="M85 116 Q98 109 119 123 M96 117 L100 111 M105 119 L113 115" fill="none" stroke={tint} strokeWidth={1.1} strokeLinecap="round" />
       {[0, 1, 2].map(n => <Path key={n} d={`M${95 + n * 9} 119 l5 10`} stroke={ink} strokeOpacity={0.65} />)}
     </G> : null}
@@ -23,6 +27,11 @@ export function WildlifeShoePattern({ level, variant, tint }: { level: ShoeLevel
       <Path d="M29 97 Q39 104 45 114 M31 102 L40 113" fill="none" stroke={ink} strokeWidth={0.8} />
       {[0, 1, 2, 3].map(n => <Path key={n} d={`M${67 + n * 14} ${106 + n * 3} l9 -4 l9 9 l-8 10 l-10 -4 Z`} fill={color.surface} stroke={ink} strokeWidth={1.5} />)}
       {[0, 1, 2, 3].map(n => <Path key={`scute-${n}`} d={`M${70+n*14} ${108+n*3} l6 -2 l5 5 M${71+n*14} ${116+n*3} l5 2`} fill="none" stroke={tint} strokeWidth={0.65} strokeOpacity={0.7} />)}
+      {/* Nested growth rings and tiny highlights distinguish overlapping scutes. */}
+      {[0, 1, 2, 3].map(n => <G key={`rings-${n}`} transform={`translate(${67+n*14} ${106+n*3})`}>
+        <Path d="M3 1 l6 -2 l6 6 l-6 8 l-6 -3 Z M6 3 l3 -1 l3 3 l-3 5 l-3 -2 Z" fill="none" stroke={tint} strokeOpacity={0.45} strokeWidth={0.55} />
+        <Path d="M0 1 l1 9 l8 4" fill="none" stroke={color.canvas} strokeOpacity={0.7} strokeWidth={1} />
+      </G>)}
       <Path d="M169 125 Q194 113 215 124 M172 130 Q196 119 214 129" stroke={tint} fill="none" />
     </G> : null}
     {level === 4 ? <G>
@@ -31,14 +40,20 @@ export function WildlifeShoePattern({ level, variant, tint }: { level: ShoeLevel
       {/* Tapered stripes follow the upper, rather than a pasted animal icon. */}
       {[0, 1, 2, 3, 4].map(n => <Path key={n} d={`M${62 + n * 12 + shift} ${102 + n * 3} l${n % 2 ? 7 : 10} 2 l-4 ${n % 2 ? 9 : 12} l-3 5 l-1 -12 Z`} fill={ink} />)}
       {[0, 2, 4].map(n => <Path key={`stripe-${n}`} d={`M${66+n*12+shift} ${106+n*3} l2 5 l-2 5`} fill="none" stroke={color.canvas} strokeOpacity={0.5} strokeWidth={0.8} />)}
+      {/* Short forked branches break the repeated stripe rhythm. */}
+      <Path d={`M${76+shift} 109 q-5 2 -8 8 l6 -3 Z M${100+shift} 117 q7 0 10 6 l-7 -2 Z M${113+shift} 121 l7 2 l-3 6 Z`} fill={ink} />
+      {[0, 1, 2, 3, 4, 5].map(n => <Path key={`nap-${n}`} d={`M${66+n*9} ${124+n%3} l2 2`} stroke={tint} strokeOpacity={0.55} strokeWidth={0.55} />)}
       <Path d="M181 111 l9 2 l-7 13 l-5 3 Z M197 115 l8 3 l-6 9 l-5 2 Z" fill={ink} />
     </G> : null}
     {level === 5 ? <G>
       {/* Broken rosettes and a pale winter-coat toe panel. */}
       <Path d="M174 109 Q205 109 218 122 L207 130 Q187 135 174 130 Z" fill={color.textSecondary} fillOpacity={0.22} />
       {[0, 1, 2, 3, 4, 5].map(n => <G key={n}>
-        <Ellipse cx={68 + (n % 3) * 18 + shift} cy={109 + Math.floor(n / 3) * 13} rx={n % 2 ? 5 : 6.5} ry={n % 2 ? 4.5 : 3.5} fill="none" stroke={ink} strokeWidth={2.4} strokeDasharray="6 3" />
-        <Circle cx={68 + (n % 3) * 18 + shift} cy={109 + Math.floor(n / 3) * 13} r={1} fill={tint} />
+        <G transform={`translate(${68+(n%3)*18+shift} ${109+Math.floor(n/3)*13}) rotate(${n*37})`}>
+          <Path d="M-5 -2 Q-3 -6 1 -4 Q5 -4 5 -1 Q6 3 2 4 Q-2 6 -5 2 Z" fill={ink} fillOpacity={0.16} />
+          <Path d="M-5 0 Q-6 -4 -1 -4 M2 -4 Q6 -3 5 1 M4 3 Q1 6 -2 3 M-4 3 l-1 -1" fill="none" stroke={ink} strokeWidth={2} strokeLinecap="round" />
+          <Path d="M-2 -1 l2 -1 M1 1 l1 1" stroke={tint} strokeOpacity={0.7} strokeWidth={0.65} />
+        </G>
       </G>)}
       <Path d="M34 87 Q43 92 45 118 M37 84 Q46 91 49 120 M177 112 Q197 113 208 119" fill="none" stroke={color.textPrimary} strokeOpacity={0.65} strokeWidth={0.75} />
       <Path d="M181 120 q5 -7 10 0 q-4 7 -10 0 M200 123 q5 -7 10 0" fill="none" stroke={ink} strokeWidth={2} />

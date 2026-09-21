@@ -1,3 +1,4 @@
+import { ShoePreview } from '@/components/ShoePreview';
 import { Feather } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from "react-native";
@@ -608,7 +609,7 @@ function ShoeDetailSheet({ kind, onClose, profile, status, section, xp, threshol
       )
     }>
       <View style={styles.detailHero}>
-        {kind > 1 && section === "locked" ? <View style={{ padding: space.xl, alignItems: "center", gap: space.s }} testID="shoe-growth-box"><Feather name="package" size={80} color={color.violet} /><Text variant="title">{t("wild.sealed")}</Text><Button label={t("wild.previewReveal")} variant="secondary" onPress={() => onPreviewReveal(kind)} testID="shoe-detail-preview-reveal" /></View> : <ShoeHero level={kind} size={200} active={section !== "locked"} />}
+        {kind > 1 && section === "locked" ? <View style={{ padding: space.xl, alignItems: "center", gap: space.s }} testID="shoe-growth-box"><Feather name="package" size={80} color={color.violet} /><Text variant="title">{t("wild.sealed")}</Text><Button label={t("wild.previewReveal")} variant="secondary" onPress={() => onPreviewReveal(kind)} testID="shoe-detail-preview-reveal" /></View> : <ShoePreview level={kind} size={260} />}
         <View style={styles.levelRow}>
           <View testID={`shoe-detail-section-${section}`}><Chip label={t(`gear.section.${section}` as TKey)} kind={section === "equipped" ? "level" : section === "achieved" ? "synced" : "neutral"} /></View>
           {status === "claimed" ? <Chip label={t("gear.claimed")} kind="synced" /> : null}
