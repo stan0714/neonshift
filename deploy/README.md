@@ -58,3 +58,19 @@ npx wrangler pages deploy web --project-name neonshift --branch main --commit-di
 預覽網址 `https://neonshift-2gd.pages.dev`；自訂網域 `neonshift.cc` 已加入專案（Pages API），DNS 需在 Cloudflare 儀表板把 `neonshift.cc` 的 A 紀錄換成 CNAME → `neonshift-2gd.pages.dev`（OAuth token 沒有 DNS 權限）。`web/_headers` 設定 `assetlinks.json`／NFT 的 Content-Type 與 CORS，`web/_redirects` 讓 `/e/<slug>` 落到 `/e/`（Pages 會把 `/e/index.html` 正規化成 `/e/`，rewrite 目標不能寫 index.html）。
 
 秘密只在主機 `/etc/neonshift/`（root 可讀、各服務帳號唯讀），不進 repo；`OPS_TOKEN`／`METRICS_TOKEN` 需要時 `ssh root@l1.neonshift.cc 'grep -E "OPS|METRICS" /etc/neonshift/api.env'`。
+
+## SKR 外觀付款（SKR-01～06；l1 預設停用）
+
+在 l1 的 `/etc/neonshift/api.env` 加入後 `systemctl restart neonshift-api`（都是公開資訊，不含私鑰）：
+
+```
+SKR_ENABLED=true
+SKR_NETWORK=mainnet-beta            # 或 devnet（試跑；App 標 TEST SKR）
+SKR_MINT=SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3   # 主網固定官方 mint；devnet 用 scripts/chain/skr-test-mint.sh 產生
+SKR_RECIPIENT=<收款錢包公鑰>          # 收款帳戶為其 SKR ATA（建議先建好，否則付款人多付租金）
+SKR_GENESIS_FRAME_PRICE=2500000      # 最小單位（6 decimals；2.5 SKR）
+# 可選：SKR_RPC_URL、SKR_ORDER_TTL_SEC=900、SKR_PAYMENT_GRACE_SEC=600、SKR_COMMITMENT=confirmed
+```
+
+啟動 log 會印 `SKR ready`（network／mint／decimals／recipient）；核對失敗印 `SKR 停用：…`，`/v1/me/skr/catalog` 回 `enabled=false`。
+
