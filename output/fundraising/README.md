@@ -31,3 +31,7 @@ python output/fundraising/build_deck.py
 ## 2026-09-21 個人成就 NFT 補充
 
 新增 [NFT 專題展示包](../achievement-nft/README.md)，包含成就款式、驗證到鑄造領取流程、公開資訊／費用及收藏查證。本次作為三頁獨立補充，中文 v4 主簡報未改頁碼。
+
+## 參賽開發與素材凍結
+
+以 [2026-09-21 開發計畫](../../docs/store/competition-development-plan.md) 追蹤功能與規則。SKR 完成前保留規劃標示；10/1 決定是否納入，影片實機與 APK 同版後才更新完成宣稱。簡報附錄不視為實際鑄造／付款證據。

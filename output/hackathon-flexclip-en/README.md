@@ -65,3 +65,7 @@ python3 -m venv /tmp/neonshift-deck-venv
 ## 2026-09-21 個人成就 NFT 評審展示
 
 新增 [九頁評審版 PPTX](NeonShift_Hackathon_EN_Judges.pptx)：原六頁＋三頁 NFT 樣式／鑄造領取／收藏查證附錄。原六頁影片版與六段旁白不變，附錄不計入原影片時長。完整 [展示包、中文講稿與樣式預覽](../achievement-nft/README.md)。附錄是設計與流程示意，真實交易實錄待補。重建主簡報後，需再執行附錄生成器。
+
+## 參賽開發與素材凍結
+
+以 [2026-09-21 開發計畫](../../docs/store/competition-development-plan.md) 追蹤功能與規則。SKR 完成前保留規劃標示；10/1 決定是否納入，影片實機與 APK 同版後才更新完成宣稱。簡報附錄不視為實際鑄造／付款證據。
