@@ -27,3 +27,7 @@ python output/fundraising/build_deck.py
 ## 2026-09-20 Activity 與睡眠清理
 
 募資 v4 第 3 頁移除睡眠任務宣傳，重建 PPTX、HTML 與講稿；歷史 v1–v3 保留。完整殘留／相容性與維持門檻影響見 [盤點](../../docs/activity-sleep-review.md)。
+
+## 2026-09-21 個人成就 NFT 補充
+
+新增 [NFT 專題展示包](../achievement-nft/README.md)，包含成就款式、驗證到鑄造領取流程、公開資訊／費用及收藏查證。本次作為三頁獨立補充，中文 v4 主簡報未改頁碼。

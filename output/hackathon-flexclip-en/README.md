@@ -61,3 +61,7 @@ python3 -m venv /tmp/neonshift-deck-venv
 [captures/2026-09-20/](captures/2026-09-20/README.md)：APK `373a180` 的 Home（含新「Workout mission」）、Activity 儀表板／月曆／卡片、Workouts、Gear（Origin 詳情、系列一覽、維持期）、Profile 共 20 張，可直接替換第 1 頁 EARLY BUILD 與第 2 頁靜態預覽；第 3（完整打卡）、4（Lv.2+ 切鞋與棲地背景）、5（活動雙角色）仍待實機錄影。擷取工具 `scripts/demo/capture.sh`；錢包授權視窗為 secure surface，需相機側拍。
 
 第 4 頁的 Lv.2+ 畫面另以**展示版覆寫**（`EXPO_PUBLIC_DEMO_LEVEL=3`，畫面帶 DEMO DATA 標籤）擷取了揭曉儀式、切鞋、森林／海洋背景、關背景與路線底圖選擇（`captures/2026-09-20/*-demo*.png`）；影片中須標 DESIGN PREVIEW／DEMO DATA。
+
+## 2026-09-21 個人成就 NFT 評審展示
+
+新增 [九頁評審版 PPTX](NeonShift_Hackathon_EN_Judges.pptx)：原六頁＋三頁 NFT 樣式／鑄造領取／收藏查證附錄。原六頁影片版與六段旁白不變，附錄不計入原影片時長。完整 [展示包、中文講稿與樣式預覽](../achievement-nft/README.md)。附錄是設計與流程示意，真實交易實錄待補。重建主簡報後，需再執行附錄生成器。
