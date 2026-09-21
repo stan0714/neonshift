@@ -90,6 +90,14 @@ cd programs && anchor build --arch v0 && cargo test -p neonshift-core
 
 詳細步驟與工具鏈注意事項見 `docs/build-and-test.md`。
 
+## 可重建、作者與 AI 輔助（COMP-07）
+
+- **重建**：乾淨環境依 `docs/build-and-test.md` 與上方快速開始即可重建；release APK 以 `scripts/app/build.sh demo release` 產生（需自備 keystore，repo 不含任何金鑰），`release-notes.txt` 記錄 Git commit、SHA-256、versionCode、後端與網路；`scripts/release/evidence.sh` 產出提交證據骨架（`docs/evidence/`）。提交版本不啟用展示覆寫（build.sh 對 demo 環境強制 `EXPO_PUBLIC_DEMO_LEVEL=0`）。
+- **作者**：單人團隊（Stanley Liu）。Git 歷史完整保留，未壓縮或重寫。
+- **AI 輔助**：程式、文件與部分素材（品牌概念圖、Demo 旁白 TTS）在 Claude Code 等 AI 工具協助下完成；設計決策、驗收與提交由作者負責。commit 以 `Co-Authored-By` 標註。
+- **素材權利**：見 [docs/legal/asset-sources.md](docs/legal/asset-sources.md)；WWF 物種資料引用方式見 [docs/legal/wwf-notice-2026-09-20](docs/legal/wwf-notice-2026-09-20/README.md)。
+- **參賽狀態**：規則對照與進度見 [docs/store/competition-development-plan.md](docs/store/competition-development-plan.md)；tSKR 為 devnet 測試代幣，官方 SKR 整合尚未完成（DEC-02 OPEN）。
+
 ## 防作弊（摘要）
 
 來源歸因只計裝置步數（Android legacy／current device SPN），排除手動與第三方；每分鐘 250 步、每日 40,000 步夾限；可選 20 秒動作統計（只上傳摘要）；規則版本 `rules_version` 綁進 attestation 與鏈上事件；attestation 十分鐘有效、單次 nonce、綁 program id／cluster／錢包／任務日；鏈上 receipt PDA 防重領；賽事結算以 canonical entry rolling hash 承諾，資金守恆斷言與 vault 實際餘額對帳。細節見 `docs/sd.md` 4.4、6.2 與 SA 附錄 A。

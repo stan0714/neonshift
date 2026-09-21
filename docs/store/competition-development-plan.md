@@ -119,3 +119,13 @@ SKR No-go 不自動取消主賽；主賽仍需自身資格與實機 gate 全數�
 可提交條件：COMP-01～09 已有充分證據，P0 無阻斷錯誤，四素材可存取且一致；商店與入圍流程已有可執行安排。SKR 完成宣稱另需 SKR-01～07 通過。
 
 目前結論：規劃完成；資格、單人可用時數、真機、正式 SKR 與提交證據仍有 TODO。不可宣稱已完全符合規則。負責人確認及主辦回覆到齊後更新本表；最終由主辦方判定資格。
+
+## 8. 工程落地紀錄
+
+2026-09-21（負責人＋Claude）：
+- `scripts/app/build.sh`：demo（提交）環境 release 強制 `EXPO_PUBLIC_DEMO_LEVEL=0`、禁止 `EXPO_PUBLIC_DEV_ROUTE`、後端必須 https；release-notes 增列 versionCode、SHA-256、ABI、建置時間、demoLevel 與 dirty 標記（COMP-04／R01）。
+- `scripts/release/evidence.sh`：產出 `docs/evidence/<日期>-release-candidate.md`——APK SHA-256／badging／release-notes、adb 裝置與錢包版本、§6 驗收矩陣（預期／實際／證據／測試者／日期）、鏈上與素材欄位（COMP-04／05）。
+- `docs/legal/asset-sources.md`：素材來源與授權盤點，TTS／音樂授權待確認（COMP-08）。README 新增可重建／作者／AI 輔助／素材權利段（COMP-07）。
+- **待決（阻斷 COMP-R01）**：`deploy/demo.env` 的 `PROGRAM_ID`／`TSKR_MINT` 仍空——提交版若以 demo 環境建置會顯示「本版未啟用鏈上功能」。需在 9/23 決定：(a) demo 環境沿用 dev 的 devnet program／mint（改 demo.env 回填即可，不需重新部署），或 (b) 以 `~/.config/neonshift/demo/` 金鑰另行部署（需 devnet SOL 與負責人確認）。在此之前實機驗收用 `dev release`（同一 devnet program，唯一差別是環境名稱與資料保留策略）。
+- 已完成的 P0 相關修正：錢包不回覆分類與指引（`3bdb64a`）、Arena 登入卡（`c60dd14`）、錢包連接 review（`c3669e5`＋`626e5e3`）、離線狀態校正（`a86392d`）。COMP-W01 的 SDK session 中止策略仍 TODO。
+

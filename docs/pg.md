@@ -221,7 +221,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
-| PG-D-01 | keystore、簽章設定、Release APK 流程 | Runbook 8 | — | 0.5 | WIP | 2026-09-14：build.gradle 自動讀 `keystore.properties`（gitignore）切換 release 簽章；`scripts/app/build.sh <env> release` 無 keystore 即拒絕、apksigner 驗證非 debug 簽章、輸出 release-notes.txt；Runbook 8.2 更新。待：專案負責人離線產生正式 keystore（8.1）並跑一次 demo release |
+| PG-D-01 | keystore、簽章設定、Release APK 流程 | Runbook 8 | — | 0.5 | WIP | 2026-09-21：build.sh demo release 強制 demoLevel=0／無 DEV_ROUTE／https，release-notes 加 SHA-256／versionCode／ABI／demoLevel；`scripts/release/evidence.sh` 產證據骨架（參賽計畫 §6／§8）；demo.env PROGRAM_ID 未回填待 9/23 決定。2026-09-14：build.gradle 自動讀 `keystore.properties`（gitignore）切換 release 簽章；`scripts/app/build.sh <env> release` 無 keystore 即拒絕、apksigner 驗證非 debug 簽章、輸出 release-notes.txt；Runbook 8.2 更新。待：專案負責人離線產生正式 keystore（8.1）並跑一次 demo release |
 | PG-D-02 | dApp Store 素材、描述、隱私政策 | BRD 14 | NFR 隱私 | 1.5 | WIP | 2026-09-14：`web/privacy/index.html`（與實作一致：裝置端原始資料、30 天保留、刪除流程、鏈上公開資料、權限）；`docs/store/listing.md`（短／長描述、截圖清單、圖示、送審檢查表）。待：部署 neonshift.cc、正式截圖、Publisher Portal 流程 |
 | PG-D-03 | Demo 影片（3 分鐘內） | BRD 14 | — | 1.5 | WIP | 2026-09-14：`docs/store/demo-video.md` 分鏡與旁白（8 段、≤ 3 分鐘）。待 devnet 部署後錄製 |
 | PG-D-04 | Pitch 簡報 | BRD 14 | — | 1.0 | WIP | 2026-09-16：更新 `output/fundraising/NeonShift_募資簡報_中文草稿_v1.pptx`（23 頁）、產生程式、HTML 預覽、講稿與來源；加入新手指南／三種動畫、STEPN 教訓、庫存壓力與經濟保護規劃。商業實績、團隊與募資條件仍待補齊；見 `docs/store/pitch.md`。 |
