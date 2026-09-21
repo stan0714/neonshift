@@ -103,36 +103,39 @@ export function PersonalBests({ reloadKey = 0 }: { reloadKey?: number }) {
         const improvements = g.history.filter((h) => h.status === 'historical').length;
         const hadInvalid = g.history.some((h) => h.status === 'invalidated');
         return (
-          <View key={g.key} style={styles.row} testID={`pb-${g.category}-${g.verification_class}`}>
-            <View style={styles.flex}>
-              <Text variant="body">{t(`pb.cat.${g.category}` as TKey)}</Text>
-              <Text variant="caption" tone="muted">
-                {t(`pb.class.${g.verification_class}` as TKey)}
-                {g.environment === 'indoor' ? ` · ${t('wo.env.indoor')}` : ''}
-                {g.current ? ` · ${new Date(g.current.achieved_at).toLocaleDateString()}` : ''}
-              </Text>
-              {hadInvalid ? (
-                <Text variant="caption" tone="warning">
-                  {t('pb.invalidated')}
+          <View key={g.key} style={styles.group} testID={`pb-${g.category}-${g.verification_class}`}>
+            <View style={styles.row}>
+              <View style={styles.flex}>
+                <Text variant="body">{t(`pb.cat.${g.category}` as TKey)}</Text>
+                <Text variant="caption" tone="muted">
+                  {t(`pb.class.${g.verification_class}` as TKey)}
+                  {g.environment === 'indoor' ? ` · ${t('wo.env.indoor')}` : ''}
+                  {g.current ? ` · ${new Date(g.current.achieved_at).toLocaleDateString()}` : ''}
                 </Text>
-              ) : null}
+                {hadInvalid ? (
+                  <Text variant="caption" tone="warning">
+                    {t('pb.invalidated')}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={styles.right}>
+                <Text variant="heading2" numeric>
+                  {g.current ? (g.current.unit === 'ms' ? formatDuration(g.current.value) : formatKm(g.current.value)) : '—'}
+                </Text>
+                {g.current ? <Chip label={g.current.is_baseline ? t('pb.baseline') : t('pb.improved', { n: improvements, count: improvements })} kind={g.current.is_baseline ? 'neutral' : 'synced'} /> : null}
+              </View>
             </View>
-            <View style={styles.right}>
-              <Text variant="heading2" numeric>
-                {g.current ? (g.current.unit === 'ms' ? formatDuration(g.current.value) : formatKm(g.current.value)) : '—'}
-              </Text>
-              {g.current ? <Chip label={g.current.is_baseline ? t('pb.baseline') : t('pb.improved', { n: improvements, count: improvements })} kind={g.current.is_baseline ? 'neutral' : 'synced'} /> : null}
-              {g.current && session ? (() => {
-                const a = achievements.find((x) => x.pb_id === g.current!.pb_id);
-                if (a?.minted || a?.status === 'minted') return <Chip label={t('pb.minted')} kind="level" />;
-                if (a?.status === 'revoked' || a?.status === 'revoke_pending') return <Chip label={t('pb.revoked')} kind="offline" />;
-                if (a?.status === 'pending_registry') return <Chip label={t('pb.mintPending')} kind="devnet" />;
-                // PG-V-03：達成日 Active level < 3 或無等級歷史 → 只保留私人 PB，說明原因
-                const el = g.nft_eligibility;
-                if (el && el.status !== 'eligible') return <Text variant="caption" tone="muted" testID={`pb-nft-${el.status}-${g.category}-${g.verification_class}`}>{el.status === 'level_required' ? t('pb.nftLevelRequired', { need: el.required, had: el.level ?? 1 }) : t('pb.nftHistoryUnknown')}</Text>;
-                return <Button label={t('pb.mint')} variant="secondary" onPress={() => mint(g.current!.pb_id)} loading={busy === g.current!.pb_id} disabled={busy !== null} testID={`pb-mint-${g.category}-${g.verification_class}`} />;
-              })() : null}
-            </View>
+            {/* NFT 狀態／原因／鑄造鈕獨立成一列（實機 2026-09-21：放在右欄時長文案把左欄擠成 0 寬、整列變成一大塊空白） */}
+            {g.current && session ? (() => {
+              const a = achievements.find((x) => x.pb_id === g.current!.pb_id);
+              if (a?.minted || a?.status === 'minted') return <View style={styles.nftRow}><Chip label={t('pb.minted')} kind="level" /></View>;
+              if (a?.status === 'revoked' || a?.status === 'revoke_pending') return <View style={styles.nftRow}><Chip label={t('pb.revoked')} kind="offline" /></View>;
+              if (a?.status === 'pending_registry') return <View style={styles.nftRow}><Chip label={t('pb.mintPending')} kind="devnet" /></View>;
+              // PG-V-03：達成日 Active level < 3 或無等級歷史 → 只保留私人 PB，說明原因
+              const el = g.nft_eligibility;
+              if (el && el.status !== 'eligible') return <Text variant="caption" tone="muted" style={styles.nftRow} testID={`pb-nft-${el.status}-${g.category}-${g.verification_class}`}>{el.status === 'level_required' ? t('pb.nftLevelRequired', { need: el.required, had: el.level ?? 1 }) : t('pb.nftHistoryUnknown')}</Text>;
+              return <Button label={t('pb.mint')} variant="secondary" style={styles.nftRow} onPress={() => mint(g.current!.pb_id)} loading={busy === g.current!.pb_id} disabled={busy !== null} testID={`pb-mint-${g.category}-${g.verification_class}`} />;
+            })() : null}
           </View>
         );
       })}
@@ -144,7 +147,9 @@ export function PersonalBests({ reloadKey = 0 }: { reloadKey?: number }) {
 const styles = StyleSheet.create({
   card: { marginTop: space.m },
   mt: { marginTop: space.s },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.s, paddingVertical: space.s, borderBottomWidth: 1, borderBottomColor: color.borderSubtle },
+  group: { paddingVertical: space.s, borderBottomWidth: 1, borderBottomColor: color.borderSubtle },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.s },
   flex: { flex: 1 },
-  right: { alignItems: 'flex-end', gap: space.xs },
+  right: { alignItems: 'flex-end', gap: space.xs, flexShrink: 0 },
+  nftRow: { marginTop: space.xs },
 });

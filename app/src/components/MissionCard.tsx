@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Surface } from '@/components/Surface';
+import { SHOE_PROGRESSION } from '@/config/shoeProgression';
 import { ctaFor, WORKOUT_GOAL_MOVING_MS, type TaskProgress, type TaskStatus, type TaskType } from '@/domain/taskEngine';
 import type { WorkoutEvidence } from '@/state/dashboardStore';
 import { color, space, Text } from '@/theme';
@@ -45,6 +46,10 @@ export function MissionCard({ type, status, progress, rewardLabel, onPress, disa
       <Text variant="bodySmall" tone="secondary" testID={testID ? `${testID}-progress` : undefined}>
         {type === 'workout' ? workoutLine(t, progress, evidence ?? null) : progress.met ? t('mission.goalReached', { value: progress.value, goal: progress.goal }) : t('mission.toGo', { n: progress.remaining })}
       </Text>
+      <Text variant="caption" tone="mint" style={styles.title}>{t('journey.xp', { n: SHOE_PROGRESSION.xpPerClaim[type] })}</Text>
+      <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress.ratio * 100) }} style={{ marginTop: space.s, height: 5, backgroundColor: color.elevated, borderRadius: 3 }}>
+        <View style={{ height: 5, borderRadius: 3, width: `${progress.ratio * 100}%`, backgroundColor: tint }} />
+      </View>
       <Button
         label={t(cta.label)}
         variant={status === 'ready' || status === 'awaiting_signature' ? 'primary' : 'secondary'}

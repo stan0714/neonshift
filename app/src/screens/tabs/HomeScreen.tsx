@@ -1,3 +1,4 @@
+import { MissionJourney } from '@/components/MissionJourney';
 import { Feather } from '@expo/vector-icons';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -247,6 +248,8 @@ export function HomeScreen() {
           </Text>
         ) : null}
       </Pressable>
+
+      <MissionJourney profile={d.profile} config={d.config} statuses={FEATURES.sleep ? [d.tasks.steps, d.tasks.sleep] : [d.tasks.steps, d.tasks.workout]} onGear={() => navigation.navigate('Main', { screen: 'Gear' })} onChallenges={() => navigation.navigate('Workouts')} />
 
       <MissionCard type="steps" status={d.tasks.steps} progress={steps} rewardLabel={stepsReward !== null ? `${formatTskr(stepsReward)} tSKR` : null} onPress={() => startClaim('steps')} disabledReason={disabledReason} testID="mission-steps" />
       {!FEATURES.sleep ? <MissionCard type="workout" status={d.tasks.workout} progress={workout} rewardLabel={workoutReward !== null ? `${formatTskr(workoutReward)} tSKR` : null} onPress={() => startClaim('workout')} disabledReason={workoutDisabledReason} evidence={d.workout} testID="mission-workout" /> : null}
