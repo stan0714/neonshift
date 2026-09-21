@@ -1,7 +1,10 @@
 import { freezeWorkoutArtwork } from "../workouts/appearance.js";
 import type pg from "pg";
 
-import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBadges, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, CosmeticEntitlement, QuestContribution, QuestEnrollment, QuestReceipt, QuestTemplate, GalleryBoard, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, LevelHistoryEntry, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type {
+  SkrEntitlement,
+  SkrOrder,
+  SkrReceipt, AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBadges, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, CosmeticEntitlement, QuestContribution, QuestEnrollment, QuestReceipt, QuestTemplate, GalleryBoard, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, LevelHistoryEntry, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -1142,6 +1145,54 @@ export class PostgresStore implements Store {
   }
   async listCosmetics(wallet: string) { const r = await this.pool.query(`SELECT * FROM cosmetic_entitlements WHERE wallet = $1 ORDER BY granted_at DESC`, [wallet]); return (r.rows as Row[]).map((x) => ({ wallet: x.wallet as string, cosmeticId: x.cosmetic_id as string, receiptId: x.receipt_id as string, status: x.status as CosmeticEntitlement["status"], grantedAt: x.granted_at as Date, updatedAt: x.updated_at as Date })); }
 
+  // ---- SKR-02～06 ----
+  private skrOrderRow(x: Row): SkrOrder {
+    return { orderId: x.order_id as string, wallet: x.wallet as string, sku: x.sku as string, skuVersion: Number(x.sku_version), cosmeticId: x.cosmetic_id as string, network: x.network as SkrOrder["network"], mint: x.mint as string, decimals: Number(x.decimals), amount: BigInt(x.amount as string), recipient: x.recipient as string, recipientTokenAccount: x.recipient_token_account as string, reference: x.reference as string, eligibilityRef: x.eligibility_ref as string, sourceEnv: x.source_env as string, status: x.status as SkrOrder["status"], signature: (x.signature as string | null) ?? null, paidAmount: x.paid_amount === null || x.paid_amount === undefined ? null : BigInt(x.paid_amount as string), paidSlot: x.paid_slot === null || x.paid_slot === undefined ? null : BigInt(x.paid_slot as string), paidAt: (x.paid_at as Date | null) ?? null, failureReason: (x.failure_reason as string | null) ?? null, expiresAt: x.expires_at as Date, createdAt: x.created_at as Date, updatedAt: x.updated_at as Date };
+  }
+  private skrReceiptRow(x: Row): SkrReceipt { return { signature: x.signature as string, orderId: x.order_id as string, wallet: x.wallet as string, amount: BigInt(x.amount as string), slot: BigInt(x.slot as string), blockTime: (x.block_time as Date | null) ?? null, verifiedAt: x.verified_at as Date }; }
+  private skrEntitlementRow(x: Row): SkrEntitlement { return { wallet: x.wallet as string, cosmeticId: x.cosmetic_id as string, orderId: x.order_id as string, status: x.status as SkrEntitlement["status"], grantedAt: x.granted_at as Date, updatedAt: x.updated_at as Date }; }
+  async createSkrOrder(o: Omit<SkrOrder, "status" | "signature" | "paidAmount" | "paidSlot" | "paidAt" | "failureReason" | "createdAt" | "updatedAt">, now: Date) {
+    const r = await this.pool.query(
+      `INSERT INTO skr_orders (order_id, wallet, sku, sku_version, cosmetic_id, network, mint, decimals, amount, recipient, recipient_token_account, reference, eligibility_ref, source_env, status, expires_at, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'awaiting_payment',$15,$16,$16) RETURNING *`,
+      [o.orderId, o.wallet, o.sku, o.skuVersion, o.cosmeticId, o.network, o.mint, o.decimals, o.amount.toString(), o.recipient, o.recipientTokenAccount, o.reference, o.eligibilityRef, o.sourceEnv, o.expiresAt, now],
+    );
+    return this.skrOrderRow(r.rows[0] as Row);
+  }
+  async getSkrOrder(orderId: string) { const r = await this.pool.query(`SELECT * FROM skr_orders WHERE order_id = $1`, [orderId]); return r.rows[0] ? this.skrOrderRow(r.rows[0] as Row) : null; }
+  async findOpenSkrOrder(wallet: string, sku: string, skuVersion: number) {
+    const r = await this.pool.query(`SELECT * FROM skr_orders WHERE wallet = $1 AND sku = $2 AND sku_version = $3 AND status IN ('awaiting_payment','confirming','needs_review') ORDER BY created_at DESC LIMIT 1`, [wallet, sku, skuVersion]);
+    return r.rows[0] ? this.skrOrderRow(r.rows[0] as Row) : null;
+  }
+  async listSkrOrders(wallet: string, limit: number) { const r = await this.pool.query(`SELECT * FROM skr_orders WHERE wallet = $1 ORDER BY created_at DESC LIMIT $2`, [wallet, limit]); return (r.rows as Row[]).map((x) => this.skrOrderRow(x)); }
+  async updateSkrOrder(orderId: string, patch: Partial<Pick<SkrOrder, "status" | "signature" | "paidAmount" | "paidSlot" | "paidAt" | "failureReason">>, now: Date) {
+    const cols: string[] = []; const vals: unknown[] = [orderId, now]; let i = 3;
+    const map: Record<string, string> = { status: "status", signature: "signature", paidAmount: "paid_amount", paidSlot: "paid_slot", paidAt: "paid_at", failureReason: "failure_reason" };
+    for (const [k, col] of Object.entries(map)) if (k in patch) { const v = (patch as Record<string, unknown>)[k]; cols.push(`${col} = $${i++}`); vals.push(typeof v === "bigint" ? v.toString() : v); }
+    if (!cols.length) return this.getSkrOrder(orderId);
+    const r = await this.pool.query(`UPDATE skr_orders SET ${cols.join(", ")}, updated_at = $2 WHERE order_id = $1 RETURNING *`, vals);
+    return r.rows[0] ? this.skrOrderRow(r.rows[0] as Row) : null;
+  }
+  async getSkrReceipt(signature: string) { const r = await this.pool.query(`SELECT * FROM skr_receipts WHERE signature = $1`, [signature]); return r.rows[0] ? this.skrReceiptRow(r.rows[0] as Row) : null; }
+  async fulfillSkrOrder(orderId: string, receipt: Omit<SkrReceipt, "verifiedAt">, now: Date) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const cur = await client.query(`SELECT * FROM skr_orders WHERE order_id = $1 FOR UPDATE`, [orderId]);
+      if (!cur.rows[0]) { await client.query("ROLLBACK"); return { kind: "not_found" as const }; }
+      const order = this.skrOrderRow(cur.rows[0] as Row);
+      const used = await client.query(`SELECT order_id FROM skr_receipts WHERE signature = $1`, [receipt.signature]);
+      if (used.rows[0] && (used.rows[0] as Row).order_id !== orderId) { await client.query("ROLLBACK"); return { kind: "signature_used" as const, byOrderId: (used.rows[0] as Row).order_id as string }; }
+      if (order.status === "fulfilled") { await client.query("COMMIT"); return { kind: "ok" as const, order, created: false }; }
+      await client.query(`INSERT INTO skr_receipts (signature, order_id, wallet, amount, slot, block_time, verified_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (signature) DO NOTHING`, [receipt.signature, orderId, receipt.wallet, receipt.amount.toString(), receipt.slot.toString(), receipt.blockTime, now]);
+      const upd = await client.query(`UPDATE skr_orders SET status = 'fulfilled', signature = $2, paid_amount = $3, paid_slot = $4, paid_at = $5, failure_reason = NULL, updated_at = $6 WHERE order_id = $1 RETURNING *`, [orderId, receipt.signature, receipt.amount.toString(), receipt.slot.toString(), receipt.blockTime ?? now, now]);
+      await client.query(`INSERT INTO skr_entitlements (wallet, cosmetic_id, order_id, status, granted_at, updated_at) VALUES ($1,$2,$3,'active',$4,$4) ON CONFLICT (wallet, cosmetic_id) DO UPDATE SET status = 'active', order_id = EXCLUDED.order_id, updated_at = EXCLUDED.updated_at`, [order.wallet, order.cosmeticId, orderId, now]);
+      await client.query("COMMIT");
+      return { kind: "ok" as const, order: this.skrOrderRow(upd.rows[0] as Row), created: true };
+    } catch (e) { await client.query("ROLLBACK"); throw e; } finally { client.release(); }
+  }
+  async listSkrEntitlements(wallet: string) { const r = await this.pool.query(`SELECT * FROM skr_entitlements WHERE wallet = $1 ORDER BY granted_at DESC`, [wallet]); return (r.rows as Row[]).map((x) => this.skrEntitlementRow(x)); }
+
   async deletePlayerData(wallet: string, now: Date, deferUntil: Date | null): Promise<DeletionResult> {
     const client = await this.pool.connect();
     try {
@@ -1160,6 +1211,9 @@ export class PostgresStore implements Store {
         attestations = (await client.query(`DELETE FROM attestations WHERE wallet = $1`, [wallet])).rowCount ?? 0;
         claimResults = (await client.query(`DELETE FROM claim_results WHERE wallet = $1`, [wallet])).rowCount ?? 0;
         await client.query(`DELETE FROM tournament_steps WHERE wallet = $1`, [wallet]);
+        // SKR：外觀權限與未履約訂單刪除；已履約訂單與 receipt 為付款紀錄，保留（§5 退款／人工處理依據）
+        await client.query(`DELETE FROM skr_entitlements WHERE wallet = $1`, [wallet]);
+        await client.query(`DELETE FROM skr_orders WHERE wallet = $1 AND status <> 'fulfilled'`, [wallet]);
         await client.query(`UPDATE workout_sessions SET possible_duplicate_of = NULL WHERE wallet = $1`, [wallet]);
         await client.query(`DELETE FROM workout_sessions WHERE wallet = $1`, [wallet]); // PG-R-01：運動摘要一併刪除
         // PG-U-04：探索冊（權限 → receipt → enrollment；contributions 隨 enrollment 級聯）

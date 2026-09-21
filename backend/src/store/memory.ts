@@ -1,7 +1,10 @@
 import { freezeWorkoutArtwork } from "../workouts/appearance.js";
 import { randomUUID } from "node:crypto";
 import { compareLeaderboard } from "./leaderboard.js";
-import type { CosmeticEntitlement, QuestContribution, QuestEnrollment, QuestReceipt, QuestTemplate, GalleryBoard, LevelHistoryEntry, AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type {
+  SkrEntitlement,
+  SkrOrder,
+  SkrReceipt, CosmeticEntitlement, QuestContribution, QuestEnrollment, QuestReceipt, QuestTemplate, GalleryBoard, LevelHistoryEntry, AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -806,10 +809,48 @@ export class MemoryStore implements Store {
   }
   async listCosmetics(wallet: string) { return this.cosmetics.filter((c) => c.wallet === wallet).map((c) => ({ ...c })); }
 
+  // ---- SKR-02～06 ----
+  private skrOrders = new Map<string, SkrOrder>();
+  private skrReceipts = new Map<string, SkrReceipt>();
+  private skrEntitlements: SkrEntitlement[] = [];
+  async createSkrOrder(o: Omit<SkrOrder, "status" | "signature" | "paidAmount" | "paidSlot" | "paidAt" | "failureReason" | "createdAt" | "updatedAt">, now: Date) {
+    const row: SkrOrder = { ...o, status: "awaiting_payment", signature: null, paidAmount: null, paidSlot: null, paidAt: null, failureReason: null, createdAt: now, updatedAt: now };
+    this.skrOrders.set(o.orderId, row);
+    return { ...row };
+  }
+  async getSkrOrder(orderId: string) { const o = this.skrOrders.get(orderId); return o ? { ...o } : null; }
+  async findOpenSkrOrder(wallet: string, sku: string, skuVersion: number) {
+    const open = [...this.skrOrders.values()].filter((o) => o.wallet === wallet && o.sku === sku && o.skuVersion === skuVersion && (o.status === "awaiting_payment" || o.status === "confirming" || o.status === "needs_review")).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return open[0] ? { ...open[0] } : null;
+  }
+  async listSkrOrders(wallet: string, limit: number) { return [...this.skrOrders.values()].filter((o) => o.wallet === wallet).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit).map((o) => ({ ...o })); }
+  async updateSkrOrder(orderId: string, patch: Partial<Pick<SkrOrder, "status" | "signature" | "paidAmount" | "paidSlot" | "paidAt" | "failureReason">>, now: Date) {
+    const o = this.skrOrders.get(orderId); if (!o) return null;
+    Object.assign(o, patch, { updatedAt: now });
+    return { ...o };
+  }
+  async getSkrReceipt(signature: string) { const r = this.skrReceipts.get(signature); return r ? { ...r } : null; }
+  async fulfillSkrOrder(orderId: string, receipt: Omit<SkrReceipt, "verifiedAt">, now: Date) {
+    const o = this.skrOrders.get(orderId); if (!o) return { kind: "not_found" as const };
+    const used = this.skrReceipts.get(receipt.signature);
+    if (used && used.orderId !== orderId) return { kind: "signature_used" as const, byOrderId: used.orderId };
+    if (o.status === "fulfilled") return { kind: "ok" as const, order: { ...o }, created: false };
+    this.skrReceipts.set(receipt.signature, { ...receipt, verifiedAt: now });
+    Object.assign(o, { status: "fulfilled", signature: receipt.signature, paidAmount: receipt.amount, paidSlot: receipt.slot, paidAt: receipt.blockTime ?? now, failureReason: null, updatedAt: now });
+    const existing = this.skrEntitlements.find((e) => e.wallet === o.wallet && e.cosmeticId === o.cosmeticId);
+    if (existing) Object.assign(existing, { status: "active", orderId, updatedAt: now });
+    else this.skrEntitlements.push({ wallet: o.wallet, cosmeticId: o.cosmeticId, orderId, status: "active", grantedAt: now, updatedAt: now });
+    return { kind: "ok" as const, order: { ...o }, created: true };
+  }
+  async listSkrEntitlements(wallet: string) { return this.skrEntitlements.filter((e) => e.wallet === wallet).map((e) => ({ ...e })); }
+
   async deletePlayerData(wallet: string, now: Date, deferUntil: Date | null): Promise<DeletionResult> {
     // PG-U-04：探索冊資料隨錢包刪除
     for (const [id, e] of this.questEnrollments) if (e.wallet === wallet) { this.questEnrollments.delete(id); this.questContributions.delete(id); this.questReceipts.delete(id); }
     this.cosmetics = this.cosmetics.filter((c) => c.wallet !== wallet);
+    // SKR：外觀權限與未履約訂單一併刪除；已履約訂單與 receipt 為付款紀錄，保留（§5 退款／人工處理依據）
+    this.skrEntitlements = this.skrEntitlements.filter((e) => e.wallet !== wallet);
+    for (const [k, o] of this.skrOrders) if (o.wallet === wallet && o.status !== "fulfilled") this.skrOrders.delete(k);
     const sessions = await this.revokeWallet(wallet, now);
     const p = this.players.get(wallet);
     if (p) {

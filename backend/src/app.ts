@@ -16,6 +16,8 @@ import { EventBadgeService } from "./milestones/eventBadges.js";
 import { MilestoneService, milestoneRoutes } from "./milestones/service.js";
 import { PersonalBestService, pbRoutes } from "./pb/service.js";
 import { QuestService, questRoutes } from "./quests/service.js";
+import { defaultRpcUrl, RpcSkrChain, type SkrChain } from "./skr/chain.js";
+import { SkrService, skrRoutes, skrSettingsFrom } from "./skr/service.js";
 import { workoutRoutes } from "./workouts/routes.js";
 import { tournamentRoutes } from "./tournament/routes.js";
 import { TournamentService } from "./tournament/service.js";
@@ -35,7 +37,7 @@ import { MemoryStore } from "./store/memory.js";
 import { PostgresStore } from "./store/postgres.js";
 import type { Store } from "./store/types.js";
 
-export type AppDeps = { config: AppConfig; db: Db; store?: Store; now?: () => Date; signer?: AttestorSigner; rules?: RuleSet; alertFetch?: typeof fetch; chain?: ChainReader };
+export type AppDeps = { config: AppConfig; db: Db; store?: Store; now?: () => Date; signer?: AttestorSigner; rules?: RuleSet; alertFetch?: typeof fetch; chain?: ChainReader; skrChain?: SkrChain };
 
 export const API_PREFIX = "/v1";
 
@@ -45,7 +47,7 @@ export const API_PREFIX = "/v1";
  * - body 上限、統一錯誤格式、`/healthz`（liveness）與 `/readyz`（DB）
  * - 業務路由掛在 `/v1`，由後續 PG-B 項目以 plugin 註冊
  */
-export function buildApp({ config, db, store, now, signer, rules, alertFetch, chain }: AppDeps): FastifyInstance {
+export function buildApp({ config, db, store, now, signer, rules, alertFetch, chain, skrChain }: AppDeps): FastifyInstance {
   const dataStore: Store = store ?? (db.pool ? new PostgresStore(db.pool) : new MemoryStore());
   const auth = new AuthService(
     dataStore,
@@ -91,6 +93,8 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch, ch
     now,
     { metrics, alerts },
   );
+  const skr = new SkrService(dataStore, skrChain ?? new RpcSkrChain(config.SKR_RPC_URL ?? defaultRpcUrl(config.SKR_NETWORK), config.SKR_COMMITMENT), skrSettingsFrom(config), now ?? (() => new Date()), app.log);
+  app.decorate("skr", skr);
   app.decorate("metrics", metrics);
   app.decorate("alerts", alerts);
   app.decorate("config", config);
@@ -181,11 +185,14 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch, ch
     await v1.register(pbRoutes, { auth, store: dataStore, pbs });
     await v1.register(achievementRoutes, { auth, store: dataStore, achievements, pbs, now: now ?? (() => new Date()), eventBadges });
     await v1.register(milestoneRoutes, { auth, milestones });
+    // SKR-02～06：官方 SKR 外觀付款（獨立 RPC／網路，與 devnet 程式無關）
+    await v1.register(skrRoutes, { auth, skr, sensitiveLimit: config.RATE_LIMIT_SENSITIVE_PER_MINUTE });
     v1.get("/rules/version", async () => ({ rules_version: ruleSet.version, rules_hash: `sha256:${ruleSet.hash.toString("hex")}`, description: ruleSet.config.description ?? null }));
   }, { prefix: API_PREFIX });
 
   app.addHook("onReady", async () => {
     await claim.init();
+    await skr.init();
     if (attestorSigner.kind === "local") app.log.warn("ATTESTOR_SIGNER 為 local：私鑰在 API process 內，只允許本機 dev");
     app.log.info({ attestor: bs58.encode(await attestorSigner.publicKey()), rules_version: ruleSet.version }, "attestor ready");
   });
@@ -213,6 +220,7 @@ declare module "fastify" {
     challenge: ChallengeService;
     claim: ClaimService;
     tournaments: TournamentService;
+    skr: SkrService;
     metrics: Metrics;
     alerts: Alerts;
   }

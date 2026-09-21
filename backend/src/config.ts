@@ -5,6 +5,11 @@
 import { z } from "zod";
 
 const base58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+/** 環境變數布林：只有 true／1／yes 為真（z.coerce.boolean 會把 "false" 當真） */
+const envBool = z.preprocess((v) => (typeof v === "string" ? ["true", "1", "yes"].includes(v.trim().toLowerCase()) : Boolean(v)), z.boolean());
+
+/** 官方 SKR mint（solanamobile.com/skr；2026-09-21 於 mainnet 核對：SPL Token、6 decimals） */
+export const OFFICIAL_SKR_MINT = "SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3";
 
 export const configSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -50,6 +55,21 @@ export const configSchema = z.object({
   ALERT_WEBHOOK_URL: z.string().url().optional(),
   /** /metrics 保護 token；未設定時 /metrics 只在 local 開放 */
   METRICS_TOKEN: z.string().optional(),
+  // ---- SKR-01～05（docs/store/competition-development-plan.md §1 P1／§5）：官方 SKR 外觀付款，與 devnet tSKR 完全分開 ----
+  /** 未開啟時 /me/skr/* 回 enabled=false，不建立訂單 */
+  SKR_ENABLED: envBool.default(false),
+  /** 付款網路；mainnet-beta 時 SKR_MINT 必須是官方 mint（下方檢查）；devnet 只供標示為 TEST 的試跑 */
+  SKR_NETWORK: z.enum(["mainnet-beta", "devnet"]).default("mainnet-beta"),
+  SKR_RPC_URL: z.string().url().optional(),
+  SKR_MINT: z.string().regex(base58, "SKR_MINT 必須是 base58 公鑰").default(OFFICIAL_SKR_MINT),
+  /** 收款錢包（owner）；實際收款帳戶為其 SKR ATA */
+  SKR_RECIPIENT: z.string().regex(base58, "SKR_RECIPIENT 必須是 base58 公鑰").optional(),
+  /** 首款 SKU「Genesis Mint 收藏卡邊框」價格，SKR 最小單位（6 decimals；1 SKR = 1_000_000） */
+  SKR_GENESIS_FRAME_PRICE: z.coerce.number().int().positive().optional(),
+  /** 訂單有效期與逾期後仍接受的寬限（鏈上 blockTime 判定；超過寬限 → needs_review，不要求再付） */
+  SKR_ORDER_TTL_SEC: z.coerce.number().int().min(60).max(86_400).default(900),
+  SKR_PAYMENT_GRACE_SEC: z.coerce.number().int().min(0).max(86_400).default(600),
+  SKR_COMMITMENT: z.enum(["confirmed", "finalized"]).default("confirmed"),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
@@ -74,6 +94,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
   if (cfg.ATTESTOR_SIGNER?.startsWith("http:") && !cfg.SIGNER_TOKEN) {
     throw new Error("ATTESTOR_SIGNER=http: 需要 SIGNER_TOKEN");
+  }
+  if (cfg.SKR_ENABLED) {
+    if (!cfg.SKR_RECIPIENT || !cfg.SKR_GENESIS_FRAME_PRICE) throw new Error("SKR_ENABLED 需要 SKR_RECIPIENT 與 SKR_GENESIS_FRAME_PRICE");
+    // SKR-01：主網只接受官方 mint，避免設定錯 mint 收到假幣；devnet 試跑必須另指定測試 mint（不得沿用官方地址假裝主網）
+    if (cfg.SKR_NETWORK === "mainnet-beta" && cfg.SKR_MINT !== OFFICIAL_SKR_MINT) throw new Error(`SKR_NETWORK=mainnet-beta 的 SKR_MINT 必須是官方 ${OFFICIAL_SKR_MINT}`);
+    if (cfg.SKR_NETWORK === "devnet" && cfg.SKR_MINT === OFFICIAL_SKR_MINT) throw new Error("SKR_NETWORK=devnet 需指定測試用 SKR_MINT（官方 mint 不在 devnet）");
   }
   return cfg;
 }

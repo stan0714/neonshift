@@ -26,7 +26,7 @@ export type Session = {
 
 export type Player = { wallet: string; firstSeenAt: Date; lastSeenAt: Date; deletedAt: Date | null };
 
-export interface Store extends QuestStore, ClaimStore, PlayerDataStore, TournamentStore, IndexerStore, RetentionStore, GalleryStore, PartnerStore {
+export interface Store extends SkrStore, QuestStore, ClaimStore, PlayerDataStore, TournamentStore, IndexerStore, RetentionStore, GalleryStore, PartnerStore {
   insertChallenge(c: Challenge): Promise<void>;
   /** 原子消耗：只有未使用且未過期才會成功，回傳被消耗的 challenge */
   consumeChallenge(nonceHash: Buffer, now: Date): Promise<Challenge | null>;
@@ -441,3 +441,30 @@ export interface QuestStore {
   restoreQuestReceipt(enrollmentId: string, now: Date): Promise<void>;
   listCosmetics(wallet: string): Promise<CosmeticEntitlement[]>;
 }
+
+// ---------------- SKR-02～06：官方 SKR 外觀付款（docs/store/competition-development-plan.md §5） ----------------
+export type SkrOrderStatus = "awaiting_payment" | "confirming" | "fulfilled" | "expired" | "needs_review" | "cancelled";
+/** 訂單不可變欄位：network、wallet、SKU／版本、mint、最小單位金額、recipient、reference、期限、資格引用與來源環境（§5）；status／signature／paid* 為狀態欄 */
+export type SkrOrder = {
+  orderId: string; wallet: string; sku: string; skuVersion: number; cosmeticId: string; network: "mainnet-beta" | "devnet"; mint: string; decimals: number; amount: bigint;
+  recipient: string; recipientTokenAccount: string; reference: string; eligibilityRef: string; sourceEnv: string;
+  status: SkrOrderStatus; signature: string | null; paidAmount: bigint | null; paidSlot: bigint | null; paidAt: Date | null; failureReason: string | null;
+  expiresAt: Date; createdAt: Date; updatedAt: Date;
+};
+/** 一筆鏈上付款只能兌換一張訂單（signature 主鍵） */
+export type SkrReceipt = { signature: string; orderId: string; wallet: string; amount: bigint; slot: bigint; blockTime: Date | null; verifiedAt: Date };
+export type SkrEntitlement = { wallet: string; cosmeticId: string; orderId: string; status: "active" | "revoked"; grantedAt: Date; updatedAt: Date };
+
+export interface SkrStore {
+  createSkrOrder(o: Omit<SkrOrder, "status" | "signature" | "paidAmount" | "paidSlot" | "paidAt" | "failureReason" | "createdAt" | "updatedAt">, now: Date): Promise<SkrOrder>;
+  getSkrOrder(orderId: string): Promise<SkrOrder | null>;
+  /** 同錢包同 SKU 尚未終結（awaiting_payment／confirming／needs_review）的訂單，最新一張 */
+  findOpenSkrOrder(wallet: string, sku: string, skuVersion: number): Promise<SkrOrder | null>;
+  listSkrOrders(wallet: string, limit: number): Promise<SkrOrder[]>;
+  updateSkrOrder(orderId: string, patch: Partial<Pick<SkrOrder, "status" | "signature" | "paidAmount" | "paidSlot" | "paidAt" | "failureReason">>, now: Date): Promise<SkrOrder | null>;
+  getSkrReceipt(signature: string): Promise<SkrReceipt | null>;
+  /** 履約：receipt（signature 唯一）＋訂單 fulfilled＋外觀權限 active 同交易；signature 已被其他訂單使用 → { kind: "signature_used" }；同訂單重送 → 回既有 */
+  fulfillSkrOrder(orderId: string, receipt: Omit<SkrReceipt, "verifiedAt">, now: Date): Promise<{ kind: "ok"; order: SkrOrder; created: boolean } | { kind: "signature_used"; byOrderId: string } | { kind: "not_found" }>;
+  listSkrEntitlements(wallet: string): Promise<SkrEntitlement[]>;
+}
+
