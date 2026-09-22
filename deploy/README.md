@@ -94,3 +94,7 @@ SKR_GENESIS_FRAME_PRICE=2500000      # 最小單位（6 decimals；2.5 SKR）
 6. Cloudflare：DNS 記錄 proxied（橘雲）時，Origin 需 SSL 模式 Full；若 nginx 主機同時有 IPv6 `AAAA` 而 nginx 沒 `listen [::]:443`，會間歇失敗。
 7. `nginx -t && systemctl reload nginx` 後，從外面量 10 次：`for i in $(seq 10); do curl -s -o /dev/null -w '%{http_code} %{time_starttransfer}\n' https://api.neonshift.cc/v1/rules/version; done`，應全部 < 1 s。
 
+## 真機驗收診斷：`scripts/ops/player.sh <wallet>`
+
+`GET /v1/ops/players/:wallet`（OPS_TOKEN；未設定時 404）回傳該錢包的運動（status／quality／review_reasons／pb_eligible）、目前 PB、里程碑解析（eligible／pending_review／device_pending）、成就狀態與 SKR 訂單／權限；不含路線、原始健康資料或 token。腳本以 ssh 於執行時讀 OPS_TOKEN，不落地。用途：回答「這筆跑步為什麼沒算首次 5 km」、「成就卡在 pending_registry 還是 approved」、「SKR 訂單為何 needs_review」。
+
