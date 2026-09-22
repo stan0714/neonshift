@@ -3,6 +3,7 @@ import * as Location from 'expo-location';
 import { AppState } from 'react-native';
 
 import { liveMotion } from '@/services/sensors/LiveMotionService';
+import { walletTimeline } from '@/services/wallet/walletTimeline';
 
 import { GpsMetricsEngine, haversineMm, type IntegrityFlag, type Lap, type RawPoint, type Summary, type TrackEquivalent } from '@/domain/gps/engine';
 import { GPS_QUALITY } from '@/domain/gps/thresholds';
@@ -872,3 +873,5 @@ export class WorkoutRecorder {
 }
 
 export const workoutRecorder = new WorkoutRecorder();
+// XD-02：讓錢包時間線知道操作是否發生在運動記錄中（避免 wallet → workouts 反向 import）
+walletTimeline.setRecordingProbe(() => workoutRecorder.active() !== null);

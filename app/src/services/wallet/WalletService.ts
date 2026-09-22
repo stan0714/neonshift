@@ -46,7 +46,7 @@ const identity = { name: 'NeonShift', uri: APP_CONFIG.siteUrl, icon: 'favicon.pn
 const chain = `solana:${APP_CONFIG.cluster}` as const;
 
 /** COMP-W01：所有 MWA 操作都經守門（回前景寬限／硬逾時 → WALLET_NO_REPLY，晚到結果丟棄） */
-const guarded = <T>(cb: (wallet: Web3MobileWallet) => Promise<T>) => guardWalletOp(() => transact(cb));
+const guarded = <T>(cb: (wallet: Web3MobileWallet) => Promise<T>, op = 'wallet') => guardWalletOp(() => transact(cb), { op });
 
 function toSession(address: string, label: string | undefined, walletUriBase: string): WalletSession {
   return { address, publicKey: new PublicKey(address), label, walletUriBase };
@@ -126,7 +126,7 @@ const isAuthFailure = (e: unknown) => {
  * 改開一次全新授權讓使用者在錢包確認；回來的帳戶必須與本機 session 相同，否則清除本機 session 並回 SESSION_EXPIRED。
  * 重試只發生在 authorize 階段失敗時；`op` 已送到錢包後的錯誤原樣拋出，不重送。
  */
-async function withAuthorizedWallet<T>(stored: Stored, op: (wallet: Web3MobileWallet, auth: Authorized) => Promise<T>): Promise<T> {
+async function withAuthorizedWallet<T>(stored: Stored, op: (wallet: Web3MobileWallet, auth: Authorized) => Promise<T>, label = 'authorized'): Promise<T> {
   let authorized = false;
   const run = (authToken: string | undefined) =>
     guarded(async (wallet: Web3MobileWallet) => {
@@ -141,7 +141,7 @@ async function withAuthorizedWallet<T>(stored: Stored, op: (wallet: Web3MobileWa
       cachedAuthToken = auth.auth_token;
       await writeStored({ ...stored, authToken: auth.auth_token, label: account.label, walletUriBase: auth.wallet_uri_base ?? '' });
       return op(wallet, auth);
-    });
+    }, label);
   try {
     return await run(cachedAuthToken ?? stored.authToken);
   } catch (e) {
@@ -190,7 +190,7 @@ export const walletService = {
           }
         }
         return auth;
-      });
+      }, 'connect');
       const account = result.accounts[0];
       if (!account) throw new WalletError('REJECTED', 'No account authorized');
       const address = base64ToBase58(account.address);
@@ -249,7 +249,7 @@ export const walletService = {
     const stored = await readStored();
     if (stored) {
       try {
-        await guarded(async (wallet: Web3MobileWallet) => wallet.deauthorize({ auth_token: stored.authToken }));
+        await guarded(async (wallet: Web3MobileWallet) => wallet.deauthorize({ auth_token: stored.authToken }), 'deauthorize');
       } catch {
         // 忽略：本機狀態優先清除
       }
@@ -268,7 +268,7 @@ export const walletService = {
     try {
       const [sig] = await withAuthorizedWallet(stored, (wallet) =>
         wallet.signAndSendTransactions({ transactions: [tx], ...(opts.minContextSlot !== undefined ? { minContextSlot: opts.minContextSlot } : {}) }),
-      );
+      'signAndSend');
       if (!sig) throw new WalletError('REJECTED', 'Transaction not sent');
       return sig;
     } catch (e) {
@@ -298,7 +298,7 @@ export const walletService = {
         const [sig] = await wallet.signAndSendTransactions({ transactions: [tx], ...(opts.minContextSlot !== undefined ? { minContextSlot: opts.minContextSlot } : {}) });
         if (!sig) throw new WalletError('REJECTED', 'Transaction not sent');
         return sig;
-      });
+      }, `signAndSend:${targetChain}`);
     try {
       try {
         return await run(token);
@@ -323,7 +323,7 @@ export const walletService = {
         sent = true;
         const [sig] = await wallet.signMessages({ addresses: [auth.accounts[0]!.address], payloads: [message] });
         return sig;
-      });
+      }, 'signMessage');
       if (!signed) throw new WalletError('REJECTED', 'Message not signed');
       return signed;
     } catch (e) {

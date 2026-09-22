@@ -13,6 +13,7 @@
 import { AppState, type AppStateStatus } from 'react-native';
 
 import { WalletError } from '@/services/wallet/WalletService';
+import { walletTimeline } from '@/services/wallet/walletTimeline';
 
 export const FOREGROUND_GRACE_MS = 8_000;
 export const HARD_TIMEOUT_MS = 120_000;
@@ -24,7 +25,7 @@ let staleSessionUntil = 0;
 export const staleUntil = (now: number = Date.now()) => (staleSessionUntil > now ? staleSessionUntil : 0);
 export const _resetStaleForTests = () => { staleSessionUntil = 0; };
 
-export type GuardOpts = { foregroundGraceMs?: number; hardTimeoutMs?: number; appState?: Pick<typeof AppState, 'addEventListener' | 'currentState'>; now?: () => number };
+export type GuardOpts = { foregroundGraceMs?: number; hardTimeoutMs?: number; appState?: Pick<typeof AppState, 'addEventListener' | 'currentState'>; now?: () => number; /** XD-02 時間線用的操作名稱 */ op?: string };
 
 /**
  * 把一個 MWA 操作包起來：回前景寬限與硬逾時任一到期即 reject(WALLET_NO_REPLY)。
@@ -35,19 +36,24 @@ export function guardWalletOp<T>(op: () => Promise<T>, opts: GuardOpts = {}): Pr
   const hard = opts.hardTimeoutMs ?? HARD_TIMEOUT_MS;
   const appState = opts.appState ?? AppState;
   const now = opts.now ?? Date.now;
+  const tl = walletTimeline.begin(opts.op ?? 'wallet', now());
   return new Promise<T>((resolve, reject) => {
     let settled = false;
     let graceTimer: ReturnType<typeof setTimeout> | null = null;
     const hardTimer = setTimeout(() => fail('hard_timeout'), hard);
     const sub = appState.addEventListener('change', (st: AppStateStatus) => {
       if (st === 'active') {
+        walletTimeline.returned(tl, now());
         // 回前景：錢包應已回覆；再給 grace，仍無 → 放棄
         if (graceTimer) clearTimeout(graceTimer);
         graceTimer = setTimeout(() => fail('foreground_grace'), grace);
-      } else if (graceTimer) {
-        // 又切去錢包（例如使用者手動切回錢包完成核准）：取消寬限
-        clearTimeout(graceTimer);
-        graceTimer = null;
+      } else {
+        walletTimeline.leftApp(tl, now());
+        if (graceTimer) {
+          // 又切去錢包（例如使用者手動切回錢包完成核准）：取消寬限
+          clearTimeout(graceTimer);
+          graceTimer = null;
+        }
       }
     });
     const cleanup = () => { clearTimeout(hardTimer); if (graceTimer) clearTimeout(graceTimer); sub.remove(); };
@@ -56,11 +62,12 @@ export function guardWalletOp<T>(op: () => Promise<T>, opts: GuardOpts = {}): Pr
       settled = true;
       cleanup();
       staleSessionUntil = now() + NATIVE_CLIENT_TIMEOUT_MS;
+      walletTimeline.end(tl, 'no_reply', why, now());
       reject(new WalletError('WALLET_NO_REPLY', why === 'foreground_grace' ? 'Wallet did not return a result after you came back to the app' : 'Wallet did not respond in time'));
     };
     op().then(
-      (v) => { if (settled) return; settled = true; cleanup(); staleSessionUntil = 0; resolve(v); },
-      (e) => { if (settled) return; settled = true; cleanup(); reject(e); },
+      (v) => { if (settled) return; settled = true; cleanup(); staleSessionUntil = 0; walletTimeline.end(tl, 'ok', undefined, now()); resolve(v); },
+      (e) => { if (settled) return; settled = true; cleanup(); walletTimeline.end(tl, 'error', e instanceof WalletError ? e.code : e instanceof Error ? e.name : 'unknown', now()); reject(e); },
     );
   });
 }

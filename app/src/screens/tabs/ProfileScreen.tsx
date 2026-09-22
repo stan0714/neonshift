@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
+import { WalletTimelineCard } from '@/components/WalletTimelineCard';
 import { useAppearance } from '@/hooks/useAppearance';
 import { useOutbox } from '@/hooks/useOutbox';
 import { workoutOutbox } from '@/services/workouts/WorkoutOutbox';
@@ -247,6 +248,9 @@ export function ProfileScreen() {
         {deletion.state === 'scheduled' ? <InlineState kind="info" title={t('profile.scheduled.title')} body={t('profile.scheduled.body', { when: deletion.dueAt ? new Date(deletion.dueAt).toLocaleString() : t('profile.retentionLimit') })} testID="deletion-scheduled" /> : null}
         {deletion.state === 'error' ? <InlineState kind="error" title={t('common.somethingInterrupted')} body={t('profile.deleteErr.body', { message: deletion.message ?? '' })} referenceId={deletion.referenceId} action={{ label: t('common.tryAgain'), onPress: deleteData }} testID="deletion-error" /> : null}
       </Section>
+
+      {/* XD-02：錢包互動時間線（驗收「記錄中自動彈出＝0」與等待時間拆分） */}
+      <WalletTimelineCard />
 
       <Section title={t('profile.about')}>
         <Row icon="info" label="NeonShift 0.1.0" detail={`${APP_CONFIG.chainConfigured ? t('profile.program', { id: shortAddress(APP_CONFIG.programId, 6) }) : t('profile.noProgram')} · ${APP_CONFIG.backendConfigured ? APP_CONFIG.apiUrl : t('profile.noBackend')}`} />

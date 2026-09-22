@@ -776,7 +776,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
 | PG-XD-01 | 可操作任務卡與目標續接 | mobile-differentiation 4.1 | FR-20.1 | 3.0 | WIP | 2026-09-22：後端 `/me/quests` 加 `card`（來源／難度／要求／獎勵／開始目標）與 `card_state`（accepted／in_progress／pending_verification／claimable…；待審筆數 `pending_review_count`）；App `QuestCard`（Style 24.7）、「以這個目標開始」→ `WorkoutStart` preset（不覆寫進行中 session，改「回到記錄」）、離線快照 `questCacheStore`；重複接受回既有 enrollment（原 U-04）。vitest 8（quests）、Jest 446（questCard 5、workoutScreens 2）；待實機：大字／TalkBack、真實接受→開始→同步→可領 |
-| PG-XD-02 | 運動不中斷與跨入口錢包恢復 | mobile-differentiation 4.2 | FR-20.2 | 3.0 | TODO | 待指派；首批 P1。依賴 A-09／10、R-03／06；記錄中自動錢包彈出為 0，先保存再同步，兩款 MWA 錢包拒簽／逾時／重啟／換帳號驗收；不重寫交易服務 |
+| PG-XD-02 | 運動不中斷與跨入口錢包恢復 | mobile-differentiation 4.2 | FR-20.2 | 3.0 | WIP | 2026-09-22：程式面確認——所有錢包操作皆由使用者按鈕觸發（bootstrap 只 `peekStoredSession`、outbox 遇 NO_SESSION 停在 blocked 不開錢包；`walletService.restore()` 無呼叫端）；新增 `walletTimeline`（每次 MWA 操作分開記 App 等待／錢包等待／回來後等待、結果、是否在運動記錄中；不含地址／簽章）由 `guardWalletOp` 自動寫入，Profile「錢包互動紀錄」卡＋摘要（運動中 N 次、無回覆 N 次、錢包時間中位數）作驗收證據；Jest 449（walletTimeline 3）。待實機：兩款 MWA 錢包拒簽／逾時／鎖屏恢復／換帳號矩陣（證據包 §6） |
 | PG-XD-03 | 跨任務／活動成就護照與來源投影 | mobile-differentiation 4.3 | FR-20.3 | 3.0 | TODO | 待指派；首批 P1。沿用 R-09、M-02／03、U-04／05、E-08；顯示來源／版本／原達成者／撤銷；公開最小化、NFT 轉移不轉移资格；探索外觀不自動鑄 NFT |
 | PG-XD-04 | 活動主題任務與權益資格關聯 | mobile-differentiation 4.4 | FR-20.4 | 5.0 | TODO | 待指派；首批 P1。沿用 E-02～06、U-04／05；新增任務與 benefit 版本快照，核銷重驗资格；最後一件競態、撤銷、無 NFC／斷線／跨站點／取消驗收；限量資格與保證獎品分開，須有合作方／庫存 |
 | PG-XD-05 | 邀請制小隊非同步接力 | mobile-differentiation 5 | FR-20.5 | 5.0 | TODO | 待指派；第二批 P2。依賴 U-04／05、R-10、XD-06；2～4 人、每人每日封頂、固定名單／時區、退出與來源撤銷；僅鏈下共同外觀，不押幣、不比速度、不新增好友圖譜 |
