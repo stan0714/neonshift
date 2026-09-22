@@ -9,6 +9,7 @@ import { loadConfig } from "../config.js";
 import type { Db } from "../db.js";
 import { MemoryStore } from "../store/memory.js";
 import { LocalKeypairSigner } from "../signer/index.js";
+import { WORKOUT_RULES_VERSION } from "../workouts/schema.js";
 
 describe("週界", () => {
   it("Asia/Taipei：週三 → 週一 00:00 +08:00；週日仍屬同週；UTC 週期 7 天", () => {
@@ -217,5 +218,18 @@ describe("探索冊 API", () => {
     await imp(u.h, [gps("g1", "2026-09-16T10:00:00Z", 20), gps("g2", "2026-09-17T10:00:00Z", 20), gps("g3", "2026-09-18T01:00:00Z", 20)]);
     const q = j(await app.inject({ method: "GET", url: "/v1/me/quests", headers: u.h }));
     expect([q.rules.gps_rewards_enabled, q.enrollments[0].status]).toEqual([true, "completed"]);
+  });
+
+  it("門檻高於伺服器現行運動品質版本：卡片不得宣稱 GPS 計入（設錯值只會讓任務永遠不完成）", async () => {
+    await app.close();
+    await mk({ QUEST_GPS_MIN_RULES_VERSION: String(WORKOUT_RULES_VERSION + 1) });
+    const u = await loginU();
+    clock = new Date("2026-09-16T03:00:00Z");
+    await Promise.all(users.map((x) => x.refresh()));
+    await app.inject({ method: "POST", url: "/v1/me/quests/accept", headers: u.h, payload: { template_id: "three_days", timezone: "Asia/Taipei", idempotency_key: "idem-hi" } });
+    const q = j(await app.inject({ method: "GET", url: "/v1/me/quests", headers: u.h }));
+    expect(q.rules.gps_rewards_enabled).toBe(false);
+    expect(q.templates.every((t: { card: { requirements: { gps_counts: boolean } } }) => t.card.requirements.gps_counts === false)).toBe(true);
+    expect(q.enrollments.every((e: { card: { requirements: { gps_counts: boolean } } }) => e.card.requirements.gps_counts === false)).toBe(true);
   });
 });

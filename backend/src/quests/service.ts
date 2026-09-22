@@ -14,6 +14,7 @@ import { requireAuth } from "../auth/routes.js";
 import type { AuthService } from "../auth/service.js";
 import { ApiError } from "../errors.js";
 import type { QuestContribution, QuestEnrollment, QuestTemplate, Store, WorkoutSession } from "../store/types.js";
+import { WORKOUT_RULES_VERSION } from "../workouts/schema.js";
 
 export const QUEST_MIN_ACTIVE_MS = 10 * 60_000;
 export const QUEST_LATE_SYNC_MS = 48 * 3_600_000;
@@ -65,6 +66,14 @@ export function difficultyOf(t: QuestTemplate, goal?: Record<string, unknown>): 
 
 export class QuestService {
   constructor(private readonly store: Store, private readonly now: () => Date, readonly gpsMinRulesVersion: number | null) {}
+
+  /**
+   * 任務卡「GPS 是否計入」必須和實際評分一致：門檻高於伺服器現行的運動品質版本時，
+   * 沒有任何 GPS 活動過得了 isEligible，卡片就不能說會計入（設錯值只會讓任務永遠不完成）。
+   */
+  get gpsRewardsEnabled(): boolean {
+    return this.gpsMinRulesVersion !== null && WORKOUT_RULES_VERSION >= this.gpsMinRulesVersion;
+  }
 
   private eligible(w: WorkoutSession, e: QuestEnrollment): boolean {
     if (w.status !== "saved" || w.quality === "needs_review" || w.quality === "estimated" || w.quality === "invalid") return false;
@@ -176,8 +185,8 @@ export async function questRoutes(app: FastifyInstance, opts: { auth: AuthServic
   app.get("/me/quests", { preHandler: requireAuth(auth) }, async (req) => {
     const wallet = req.auth!.wallet;
     const [templates, list, cosmetics] = await Promise.all([store.listQuestTemplates(), quests.reevaluate(wallet), store.listCosmetics(wallet)]);
-    const gpsEnabled = quests.gpsMinRulesVersion !== null;
-    return { templates: templates.map((t) => templateView(t, gpsEnabled)), enrollments: list.map((x) => enrollmentView(x.enrollment, x.evaluation, x.template, gpsEnabled)), cosmetics: cosmetics.map((c) => ({ cosmetic_id: c.cosmeticId, receipt_id: c.receiptId, status: c.status, granted_at: c.grantedAt.toISOString() })), rules: { min_active_minutes: QUEST_MIN_ACTIVE_MS / 60_000, late_sync_hours: QUEST_LATE_SYNC_MS / 3_600_000, gps_rewards_enabled: quests.gpsMinRulesVersion !== null } };
+    const gpsEnabled = quests.gpsRewardsEnabled;
+    return { templates: templates.map((t) => templateView(t, gpsEnabled)), enrollments: list.map((x) => enrollmentView(x.enrollment, x.evaluation, x.template, gpsEnabled)), cosmetics: cosmetics.map((c) => ({ cosmetic_id: c.cosmeticId, receipt_id: c.receiptId, status: c.status, granted_at: c.grantedAt.toISOString() })), rules: { min_active_minutes: QUEST_MIN_ACTIVE_MS / 60_000, late_sync_hours: QUEST_LATE_SYNC_MS / 3_600_000, gps_rewards_enabled: quests.gpsRewardsEnabled } };
   });
   app.post("/me/quests/accept", { preHandler: requireAuth(auth) }, async (req, reply) => {
     const b = z.object({ template_id: z.string().min(1).max(40), goal: z.record(z.string(), z.unknown()).default({}), timezone: z.string().min(1).max(64), idempotency_key: z.string().min(8).max(80) }).strict().safeParse(req.body ?? {});
@@ -185,13 +194,13 @@ export async function questRoutes(app: FastifyInstance, opts: { auth: AuthServic
     if (!isValidTimeZone(b.data.timezone)) throw new ApiError(422, "VALIDATION", "timezone must be an IANA time zone");
     const r = await quests.accept(req.auth!.wallet, { templateId: b.data.template_id, goal: b.data.goal, timezone: b.data.timezone, idempotencyKey: b.data.idempotency_key });
     const t = (await store.listQuestTemplates()).find((x) => x.templateId === r.enrollment.templateId && x.version === r.enrollment.templateVersion);
-    return reply.status(r.created ? 201 : 200).send({ enrollment: enrollmentView(r.enrollment, undefined, t, quests.gpsMinRulesVersion !== null), already: !r.created });
+    return reply.status(r.created ? 201 : 200).send({ enrollment: enrollmentView(r.enrollment, undefined, t, quests.gpsRewardsEnabled), already: !r.created });
   });
   app.post("/me/quests/:id/claim", { preHandler: requireAuth(auth) }, async (req) => {
     const id = z.string().uuid().safeParse((req.params as { id: string }).id);
     if (!id.success) throw new ApiError(422, "VALIDATION", "id must be a uuid");
     const r = await quests.claim(req.auth!.wallet, id.data);
     const t = (await store.listQuestTemplates()).find((x) => x.templateId === r.enrollment.templateId && x.version === r.enrollment.templateVersion);
-    return { receipt: { receipt_id: r.receipt.receiptId, cosmetic_id: r.receipt.cosmeticId, issued_at: r.receipt.issuedAt.toISOString() }, already: !r.created, enrollment: enrollmentView(r.enrollment, undefined, t, quests.gpsMinRulesVersion !== null) };
+    return { receipt: { receipt_id: r.receipt.receiptId, cosmetic_id: r.receipt.cosmeticId, issued_at: r.receipt.issuedAt.toISOString() }, already: !r.created, enrollment: enrollmentView(r.enrollment, undefined, t, quests.gpsRewardsEnabled) };
   });
 }

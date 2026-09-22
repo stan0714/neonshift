@@ -95,6 +95,6 @@ node scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 set-stock 荒野�
 ## 5. 已知限制（測試時先知道）
 
 - 9/21 那筆 5.31 km 因 `gps_gap＋gap_teleport` 為 needs_review：不會被人工核准，主線要用新的乾淨跑步。
-- `QUEST_GPS_MIN_RULES_VERSION` 未設 → App 內 GPS 不計入探索任務（卡片會明講）；要展示完整任務流程需設 4（負責人決定）。
+- `QUEST_GPS_MIN_RULES_VERSION` 未設 → App 內 GPS 不計入探索任務（卡片會明講）。要讓 App 內 GPS 計入請設 **2**（＝`WORKOUT_RULES_VERSION`，每筆運動被戳的品質版號；`/v1/rules/version` 的 4 是每日任務規則，兩條版號不同）；設成高於 2 的值等於沒開，卡片也會維持「不計入」。
 - l1／l2 對外路徑 9/22 間歇掉封包；GET 逾時 App 會自動重試一次，POST 不會（打卡／同步顯示錯誤讓你再按）。
 - Phantom 26.6 on Seeker 簽完不回覆（已知問題，指南有寫）；主線用 Seeker Wallet。
