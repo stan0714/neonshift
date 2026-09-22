@@ -171,6 +171,33 @@ describe("探索冊 API", () => {
     expect(j(await app.inject({ method: "GET", url: "/v1/me/quests", headers: u.h })).cosmetics).toHaveLength(1);
   });
 
+  it("XD-01 卡面：模板帶 card（來源／難度／要求／獎勵／開始目標）；enrollment card_state 已接受 → 待驗證 → 進行中 → 可領 → 已領；重複接受同一 enrollment", async () => {
+    const u = await loginU();
+    let q = j(await app.inject({ method: "GET", url: "/v1/me/quests", headers: u.h }));
+    const tpl = q.templates.find((t: { template_id: string }) => t.template_id === "timed_goal");
+    expect(tpl.card).toEqual({ source: "system", difficulty: "easy", requirements: { min_active_minutes: 10, sports: ["run", "walk"], gps_counts: false, needs_sync: true }, reward: { kind: "cosmetic", cosmetic_id: "chapter_01_timed_goal" }, start: { goal: { kind: "time", minutes: null } } });
+    const a1 = j(await app.inject({ method: "POST", url: "/v1/me/quests/accept", headers: u.h, payload: { template_id: "timed_goal", goal: { minutes: 30 }, timezone: "Asia/Taipei", idempotency_key: "idem-card-1" } }));
+    const a2 = j(await app.inject({ method: "POST", url: "/v1/me/quests/accept", headers: u.h, payload: { template_id: "timed_goal", goal: { minutes: 30 }, timezone: "Asia/Taipei", idempotency_key: "idem-card-2" } }));
+    expect([a1.enrollment.card_state, a1.enrollment.card.difficulty, a1.enrollment.card.start, a2.already, a2.enrollment.enrollment_id]).toEqual(["accepted", "medium", { goal: { kind: "time", minutes: 30 } }, true, a1.enrollment.enrollment_id]);
+    clock = new Date("2026-09-16T04:00:00Z");
+    await Promise.all(users.map((x) => x.refresh()));
+    // 待審的 35 分鐘（步頻超上限）→ pending_verification，不當進度
+    await imp(u.h, [hc("rv", "2026-09-16T03:30:00Z", 35, { sport: "run", intent: "run", steps: 300_000, goal: { kind: "time", target: 1800, unit: "s", version: 1 } })]);
+    q = j(await app.inject({ method: "GET", url: "/v1/me/quests", headers: u.h }));
+    expect([q.enrollments[0].card_state, q.enrollments[0].pending_review_count, q.enrollments[0].progress]).toEqual(["pending_verification", 1, { current: 0, target: 1 }]);
+    // 合格的 35 分鐘、目標快照 30 分 → claimable → claimed
+    await imp(u.h, [hc("ok", "2026-09-16T10:00:00Z", 35, { sport: "run", intent: "run", goal: { kind: "time", target: 1800, unit: "s", version: 1 } })]);
+    q = j(await app.inject({ method: "GET", url: "/v1/me/quests", headers: u.h }));
+    expect(q.enrollments[0].card_state).toBe("claimable");
+    const c = j(await app.inject({ method: "POST", url: `/v1/me/quests/${a1.enrollment.enrollment_id}/claim`, headers: u.h }));
+    expect(c.enrollment.card_state).toBe("claimed");
+    // three_days：一天 → in_progress
+    await app.inject({ method: "POST", url: "/v1/me/quests/accept", headers: u.h, payload: { template_id: "three_days", timezone: "Asia/Taipei", idempotency_key: "idem-card-3" } });
+    await imp(u.h, [hc("d1", "2026-09-16T12:00:00Z", 20)]);
+    q = j(await app.inject({ method: "GET", url: "/v1/me/quests", headers: u.h }));
+    expect(q.enrollments.find((e: { template_id: string }) => e.template_id === "three_days").card_state).toBe("in_progress");
+  });
+
   it("GPS 來源：未設定 QUEST_GPS_MIN_RULES_VERSION 不計；設定後版本 ≥ 門檻才計（R-10 品質規則定案前不發獎）", async () => {
     const gps = (id: string, start: string, minutes: number) => ({ sport: "run", environment: "outdoor", origin: "gps", source_id: "cc.neonshift.app/gps", external_record_id: id, started_at: start, ended_at: new Date(Date.parse(start) + minutes * 60_000).toISOString(), distance_mm: String(minutes * 200_000), distance_method: "gps", extras: {} });
     let u = await loginU();

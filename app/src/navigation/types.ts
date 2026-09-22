@@ -34,7 +34,8 @@ export type RootParamList = {
   Activity: { month?: string } | undefined;
   ActivityDetail: { serverId: string };
   /** GPS 記錄（PG-R-03／R-06，FR-18）：開始 → 記錄 → 摘要 */
-  WorkoutStart: undefined;
+  /** XD-01：任務卡「開始」帶入模式／目標（不覆寫進行中的 session；開始頁仍可改） */
+  WorkoutStart: { preset?: { goal: { kind: 'time'; minutes: number } | { kind: 'free' }; mode?: 'walk' | 'brisk' | 'run'; questId?: string } } | undefined;
   WorkoutRecord: undefined;
   WorkoutSummary: { sessionId: string; celebrate?: boolean };
   /** 藝廊（FR-13，Style 12.1）：全站排行與任意玩家公開頁 */

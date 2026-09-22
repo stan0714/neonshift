@@ -1,7 +1,8 @@
 import { useAppearance } from '@/hooks/useAppearance';
 import { RouteAppearancePicker } from '@/components/RouteAppearancePicker';
 import { Feather } from '@expo/vector-icons';
-import { useIsFocused, useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import type { RootParamList } from '@/navigation/types';
 import { useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
@@ -189,15 +190,21 @@ const fmtTime = (min: number) => `${String(min).padStart(2, '0')}:00`;
 export function WorkoutStartScreen() {
   const { t, locale } = useT();
   const navigation = useNavigation();
+  // XD-01：任務卡帶入的模式／目標；優先於最近偏好（只作預填，使用者仍可改）
+  const preset = useRoute<RouteProp<RootParamList, 'WorkoutStart'>>().params?.preset;
   const prefs = useWorkoutPrefs();
   const { level: shoeLevel } = useAppearance();
-  const [mode, setMode] = useState<WorkoutMode>(prefs.mode);
-  const [goalKind, setGoalKind] = useState<GoalChoice>(prefs.goal.kind);
-  const [timeMin, setTimeMin] = useState<number>(prefs.goal.kind === 'time' ? Math.round(prefs.goal.target / 60) : 20);
+  const [mode, setMode] = useState<WorkoutMode>(preset?.mode ?? prefs.mode);
+  const [goalKind, setGoalKind] = useState<GoalChoice>(preset ? preset.goal.kind : prefs.goal.kind);
+  const [timeMin, setTimeMin] = useState<number>(preset?.goal.kind === 'time' ? preset.goal.minutes : prefs.goal.kind === 'time' ? Math.round(prefs.goal.target / 60) : 20);
   const [distKm, setDistKm] = useState<number>(prefs.goal.kind === 'distance' ? prefs.goal.target / 1_000_000 : 3);
   useEffect(() => {
     if (prefs.loaded) return;
-    void prefs.load().then((p) => { setMode(p.mode); setGoalKind(p.goal.kind); if (p.goal.kind === 'time') setTimeMin(Math.round(p.goal.target / 60)); if (p.goal.kind === 'distance') setDistKm(p.goal.target / 1_000_000); });
+    void prefs.load().then((p) => {
+      if (!preset?.mode) setMode(p.mode);
+      if (preset) return; // 任務卡預填不被最近偏好蓋掉
+      setGoalKind(p.goal.kind); if (p.goal.kind === 'time') setTimeMin(Math.round(p.goal.target / 60)); if (p.goal.kind === 'distance') setDistKm(p.goal.target / 1_000_000);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // review 6：已有進行中的運動 → 直接回到該 session，不在這裡再開一場（recorder 也會擋，但使用者不該看到錯誤）

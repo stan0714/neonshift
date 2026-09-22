@@ -44,7 +44,24 @@ export function localWeekBoundsUtc(now: Date, timeZone: string): { periodStart: 
 }
 export const isValidTimeZone = (tz: string) => { try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch { return false; } };
 
-export type QuestEvaluation = { contributions: QuestContribution[]; progress: { current: number; target: number }; completed: boolean };
+export type QuestEvaluation = { contributions: QuestContribution[]; progress: { current: number; target: number }; completed: boolean; /** XD-01：週期內符合運動種類但仍待審／未同步完成的筆數（卡面「待驗證」；不當成進度） */ pendingReview: number };
+/** XD-01 卡面狀態：可接受 → 已接受 → 進行中 → 待驗證 → 可領 → 已領／已撤銷／已過期（伺服器計算，App 不自行推定） */
+export type QuestCardState = "available" | "accepted" | "in_progress" | "pending_verification" | "claimable" | "claimed" | "revoked" | "expired";
+export function cardStateOf(e: QuestEnrollment, ev: QuestEvaluation | undefined): QuestCardState {
+  if (e.status === "claimed") return "claimed";
+  if (e.status === "revoked") return "revoked";
+  if (e.status === "expired") return "expired";
+  if (e.status === "completed") return "claimable";
+  if (!ev) return "accepted";
+  if (ev.pendingReview > 0) return "pending_verification";
+  return ev.progress.current > 0 ? "in_progress" : "accepted";
+}
+/** 卡面難度（固定、非稀有度）：只依目標大小 */
+export function difficultyOf(t: QuestTemplate, goal?: Record<string, unknown>): "easy" | "medium" {
+  if (t.kind === "active_days") return Number((t.params as { days?: number }).days ?? 3) >= 3 ? "medium" : "easy";
+  const minutes = Number((goal as { minutes?: number } | undefined)?.minutes ?? Math.min(...(((t.params as { minutes?: number[] }).minutes ?? [20]) as number[])));
+  return minutes >= 30 ? "medium" : "easy";
+}
 
 export class QuestService {
   constructor(private readonly store: Store, private readonly now: () => Date, readonly gpsMinRulesVersion: number | null) {}
@@ -59,19 +76,25 @@ export class QuestService {
     return true;
   }
 
+  /** 週期內、種類正確、但因待審而暫不計的筆數（不含估算／手動／GPS 版本未開放：那些不是「等一下就會算」） */
+  private pendingReviewCount(e: QuestEnrollment, workouts: WorkoutSession[]): number {
+    return workouts.filter((w) => (w.sport === "run" || w.sport === "walk") && w.status === "needs_review" && w.startedAt >= e.acceptedAt && w.endedAt < e.periodEnd && w.elapsedMs - w.pausedMs >= BigInt(QUEST_MIN_ACTIVE_MS) && !(w.origin === "gps" && (this.gpsMinRulesVersion === null || w.rulesVersion < this.gpsMinRulesVersion))).length;
+  }
+
   evaluate(e: QuestEnrollment, t: QuestTemplate, workouts: WorkoutSession[]): QuestEvaluation {
+    const pendingReview = this.pendingReviewCount(e, workouts);
     const valid = workouts.filter((w) => this.eligible(w, e)).sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
     if (t.kind === "active_days") {
       const days = Number((t.params as { days?: number }).days ?? 3);
       const seen = new Map<string, WorkoutSession>();
       for (const w of valid) { const d = localDay(w.startedAt, e.timezone); if (!seen.has(d)) seen.set(d, w); } // 同日多筆只算一天
       const contributions = [...seen.entries()].slice(0, days).map(([d, w]) => ({ enrollmentId: e.enrollmentId, sourceKind: "workout" as const, sourceId: w.sessionId, sourceRevision: w.sourceRevision, localDay: d }));
-      return { contributions, progress: { current: Math.min(days, seen.size), target: days }, completed: seen.size >= days };
+      return { contributions, progress: { current: Math.min(days, seen.size), target: days }, completed: seen.size >= days, pendingReview };
     }
     // goal_time：單次 session 的目標快照與接受時選定分鐘一致，且非暫停時長 ≥ 目標（拆分不累加）
     const minutes = Number((e.goal as { minutes?: number }).minutes ?? 0);
     const hit = valid.find((w) => w.goalSnapshot?.kind === "time" && w.goalSnapshot.unit === "s" && w.goalSnapshot.target === minutes * 60 && w.elapsedMs - w.pausedMs >= BigInt(minutes * 60_000));
-    return { contributions: hit ? [{ enrollmentId: e.enrollmentId, sourceKind: "workout", sourceId: hit.sessionId, sourceRevision: hit.sourceRevision, localDay: localDay(hit.startedAt, e.timezone) }] : [], progress: { current: hit ? 1 : 0, target: 1 }, completed: !!hit };
+    return { contributions: hit ? [{ enrollmentId: e.enrollmentId, sourceKind: "workout", sourceId: hit.sessionId, sourceRevision: hit.sourceRevision, localDay: localDay(hit.startedAt, e.timezone) }] : [], progress: { current: hit ? 1 : 0, target: 1 }, completed: !!hit, pendingReview };
   }
 
   async accept(wallet: string, input: { templateId: string; goal: Record<string, unknown>; timezone: string; idempotencyKey: string }) {
@@ -137,27 +160,38 @@ export class QuestService {
   }
 }
 
-const templateView = (t: QuestTemplate) => ({ template_id: t.templateId, version: t.version, kind: t.kind, params: t.params, cosmetic_id: t.cosmeticId });
-const enrollmentView = (e: QuestEnrollment, ev?: QuestEvaluation) => ({ enrollment_id: e.enrollmentId, template_id: e.templateId, template_version: e.templateVersion, goal: e.goal, timezone: e.timezone, period_start: e.periodStart.toISOString(), period_end: e.periodEnd.toISOString(), late_sync_until: new Date(e.periodEnd.getTime() + QUEST_LATE_SYNC_MS).toISOString(), accepted_at: e.acceptedAt.toISOString(), status: e.status, completed_at: e.completedAt?.toISOString() ?? null, progress: ev?.progress ?? null, contributions: ev?.contributions.map((c) => ({ source: { kind: c.sourceKind, id: c.sourceId, revision: c.sourceRevision }, local_day: c.localDay })) ?? [] });
+/** XD-01 卡面欄位：來源、難度、資料要求、獎勵類型、開始時帶入的目標（App 不自行推定） */
+const cardOf = (t: QuestTemplate, gpsEnabled: boolean, goal?: Record<string, unknown>) => ({
+  source: "system" as const,
+  difficulty: difficultyOf(t, goal),
+  requirements: { min_active_minutes: QUEST_MIN_ACTIVE_MS / 60_000, sports: ["run", "walk"] as const, gps_counts: gpsEnabled, needs_sync: true },
+  reward: { kind: "cosmetic" as const, cosmetic_id: t.cosmeticId },
+  start: t.kind === "goal_time" ? { goal: { kind: "time" as const, minutes: Number((goal as { minutes?: number } | undefined)?.minutes ?? 0) || null } } : { goal: { kind: "free" as const } },
+});
+const templateView = (t: QuestTemplate, gpsEnabled: boolean) => ({ template_id: t.templateId, version: t.version, kind: t.kind, params: t.params, cosmetic_id: t.cosmeticId, card: cardOf(t, gpsEnabled) });
+const enrollmentView = (e: QuestEnrollment, ev?: QuestEvaluation, t?: QuestTemplate, gpsEnabled = false) => ({ enrollment_id: e.enrollmentId, template_id: e.templateId, template_version: e.templateVersion, goal: e.goal, timezone: e.timezone, period_start: e.periodStart.toISOString(), period_end: e.periodEnd.toISOString(), late_sync_until: new Date(e.periodEnd.getTime() + QUEST_LATE_SYNC_MS).toISOString(), accepted_at: e.acceptedAt.toISOString(), status: e.status, card_state: cardStateOf(e, ev), pending_review_count: ev?.pendingReview ?? 0, card: t ? cardOf(t, gpsEnabled, e.goal) : null, completed_at: e.completedAt?.toISOString() ?? null, progress: ev?.progress ?? null, contributions: ev?.contributions.map((c) => ({ source: { kind: c.sourceKind, id: c.sourceId, revision: c.sourceRevision }, local_day: c.localDay })) ?? [] });
 
 export async function questRoutes(app: FastifyInstance, opts: { auth: AuthService; store: Store; quests: QuestService }) {
   const { auth, store, quests } = opts;
   app.get("/me/quests", { preHandler: requireAuth(auth) }, async (req) => {
     const wallet = req.auth!.wallet;
     const [templates, list, cosmetics] = await Promise.all([store.listQuestTemplates(), quests.reevaluate(wallet), store.listCosmetics(wallet)]);
-    return { templates: templates.map(templateView), enrollments: list.map((x) => enrollmentView(x.enrollment, x.evaluation)), cosmetics: cosmetics.map((c) => ({ cosmetic_id: c.cosmeticId, receipt_id: c.receiptId, status: c.status, granted_at: c.grantedAt.toISOString() })), rules: { min_active_minutes: QUEST_MIN_ACTIVE_MS / 60_000, late_sync_hours: QUEST_LATE_SYNC_MS / 3_600_000, gps_rewards_enabled: quests.gpsMinRulesVersion !== null } };
+    const gpsEnabled = quests.gpsMinRulesVersion !== null;
+    return { templates: templates.map((t) => templateView(t, gpsEnabled)), enrollments: list.map((x) => enrollmentView(x.enrollment, x.evaluation, x.template, gpsEnabled)), cosmetics: cosmetics.map((c) => ({ cosmetic_id: c.cosmeticId, receipt_id: c.receiptId, status: c.status, granted_at: c.grantedAt.toISOString() })), rules: { min_active_minutes: QUEST_MIN_ACTIVE_MS / 60_000, late_sync_hours: QUEST_LATE_SYNC_MS / 3_600_000, gps_rewards_enabled: quests.gpsMinRulesVersion !== null } };
   });
   app.post("/me/quests/accept", { preHandler: requireAuth(auth) }, async (req, reply) => {
     const b = z.object({ template_id: z.string().min(1).max(40), goal: z.record(z.string(), z.unknown()).default({}), timezone: z.string().min(1).max(64), idempotency_key: z.string().min(8).max(80) }).strict().safeParse(req.body ?? {});
     if (!b.success) throw new ApiError(422, "VALIDATION", "template_id, timezone and idempotency_key are required");
     if (!isValidTimeZone(b.data.timezone)) throw new ApiError(422, "VALIDATION", "timezone must be an IANA time zone");
     const r = await quests.accept(req.auth!.wallet, { templateId: b.data.template_id, goal: b.data.goal, timezone: b.data.timezone, idempotencyKey: b.data.idempotency_key });
-    return reply.status(r.created ? 201 : 200).send({ enrollment: enrollmentView(r.enrollment), already: !r.created });
+    const t = (await store.listQuestTemplates()).find((x) => x.templateId === r.enrollment.templateId && x.version === r.enrollment.templateVersion);
+    return reply.status(r.created ? 201 : 200).send({ enrollment: enrollmentView(r.enrollment, undefined, t, quests.gpsMinRulesVersion !== null), already: !r.created });
   });
   app.post("/me/quests/:id/claim", { preHandler: requireAuth(auth) }, async (req) => {
     const id = z.string().uuid().safeParse((req.params as { id: string }).id);
     if (!id.success) throw new ApiError(422, "VALIDATION", "id must be a uuid");
     const r = await quests.claim(req.auth!.wallet, id.data);
-    return { receipt: { receipt_id: r.receipt.receiptId, cosmetic_id: r.receipt.cosmeticId, issued_at: r.receipt.issuedAt.toISOString() }, already: !r.created, enrollment: enrollmentView(r.enrollment) };
+    const t = (await store.listQuestTemplates()).find((x) => x.templateId === r.enrollment.templateId && x.version === r.enrollment.templateVersion);
+    return { receipt: { receipt_id: r.receipt.receiptId, cosmetic_id: r.receipt.cosmeticId, issued_at: r.receipt.issuedAt.toISOString() }, already: !r.created, enrollment: enrollmentView(r.enrollment, undefined, t, quests.gpsMinRulesVersion !== null) };
   });
 }

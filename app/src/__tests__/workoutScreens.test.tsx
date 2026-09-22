@@ -11,14 +11,14 @@ import { WorkoutStartScreen } from '@/screens/workouts/WorkoutStartScreen';
 import { LocalWorkoutStore } from '@/services/workouts/LocalWorkoutStore';
 import { WorkoutSummaryScreen } from '@/screens/workouts/WorkoutSummaryScreen';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
-import { useWorkoutPrefs } from '@/state/workoutPrefsStore';
+import { FREE_GOAL, useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import { useWalletStore } from '@/state/walletStore';
 import { PublicKey } from '@solana/web3.js';
 import { ThemeProvider } from '@/theme';
 
 jest.mock('expo-crypto', () => { let n = 0; return { randomUUID: () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}` }; });
 const mockNav = { navigate: jest.fn(), dispatch: jest.fn() };
-let mockRoute: { params: Record<string, string> } = { params: {} };
+let mockRoute: { params: Record<string, unknown> } = { params: {} };
 jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => mockNav, useRoute: () => mockRoute }));
 jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { myWorkouts: jest.fn(async () => ({ items: [], rules_version: 1 })), importWorkouts: jest.fn(async (sessions: { external_record_id: string }[]) => ({ imported: 1, results: sessions.map((s) => ({ external_record_id: s.external_record_id, outcome: 'created', session: { session_id: 'server-9' } })) })), signIn: jest.fn(async () => ({})) } }));
 const { ApiError: ApiErrorCtor } = jest.requireActual('@/services/api/ApiClient') as { ApiError: new (status: number, code: string, message: string) => Error };
@@ -238,7 +238,7 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   await waitFor(() => expect(screen.getByTestId('sum-sync').props.children).toBe('Synced to your account'));
   expect(screen.queryByTestId('sum-sync-signin')).toBeNull();
   expect((sync.mock.calls[0]![0] as { intent: string; goal: { kind: string; target: number } }[])[0]).toMatchObject({ sport: 'walk', intent: 'brisk', goal: { kind: 'time', target: 600 } }); // PG-U-01 同步 payload
-  expect(recorder.localStore().readMeta(mockRoute.params.sessionId!)?.owner).toBe('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU'); // 訪客紀錄按同步時歸屬到目前錢包
+  expect(recorder.localStore().readMeta(mockRoute.params.sessionId as string)?.owner).toBe('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU'); // 訪客紀錄按同步時歸屬到目前錢包
   expect(screen.getByTestId('sum-split-1')).toBeTruthy();
   expect(screen.getByText('Partial')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('sum-tab-laps'));
@@ -292,6 +292,24 @@ test('review 5（第二輪）：meta.unsavedPoints > 0 → 摘要頁明確說明
   expect(screen.getByTestId('sum-unsaved')).toBeTruthy();
   expect(screen.getByText(/42 points could not be written/)).toBeTruthy();
   expect(screen.queryByTestId('sum-avg-hint')).toBeNull(); // 無暫停就不列全程
+});
+
+test('XD-01：任務卡帶入 preset（time 30 分、run）→ 開始頁預填 30:00 與跑步，最近偏好不蓋掉', async () => {
+  useWorkoutPrefs.setState({ loaded: true, mode: 'walk', goal: { kind: 'distance', target: 3_000_000, unit: 'mm', version: 1 } } as never);
+  mockRoute = { params: { preset: { goal: { kind: 'time', minutes: 30 }, mode: 'run', questId: 'e2' } } };
+  await render(<WorkoutStartScreen />, { wrapper: Wrapper });
+  expect(screen.getByTestId('start-goal-value').props.children).toBe('30:00');
+  expect(screen.getByTestId('start-mode-run').props.accessibilityState.selected).toBe(true);
+  mockRoute = { params: {} };
+});
+
+test('XD-01：無 preset → 回最近偏好（健走 3 km）', async () => {
+  useWorkoutPrefs.setState({ loaded: true, mode: 'walk', goal: { kind: 'distance', target: 3_000_000, unit: 'mm', version: 1 } } as never);
+  mockRoute = { params: {} };
+  await render(<WorkoutStartScreen />, { wrapper: Wrapper });
+  expect(screen.getByTestId('start-goal-value').props.children).toBe('3.00');
+  expect(screen.getByTestId('start-mode-walk').props.accessibilityState.selected).toBe(true);
+  useWorkoutPrefs.setState({ loaded: false, mode: 'run', goal: FREE_GOAL } as never);
 });
 
 test('路線背景只在開始前選擇，未取得棲地不可選', async () => {

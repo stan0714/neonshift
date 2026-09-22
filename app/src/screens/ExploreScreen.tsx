@@ -1,12 +1,16 @@
 import { useNavigation } from '@react-navigation/native';
 import { randomUUID } from 'expo-crypto';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import { RefreshControl, StyleSheet, View } from 'react-native';
 
-import { Button, Chip, InlineState, Screen, Surface } from '@/components';
+import { Button, InlineState, Screen } from '@/components';
+import { QuestCard } from '@/components/QuestCard';
 import { SignInState } from '@/components/SignInState';
-import { useT, type TKey } from '@/i18n';
-import { ApiError, apiClient, type QuestEnrollmentView, type QuestsResponse } from '@/services/api/ApiClient';
+import { t as tStatic, useT, type TKey } from '@/i18n';
+import { ApiError, apiClient, type QuestEnrollmentView, type QuestTemplateView, type QuestsResponse } from '@/services/api/ApiClient';
+import { apiErrorText } from '@/services/api/errorText';
+import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
+import { useQuestCache } from '@/state/questCacheStore';
 import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
 
@@ -27,20 +31,44 @@ export function ExploreScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   const [minutes, setMinutes] = useState(20);
   const [notice, setNotice] = useState<{ kind: 'success' | 'info' | 'warning'; title: string; body?: string } | null>(null);
+  // XD-01：離線／伺服器抖動時用最後快照顯示卡片（標 as of；不顯示領取鈕）
+  const remember = useQuestCache((st) => st.remember); // 只取函式：整個 store 物件每次 set 都會變，放進 deps 會無限重載
+  const [offlineAsOf, setOfflineAsOf] = useState<string | null>(null);
+  // 進行中的運動：卡片改「回到記錄」，不再開第二場（不覆寫 session）
+  const [recording, setRecording] = useState(false);
+  useEffect(() => { setRecording(workoutRecorder.active() !== null); }, [data, loading]);
 
   const load = useCallback(async () => {
     if (!session) { setData(null); return; }
     setLoading(true);
     try {
-      setData(await apiClient.quests());
+      const r = await apiClient.quests();
+      setData(r);
+      setOfflineAsOf(null);
       setErr(null);
+      void remember(session.address, r);
     } catch (e) {
-      setErr({ message: e instanceof Error ? e.message : String(e), code: e instanceof ApiError ? e.code : 'UNKNOWN' });
+      const code = e instanceof ApiError ? e.code : 'UNKNOWN';
+      if (code === 'NETWORK_ERROR') {
+        if (!useQuestCache.getState().loaded) await useQuestCache.getState().load();
+        const snap = useQuestCache.getState().forWallet(session.address);
+        if (snap) { setData(snap.data); setOfflineAsOf(snap.asOf); setErr(null); return; }
+      }
+      setErr({ message: apiErrorText(tStatic, e), code }); // 用非 hook 的 t：useT 的 t 每次 render 都是新函式，放進 deps 會無限重載
     } finally {
       setLoading(false);
     }
-  }, [session]);
+  }, [session, remember]);
   useEffect(() => { void load(); }, [load]);
+
+  /** 任務卡「開始」：帶入模板的目標到開始頁；進行中時回到記錄頁（recorder 也會擋，這裡先不讓使用者看到錯誤） */
+  const start = (tp: QuestTemplateView, e: QuestEnrollmentView) => {
+    if (workoutRecorder.active()) { navigation.navigate('WorkoutRecord'); return; }
+    const goal = e.card?.start.goal ?? tp.card?.start.goal;
+    const minutesOf = Number((e.goal as { minutes?: number }).minutes ?? 0);
+    const preset = goal?.kind === 'time' ? { goal: { kind: 'time' as const, minutes: goal.minutes ?? minutesOf }, mode: 'run' as const, questId: e.enrollment_id } : { goal: { kind: 'free' as const }, questId: e.enrollment_id };
+    navigation.navigate('WorkoutStart', { preset });
+  };
 
   const accept = async (templateId: string) => {
     setBusy(templateId);
@@ -51,7 +79,7 @@ export function ExploreScreen() {
       setNotice({ kind: r.already ? 'info' : 'success', title: r.already ? t('explore.alreadyAccepted') : t('explore.accepted'), body: t('explore.acceptedBody', { end: new Date(r.enrollment.period_end).toLocaleString() }) });
       await load();
     } catch (e) {
-      setNotice({ kind: 'warning', title: t('explore.err', { message: e instanceof Error ? e.message : String(e) }) });
+      setNotice({ kind: 'warning', title: t('explore.err', { message: apiErrorText(t, e) }) });
     } finally {
       setBusy(null);
     }
@@ -64,7 +92,7 @@ export function ExploreScreen() {
       setNotice({ kind: 'success', title: r.already ? t('explore.alreadyClaimed') : t('explore.claimed'), body: t('explore.claimedBody', { name: t(`explore.cosmetic.${r.receipt.cosmetic_id}` as TKey) }) });
       await load();
     } catch (e2) {
-      setNotice({ kind: 'warning', title: e2 instanceof ApiError && e2.code === 'QUEST_NOT_COMPLETED' ? t('explore.notCompleted') : t('explore.err', { message: e2 instanceof Error ? e2.message : String(e2) }) });
+      setNotice({ kind: 'warning', title: e2 instanceof ApiError && e2.code === 'QUEST_NOT_COMPLETED' ? t('explore.notCompleted') : t('explore.err', { message: apiErrorText(t, e2) }) });
     } finally {
       setBusy(null);
     }
@@ -100,42 +128,20 @@ export function ExploreScreen() {
         })}
       </View>
 
+      {offlineAsOf ? <InlineState kind="warning" title={t('quest.offline.title')} body={t('quest.offline.body', { asOf: new Date(offlineAsOf).toLocaleString() })} action={{ label: t('common.tryAgain'), onPress: () => void load(), loading }} testID="explore-offline" /> : null}
       <Text variant="label" tone="muted" uppercase style={styles.mt}>{t('explore.thisWeek')}</Text>
       {active.length === 0 ? <Text variant="bodySmall" tone="secondary" testID="explore-no-quests">{t('explore.noQuests')}</Text> : null}
       {active.map((e) => {
-        const canClaim = e.status === 'completed';
+        const tp = (data?.templates ?? []).find((x) => x.template_id === e.template_id) ?? { template_id: e.template_id, version: e.template_version, kind: e.template_id === 'timed_goal' ? 'goal_time' as const : 'active_days' as const, params: {}, cosmetic_id: e.card?.reward.cosmetic_id ?? `chapter_01_${e.template_id}` };
         return (
-          <Surface key={e.enrollment_id} style={styles.card} testID={`explore-quest-${e.template_id}-${e.status}`}>
-            <View style={styles.rowBetween}>
-              <Text variant="title">{t(`explore.quest.${e.template_id}` as TKey, { minutes: Number((e.goal as { minutes?: number }).minutes ?? 0) })}</Text>
-              <Chip label={t(`explore.status.${e.status}` as TKey)} kind={e.status === 'claimed' ? 'level' : e.status === 'completed' ? 'synced' : e.status === 'revoked' ? 'offline' : 'neutral'} />
-            </View>
-            {e.progress ? (
-              <Text variant="bodySmall" tone="secondary" numeric testID={`explore-progress-${e.template_id}`}>{t('explore.progress', { current: e.progress.current, target: e.progress.target })}</Text>
-            ) : null}
-            <Text variant="caption" tone="muted">{t('explore.period', { end: new Date(e.period_end).toLocaleString(), late: new Date(e.late_sync_until).toLocaleDateString() })}</Text>
-            {e.status === 'revoked' ? <Text variant="caption" tone="warning">{t('explore.revokedBody')}</Text> : null}
-            {canClaim ? <Button label={t('explore.claim')} style={styles.mtXs} onPress={() => void claim(e)} loading={busy === e.enrollment_id} disabled={busy !== null} testID={`explore-claim-${e.template_id}`} /> : null}
-          </Surface>
+          <QuestCard key={e.enrollment_id} template={tp} enrollment={e} recording={recording} offline={offlineAsOf !== null} busy={busy === e.enrollment_id}
+            onStart={() => start(tp, e)} onReturn={() => navigation.navigate('WorkoutRecord')} onClaim={() => void claim(e)} testID={`explore-quest-${e.template_id}-${e.status}`} />
         );
       })}
 
       <Text variant="label" tone="muted" uppercase style={styles.mt}>{t('explore.pick')}</Text>
       {(data?.templates ?? []).filter((tp) => !enrolledTemplates.has(tp.template_id)).map((tp) => (
-        <Surface key={tp.template_id} style={styles.card} testID={`explore-template-${tp.template_id}`}>
-          <Text variant="title">{t(`explore.quest.${tp.template_id}` as TKey, { minutes })}</Text>
-          <Text variant="bodySmall" tone="secondary">{t(`explore.quest.${tp.template_id}.body` as TKey)}</Text>
-          {tp.kind === 'goal_time' ? (
-            <View style={styles.row}>
-              {((tp.params as { minutes?: number[] }).minutes ?? [10, 20, 30]).map((m) => (
-                <Pressable key={m} onPress={() => setMinutes(m)} accessibilityRole="radio" accessibilityState={{ selected: minutes === m }} style={[styles.pill, minutes === m && styles.pillOn]} testID={`explore-minutes-${m}`}>
-                  <Text variant="caption" style={minutes === m && styles.pillOnText}>{t('rec.goal.min', { n: m })}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-          <Button label={t('explore.accept')} variant="secondary" style={styles.mtXs} onPress={() => void accept(tp.template_id)} loading={busy === tp.template_id} disabled={busy !== null} testID={`explore-accept-${tp.template_id}`} />
-        </Surface>
+        <QuestCard key={tp.template_id} template={tp} minutes={minutes} onMinutes={setMinutes} offline={offlineAsOf !== null} busy={busy === tp.template_id} onAccept={() => void accept(tp.template_id)} testID={`explore-template-${tp.template_id}`} />
       ))}
       {data && !data.rules.gps_rewards_enabled ? <Text variant="caption" tone="muted" style={styles.mt} testID="explore-gps-note">{t('explore.gpsNote')}</Text> : null}
       <Text variant="caption" tone="muted" style={styles.mt}>{t('explore.rules', { min: data?.rules.min_active_minutes ?? 10, late: data?.rules.late_sync_hours ?? 48 })}</Text>
@@ -147,14 +153,8 @@ export function ExploreScreen() {
 const styles = StyleSheet.create({
   mt: { marginTop: space.m },
   mtXs: { marginTop: space.xs },
-  card: { marginTop: space.s },
-  row: { flexDirection: 'row', gap: space.xs, marginTop: space.xs },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.s },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.xs },
   cell: { width: '47%', aspectRatio: 1.4, borderRadius: radius.m, padding: space.s, justifyContent: 'flex-end', borderWidth: 1 },
   cellLit: { backgroundColor: color.surface, borderColor: color.mint },
   cellDark: { backgroundColor: color.elevated, borderColor: color.borderSubtle, opacity: 0.7 },
-  pill: { minHeight: 36, paddingHorizontal: space.s, borderRadius: radius.m, borderWidth: 1, borderColor: color.borderSubtle, alignItems: 'center', justifyContent: 'center' },
-  pillOn: { backgroundColor: color.mint, borderColor: color.mint },
-  pillOnText: { color: color.onMint },
 });
