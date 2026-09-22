@@ -45,12 +45,13 @@
 ```bash
 cd backend
 node scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 show                     # 目前狀態（報名／庫存／報到筆數）
-node scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 add-staff <第二帳號> check_in   # 指派 App staff
+node scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 add-staff <錢包> check_in      # 指派 App staff（已指派帳號 B 於 Gate）
+node scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 add-staff <錢包> all          # 第 8 步之後改授全站點（一個錢包同時只有一個 staff 站點）
 node scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 set-stock 荒野守護紀念毛巾 1     # 最後一件競態測試
 # 重建／補齊（幂等，標籤會重用）：OPS_TOKEN=$(ssh root@l2.neonshift.cc 'grep ^OPS_TOKEN= /etc/neonshift/api.env | cut -d= -f2') node scripts/demo-event.mjs http://l2.neonshift.cc:6080
 ```
 
-**要先給我第二個錢包位址**（Seeker Wallet 新增帳號 → 複製位址），我才能把它指派成 staff；同一錢包不能自己幫自己報到。
+帳號 B `9esSdbMa8ZS5HY9beMscpKU1gAPKA3REPqLMQTSmNYRh` 已指派為 **Gate（check_in）staff**（2026-09-22）；`show` 末尾會列出現行角色。同一錢包不能自己幫自己報到，所以 A、B 必須是不同帳號。
 
 ### 2.2 手機流程（帳號 A＝參加者，帳號 B＝staff）
 
@@ -63,7 +64,8 @@ node scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 set-stock 荒野�
 | 5 | B：切換帳號 → 同活動 → Staff tools → 輸入 A 的碼 | 報到成功一次；再輸入同碼 → 拒絕／顯示既有狀態；過期碼 → 拒絕；B 若沒 staff 角色 → **API 拒絕**不只是藏按鈕（E-05 權限） | 截圖 ×3 |
 | 6 | A：NFC／App Link：用 fixture 的 `https://neonshift.cc/e/wild-guardian-day?tag=…` 開 | 只開到活動頁，**不**等於已報到（E-04）；停用的 tag 開頁要說明 | 截圖 |
 | 7 | A：報到後 → 權益「紀念毛巾」預留 → 拿到領取碼 | 未報到不能預留（CHECKIN_REQUIRED）；每人上限 1；預留有期限（E-06） | 截圖 |
-| 8 | B：Booth 站點 → 核銷 A 的領取碼 → 再核銷一次 | 第一次 fulfilled；第二次不扣第二份庫存；Gate 站點的 staff 在 Booth 核銷應被拒（跨站點）（E-06） | 截圖＋`GET /partner/events/$EV/redemptions` |
+| 8 | B（只被指派 Gate）：切到「權益交付」 | 顯示「沒有權益站點權限」、確認鍵停用；後端帶 `checkpoint_id` 時回 403 `ROLE_FORBIDDEN`（跨站點，E-06） | 截圖 |
+| 8b | 主辦方 `add-staff <B> all` → B 重進 → 核銷 A 的領取碼 → 再核銷一次 | 第一次 fulfilled；第二次回「先前已交付」且不扣第二份庫存 | 截圖＋`GET /partner/events/$EV/redemptions` |
 | 9 | 最後一件：把某品項 stock 設 1，A 與第三帳號同時預留 | 只有一人成功、庫存不負數（E-06 原子） | API 回應兩份 |
 | 10 | 預留逾期：等 hold 到期（或用小庫存品項）→ 核銷 | 逾期不能交付、庫存釋放 | 截圖 |
 | 11 | 主辦方取消活動 → A 開詳情 | 顯示原因、不能再報名／預留；既有預留處理（E-02 生命週期） | 截圖 |

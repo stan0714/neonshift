@@ -1122,6 +1122,7 @@ export const en = {
   'staff.mode.checkin': 'Check-in',
   'staff.mode.redeem': 'Perk handover',
   'staff.redeemIntro': 'Enter the participant’s 8-character perk code, then confirm only after handing over the item.',
+  'staff.redeemNoCheckpoint': 'You are not assigned to a handover station for this event. Ask the organizer to add you.',
   'staff.redeemCode': 'Perk code',
   'staff.redeemConfirm': 'Confirm handover',
   'staff.redeemOk': 'Handed over · {name}',

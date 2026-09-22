@@ -1101,6 +1101,7 @@ export const zhTW: Record<keyof typeof en, string> = {
   'staff.mode.checkin': '報到',
   'staff.mode.redeem': '權益交付',
   'staff.redeemIntro': '輸入參加者的 8 碼權益代碼，把物品交給對方後再按確認。',
+  'staff.redeemNoCheckpoint': '你沒有這個活動的權益站點權限，請主辦方指派後再交付。',
   'staff.redeemCode': '權益代碼',
   'staff.redeemConfirm': '確認交付',
   'staff.redeemOk': '已交付・{name}',

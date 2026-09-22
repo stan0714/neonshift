@@ -2,7 +2,7 @@
 /**
  * 測試活動的小工具（fixture 由 scripts/demo-event.mjs 建立）：以 demo owner 金鑰 SIWS 後執行。
  *   node scripts/demo-event-admin.mjs <base> show
- *   node scripts/demo-event-admin.mjs <base> add-staff <wallet> [check_in|redemption]   # 指派 staff（真機雙角色驗收用）
+ *   node scripts/demo-event-admin.mjs <base> add-staff <wallet> [check_in|redemption|all]  # 指派 staff（真機雙角色驗收用；一個錢包同時只有一個 staff 站點）
  *   node scripts/demo-event-admin.mjs <base> revoke-tag <tag_id>                        # 停用一枚 NFC 標籤
  *   node scripts/demo-event-admin.mjs <base> set-stock <benefit_name> <n>               # 調整庫存（最後一件競態測試）
  * 金鑰在 $KEY_DIR（預設 ~/.config/neonshift/dev/demo），不進 repo；不動使用者錢包。
@@ -49,14 +49,27 @@ if (cmd === "show") {
   console.log(`  報到 ${(checkIns.items ?? checkIns.check_ins ?? []).length} 筆 · 預留／交付 ${(redemptions.items ?? redemptions.redemptions ?? []).length} 筆`);
   console.log(`  NFC ${fixture.nfc_tag?.tags?.map((t) => t.uri).join(", ") ?? "（無）"}`);
   console.log(`  staff 位址（fixture）${fixture.wallets.staff}`);
+  // 沒有「列出全部角色」的端點；由稽核記錄推現行授權（grant 後未被 revoke）
+  const audit = await req("GET", `/v1/partner/events/${evId}/audit`, undefined, owner.token);
+  const grants = new Map();
+  for (const e of [...(audit.entries ?? [])].reverse()) {
+    if (e.action === "role.grant") grants.set(`${e.target}|${e.details?.role}`, e.details);
+    else if (e.action === "role.revoke") grants.delete(`${e.target}|${e.details?.role}`);
+  }
+  const cpName = Object.fromEntries(Object.entries(fixture.checkpoints).map(([k, v]) => [v, k]));
+  if (grants.size === 0) console.log("  角色 （尚未指派）");
+  for (const [k, d] of grants) {
+    const [wallet] = k.split("|");
+    console.log(`  角色 ${d.role} ${wallet} @ ${d.checkpoint_id ? `${cpName[d.checkpoint_id] ?? d.checkpoint_id}` : "全站點"}`);
+  }
 } else if (cmd === "add-staff") {
   const wallet = process.argv[4];
   const purpose = process.argv[5] ?? "check_in";
   if (!wallet) throw new Error("用法：add-staff <wallet> [check_in|redemption]");
-  const checkpointId = fixture.checkpoints[purpose];
-  if (!checkpointId) throw new Error(`未知站點 ${purpose}`);
+  const checkpointId = purpose === "all" ? null : fixture.checkpoints[purpose];
+  if (purpose !== "all" && !checkpointId) throw new Error(`未知站點 ${purpose}（可用：check_in｜redemption｜all）`);
   const r = await req("POST", `/v1/partner/events/${evId}/roles`, { wallet, role: "staff", checkpoint_id: checkpointId }, owner.token);
-  console.log(`已指派 staff：${wallet} @ ${purpose}（${checkpointId}）`, JSON.stringify(r));
+  console.log(`已指派 staff：${wallet} @ ${purpose}（${checkpointId ?? "全站點"}）`, JSON.stringify(r));
 } else if (cmd === "revoke-tag") {
   const tagId = process.argv[4];
   if (!tagId) throw new Error("用法：revoke-tag <tag_id>");

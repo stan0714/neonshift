@@ -111,4 +111,36 @@ describe('StaffCheckInScreen · 權益交付', () => {
     expect(screen.getByText('This hold expired. Ask the participant to reserve again.')).toBeTruthy();
     await act(async () => {});
   });
+
+  test('交付帶授權站點：staff 只限權益站點 → 送出 checkpoint_id', async () => {
+    api.partnerCheckpoints.mockResolvedValue({ checkpoints: [{ checkpoint_id: 'c1', name: 'Gate', purpose: 'check_in' }, { checkpoint_id: 'c2', name: 'Booth', purpose: 'redemption' }] });
+    api.partnerMe.mockResolvedValue({ organizations: [], event_roles: [{ event_id: 'E1', role: 'staff', checkpoint_id: 'c2' }] });
+    api.staffCheckins.mockResolvedValue({ check_ins: [] });
+    api.partnerBenefits.mockResolvedValue({ benefits: [{ ...towel, stock_total: 5, reserved_count: 1, fulfilled_count: 1 }] });
+    api.staffFulfill.mockResolvedValueOnce({ redemption_id: 'r1', benefit_id: 'b1', quantity: 1, status: 'fulfilled', claim_code: null, reserved_at: '', reserved_until: '', fulfilled_at: '2026-10-03T01:00:00Z', credential_id: null, already: false });
+    await render(<StaffCheckInScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('staff-mode-redeem')).toBeTruthy());
+    await fireEvent.press(screen.getByTestId('staff-mode-redeem'));
+    await waitFor(() => expect(screen.getByTestId('staff-redeem-code')).toBeTruthy());
+    expect(screen.queryByTestId('staff-redeem-no-checkpoint')).toBeNull();
+    await fireEvent.changeText(screen.getByTestId('staff-redeem-code'), 'abcd 2345');
+    await fireEvent.press(screen.getByText('Confirm handover'));
+    await waitFor(() => expect(api.staffFulfill).toHaveBeenCalledWith('E1', { claim_code: 'ABCD2345', checkpoint_id: 'c2' }));
+    await act(async () => {});
+  });
+
+  test('跨站點：只被指派報到站點的 staff 不能交付（按鈕停用並說明）', async () => {
+    api.partnerCheckpoints.mockResolvedValue({ checkpoints: [{ checkpoint_id: 'c1', name: 'Gate', purpose: 'check_in' }, { checkpoint_id: 'c2', name: 'Booth', purpose: 'redemption' }] });
+    api.partnerMe.mockResolvedValue({ organizations: [], event_roles: [{ event_id: 'E1', role: 'staff', checkpoint_id: 'c1' }] });
+    api.staffCheckins.mockResolvedValue({ check_ins: [] });
+    api.partnerBenefits.mockResolvedValue({ benefits: [] });
+    await render(<StaffCheckInScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('staff-mode-redeem')).toBeTruthy());
+    await fireEvent.press(screen.getByTestId('staff-mode-redeem'));
+    await waitFor(() => expect(screen.getByTestId('staff-redeem-no-checkpoint')).toBeTruthy());
+    await fireEvent.changeText(screen.getByTestId('staff-redeem-code'), 'ABCD2345');
+    await fireEvent.press(screen.getByText('Confirm handover'));
+    expect(api.staffFulfill).not.toHaveBeenCalled();
+    await act(async () => {});
+  });
 });
