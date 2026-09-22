@@ -163,7 +163,7 @@ async function writeTokens(t: Tokens | null) {
 export type FetchLike = typeof fetch;
 /** 預設請求逾時（ms）。同步摘要這類小請求在行動網路下 15 s 仍沒回應，等下去也不會好 */
 export const DEFAULT_TIMEOUT_MS = 15_000;
-export type RequestOpts = { auth?: boolean; headers?: Record<string, string>; /** 覆寫逾時；0 表示不逾時 */ timeoutMs?: number; /** 外部取消 */ signal?: AbortSignal };
+export type RequestOpts = { auth?: boolean; headers?: Record<string, string>; /** 覆寫逾時；0 表示不逾時 */ timeoutMs?: number; /** 外部取消 */ signal?: AbortSignal; /** GET 逾時自動重試一次（預設 true；只有 GET 才會） */ retryOnTimeout?: boolean };
 
 /**
  * refresh 的三種結果（review 5）：
@@ -530,7 +530,18 @@ export class ApiClient {
       if (!t) throw new ApiError(401, 'NO_SESSION', 'Sign in required');
       headers.authorization = `Bearer ${t.accessToken}`;
     }
-    const res = await this.fetchWithTimeout(`${this.baseUrl}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }, opts);
+    let res: Response;
+    try {
+      res = await this.fetchWithTimeout(`${this.baseUrl}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }, opts);
+    } catch (e) {
+      // 實機 2026-09-22：公網路徑（Cloudflare → nginx → API）偶發單次 10～20 s 停頓、下一次 0.2 s。
+      // GET 冪等：逾時就立刻再試一次（只重試一次、只限 GET、外部取消不重試），避免整頁因一次抖動顯示錯誤。
+      const timedOut = e instanceof ApiError && e.netReason === 'timeout';
+      if (timedOut && method === 'GET' && opts.retryOnTimeout !== false && !retried && !opts.signal?.aborted) {
+        return this.requestRaw(method, path, body, { ...opts, retryOnTimeout: false }, true);
+      }
+      throw e;
+    }
     const text = await res.text();
     const parsed: unknown = text ? safeJson(text) : null;
     if (res.ok) return { status: res.status, body: parsed };
