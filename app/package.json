@@ -2,6 +2,7 @@
   "name": "@neonshift/app",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "NeonShift Android App（Expo custom development build）",
   "main": "index.ts",
   "engines": {

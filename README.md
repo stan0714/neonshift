@@ -95,6 +95,7 @@ cd programs && anchor build --arch v0 && cargo test -p neonshift-core
 - **重建**：乾淨環境依 `docs/build-and-test.md` 與上方快速開始即可重建；release APK 以 `scripts/app/build.sh demo release` 產生（需自備 keystore，repo 不含任何金鑰），`release-notes.txt` 記錄 Git commit、SHA-256、versionCode、後端與網路；`scripts/release/evidence.sh` 產出提交證據骨架（`docs/evidence/`）。提交版本不啟用展示覆寫（build.sh 對 demo 環境強制 `EXPO_PUBLIC_DEMO_LEVEL=0`）。
 - **作者**：單人團隊（Stanley Liu）。Git 歷史完整保留，未壓縮或重寫。
 - **AI 輔助**：程式、文件與部分素材（品牌概念圖、Demo 旁白 TTS）在 Claude Code 等 AI 工具協助下完成；設計決策、驗收與提交由作者負責。commit 以 `Co-Authored-By` 標註。
+- **授權**：程式碼採 [MIT](LICENSE)（app／backend／programs 一致）；NeonShift／CLOCK IN 名稱、標誌、野生動物鞋款美術與 `docs/`、`output/` 文件不在 MIT 範圍，保留所有權利（見 LICENSE 末段）。第三方授權：[neonshift.cc/licenses](https://neonshift.cc/licenses/)。
 - **素材權利**：見 [docs/legal/asset-sources.md](docs/legal/asset-sources.md)；WWF 物種資料引用方式見 [docs/legal/wwf-notice-2026-09-20](docs/legal/wwf-notice-2026-09-20/README.md)。
 - **參賽狀態**：規則對照與進度見 [docs/store/competition-development-plan.md](docs/store/competition-development-plan.md)；tSKR 為 devnet 測試代幣；SKR 付款（Genesis Mint 邊框）程式已完成並以 devnet 測試 mint 驗證，官方 SKR 主網小額測試待負責人核准（DEC-02 OPEN）。乾淨環境重建：`scripts/release/clean-build.sh`。
 

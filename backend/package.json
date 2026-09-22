@@ -2,6 +2,7 @@
   "name": "@neonshift/backend",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "NeonShift Attestor 後端",
   "engines": {
