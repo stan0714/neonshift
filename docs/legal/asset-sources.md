@@ -21,7 +21,7 @@
 
 ## 提交前動作
 
-1. 產出授權清單：`cd app && npx license-checker --summary`、`cd backend && npx license-checker --summary`、`cd programs && cargo license`，結果存 `docs/evidence/<日期>-licenses.md`。
+1. ✅ 2026-09-22 產出 [docs/evidence/2026-09-22-licenses.md](../evidence/2026-09-22-licenses.md)（npm production）；注意 `rpc-websockets` LGPL-3.0（web3.js 傳遞依賴，App 需列授權頁）、本專案 LICENSE 待選；`cargo license` 待補。
 2. 確認 TTS 與音樂授權（⚠️ 兩項）並回填。
 3. 全 repo 掃描：`git grep -nE "keypair|PRIVATE KEY|BEGIN (EC|RSA)"`、`git ls-files | grep -E "\.keystore$|keystore\.properties|-keypair\.json$"` 必須為空。
 4. 影片與簡報中所有「合作」「捐款」「保育成果」字眼移除或改為「靈感／教育」。
