@@ -236,6 +236,12 @@ export function ProfileScreen() {
             {t('profile.privacyLink', { url: `${APP_CONFIG.siteUrl.replace('https://', '')}/privacy` })}
           </Text>
         </Pressable>
+        {/* COMP-07／08：第三方授權（含 LGPL 通知）與素材來源 */}
+        <Pressable onPress={() => void Linking.openURL(`${APP_CONFIG.siteUrl}/licenses`)} accessibilityRole="link" style={styles.link} testID="profile-licenses-link">
+          <Text variant="bodySmall" tone="cyan">
+            {t('profile.licensesLink', { url: `${APP_CONFIG.siteUrl.replace('https://', '')}/licenses` })}
+          </Text>
+        </Pressable>
         <Button label={t('profile.deleteData')} variant="danger" style={styles.btn} onPress={deleteData} loading={deletion.state === 'working'} loadingLabel={t('profile.deleting')} disabled={!backend} disabledReason={backend === false ? t('profile.deleteReason') : undefined} />
         {deletion.state === 'done' ? <InlineState kind="success" title={t('profile.deleted.title')} body={t('profile.deleted.body')} testID="deletion-done" /> : null}
         {deletion.state === 'scheduled' ? <InlineState kind="info" title={t('profile.scheduled.title')} body={t('profile.scheduled.body', { when: deletion.dueAt ? new Date(deletion.dueAt).toLocaleString() : t('profile.retentionLimit') })} testID="deletion-scheduled" /> : null}

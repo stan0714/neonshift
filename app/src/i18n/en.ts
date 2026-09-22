@@ -699,6 +699,7 @@ export const en = {
   'profile.privacy': 'Privacy',
   'profile.privacyBody': 'Only summaries reach our servers and are kept for at most 30 days. Raw sensor and step records never leave this phone. Wallet address, claims and tSKR live onchain and are public.',
   'profile.privacyLink': 'Privacy policy · {url}',
+  'profile.licensesLink': 'Open-source licenses · {url}',
   'profile.deleteData': 'Delete my backend data',
   'profile.deleting': 'Deleting…',
   'profile.deleteReason': 'Sign in to manage server data',

@@ -7,3 +7,4 @@
 - 部署：任何靜態託管（Cloudflare Pages／GitHub Pages）指向本目錄；需 `Content-Type: image/svg+xml` 與 `application/json`，允許跨域讀取（錢包／市集會直接 fetch）。
 - `index.html`（繁中）／`en/index.html`（英文）：官網首頁，互相以 header 語言切換；鏈上程式相關文案（devnet、tSKR、NFT 鑄造、結算 hash）暫以註解遮蔽，公開時恢復；`brand-mark.svg` 來自 `app/assets/brand/mark.svg`。
 - `privacy/`（PG-D-02）、`.well-known/assetlinks.json`（App Links）、`e/`（活動落地頁，`_redirects` 導向）。
+- `licenses/index.html`：第三方授權頁（App Profile 連結；含 rpc-websockets LGPL 通知），由 `node tools/licenses/build.mjs` 產生，**不要手改**。

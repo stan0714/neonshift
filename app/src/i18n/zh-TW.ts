@@ -684,6 +684,7 @@ export const zhTW: Record<keyof typeof en, string> = {
   'profile.privacy': '隱私',
   'profile.privacyBody': '只有摘要會送到伺服器，最多保留 30 天。原始感測與步數紀錄永遠不會離開這支手機。錢包地址、打卡與 tSKR 存在鏈上且公開。',
   'profile.privacyLink': '隱私政策 · {url}',
+  'profile.licensesLink': '開源授權 · {url}',
   'profile.deleteData': '刪除我的後端資料',
   'profile.deleting': '刪除中…',
   'profile.deleteReason': '登入後才能管理伺服器資料',
