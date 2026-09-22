@@ -228,11 +228,14 @@ export function WorkoutsScreen() {
               {t('wo.week.note', { tz: localTimeZone() })}
             </Text>
             {weeklyReview(items, mode).slice(0, 4).map((wk) => (
-              <View key={wk.weekStart} style={styles.rowBetween} testID={`workouts-week-${wk.weekStart}`}>
+              <View key={wk.weekStart} style={styles.weekBlock} testID={`workouts-week-${wk.weekStart}`}>
                 <Text variant="bodySmall">{t('wo.week.row', { start: wk.weekStart })}</Text>
-                <Text variant="bodySmall" tone="secondary" numeric>
-                  {t('wo.week.stats', { n: wk.sessions, days: wk.activeDays, km: (Number(wk.distanceMm) / 1_000_000).toFixed(1), time: formatDuration(String(wk.elapsedMs)) })}
-                </Text>
+                <View style={styles.weekMetrics}>
+                  <Metric label={t('wo.week.sessions')} value={String(wk.sessions)} />
+                  <Metric label={t('wo.week.days')} value={String(wk.activeDays)} />
+                  <Metric label={t('wo.week.distance')} value={formatKm(String(wk.distanceMm))} />
+                  <Metric label={t('wo.week.duration')} value={formatDuration(String(wk.elapsedMs))} />
+                </View>
               </View>
             ))}
           </Surface>
@@ -301,7 +304,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   localRow: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.s },
   trash: { minHeight: 44, justifyContent: 'center' },
-  filters: { flexDirection: 'row', gap: space.xs, marginTop: space.m },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: space.m },
   filter: { minHeight: 36, paddingHorizontal: space.s, borderRadius: radius.m, borderWidth: 1, borderColor: color.borderSubtle, alignItems: 'center', justifyContent: 'center' },
   filterOn: { backgroundColor: color.mint, borderColor: color.mint },
   filterOnText: { color: color.onMint },
@@ -309,8 +312,10 @@ const styles = StyleSheet.create({
   mtS: { marginTop: space.s },
   mtXs: { marginTop: space.xs },
   card: { marginTop: space.m },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.s },
+  rowBetween: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space.s },
   metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: space.m, marginTop: space.s, padding: space.s, borderRadius: radius.m, backgroundColor: color.elevated },
-  metric: { minWidth: 64 },
+  metric: { minWidth: 0, flexBasis: '43%', flexGrow: 1, flexShrink: 1, gap: space.xxs },
+  weekBlock: { marginTop: space.m, paddingTop: space.m, borderTopWidth: 1, borderTopColor: color.borderSubtle, gap: space.s },
+  weekMetrics: { flexDirection: 'row', flexWrap: 'wrap', gap: space.m },
   link: { minHeight: 32, justifyContent: 'center' },
 });

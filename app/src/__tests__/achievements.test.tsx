@@ -94,7 +94,7 @@ describe('PersonalBests 鑄造流程', () => {
     api.personalBests.mockResolvedValueOnce({ rules_major: 1, imported_since: '2026-09-01T00:00:00Z', groups: [{ key: 'k', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', current: pb(), nft_eligibility: { status: 'level_required', level: 2, required: 3, effective_from: 20700 }, history: [] }, { key: 'k2', category: 'fastest_10k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', current: pb({ pb_id: 'p2', category: 'fastest_10k' }), nft_eligibility: { status: 'history_unknown', level: null, required: 3, effective_from: null }, history: [] }] });
     await render(<PersonalBests />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('pb-nft-level_required-fastest_5k-device')).toBeTruthy());
-    expect(screen.getByText('PB NFTs need Lv3 gear at the time of the record (you were Lv2). Kept as a private PB.')).toBeTruthy();
+    expect(screen.getByText('PB saved · not eligible for this NFT. You needed Lv3 active gear when this record was set (then: Lv2). After upgrading, set a new eligible PB to qualify.')).toBeTruthy();
     expect(screen.getByTestId('pb-nft-history_unknown-fastest_10k-device')).toBeTruthy();
     expect(screen.queryByTestId('pb-mint-fastest_5k-device')).toBeNull();
     api.personalBests.mockResolvedValue({ rules_major: 1, imported_since: '2026-09-01T00:00:00Z', groups: [{ key: 'k', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', current: pb(), nft_eligibility: { status: 'eligible', level: 3, required: 3, effective_from: 20700 }, history: [] }] });

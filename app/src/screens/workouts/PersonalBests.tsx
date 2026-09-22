@@ -89,6 +89,7 @@ export function PersonalBests({ reloadKey = 0 }: { reloadKey?: number }) {
   return (
     <Surface style={styles.card} testID="pbs">
       <Text variant="title">{t('pb.title')}</Text>
+      <Text variant="bodySmall" tone="secondary" style={styles.mt}>{t('pb.explainer')}</Text>
       {data.imported_since ? (
         <Text variant="caption" tone="muted">
           {t('pb.since', { date: data.imported_since.slice(0, 10) })}
@@ -125,6 +126,7 @@ export function PersonalBests({ reloadKey = 0 }: { reloadKey?: number }) {
                 {g.current ? <Chip label={g.current.is_baseline ? t('pb.baseline') : t('pb.improved', { n: improvements, count: improvements })} kind={g.current.is_baseline ? 'neutral' : 'synced'} /> : null}
               </View>
             </View>
+            {g.current?.is_baseline ? <Text variant="caption" tone="secondary" style={styles.mt}>{t('pb.baselineHelp')}</Text> : null}
             {/* NFT 狀態／原因／鑄造鈕獨立成一列（實機 2026-09-21：放在右欄時長文案把左欄擠成 0 寬、整列變成一大塊空白） */}
             {g.current && session ? (() => {
               const a = achievements.find((x) => x.pb_id === g.current!.pb_id);
@@ -148,8 +150,8 @@ const styles = StyleSheet.create({
   card: { marginTop: space.m },
   mt: { marginTop: space.s },
   group: { paddingVertical: space.s, borderBottomWidth: 1, borderBottomColor: color.borderSubtle },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.s },
-  flex: { flex: 1 },
-  right: { alignItems: 'flex-end', gap: space.xs, flexShrink: 0 },
-  nftRow: { marginTop: space.xs },
+  row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: space.s },
+  flex: { flexGrow: 1, flexShrink: 1, flexBasis: 150, minWidth: 0 },
+  right: { alignItems: 'flex-start', gap: space.xs, flexShrink: 1, maxWidth: '100%' },
+  nftRow: { marginTop: space.s, padding: space.s, backgroundColor: color.elevated, borderRadius: 8 },
 });
