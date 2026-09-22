@@ -1,6 +1,6 @@
 # NeonShift｜逐頁英文文案與中文分鏡
 
-2026-09-19 更新；第 2、4 頁新增設計預覽，尚待實作。
+2026-09-22 更新；第 2、4 頁仍為示意素材，功能已有程式，提交版實機驗收待完成。
 
 ## 01｜Move with purpose｜0:00–0:18
 
@@ -66,11 +66,11 @@ What keeps us moving after the first few days? NeonShift turns everyday movement
 
 > Retry safely. Keep records in order.
 
-> DESIGN PREVIEW · SAMPLE DATA · IMPLEMENTATION PENDING
+> DESIGN PREVIEW · SAMPLE DATA · DEVICE VALIDATION PENDING
 
 ### English voiceover
 
-Start with a walk or a run. Our next design adds a personal Activity journal with monthly views and workout details. Choose automatic sync when online, with saved workouts processed oldest first. Starter shoes and level upgrades remain free.
+Start with a walk or a run. The app now includes a personal Activity journal with monthly views and workout details. Choose automatic sync when online, with saved workouts processed oldest first. Starter shoes and level upgrades remain free.
 
 ### 中文分鏡與製作註記
 
@@ -163,11 +163,11 @@ NeonShift connects qualifying daily activity with a claim on Solana devnet. An a
 
 ### English voiceover
 
-As you level up, discover Wild Guardians, inspired by threatened wildlife. Our next design lets you switch between shoes you have earned, with matching forest or ocean backgrounds. Prefer a simpler view? Turn the background off. These choices are cosmetic; your active level still controls eligibility. Each shoe connects your progress with conservation learning.
+As you level up, discover Wild Guardians, inspired by threatened wildlife. The app now lets you switch between shoes you have earned, with matching forest or ocean backgrounds. Prefer a simpler view? Turn the background off. These choices are cosmetic; your active level still controls eligibility. Each shoe connects your progress with conservation learning.
 
 ### 中文分鏡與製作註記
 
-本頁使用專案既有鞋款素材；多鞋切換、森林／海洋背景與關閉開關為待實作設計。正式影片補切兩雙已取得鞋→關背景→故事卡；圖不可冒充實機。使用試拆時標 DEMO PREVIEW，切帳號標 Prepared demo account。不稱隨機 NFT、付費抽獎或保育收益權。
+本頁使用專案既有鞋款素材；多鞋切換、森林／海洋背景與關閉開關已有程式；本頁仍是示意，提交版本實機待驗收。正式影片補切兩雙已取得鞋→關背景→故事卡；圖不可冒充實機。使用試拆時標 DEMO PREVIEW，切帳號標 Prepared demo account。不稱隨機 NFT、付費抽獎或保育收益權。
 
 ## 05｜Connect with community｜2:03–2:29
 

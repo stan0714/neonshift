@@ -25,7 +25,7 @@ Clock in your daily steps. Verified movement becomes onchain gear.
 
 NeonShift turns your daily movement into a game you play with your wallet.
 
-- **Daily step mission.** Hit 8,000 steps, verified through Health Connect, then clock in with one wallet signature. Rewards are tSKR, a devnet test token with no monetary value.
+- **Daily step mission.** Hit 8,000 steps, verified through Health Connect, then approve the claim in your wallet. Rewards are tSKR, a devnet test token with no monetary value.
 - **Gear that evolves.** Your starter shoe is a free gift. Every verified mission earns XP; your shoe evolves through five stages — Origin, Pulse, Phase, Surge, Zenith — and your reward multiplier rises with it. No fees, nothing to buy or burn.
 - **Achievement collectibles.** Claim free Metaplex Core NFTs for each stage you reach and for milestones like your first clock-in or a 7-day streak. They live in your wallet; you only pay devnet rent.
 - **Weekend Arena.** Stake tSKR, walk the weekend, and split the prize pool with the top 30%. Results are committed onchain with a verifiable settlement hash.

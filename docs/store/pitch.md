@@ -53,3 +53,7 @@
 新增產品設計：已取得跑鞋可切換並連動可關閉的棲地背景；使用者選擇連網自動同步，依運動時間由舊到新；Activity 回顧個人運動。展示需標 DESIGN PREVIEW，實作／實機驗收待完成。
 
 完整需求、畫面、資料契約及驗收以 [整合設計](../shoe-sync-activity.md) 為準。
+
+## 2026-09-22 版本與展示狀態
+
+評審版為 [九頁英文 PPTX](../../output/hackathon-flexclip-en/NeonShift_Hackathon_EN_Judges.pptx)，另有三頁 NFT 專題及中文講稿。原六頁保留影片用途。Activity／有序同步／切鞋背景已有程式，靜態投影片仍為示意；Workouts PB 解釋與四欄週回顧需新實錄。手動鞋款為 SVG 側面，非 3D。官方 SKR 付款尚在計畫，不與 tSKR 混用；提交以 [開發 gate](competition-development-plan.md) 與 [評審指南](judges-guide.md) 為準。

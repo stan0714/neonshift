@@ -46,8 +46,8 @@
 | COMP-04 | Android APK、SMS／MWA、Solana 互動 | release 冷安裝、真機完整流程 | APK hash、commit、裝置／OS／錢包版本、錄影與交易 | WIP／沿用程式，待本版驗收 |
 | COMP-05 | 評審可取得四项素材 | 檢查 APK／GitHub／影片／簡報權限與版本 | 未登入測試或評審指定存取測試 | TODO |
 | COMP-06 | 三分鐘 Demo | 目標 2:50、實測 ≤3:00；以原六段稿重剪，非追加 SKR 造成超時 | 最終影片 duration／網址 | TODO |
-| COMP-07 | 可查作者、技術與新開發 | 可重建、保留歷史、標依賴及 AI 輔助；排除 secrets | 乾淨環境 build 紀錄、licenses、release tag | TODO |
-| COMP-08 | 非機密提交、素材權利 | 檢查動物圖、字型與商標授權；WWF notice 草稿不等於授權 | 素材來源清單、移除無依據聯名／保育成果宣稱 | TODO |
+| COMP-07 | 可查作者、技術與新開發 | 可重建、保留歷史、標依賴及 AI 輔助；排除 secrets | 乾淨環境 build 紀錄、licenses、release tag | WIP：README 段落、licenses 證據與公開頁、clean-build 腳本已備；專案 LICENSE 與 release tag 待負責人 |
+| COMP-08 | 非機密提交、素材權利 | 檢查動物圖、字型與商標授權；WWF notice 草稿不等於授權 | 素材來源清單、移除無依據聯名／保育成果宣稱 | WIP：`docs/legal/asset-sources.md` 已備；WWF 通知寄出與回覆待負責人 |
 | COMP-09 | 提交後固定隊員／最終表單不可任意改 | 最終核對名單、代表、四連結再提交 | 提交收件／表單副本 | TODO |
 | COMP-10 | 得獎後上架及入圍驗證 | 預先準備 publisher、隱私政策、release signing、商店素材；全員配合驗證 | 以實際公告日起算 30 天內公開 listing，不只送審 | TODO |
 | COMP-11 | SKR 獎實質整合 | 官方 mint 的可用功能與交易證據；確認 devnet 替代展示政策 | 主辦回覆＋SKR 實機證據包 | TODO；DEC-02 OPEN |
@@ -60,16 +60,16 @@
 
 | 工作 | 交付／完成定義 | 依賴 | 角色 | 粗估人日 | 狀態 |
 |---|---|---|---|---:|---|
-| COMP-W01 | 支援 SDK 的 session 中止策略；取消後舊回覆不寫登入／授權；斷開不無限等待；不自動重送交易 | Wallet review | App | 2–3 | TODO |
-| COMP-W02 | 任務→GPS→同步→資格→NFT／鏈上確認→收藏，一條真實可重播流程 | W01、可用後端／鏈 | App＋後端／QA | 1–2 | TODO |
-| SKR-01 | 獨立 SKR 網路配置、mint owner／decimals 驗證、單位運算、環境隔離 | COMP-11 設計假設註記 | App＋後端 | 1 | TODO |
-| SKR-02 | SKU／版本、資格、wallet、價格、期限與訂單參照由服務端決定；SIWS owner 綁定 | 可用真實資格、SKR-01 | 後端 | 1–2 | TODO |
-| SKR-03 | 購買預覽、SOL／SKR 不足、取消、確認中；每次交易可理解且不重扣 | W01、SKR-02 | App | 1–2 | TODO |
-| SKR-04 | 確認付款、唯一 receipt、交易鎖內授權；錯 mint／收款人／網路拒絕 | SKR-02 | 後端 | 2 | TODO |
-| SKR-05 | 訂單恢復、晚到付款、過期／異常付款處理、關 App 重開不重扣 | SKR-03／04 | App＋後端 | 1–2 | TODO |
-| SKR-06 | Genesis Mint 邊框在收藏卡／詳情選用、換帳戶隔離、重裝恢復 | SKR-04 | App | 1 | TODO |
-| SKR-07 | 付款對抗測試、真機成功及失敗證據；官方 SKR 小額測試前完成審查 | SKR-01～06 | QA／負責人 | 2 | TODO |
-| COMP-R01 | APK 乾淨重建、權限／隱私／授權、回歸與版本凍結 | W02，SKR 若納入則 SKR-07 | 發布／QA | 1–2 | TODO |
+| COMP-W01 | 支援 SDK 的 session 中止策略；取消後舊回覆不寫登入／授權；斷開不無限等待；不自動重送交易 | Wallet review | App | 2–3 | 程式完成（9/22 `08e3232`，§8）；真機矩陣待 W02 |
+| COMP-W02 | 任務→GPS→同步→資格→NFT／鏈上確認→收藏，一條真實可重播流程 | W01、可用後端／鏈 | App＋後端／QA | 1–2 | 待真機（需負責人實跑 ≥5 km；證據骨架 `docs/evidence/2026-09-21-release-candidate.md`） |
+| SKR-01 | 獨立 SKR 網路配置、mint owner／decimals 驗證、單位運算、環境隔離 | COMP-11 設計假設註記 | App＋後端 | 1 | 程式完成（9/21） |
+| SKR-02 | SKU／版本、資格、wallet、價格、期限與訂單參照由服務端決定；SIWS owner 綁定 | 可用真實資格、SKR-01 | 後端 | 1–2 | 程式完成（9/21） |
+| SKR-03 | 購買預覽、SOL／SKR 不足、取消、確認中；每次交易可理解且不重扣 | W01、SKR-02 | App | 1–2 | 程式完成（9/21） |
+| SKR-04 | 確認付款、唯一 receipt、交易鎖內授權；錯 mint／收款人／網路拒絕 | SKR-02 | 後端 | 2 | 程式完成（9/21） |
+| SKR-05 | 訂單恢復、晚到付款、過期／異常付款處理、關 App 重開不重扣 | SKR-03／04 | App＋後端 | 1–2 | 程式完成（9/21） |
+| SKR-06 | Genesis Mint 邊框在收藏卡／詳情選用、換帳戶隔離、重裝恢復 | SKR-04 | App | 1 | 程式完成（9/22，Gear＋Gallery） |
+| SKR-07 | 付款對抗測試、真機成功及失敗證據；官方 SKR 小額測試前完成審查 | SKR-01～06 | QA／負責人 | 2 | 自動測試通過；devnet TEST mint 已布署 l1／l2、手機錢包已注資；真機付款與主網小額待負責人 |
+| COMP-R01 | APK 乾淨重建、權限／隱私／授權、回歸與版本凍結 | W02，SKR 若納入則 SKR-07 | 發布／QA | 1–2 | 乾淨重建腳本 `scripts/release/clean-build.sh` 已備（9/22）；版本凍結待 W02 |
 | COMP-R02 | 2:50 Demo、簡報狀態修正、操作指南、連結驗證 | COMP-R01 | 產品／展示 | 1–2 | TODO |
 
 合計約 14–21 人日，尚未計外部等待。距 10/7 的日曆時間不等於可用人日；單人不能同時承諾所有上限。9/23 依單人可用時數決定 SKR 是否進本屆版本。先完成 W01／W02，再接 SKR；預留最後 4 天給回歸與素材。剩餘容量不足時採主賽版本，不壓縮付款恢復或真機驗收。

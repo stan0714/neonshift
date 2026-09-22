@@ -96,7 +96,7 @@ cd programs && anchor build --arch v0 && cargo test -p neonshift-core
 - **作者**：單人團隊（Stanley Liu）。Git 歷史完整保留，未壓縮或重寫。
 - **AI 輔助**：程式、文件與部分素材（品牌概念圖、Demo 旁白 TTS）在 Claude Code 等 AI 工具協助下完成；設計決策、驗收與提交由作者負責。commit 以 `Co-Authored-By` 標註。
 - **素材權利**：見 [docs/legal/asset-sources.md](docs/legal/asset-sources.md)；WWF 物種資料引用方式見 [docs/legal/wwf-notice-2026-09-20](docs/legal/wwf-notice-2026-09-20/README.md)。
-- **參賽狀態**：規則對照與進度見 [docs/store/competition-development-plan.md](docs/store/competition-development-plan.md)；tSKR 為 devnet 測試代幣，官方 SKR 整合尚未完成（DEC-02 OPEN）。
+- **參賽狀態**：規則對照與進度見 [docs/store/competition-development-plan.md](docs/store/competition-development-plan.md)；tSKR 為 devnet 測試代幣；SKR 付款（Genesis Mint 邊框）程式已完成並以 devnet 測試 mint 驗證，官方 SKR 主網小額測試待負責人核准（DEC-02 OPEN）。乾淨環境重建：`scripts/release/clean-build.sh`。
 
 ## 防作弊（摘要）
 

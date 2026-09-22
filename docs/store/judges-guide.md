@@ -1,6 +1,6 @@
 # NeonShift｜評審快速入口 / Reviewer guide
 
-更新：2026-09-19。**準備中：APK、影片與測試活動尚未在本文件登錄可用版本。** 這是可隨提交版本補齊的入口，不代表現在已可完成所有操作。
+更新：2026-09-22。**準備中：APK、影片與測試活動尚未在本文件登錄可用版本。** 這是可隨提交版本補齊的入口，不代表現在已可完成所有操作。
 
 ## Start here (English)
 
@@ -39,13 +39,13 @@ If your device has no qualifying Health Connect records, use the public previews
 1. **0:00–1:00**：安裝提交 APK 並冷啟動。需 Android 14+；錢包交易另需相容 MWA 錢包與 Devnet SOL。首次安裝／錢包設定可能更久。
 2. **1:00–2:00**：從歡迎頁 Demo 入口查看鞋款圖鑑與保育故事。這是系列展示，不表示已取得鞋款或 NFT。
 3. **2:00–3:00**：若要操作個人資料，連自己的測試錢包並完成 App 所需登入；沒有錢包可先看公開內容。拒絕簽章不應顯示成功。
-   - **錢包請用 Seeker 內建 Wallet（或 Jupiter）**。Phantom 26.6 在 Seeker 上簽完訊息後不會把簽章回傳給 dApp（Phantom 端錯誤 `sol_mwa_sign_messages … Readable side is not in a state that permits enqueue`，2026-09-21 實機確認），登入與打卡都會停在錢包畫面；App 會提示「錢包沒有把簽章送回來」並指引改用 Seeker Wallet（Profile → 斷開錢包 → 連接錢包 → 選「Wallet」）。若 Android 已把 Phantom 設為 `solana-wallet:` 連結預設，請到 設定 → 應用程式 → Phantom → 預設開啟 → 清除預設。
+   - 錢包相容性以本次 APK、Seeker 與錢包版本的實測清單為準。2026-09-21 曾觀察 Phantom 26.6 在 Seeker 簽訊息後未回覆；不推論所有版本皆有此問題，也不將尚未測試的錢包列為通過。新版有等待階段、逾時與晚到回覆處理，需補實機驗收；若交易結果未知，先查結果再重試。
 4. **3:00–4:00**：Arena → 合作活動 → 已登錄的測試活動，查看時區、名額、規則、權益與來源。需發布有效 fixture 才能測試。
 5. **4:00–5:00**：有有效 session 時可報名並開啟報到碼；沒有 staff 協助就停在「待報到」，不可宣稱自行完成現場驗證。後續用活動手冊查驗。
 
 ### 想驗證真正鏈上操作
 
-- 每日打卡需合格 Health Connect 紀錄與尚未領取的任務日；GPS 運動紀錄、手動補登與預覽圖不自動等同合格資料。
+- 每日步數任務需合格 Health Connect 紀錄；GPS 運動任務需單次至少 1 km、移動 10 分鐘、已同步且審核通過，並且該任務日尚未領取。手動補登與預覽不構成資格。
 - 沒有健康資料時，可在已具資格的測試情境查看 NFT 領取，**但新錢包不保證有資格**；準備團隊帳號的錄影證據不能冒充評審自己的資產。
 - 使用指南登錄的 Explorer 連結比對錢包、cluster、成功狀態與 App 結果。不需交出私鑰或助記詞。
 
@@ -90,6 +90,17 @@ flowchart LR
 
 ## 2026-09-19：跑鞋連動、同步與 Activity
 
-新增三項設計為待實作：跑鞋／可關閉背景、有序自動同步、Activity 日誌。既有運動清單與手動同步不代表新需求已驗收；參賽簡報第 2、4 頁以 DESIGN PREVIEW 呈現。
+三項功能已有程式：跑鞋／可關閉背景、有序自動同步、Activity 日誌；提交版本的完整實機驗收仍待完成。參賽簡報第 2、4 頁以 DESIGN PREVIEW 呈現。
 
 完整需求、畫面、資料契約及驗收以 [整合設計](../shoe-sync-activity.md) 為準。
+
+## 2026-09-22 提交版新增驗收重點
+
+- [九頁英文評審 PPTX](../../output/hackathon-flexclip-en/NeonShift_Hackathon_EN_Judges.pptx)＝原六頁＋三頁 NFT 附錄；[NFT 圖樣與流程](../../output/achievement-nft/README.md)是設計／流程示意，不是真實 mint 證據。影片仍需控制三分鐘。
+- Home 挑戰路線顯示每日任務、確認後 XP、下一雙鞋的剩餘 XP；里程成就與每日任務分開。
+- Workouts：PB 基準是比較起點，NFT 資格依達成當時現役鞋階。每週回顧改為次數／天數／距離／時間四欄可換行；本版窄螢幕與放大字體需補拍，不能沿用破框截圖。
+- 鞋款預覽支援側面 SVG 手動旋轉、放大、重設，並非完整 3D。任務／NFT／升鞋有不同動畫，Reduce Motion 與跳過需驗收。
+- 錢包顯示連接／登入階段與不完整登入提示；目前另有 mwaGuard 逾時與晚到結果處理程式，但未據此宣稱所有錢包均已實測通過。上述 Phantom 記錄僅代表指定版本當次測試，不作所有版本的結論。
+- 保存後路線外觀固定，改鞋或偏好只影響新運動。自動同步預設關閉，打開後依舊到新處理，不代表自動核准交易。
+- SKR 收藏外觀付款（Genesis Mint 邊框）：Gear 里程碑區與 Gallery 本人頁的邊框卡。資格＝已核准的「首次 5 km」成就；未達標顯示 LOCKED，不可用 DEMO 或本機 GPS 解鎖。購買前確認框列出金額（2.5 SKR）、網路、收款人；簽署走 MWA `solana:mainnet` 獨立授權（與 devnet 任務／NFT 分開）；送出後只查詢確認、不重送；關 App 重開會恢復待確認訂單。目前部署為 **devnet 測試 mint**（`TEST SKR`，無價值），官方 SKR 主網小額測試待負責人核准——在此之前不可視為官方 SKR 整合證據；tSKR／.skr 名稱與本功能無關。依 [參賽開發計畫](competition-development-plan.md) 的 Go／No-go 更新最終文案。
+- 可重建：`scripts/release/clean-build.sh` 從 Git HEAD 乾淨 clone 重建 release APK，紀錄於 `docs/evidence/<日期>-clean-build.md`；第三方授權見 [neonshift.cc/licenses](https://neonshift.cc/licenses/)（App Profile 亦有入口）。

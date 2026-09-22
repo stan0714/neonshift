@@ -108,4 +108,4 @@ Preserve the distinction between the working demo and planned partnerships.
 
 ## 2026-09-19 配音版本同步
 
-正式配音唯一文字來源為 [demo-voiceover-en.txt](demo-voiceover-en.txt)，目前六段共 280 字（2026-09-19 新需求修訂）（空白分詞）。投影片包 voiceover-en.txt 為一致副本；第 3 段改為流程介紹，不使用尚無實錄佐證的 “Here is a real clock-in”。本指南先前聲線試聽短文僅為內部測試，不可拼入正式配音。改稿須同步 Demo 分鏡、投影片 JSON、建置來源與 PPTX 備忘稿後再配音。
+正式配音唯一文字來源為 [demo-voiceover-en.txt](demo-voiceover-en.txt)，目前六段共 280 字（2026-09-22 修訂：第 2、4 段改為現行功能描述，需重新生成音訊）（空白分詞）。投影片包 voiceover-en.txt 為一致副本；第 3 段改為流程介紹，不使用尚無實錄佐證的 “Here is a real clock-in”。本指南先前聲線試聽短文僅為內部測試，不可拼入正式配音。改稿須同步 Demo 分鏡、投影片 JSON、建置來源與 PPTX 備忘稿後再配音。

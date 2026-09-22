@@ -83,9 +83,9 @@ txt('Your choice: OFF / ON',1022,454,780,34)
 txt('Oldest workout first',1022,552,780,39,WHITE,True)
 txt('SEP 17  >  SEP 18  >  SEP 19',1022,625,780,32,MINT)
 txt('Retry safely. Keep records in order.',1022,724,780,30,MUTED)
-txt('DESIGN PREVIEW · SAMPLE DATA · IMPLEMENTATION PENDING',85,918,1740,24,GOLD,True)
+txt('DESIGN PREVIEW · SAMPLE DATA · DEVICE VALIDATION PENDING',85,918,1740,24,GOLD,True)
 finish(2,'See your progress','0:18–0:43',
-'Start with a walk or a run. Our next design adds a personal Activity journal with monthly views and workout details. Choose automatic sync when online, with saved workouts processed oldest first. Starter shoes and level upgrades remain free.',
+'Start with a walk or a run. The app now includes a personal Activity journal with monthly views and workout details. Choose automatic sync when online, with saved workouts processed oldest first. Starter shoes and level upgrades remain free.',
 '設計預覽與示例資料，非實機。Activity 月份／篩選／詳情；連網自動同步預設關閉，開啟後依運動開始時間由舊到新。補拍 17→18→19 與較早失敗阻擋後續；不得把摘要同步當成 Health Connect 打卡或自動錢包簽署。')
 
 start(3,'VERIFY A MILESTONE')
@@ -108,8 +108,8 @@ for x,name,label,sub in [(80,'asian-elephant.png','ASIAN ELEPHANT','Forest theme
     box(x,376,855,484); pic(name,x+20,387,815,335); txt(label,x+32,744,790,34,MINT,True); txt(sub,x+32,801,800,28)
 txt('DESIGN PREVIEW · COSMETIC ONLY · ACTIVE LEVEL CONTROLS ELIGIBILITY',85,904,1740,24,GOLD,True)
 finish(4,'Discover Wild Guardians','1:29–2:03',
-'As you level up, discover Wild Guardians, inspired by threatened wildlife. Our next design lets you switch between shoes you have earned, with matching forest or ocean backgrounds. Prefer a simpler view? Turn the background off. These choices are cosmetic; your active level still controls eligibility. Each shoe connects your progress with conservation learning.',
-'本頁使用專案既有鞋款素材；多鞋切換、森林／海洋背景與關閉開關為待實作設計。正式影片補切兩雙已取得鞋→關背景→故事卡；圖不可冒充實機。使用試拆時標 DEMO PREVIEW，切帳號標 Prepared demo account。不稱隨機 NFT、付費抽獎或保育收益權。')
+'As you level up, discover Wild Guardians, inspired by threatened wildlife. The app now lets you switch between shoes you have earned, with matching forest or ocean backgrounds. Prefer a simpler view? Turn the background off. These choices are cosmetic; your active level still controls eligibility. Each shoe connects your progress with conservation learning.',
+'本頁使用專案既有鞋款素材；多鞋切換、森林／海洋背景與關閉開關已有程式；本頁仍是示意，提交版本實機待驗收。正式影片補切兩雙已取得鞋→關背景→故事卡；圖不可冒充實機。使用試拆時標 DEMO PREVIEW，切帳號標 Prepared demo account。不稱隨機 NFT、付費抽獎或保育收益權。')
 
 start(5,'CONNECT WITH COMMUNITY')
 txt('From daily movement\nto shared experiences.',80,158,1740,74,WHITE,True)
@@ -145,7 +145,7 @@ contact.save(OUT/'overview.jpg',quality=93)
 print('Built 6 slides, PPTX, PDF, PNGs, preview, overview, narration, and manifest.')
 
 # Keep review storyboard in sync with slide text and canonical narration.
-sections=['# NeonShift｜逐頁英文文案與中文分鏡\n\n2026-09-19 更新；第 2、4 頁新增設計預覽，尚待實作。']
+sections=['# NeonShift｜逐頁英文文案與中文分鏡\n\n2026-09-22 更新；第 2、4 頁仍為示意素材，功能已有程式，提交版實機驗收待完成。']
 for slide_obj, item in zip(prs.slides, manifest):
     visible='\n\n'.join('\n'.join('> '+line for line in sh.text.splitlines()) for sh in slide_obj.shapes if sh.has_text_frame and sh.text.strip())
     sections.append(f"## {item['slide']:02d}｜{item['title']}｜{item['time']}\n\n### 投影片畫面文字\n\n{visible}\n\n### English voiceover\n\n{item['voiceover']}\n\n### 中文分鏡與製作註記\n\n{item['production_notes']}")

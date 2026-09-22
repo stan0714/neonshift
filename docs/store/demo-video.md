@@ -16,7 +16,7 @@
 
 影片採產品實際操作為主，搭配短標題及重點放大；不塞入募資金額、市場規模、終端測試清單或完整競技場結算。品牌動畫最多 2 秒且包含在第一段內。保育段優先拍 App 中的鞋款及故事，野生動物空拍／素材影片不能取代產品證據。
 
-官方公告要求展示 App 使用的 Demo，列出回訪／產品契合、UX、創新及展示等評估方向。本片依這些方向安排，未假設權重。本次查閱公告仍未確認正式影片秒數或 AI 配音條款；3:00 是本次使用者硬上限，若完整表單更短則另行縮短。[本屆官方公告](https://solanamobile.com/blog/clock-in-the-solana-mobile-hackathon)（2026-09-18 查閱）。
+官方公告要求展示 App 使用的 Demo，列出回訪／產品契合、UX、創新及展示等評估方向。本片依這些方向安排，2026-09-21 已查核四項各 25%，網站 Brief 要求三分鐘 Demo。本片仍以 2:50 為目標；AI 輔助可用，但須確保素材權利，不將配音冒充真人推薦。完整表單限制另行核對。[本屆官方公告](https://solanamobile.com/blog/clock-in-the-solana-mobile-hackathon)（2026-09-18 查閱）。
 
 ## 2. 六段時間軸與剪輯預算
 
@@ -49,9 +49,9 @@
 
 **English voiceover**
 
-> Start with a walk or a run. Our next design adds a personal Activity journal with monthly views and workout details. Choose automatic sync when online, with saved workouts processed oldest first. Starter shoes and level upgrades remain free.
+> Start with a walk or a run. The app now includes a personal Activity journal with monthly views and workout details. Choose automatic sync when online, with saved workouts processed oldest first. Starter shoes and level upgrades remain free.
 
-**中文意涵**：新增設計將提供 Activity 月總覽與單次詳情，使用者可選連網自動同步，依運動時間由舊到新處理。初始鞋與升級維持免費。
+**中文意涵**：App 已有 Activity 月總覽與單次詳情，使用者可選連網自動同步，依運動時間由舊到新處理。初始鞋與升級維持免費。
 
 **畫面文字**：`DESIGN PREVIEW`、`Activity`、`Auto-sync when online: OFF / ON`、`Oldest workout first`。示例資料顯示 17→18→19，同步不等於打卡或自動錢包簽署。
 
@@ -71,11 +71,11 @@
 
 **English voiceover**
 
-> As you level up, discover Wild Guardians, inspired by threatened wildlife. Our next design lets you switch between shoes you have earned, with matching forest or ocean backgrounds. Prefer a simpler view? Turn the background off. These choices are cosmetic; your active level still controls eligibility. Each shoe connects your progress with conservation learning.
+> As you level up, discover Wild Guardians, inspired by threatened wildlife. The app now lets you switch between shoes you have earned, with matching forest or ocean backgrounds. Prefer a simpler view? Turn the background off. These choices are cosmetic; your active level still controls eligibility. Each shoe connects your progress with conservation learning.
 
 **中文意涵**：新增設計可切換已取得跑鞋，連動森林／海洋背景，也可關閉背景。這些選擇只改外觀，有效等級仍決定資格；鞋款持續連結保育學習。
 
-**畫面文字**：`DESIGN PREVIEW`、`Switch earned shoes`、`Background ON / OFF`、`Cosmetic only`。以既有鞋圖說明待實作互動，不冒充實機。不稱隨機 NFT、付費抽獎或保育收益權。
+**畫面文字**：`DESIGN PREVIEW`、`Switch earned shoes`、`Background ON / OFF`、`Cosmetic only`。以既有鞋圖說明已寫入程式、待提交版驗收的互動，不冒充實機。不稱隨機 NFT、付費抽獎或保育收益權。
 
 ### 05｜2:03–2:29 · CONNECT WITH COMMUNITY
 
@@ -152,4 +152,36 @@ ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:no
 
 ## 2026-09-19 新需求改稿（優先於前述舊拍攝註記）
 
-第 2 段改為 Activity 與自選連網同步，第 4 段補多鞋切換及可關閉背景；旁白明說 next design。這些互動待實作，不能以現有清單／鞋圖宣稱驗收完成。月曆、三筆舊到新同步、兩鞋背景切換與關閉需後續實錄；目前以標示 DESIGN PREVIEW 的簡報呈現。原時間配置維持 2:50 目標，音檔須重新生成並量測。
+第 2 段改為 Activity 與自選連網同步，第 4 段補多鞋切換及可關閉背景；2026-09-22 旁白改為現行功能描述。這些互動已有程式，不能以現有清單／鞋圖宣稱驗收完成。月曆、三筆舊到新同步、兩鞋背景切換與關閉需後續實錄；目前以標示 DESIGN PREVIEW 的簡報呈現。原時間配置維持 2:50 目標，音檔須重新生成並量測。
+
+## 8. 2026-09-22 參賽版重剪：納入 SKR 段（v4，優先於 §2 六段配置）
+
+依[參賽開發計畫 §6](competition-development-plan.md#6-發布驗收與證據包) 的 170 秒配置重排；SKR Go 決策（9/23）前先按本表準備素材，No-go 時改用末段替代稿，不保留完成宣稱。旁白共約 265 個英文單字，估 2:35–2:45 純朗讀，操作證據留 25–35 秒；成片仍以 2:50 為目標、3:00 硬上限。
+
+| 段 | 時間 | 秒 | 內容 | 來源 §2 段 |
+|---|---|---:|---|---|
+| A · MOVE WITH PURPOSE | 0:00–0:25 | 25 | 品牌 ≤2 秒 → 首頁任務卡（步數＋運動）→ 一句定位 | 01 |
+| B · RECORD & SEE PROGRESS | 0:25–1:00 | 35 | 開始跑步 → GPS 就緒 → 記錄 → 保存 → Activity 月曆／詳情 → 自動同步舊到新 | 02（縮短） |
+| C · VERIFY & COLLECT | 1:00–1:35 | 35 | Health Connect 摘要 → 打卡 → 錢包簽署 → Explorer 同筆 → 首次 5 km 里程碑進收藏 | 03（縮短）＋04 揭曉 3 秒 |
+| D · SKR IN USE | 1:35–2:20 | 45 | Genesis Mint 邊框卡（LOCKED→可購買）→ 確認框（金額／網路／收款人）→ 錢包簽署 → 確認中 → 已解鎖 → Gear／Gallery 卡套邊框 → 重新登入仍在 | 新 |
+| E · EVIDENCE & WHAT'S NEXT | 2:20–2:50 | 30 | 交易簽章／APK SHA／版本一幕；野生動物鞋款一幕；`NEXT: LOCAL PILOTS`；評審入口；片尾靜止 ≥2 秒 | 05（縮為 1 幕）＋06 |
+
+第 05 段「活動雙角色」降為 E 段 4–5 秒的一幕（或省略）；保育鞋款故事併入 E 段。
+
+### D｜1:35–2:20 · SKR IN USE
+
+**English voiceover**
+
+> SKR is the token of the Solana Mobile ecosystem, and NeonShift gives it one honest job. Verified first-5K runners can unlock a Genesis Mint frame for their collection card, paid in SKR from their own wallet. The price, the recipient, and the order live on the server; the app shows exactly what you will sign. After the transfer is confirmed onchain, the frame is unlocked for that wallet — it survives reinstalls and sign-outs. SKR never buys XP, records, or achievements. It only changes how you show them.
+
+**中文意涵**：SKR 是 Solana Mobile 生態代幣，NeonShift 給它一個誠實的用途：已驗證首次 5 km 的跑者可用自己錢包的 SKR 解鎖收藏卡 Genesis Mint 邊框。價格、收款人與訂單由伺服器決定，App 顯示你將簽署的內容；鏈上確認後，該錢包永久擁有邊框（重裝、登出都在）。SKR 不買 XP、成績或成就，只改變呈現方式。
+
+**畫面文字**：`Requires a verified first 5K`；確認框全屏 1–2 秒（`2.5 SKR · Solana mainnet · recipient …`）；`Cosmetic only · no XP, no ranking`；若錄製用 devnet 測試 mint，全段持續顯示 `TEST SKR · devnet · not official SKR`，且旁白改 "paid with a test token on devnet"；主網實錄才可顯示 `REAL DEVICE · MAINNET · official SKR`。
+
+**拍攝門檻**：資格必須來自真實 ≥5 km 跑步並經 registry 核准（不得 DEMO 覆寫）；錢包用 Seeker Wallet（Phantom 26.6 有已知不回覆問題，見 judges-guide）；付款交易簽章、訂單 id、receipt 需登錄證據包；「確認中」等待可剪短並標 `Wait time shortened`。不得把 devnet 測試付款剪成主網成功。
+
+### SKR No-go 替代稿（D 段改 20 秒，餘 25 秒回填 B／C 操作證據）
+
+> NeonShift is designed to give SKR one honest job: cosmetic unlocks for verified achievements, paid from your own wallet, never affecting XP or records. This build ships the flow on devnet with a test token; official SKR payments are not yet enabled.
+
+畫面標 `PLANNED · devnet test token`；不出現「已整合官方 SKR」字樣；§6 成片說明欄同步刪除 SKR 完成敘述。
