@@ -3,7 +3,7 @@
 #   scripts/ops/funnel.sh                       # 近 30 天（cohort＝30 天前起 7 天內首見）
 #   scripts/ops/funnel.sh 2026-09-15T00:00:00Z  # 指定 since
 set -euo pipefail
-HOST="${OPS_HOST:-root@l1.neonshift.cc}"; API="${API:-http://l1.neonshift.cc:6080}"
+HOST="${OPS_HOST:-root@l2.neonshift.cc}"; API="${API:-http://l2.neonshift.cc:6080}"
 SINCE="${1:-}"
 TOKEN="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST" "grep '^OPS_TOKEN=' /etc/neonshift/api.env | cut -d= -f2-")"
 [ -n "$TOKEN" ] || { echo "取不到 OPS_TOKEN" >&2; exit 1; }

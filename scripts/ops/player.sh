@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # 真機驗收／評審支援：印出某錢包的診斷摘要（運動為何不算 PB／首次、成就狀態、SKR 訂單）。
-#   scripts/ops/player.sh <wallet>            # 走 l1 直連（http://l1.neonshift.cc:6080）
+#   scripts/ops/player.sh <wallet>            # 走 l2 直連（http://l2.neonshift.cc:6080；l1 對外路徑 2026-09-22 起有封包遺失）
 #   OPS_HOST=root@l2.neonshift.cc API=http://l2.neonshift.cc:6080 scripts/ops/player.sh <wallet>
 #   scripts/ops/player.sh <wallet> --json     # 原始 JSON
 # OPS_TOKEN 由 ssh 於執行時從 /etc/neonshift/api.env 讀取，不落地、不進 repo。
 set -euo pipefail
 WALLET="${1:-}"; [ -n "$WALLET" ] || { echo "用法：$0 <wallet> [--json]" >&2; exit 2; }
-HOST="${OPS_HOST:-root@l1.neonshift.cc}"
-API="${API:-http://l1.neonshift.cc:6080}"
+HOST="${OPS_HOST:-root@l2.neonshift.cc}"
+API="${API:-http://l2.neonshift.cc:6080}"
 TOKEN="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST" "grep '^OPS_TOKEN=' /etc/neonshift/api.env | cut -d= -f2-")"
 [ -n "$TOKEN" ] || { echo "取不到 OPS_TOKEN（$HOST:/etc/neonshift/api.env）" >&2; exit 1; }
 JSON="$(curl -fsS -m 30 -H "Authorization: Bearer $TOKEN" "$API/v1/ops/players/$WALLET")"
