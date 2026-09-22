@@ -1,4 +1,5 @@
 import { ShoePreview } from '@/components/ShoePreview';
+import { genesisFrameActive, useSkrStore } from '@/state/skrStore';
 import { Feather } from '@expo/vector-icons';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -215,6 +216,8 @@ export function GalleryPlayerScreen() {
   const { t } = useT();
   const { params } = useRoute<RouteProp<RootParamList, 'GalleryPlayer'>>();
   const me = useWalletStore((s) => s.session?.address ?? null);
+  const skr = useSkrStore();
+  const framed = genesisFrameActive(skr, me); // SKR-06：只在本人頁面套 Genesis 邊框（他人頁面不顯示付費外觀）
   const [data, setData] = useState<GalleryPlayerResponse | null>(null);
   const [err, setErr] = useState<Err | null>(null);
   const [loading, setLoading] = useState(false);
@@ -317,7 +320,7 @@ export function GalleryPlayerScreen() {
                   <View style={styles.grid}>
                     {firsts.map((a) => (
                       <View key={a.achievement_id} style={styles.cell}>
-                        <PbCard a={a} onPress={a.asset ? () => navigation.navigate('AchievementDetail', { asset: a.asset! }) : undefined} testID={`gallery-first-${a.achievement_id}`} />
+                        <PbCard a={a} framed={!!data?.is_you && framed} onPress={a.asset ? () => navigation.navigate('AchievementDetail', { asset: a.asset! }) : undefined} testID={`gallery-first-${a.achievement_id}`} />
                       </View>
                     ))}
                   </View>

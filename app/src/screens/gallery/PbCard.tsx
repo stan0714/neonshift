@@ -15,7 +15,7 @@ import { color, radius, space, Text } from '@/theme';
  */
 export const achievementLabel = (t: ReturnType<typeof useT>['t'], a: Pick<GalleryAchievement, 'series' | 'category' | 'event'>) =>
   a.series === 'event_check_in' || a.series === 'event_finish' ? (a.event?.title ?? t('gal.series.' + a.series as TKey)) : a.series === 'genesis_distance' || a.series === 'first_finish' ? t(`ms.cat.${a.category}` as TKey) : t(`pb.cat.${a.category}` as TKey);
-export function PbCard({ a, onPress, testID }: { a: GalleryAchievement; onPress?: () => void; testID?: string }) {
+export function PbCard({ a, onPress, testID, framed = false }: { a: GalleryAchievement; onPress?: () => void; testID?: string; /** SKR-06：本人擁有並選用 Genesis 邊框時套在里程碑卡 */ framed?: boolean }) {
   const { t } = useT();
   const speed = a.series === 'pb_speed';
   const milestone = a.series === 'genesis_distance' || a.series === 'first_finish';
@@ -29,7 +29,7 @@ export function PbCard({ a, onPress, testID }: { a: GalleryAchievement; onPress?
   const story = event ? (a.series === 'event_finish' ? t('gal.story.eventFinish') : t('gal.story.eventCheckIn')) : milestone ? t('gal.story.first') : a.record === 'current' ? t('gal.story.pbCurrent') : a.record === 'historical' ? t('gal.story.pbHistorical') : t('gal.story.invalidated');
   return (
     <Pressable onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : undefined} accessibilityLabel={`${label} · ${t(`gal.record.${a.record}` as TKey)}`} testID={testID}>
-      <Surface level="elevated" style={[styles.tile, a.record === 'invalidated' && styles.dim]}>
+      <Surface level="elevated" style={[styles.tile, a.record === 'invalidated' && styles.dim, framed && milestone && styles.framed]} testID={framed && milestone ? `${testID ?? 'pb-card'}-framed` : undefined}>
         <View style={[styles.art, { borderColor: tint }]}>
           {showArt ? (
             <SvgUri uri={a.image} width="100%" height="100%" onError={() => setArtFailed(true)} testID="pb-card-art" />
@@ -61,6 +61,7 @@ export function PbCard({ a, onPress, testID }: { a: GalleryAchievement; onPress?
 }
 
 const styles = StyleSheet.create({
+  framed: { borderColor: color.warning, borderWidth: 2 },
   tile: { flex: 1, padding: space.s, borderRadius: radius.l },
   dim: { opacity: 0.7 },
   art: { aspectRatio: 1, borderRadius: radius.m, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: space.xs, backgroundColor: color.surface, overflow: 'hidden' },

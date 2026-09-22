@@ -873,7 +873,7 @@ WIP：運動前預覽／選擇、開始頁鞋款一致、本機不可改寫快�
 | SKR-03 | 購買預覽、SOL／SKR 不足、取消、確認中；每次交易可理解且不重扣 | WIP | App `SkrService.purchase`、`GenesisFrameCard`（確認框列金額／網路／收款人）；餘額預檢；送出後只確認不重送 |
 | SKR-04 | 確認付款、唯一 receipt、交易鎖內授權；錯 mint／收款人／網路拒絕 | WIP | `verify.ts`＋`fulfillSkrOrder`（FOR UPDATE＋signature 主鍵）；他人付款／錯 mint／金額不足／逾期 → needs_review |
 | SKR-05 | 訂單恢復、晚到付款、過期／異常付款處理、關 App 重開不重扣 | WIP | `recover`（signature／reference 反查）、寬限 600 s、confirming 取消規則、App pending 按 network＋wallet 持久化 |
-| SKR-06 | Genesis Mint 邊框在收藏卡／詳情選用、換帳戶隔離、重裝恢復 | WIP | 權限以伺服器為準、`useGenesisFrame` 按錢包；里程碑卡套邊框；Gallery 詳情尚未套用 |
+| SKR-06 | Genesis Mint 邊框在收藏卡／詳情選用、換帳戶隔離、重裝恢復 | WIP | 權限以伺服器為準、`useGenesisFrame` 按錢包；Gear 里程碑卡與 Gallery 本人頁「首次」卡套邊框（他人頁不顯示付費外觀）；真機驗收待 |
 | SKR-07 | 付款對抗測試、真機成功及失敗證據；官方 SKR 小額測試前完成審查 | WIP | 自動測試 backend 11／app 12 通過；真機（devnet TEST mint 或主網小額）待負責人決定價格／收款人後執行 |
 
 DEC-02 仍 OPEN（devnet 替代展示是否被主辦方接受）；本實作以主網官方 mint 為正式路徑、devnet TEST mint 只供試跑並在 App 標示。
