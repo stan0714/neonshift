@@ -1368,6 +1368,10 @@ export const zhTW: Record<keyof typeof en, string> = {
   'rec.units': '分段',
   'rec.units.km': '1 公里',
   'rec.units.mi': '1 英里',
+  'rec.flow.start': '選好運動與目標，按開始進入倒數。',
+  'rec.flow.recording': '想結束運動時，請先按「暫停」。',
+  'rec.flow.paused': '目前已暫停。可繼續運動，或結束並保存紀錄。',
+  'sum.flow.title': '本次運動已結束',
   'rec.go': '開始',
   'rec.settings': '運動設定',
   'rec.countdown.skip': '點一下立即開始',
@@ -1878,5 +1882,5 @@ export const zhTW: Record<keyof typeof en, string> = {
   'sum.sync.rejectedBody': '原因：{message}。紀錄仍保存在手機，但不會計入任務與 PB。',
   'sum.sync.failedTitle': '同步失敗',
   'sum.sync.failedBody': '{message}。摘要已保存在手機，可再試一次。',
-  'sum.done': '完成',
+  'sum.done': '查看運動紀錄',
 };

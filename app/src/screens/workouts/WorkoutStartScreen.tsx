@@ -376,6 +376,7 @@ export function WorkoutStartScreen() {
         </View>
       ) : null}
 
+      <Text variant="caption" tone="secondary" style={[styles.center, styles.mt]} testID="start-flow-hint">{t('rec.flow.start')}</Text>
       <View style={styles.controls}>
         <Pressable onPress={() => setSheet('settings')} style={styles.sideButton} accessibilityRole="button" accessibilityLabel={t('rec.settings')} testID="start-settings">
           <Feather name="settings" size={26} color={color.textPrimary} />
@@ -533,7 +534,7 @@ export function WorkoutStartScreen() {
 }
 
 const styles = StyleSheet.create({
-  gpsReadyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, paddingHorizontal: space.l, marginTop: space.xs },
+  gpsReadyRow: { flexWrap: 'wrap', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, paddingHorizontal: space.l, marginTop: space.xs },
   mt: { marginTop: space.m },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.s, marginBottom: space.xs },
   stepBtn: { width: 48, height: 48, borderRadius: radius.m, borderWidth: 1, borderColor: color.borderSubtle, alignItems: 'center', justifyContent: 'center', backgroundColor: color.elevated },
@@ -552,14 +553,14 @@ const styles = StyleSheet.create({
   tabInner: { flexDirection: 'row', alignItems: 'center', gap: space.xxs },
   tabLine: { height: 2, marginTop: space.xxs, backgroundColor: 'transparent', borderRadius: 1 },
   traits: { flexDirection: 'row', flexWrap: 'wrap', marginTop: space.xs },
-  hero: { flex: 1, minHeight: 200, alignItems: 'center', justifyContent: 'center', marginTop: space.s, borderRadius: radius.l, overflow: 'hidden' },
+  hero: { flex: 1, minHeight: 160, alignItems: 'center', justifyContent: 'center', marginTop: space.s, borderRadius: radius.l, overflow: 'hidden' },
   bigNumber: { fontSize: 88, lineHeight: 96, fontWeight: '800', fontStyle: 'italic', letterSpacing: -2, color: color.textPrimary, fontVariant: ['tabular-nums'], textAlign: 'center' },
   underline: { width: 160, height: 3, backgroundColor: color.textPrimary, marginTop: space.xxs, marginBottom: space.s, borderRadius: 2 },
   chipRow: { flexDirection: 'row', justifyContent: 'center', gap: space.l, marginTop: space.s },
   roundChip: { width: 84, height: 84, borderRadius: 42, backgroundColor: color.surface, borderWidth: 1, borderColor: color.borderSubtle, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.l },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.s },
   sideButton: { width: 64, height: 64, borderRadius: 32, backgroundColor: color.surface, borderWidth: 1, borderColor: color.borderSubtle, alignItems: 'center', justifyContent: 'center' },
-  startButton: { width: 168, height: 168, borderRadius: 84, backgroundColor: color.mint, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.m },
+  startButton: { flex: 1, minWidth: 0, height: 80, borderRadius: radius.l, backgroundColor: color.mint, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.m },
   startPressed: { opacity: 0.85 },
   startDisabled: { backgroundColor: color.elevated, borderWidth: 1, borderColor: color.borderSubtle },
   startLabel: { width: '100%', textAlign: 'center', fontSize: 32, lineHeight: 40, fontWeight: '800', fontStyle: 'italic', letterSpacing: 1, color: color.onMint },

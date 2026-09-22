@@ -281,8 +281,13 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   // 完整性：健走以 3 m/s（10.8 km/h）持續 2 分鐘 → sustained_speed（防弊）
   expect(screen.getByTestId('sum-integrity')).toBeTruthy();
   expect(screen.getByText(/^Sustained speed: 1 stretch/)).toBeTruthy();
+  // 離開摘要要重設堆疊：Workouts 的上一頁是首頁，不是已作廢的開始頁／摘要頁（否則返回鍵像卡住）
   await fireEvent.press(screen.getByTestId('sum-done'));
-  expect(mockNav.navigate).toHaveBeenCalledWith('Workouts');
+  expect(mockNav.navigate).not.toHaveBeenCalledWith('Workouts');
+  expect(mockNav.dispatch).toHaveBeenCalledWith(expect.objectContaining({
+    type: 'RESET',
+    payload: expect.objectContaining({ index: 1, routes: [{ name: 'Main' }, { name: 'Workouts' }] }),
+  }));
 });
 
 const SUMMARY = { rulesVersion: 3, distanceMm: 1_800_000, elapsedMs: 600_000, movingMs: 600_000, pausedMs: 0, avgSpeedKmh: 10.8, avgPaceSPerKm: 333, movingAvgSpeedKmh: 10.8, movingAvgPaceSPerKm: 333, maxSpeed5sKmh: 12, splits: [], laps: [], fastestSplit: null, trackEquivalent: null, quality: { accepted: 558, rejected: { not_finite: 0, out_of_order: 0, duplicate: 0, low_accuracy: 0, speed_spike: 0, paused: 0, not_recording: 0 }, stationary: 0, segments: 1, gaps: 0, coverageRatio: 1, complete: true }, integrity: { flags: [], mockPoints: 0, sustainedSpeeding: 0, gapTeleports: 0, clockDriftMs: 0, motionProbes: { total: 0, mismatched: 0 } } };

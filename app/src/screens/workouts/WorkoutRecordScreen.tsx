@@ -34,6 +34,19 @@ import { useRecorder } from './useRecorder';
  */
 export function WorkoutRecordScreen() {
   const { t, locale } = useT();
+  const [notificationState, setNotificationState] = useState<WorkoutChannelState | null>(null);
+  useEffect(() => {
+    const check = () => {
+      setNotificationState(ensureWorkoutChannel({ name: t('rec.notif.channelName'), description: t('rec.notif.channelDesc') }));
+      setWorkoutReturnTarget();
+    };
+    check();
+    const delayed = setTimeout(check, 1000);
+    const sub = AppState.addEventListener('change', state => { if (state === 'active') check(); });
+    return () => { clearTimeout(delayed); sub.remove(); };
+  // Translation callback is recreated per render; only locale changes require a refresh.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale]);
   const navigation = useNavigation();
   const s = useRecorder();
   const [busy, setBusy] = useState(false);
@@ -170,6 +183,8 @@ export function WorkoutRecordScreen() {
           <Text variant="label" tone={locked ? 'mint' : 'secondary'}>{locked ? t('rec.lock.locked') : t('rec.lock.lock')}</Text>
         </Pressable>
       </View>
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false} testID="record-body">
+      {notificationState && (notificationState.silenced || !notificationState.appNotificationsEnabled) ? <InlineState kind="warning" title={t('rec.notif.silencedTitle')} body={t(notificationState.appNotificationsEnabled ? 'rec.notif.silencedBody' : 'rec.notif.disabledBody')} action={{ label: t('rec.permissionOpen'), onPress: () => void Linking.openSettings() }} testID="record-notification-warning" /> : null}
       {s.state === 'paused' && s.pauseKind === 'auto' ? (
         <Text variant="caption" tone="warning" style={styles.center} testID="record-autopause-note">
           {t('rec.autoPaused.note')}
@@ -213,7 +228,6 @@ export function WorkoutRecordScreen() {
         />
       ) : null}
       {/* 中段可捲動（內容依模式與資料變多）；狀態列與控制列固定 */}
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false} testID="record-body">
       <View style={[styles.hero, onFire && styles.heroFire]} accessible accessibilityLabel={`${primaryLabel} ${primary === '—' ? t('rec.a11y.none') : primary} ${profile.primary === 'time' ? '' : profile.primary === 'speed' ? t('rec.a11y.kmh') : t('rec.a11y.minPerKm')}${onFire ? `, ${t('rec.energy.title')}, ${t('rec.vsAvg.faster', { p: -vsAvg! })}` : ''}`}>
         {onFire ? <View pointerEvents="none" style={styles.energyBackdrop} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID="record-energy">
           <LinearGradient colors={[color.warning, color.danger, color.surface]} start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }} style={styles.energyWash} />
@@ -377,6 +391,9 @@ export function WorkoutRecordScreen() {
         </Text>
       )}
       </ScrollView>
+      <Text variant="caption" tone={s.state === 'paused' ? 'warning' : 'muted'} style={styles.center} testID="record-control-hint">
+        {t(s.state === 'finishing' ? 'rec.finishing' : s.state === 'paused' ? 'rec.flow.paused' : 'rec.flow.recording')}
+      </Text>
       <View style={styles.controls}>
         {locked ? (
           <View style={[styles.ctl, styles.ctlWide, styles.ctlPlaceholder]} testID="record-locked" />
@@ -420,19 +437,6 @@ export function WorkoutRecordScreen() {
 const HOLD_MS = 1200;
 function HoldToUnlock({ onUnlock }: { onUnlock: () => void }) {
   const { t, locale } = useT();
-  const [notificationState, setNotificationState] = useState<WorkoutChannelState | null>(null);
-  useEffect(() => {
-    const check = () => {
-      setNotificationState(ensureWorkoutChannel({ name: t('rec.notif.channelName'), description: t('rec.notif.channelDesc') }));
-      setWorkoutReturnTarget();
-    };
-    check();
-    const delayed = setTimeout(check, 1000);
-    const sub = AppState.addEventListener('change', state => { if (state === 'active') check(); });
-    return () => { clearTimeout(delayed); sub.remove(); };
-  // Translation callback is recreated per render; only locale changes require a refresh.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locale]);
   const reduced = useReduceMotion();
   const progress = useRef(new Animated.Value(0)).current;
   const [holding, setHolding] = useState(false);

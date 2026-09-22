@@ -1,4 +1,4 @@
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { CommonActions, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, Share, StyleSheet, Switch, View } from 'react-native';
 
@@ -28,6 +28,12 @@ import { color, radius, space, Text } from '@/theme';
 const store = new LocalWorkoutStore();
 
 /** 摘要頁（Style 23）：距離／elapsed／平均配速或速度／最高 5 秒速度／活動 kcal（無裝置值 —）；分頁 Splits／Laps／品質；路線不顯示（地圖供應商未定） */
+/**
+ * 結束運動後離開摘要：重設為「首頁 → 運動紀錄」。
+ * 直接 navigate 會把已作廢的開始頁與摘要頁留在下面，返回鍵會倒退到準備畫面，看起來像卡住。
+ */
+const toWorkoutsFromHome = CommonActions.reset({ index: 1, routes: [{ name: 'Main' }, { name: 'Workouts' }] });
+
 export function WorkoutSummaryScreen() {
   const { t } = useT();
   const navigation = useNavigation();
@@ -121,6 +127,25 @@ export function WorkoutSummaryScreen() {
 
   return (
     <Screen scroll testID="workout-summary-screen">
+      <Text variant="heading1" style={styles.mt}>{t('sum.flow.title')}</Text>
+      {(meta.unsavedPoints ?? 0) > 0 ? (
+        <InlineState kind="warning" title={t('sum.unsaved.title')} body={t('sum.unsaved.body', { n: meta.unsavedPoints ?? 0 })} testID="sum-unsaved" />
+      ) : null}
+      {meta.status === 'needs_review' ? <InlineState kind="warning" title={t('sum.needsReview')} testID="sum-needs-review" /> : null}
+      <View style={styles.syncRow}>
+        <Text variant="caption" tone={meta.syncedSessionId ? 'success' : 'muted'} testID="sum-sync">
+          {meta.syncedSessionId ? t('sum.synced') : t('sum.notSynced')}
+        </Text>
+        {!meta.syncedSessionId ? <Button label={t('sum.syncNow')} variant="secondary" onPress={() => void syncNow()} loading={syncing} loadingLabel={t('sum.syncing')} testID="sum-sync-now" /> : null}
+      </View>
+      {syncOutcome && !syncOutcome.ok && !meta.syncedSessionId ? (
+        syncOutcome.code === 'NO_SESSION' ? (
+          <SignInState title={t('sum.sync.signinTitle')} body={t('sum.sync.signinBody')} onSignedIn={syncNow} testID="sum-sync-signin" />
+        ) : (
+          <InlineState kind={syncOutcome.code === 'NETWORK_ERROR' || syncOutcome.code === 'BLOCKED_EARLIER' ? 'warning' : 'error'} title={t(syncOutcome.code === 'NETWORK_ERROR' ? 'sum.sync.offlineTitle' : syncOutcome.code === 'REJECTED' ? 'sum.sync.rejectedTitle' : syncOutcome.code === 'BLOCKED_EARLIER' ? 'sync.blockedEarlier' : 'sum.sync.failedTitle')} body={syncOutcome.code === 'BLOCKED_EARLIER' ? t('sync.blockedEarlierBody', { message: syncOutcome.message }) : t(syncOutcome.code === 'NETWORK_ERROR' ? 'sum.sync.offlineBody' : syncOutcome.code === 'REJECTED' ? 'sum.sync.rejectedBody' : 'sum.sync.failedBody', { message: syncOutcome.message })} action={syncOutcome.code === 'REJECTED' ? undefined : syncOutcome.code === 'BLOCKED_EARLIER' ? { label: t('sync.openQueue'), onPress: () => navigation.dispatch(toWorkoutsFromHome) } : { label: t('common.tryAgain'), onPress: () => void syncNow(), loading: syncing }} testID={`sum-sync-${syncOutcome.code.toLowerCase()}`} />
+        )
+      ) : null}
+
       <View style={styles.hero}>
         <Text variant="displayL" numeric testID="sum-distance">
           {formatKm(String(s.distanceMm))}
@@ -129,6 +154,7 @@ export function WorkoutSummaryScreen() {
           {modeLabel(t, meta.sport, meta.intent)} · {new Date(meta.startedAtUtc).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
         </Text>
       </View>
+      <Button label={t('sum.done')} style={styles.mt} onPress={() => navigation.dispatch(toWorkoutsFromHome)} testID="sum-done" />
       <View style={styles.grid}>
         <Stat label={t('sum.elapsed')} value={formatDuration(String(s.elapsedMs))} />
         <Stat label={t('sum.moving')} value={formatDuration(String(s.movingMs))} />
@@ -160,9 +186,6 @@ export function WorkoutSummaryScreen() {
           </View>
         </Surface>
       ) : null}
-      {(meta.unsavedPoints ?? 0) > 0 ? (
-        <InlineState kind="warning" title={t('sum.unsaved.title')} body={t('sum.unsaved.body', { n: meta.unsavedPoints ?? 0 })} testID="sum-unsaved" />
-      ) : null}
       {meta.environment !== 'indoor' ? (
         <Surface style={styles.card} testID="sum-route">
           <View style={styles.routeHead}>
@@ -176,20 +199,6 @@ export function WorkoutSummaryScreen() {
             {t('sum.routeHint')}
           </Text>
         </Surface>
-      ) : null}
-      {meta.status === 'needs_review' ? <InlineState kind="warning" title={t('sum.needsReview')} testID="sum-needs-review" /> : null}
-      <View style={styles.syncRow}>
-        <Text variant="caption" tone={meta.syncedSessionId ? 'success' : 'muted'} testID="sum-sync">
-          {meta.syncedSessionId ? t('sum.synced') : t('sum.notSynced')}
-        </Text>
-        {!meta.syncedSessionId ? <Button label={t('sum.syncNow')} variant="secondary" onPress={() => void syncNow()} loading={syncing} loadingLabel={t('sum.syncing')} testID="sum-sync-now" /> : null}
-      </View>
-      {syncOutcome && !syncOutcome.ok && !meta.syncedSessionId ? (
-        syncOutcome.code === 'NO_SESSION' ? (
-          <SignInState title={t('sum.sync.signinTitle')} body={t('sum.sync.signinBody')} onSignedIn={syncNow} testID="sum-sync-signin" />
-        ) : (
-          <InlineState kind={syncOutcome.code === 'NETWORK_ERROR' || syncOutcome.code === 'BLOCKED_EARLIER' ? 'warning' : 'error'} title={t(syncOutcome.code === 'NETWORK_ERROR' ? 'sum.sync.offlineTitle' : syncOutcome.code === 'REJECTED' ? 'sum.sync.rejectedTitle' : syncOutcome.code === 'BLOCKED_EARLIER' ? 'sync.blockedEarlier' : 'sum.sync.failedTitle')} body={syncOutcome.code === 'BLOCKED_EARLIER' ? t('sync.blockedEarlierBody', { message: syncOutcome.message }) : t(syncOutcome.code === 'NETWORK_ERROR' ? 'sum.sync.offlineBody' : syncOutcome.code === 'REJECTED' ? 'sum.sync.rejectedBody' : 'sum.sync.failedBody', { message: syncOutcome.message })} action={syncOutcome.code === 'REJECTED' ? undefined : syncOutcome.code === 'BLOCKED_EARLIER' ? { label: t('sync.openQueue'), onPress: () => navigation.navigate('Workouts') } : { label: t('common.tryAgain'), onPress: () => void syncNow(), loading: syncing }} testID={`sum-sync-${syncOutcome.code.toLowerCase()}`} />
-        )
       ) : null}
       <View style={styles.tabs} accessibilityRole="tablist">
         {(['splits', 'laps', 'quality'] as const).map((k) => (
@@ -292,7 +301,6 @@ export function WorkoutSummaryScreen() {
         </Text>
         <Button label={t('sum.share.button')} variant="secondary" style={styles.mt} onPress={() => void Share.share({ message: sharePreview }).catch(() => {})} testID="sum-share-button" />
       </Surface>
-      <Button label={t('sum.done')} style={styles.mt} onPress={() => navigation.navigate('Workouts')} testID="sum-done" />
       {params.celebrate ? <WorkoutActionFeedback key={params.sessionId} mode={modeOfIntent(meta.sport, meta.intent) ?? (meta.sport === 'run' ? 'run' : 'walk')} action="finish" /> : null}
     </Screen>
   );
@@ -324,8 +332,8 @@ const styles = StyleSheet.create({
   hero: { alignItems: 'center', marginTop: space.m },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: space.m, gap: space.s },
   kcalHint: { flexDirection: 'row', flexWrap: 'wrap', marginTop: space.xs, minHeight: 32, alignItems: 'center' },
-  stat: { width: '47%', padding: space.m, borderRadius: radius.m, backgroundColor: color.elevated },
-  syncRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.m, gap: space.s },
+  stat: { flexBasis: '43%', flexGrow: 1, minWidth: 0, padding: space.m, borderRadius: radius.m, backgroundColor: color.elevated },
+  syncRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginTop: space.m, gap: space.s },
   tabs: { flexDirection: 'row', marginTop: space.m, borderWidth: 1, borderColor: color.borderSubtle, borderRadius: radius.m, overflow: 'hidden' },
   tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   tabOn: { backgroundColor: color.mint },

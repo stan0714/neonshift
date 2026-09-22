@@ -1389,6 +1389,10 @@ export const en = {
   'rec.units': 'Splits',
   'rec.units.km': '1 km',
   'rec.units.mi': '1 mile',
+  'rec.flow.start': 'Choose your activity and goal, then start the countdown.',
+  'rec.flow.recording': 'To finish, tap Pause first.',
+  'rec.flow.paused': 'Paused. Resume when ready, or finish to save this workout.',
+  'sum.flow.title': 'Workout finished',
   'rec.go': 'Start',
   'rec.settings': 'Run settings',
   'rec.countdown.skip': 'Tap to start now',
@@ -1899,5 +1903,5 @@ export const en = {
   'sum.sync.rejectedBody': 'Reason: {message}. It stays on this phone but will not count toward quests or personal bests.',
   'sum.sync.failedTitle': 'Sync failed',
   'sum.sync.failedBody': '{message}. The summary is saved on this phone; you can try again.',
-  'sum.done': 'Done',
+  'sum.done': 'View my activities',
 } as const;

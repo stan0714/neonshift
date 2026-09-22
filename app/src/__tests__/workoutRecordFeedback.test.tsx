@@ -7,6 +7,7 @@ import { WorkoutRecordScreen } from '@/screens/workouts/WorkoutRecordScreen';
 import { useRecorder } from '@/screens/workouts/useRecorder';
 import { workoutRecorder, type RecorderSnapshot } from '@/services/workouts/WorkoutRecorder';
 import { useWorkoutPrefs } from '@/state/workoutPrefsStore';
+import * as notifications from '@/services/workouts/notificationChannel';
 import { ThemeProvider } from '@/theme';
 
 jest.mock('@/screens/workouts/useRecorder', () => ({ useRecorder: jest.fn() }));
@@ -108,4 +109,21 @@ test('review 2：時間目標進度與達標以運動時間計；文案標示 mo
   await show({ goal: { kind: 'time', target: 600, unit: 's', version: 2 }, goalReached: false, movingMs: 300_000, elapsedMs: 900_000, pausedMs: 600_000 });
   expect(screen.getByTestId('record-goal-bar').props.accessibilityValue.now).toBe(50);
   expect(screen.getByTestId('record-goal').props.children).toBe('Goal 10 min moving');
+});
+
+
+test('通知被關閉時，未鎖定的記錄畫面也顯示設定入口並設定返回目標', async () => {
+  const channel = jest.spyOn(notifications, 'ensureWorkoutChannel').mockReturnValue({ importance: 0, silenced: true, appNotificationsEnabled: false });
+  const target = jest.spyOn(notifications, 'setWorkoutReturnTarget').mockImplementation(() => {});
+  try {
+    await show();
+    expect(screen.getByTestId('record-notification-warning')).toBeTruthy();
+    expect(screen.queryByTestId('record-lock-overlay')).toBeNull();
+    expect(target).toHaveBeenCalled();
+    expect(screen.getByTestId('record-control-hint').props.children).toBe('To finish, tap Pause first.');
+  } finally {
+    await cleanup();
+    channel.mockRestore();
+    target.mockRestore();
+  }
 });

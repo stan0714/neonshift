@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNavigation, StackActions } from '@react-navigation/native';
+import { CommonActions, useNavigation, StackActions } from '@react-navigation/native';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { GameGuideScreen } from '@/screens/GameGuideScreen';
 import { NavigationContainer, type LinkingOptions } from '@react-navigation/native';
@@ -106,7 +106,10 @@ export function RootNavigator() {
 function WorkoutReturnScreen() {
   const navigation = useNavigation();
   useEffect(() => {
-    navigation.dispatch(StackActions.replace(workoutRecorder.active() ? 'WorkoutRecord' : 'Workouts'));
+    const target = workoutRecorder.active() ? 'WorkoutRecord' : 'Workouts';
+    // 由通知冷啟動時這頁是堆疊唯一一頁：replace 之後沒有上一頁，返回鍵會消失。改成在下面墊一層首頁。
+    const alone = navigation.getState()?.routes.length === 1;
+    navigation.dispatch(alone ? CommonActions.reset({ index: 1, routes: [{ name: 'Main' }, { name: target }] }) : StackActions.replace(target));
   }, [navigation]);
   return null;
 }
