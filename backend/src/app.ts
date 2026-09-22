@@ -15,6 +15,7 @@ import { AchievementService, achievementRoutes } from "./pb/achievements.js";
 import { EventBadgeService } from "./milestones/eventBadges.js";
 import { MilestoneService, milestoneRoutes } from "./milestones/service.js";
 import { opsPlayerRoutes } from "./ops/player.js";
+import { passportRoutes, PassportService } from "./passport/service.js";
 import { PersonalBestService, pbRoutes } from "./pb/service.js";
 import { QuestService, questRoutes } from "./quests/service.js";
 import { defaultRpcUrl, RpcSkrChain, type SkrChain } from "./skr/chain.js";
@@ -187,6 +188,7 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch, ch
     await v1.register(achievementRoutes, { auth, store: dataStore, achievements, pbs, now: now ?? (() => new Date()), eventBadges });
     await v1.register(milestoneRoutes, { auth, milestones });
     await v1.register(opsPlayerRoutes, { store: dataStore, pbs, milestones, now: now ?? (() => new Date()) }); // ops 診斷摘要（OPS_TOKEN）
+    await v1.register(passportRoutes, { auth, passport: new PassportService(dataStore, pbs, milestones, eventBadges, quests) }); // XD-03 成就護照
     // SKR-02～06：官方 SKR 外觀付款（獨立 RPC／網路，與 devnet 程式無關）
     await v1.register(skrRoutes, { auth, skr, sensitiveLimit: config.RATE_LIMIT_SENSITIVE_PER_MINUTE });
     v1.get("/rules/version", async () => ({ rules_version: ruleSet.version, rules_hash: `sha256:${ruleSet.hash.toString("hex")}`, description: ruleSet.config.description ?? null }));

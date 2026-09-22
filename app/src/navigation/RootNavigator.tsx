@@ -11,6 +11,7 @@ import { ActivityScreen } from '@/screens/activity/ActivityScreen';
 import { ActivityDetailScreen } from '@/screens/activity/ActivityDetailScreen';
 import { WorkoutRecordScreen } from '@/screens/workouts/WorkoutRecordScreen';
 import { WorkoutStartScreen } from '@/screens/workouts/WorkoutStartScreen';
+import { PassportScreen } from '@/screens/PassportScreen';
 import { WorkoutSummaryScreen } from '@/screens/workouts/WorkoutSummaryScreen';
 import { EventDetailScreen, EventsScreen } from '@/screens/events/EventScreens';
 import { StaffCheckInScreen } from '@/screens/events/StaffCheckInScreen';
@@ -81,6 +82,7 @@ export function RootNavigator() {
         <Stack.Screen name="AchievementDetail" component={AchievementDetailScreen} options={{ headerShown: true, title: t('nftd.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="Activity" component={ActivityScreen} options={{ headerShown: true, title: t('actv.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="ActivityDetail" component={ActivityDetailScreen} options={{ headerShown: true, title: t('actv.detail.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="Passport" component={PassportScreen} options={{ headerShown: true, title: t('pass.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="Workouts" component={WorkoutsScreen} options={{ headerShown: true, title: t('nav.workouts'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="WorkoutStart" component={WorkoutStartScreen} options={{ headerShown: true, title: t('rec.start.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="WorkoutRecord" component={WorkoutRecordScreen} options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }} />

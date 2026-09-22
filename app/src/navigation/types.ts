@@ -43,6 +43,8 @@ export type RootParamList = {
   GalleryPlayer: { wallet: string };
   /** PB 成就 NFT 詳情（R-09） */
   AchievementDetail: { asset: string };
+  /** XD-03 成就護照（本人只讀） */
+  Passport: undefined;
   /** 合作活動（FR-09～FR-12，SD 11）：列表與詳情；detail 可帶宣傳來源 */
   Events: undefined;
   EventDetail: { idOrSlug: string; source?: string; /** NFC／QR 標籤 opaque reference（`?tag=`） */ tag?: string; /** 活動當天快捷：進頁直接展開報到碼 */ showCode?: boolean };

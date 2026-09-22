@@ -126,6 +126,8 @@ export type QuestCard = { source: 'system'; difficulty: 'easy' | 'medium'; requi
 export type QuestCardState = 'available' | 'accepted' | 'in_progress' | 'pending_verification' | 'claimable' | 'claimed' | 'revoked' | 'expired';
 export type QuestTemplateView = { template_id: string; version: number; kind: 'active_days' | 'goal_time'; params: Record<string, unknown>; cosmetic_id: string; card?: QuestCard };
 export type QuestEnrollmentView = { enrollment_id: string; template_id: string; template_version: number; goal: Record<string, unknown>; timezone: string; period_start: string; period_end: string; late_sync_until: string; accepted_at: string; status: 'active' | 'completed' | 'claimed' | 'expired' | 'revoked'; card_state?: QuestCardState; pending_review_count?: number; card?: QuestCard | null; completed_at: string | null; progress: { current: number; target: number } | null; contributions: { source: { kind: string; id: string; revision: number }; local_day: string }[] };
+export type PassportEntry = { id: string; kind: 'pb' | 'milestone' | 'event_badge' | 'quest'; category: string; title_key: string; source_class: 'organizer' | 'device' | 'pending'; source: { kind: string; id: string; revision: number } | null; rules_version: string; achieved_at: string | null; validity: 'valid' | 'pending' | 'revoked' | 'locked'; reason: string | null; public: boolean; nft: { status: string; asset: string | null; achievement_id: string } | null; original_holder: 'you' };
+export type PassportResponse = { entries: PassportEntry[]; counts: Record<'valid' | 'pending' | 'revoked' | 'locked', number>; trust_note: string };
 export type QuestsResponse = { templates: QuestTemplateView[]; enrollments: QuestEnrollmentView[]; cosmetics: { cosmetic_id: string; receipt_id: string; status: 'active' | 'revoked'; granted_at: string }[]; rules: { min_active_minutes: number; late_sync_hours: number; gps_rewards_enabled: boolean } };
 export type SkrNetwork = 'mainnet-beta' | 'devnet';
 export type SkrOrderStatus = 'awaiting_payment' | 'confirming' | 'fulfilled' | 'expired' | 'needs_review' | 'cancelled';
@@ -451,6 +453,11 @@ export class ApiClient {
 
   eventBadgeMintIntent(eventId: string, kind: EventBadgeKind, publicConsent: boolean): Promise<MintIntent> {
     return this.request('POST', '/me/event-badges/mint-intent', { event_id: eventId, kind, public_consent: publicConsent });
+  }
+
+  /** XD-03 成就護照（只讀彙整；不含健康數字／路線） */
+  passport(): Promise<PassportResponse> {
+    return this.request('GET', '/me/passport');
   }
 
   myAchievements(): Promise<{ items: AchievementView[] }> {

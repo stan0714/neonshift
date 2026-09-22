@@ -226,6 +226,8 @@ export function ProfileScreen() {
         </Text>
         <Button label={t('actv.title')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('Main', { screen: 'ActivityTab' })} testID="profile-activity" />
         <Button label={t('profile.runningHistory')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('Workouts')} testID="profile-running-history" />
+        {/* XD-03 成就護照（本人只讀） */}
+        <Button label={t('profile.passport')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('Passport')} testID="profile-passport" />
       </Section>
 
       <Section title={t('profile.privacy')}>
