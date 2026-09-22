@@ -723,7 +723,7 @@ export const en = {
   'body.invalid': 'Enter a weight between {min} and {max} kg.',
   'body.unset': 'No weight saved — calories show as “—”.',
   'body.set': 'Saved {kg} kg ({when}). Estimates appear on new and past workouts.',
-  'body.disclaimer': 'Estimates use a versioned MET model (Compendium 2011) on moving time and speed. Not medical or dietary advice; never used for PBs, XP, rankings or rewards.',
+  'body.disclaimer': 'Estimates use a versioned MET model (2024 Adult Compendium) on moving time and speed. Not medical or dietary advice; never used for PBs, XP, rankings or rewards.',
   'sum.kcalEstimated': 'Active kcal · estimate',
   'sum.kcalHint': 'Want a calorie estimate? Add your weight in Profile (stays on this phone).',
   'sum.kcalHintLink': 'Add weight in Profile',

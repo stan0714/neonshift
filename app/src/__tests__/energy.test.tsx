@@ -9,24 +9,28 @@ import { ThemeProvider } from '@/theme';
 
 beforeEach(() => { useBody.setState({ loaded: false, weightKg: null, updatedAt: null }); });
 
-test('MET 依速度分級：跑步 10 km/h → 9.8（6 mph）；走路 5 km/h → 3.5；超出最高級用最高級', () => {
-  expect(metFor('run', 10).met).toBe(9.8);
-  expect(metFor('run', 6.5).met).toBe(6.0);
-  expect(metFor('run', 30).met).toBe(19.8);
-  expect(metFor('walk', 5).met).toBe(3.5);
-  expect(metFor('walk', 6.5).met).toBe(5.0);
+test('MET 依速度分級（2024 Compendium）：跑步 10 km/h → 9.3（12050）；走路 5 km/h → 3.8（17190）；超出最高級用最高級', () => {
+  expect(metFor('run', 10)).toMatchObject({ met: 9.3, code: expect.stringContaining('12050') });
+  expect(metFor('run', 6.5)).toMatchObject({ met: 6.5, code: expect.stringContaining('12028') });
+  expect(metFor('run', 5)).toMatchObject({ met: 3.3, code: expect.stringContaining('12026') });
+  expect(metFor('run', 12)).toMatchObject({ met: 11.8, code: expect.stringContaining('12080') });
+  expect(metFor('run', 30).met).toBe(23.0);
+  expect(metFor('walk', 5)).toMatchObject({ met: 3.8, code: expect.stringContaining('17190') });
+  expect(metFor('walk', 6)).toMatchObject({ met: 4.8, code: expect.stringContaining('17200') });
+  expect(metFor('walk', 6.5).met).toBe(5.5);
+  expect(metFor('walk', 9).met).toBe(8.5);
 });
 
-test('整段估算：65 kg 跑 5 km／30 分（10 km/h，MET 9.8）→ 總 ≈ 334、活動 ≈ 300；模型版本標示', () => {
+test('整段估算：65 kg 跑 5 km／30 分（10 km/h，MET 9.3）→ 總 ≈ 317、活動 ≈ 283；模型版本標示', () => {
   const e = estimateEnergy({ sport: 'run', weightKg: 65, movingMs: 30 * 60_000, distanceMm: 5_000_000 });
-  // 9.8 × 3.5 × 65 / 200 = 11.15 kcal/min × 30 = 334；(9.8−1) × 3.5 × 65 / 200 × 30 = 300
-  expect(e).toMatchObject({ totalKcal: 334, activeKcal: 300, avgMet: 9.8, minutes: 30, model: ENERGY_MODEL_VERSION });
+  // 9.3 × 3.5 × 65 / 200 = 10.58 kcal/min × 30 = 317；(9.3−1) × 3.5 × 65 / 200 × 30 = 283
+  expect(e).toMatchObject({ totalKcal: 317, activeKcal: 283, avgMet: 9.3, minutes: 30, model: ENERGY_MODEL_VERSION });
 });
 
 test('分段優先：快慢兩段各套各的 MET，不硬套平均速度；暫停時間不在分段內就不計', () => {
-  const segs = [{ distanceMm: 1_000_000, durationMs: 4 * 60_000 }, { distanceMm: 1_000_000, durationMs: 8 * 60_000 }]; // 15 km/h（12.8）與 7.5 km/h（8.3）
+  const segs = [{ distanceMm: 1_000_000, durationMs: 4 * 60_000 }, { distanceMm: 1_000_000, durationMs: 8 * 60_000 }]; // 15 km/h（14.8）與 7.5 km/h（7.8）
   const e = estimateEnergy({ sport: 'run', weightKg: 60, movingMs: 99 * 60_000, distanceMm: 2_000_000, segments: segs })!;
-  const expectTotal = (12.8 * 3.5 * 60 / 200) * 4 + (8.3 * 3.5 * 60 / 200) * 8;
+  const expectTotal = (14.8 * 3.5 * 60 / 200) * 4 + (7.8 * 3.5 * 60 / 200) * 8;
   expect(e.totalKcal).toBe(Math.round(expectTotal));
   expect(e.minutes).toBe(12);
 });

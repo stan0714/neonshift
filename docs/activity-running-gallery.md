@@ -86,7 +86,7 @@ Arena → 合作活動列表 → 活動詳情：主辦方、路線類型、距�
 
 ### 4.1 沒有裝置熱量時
 
-僅在使用者自願提供近期體重、活動時間與適用活動分類時提供**估算**。採版本化 MET 模型：總熱量近似 `MET × 3.5 × weight_kg / 200 × minutes` kcal；活動熱量近似 `max(MET − 1, 0) × 3.5 × weight_kg / 200 × minutes`。MET 來源採 Compendium 中對應活動／速度項目，必須保存條目及版本，不硬套單一跑步係數。模型適用族群／速度分類及暫停區間處理未確認前，正式環境只顯示裝置值或 —。
+僅在使用者自願提供近期體重、活動時間與適用活動分類時提供**估算**。採版本化 MET 模型：總熱量近似 `MET × 3.5 × weight_kg / 200 × minutes` kcal；活動熱量近似 `max(MET − 1, 0) × 3.5 × weight_kg / 200 × minutes`。MET 來源採 Compendium 中對應活動／速度項目，必須保存條目及版本，不硬套單一跑步係數。2026-09-22 定案：採 **2024 Adult Compendium of Physical Activities**（Herrmann et al., 2024；pacompendium.com）走路 17152～17231、跑步 12026～12135 依速度分級，App 內表 `compendium-2024/v1`（`app/src/domain/energy.ts`）。模型適用族群／速度分類及暫停區間處理未確認前，正式環境只顯示裝置值或 —。
 
 暫停時段不套跑步強度；有不同強度區間時分段計算。體重不進公開 profile 或 NFT。熱量不作醫療／飲食處方，不作 PB、排名、XP 或代幣發放依據，避免鼓勵以熱量競賽。
 

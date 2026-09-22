@@ -708,7 +708,7 @@ export const zhTW: Record<keyof typeof en, string> = {
   'body.invalid': '請輸入 {min}～{max} kg 之間的體重。',
   'body.unset': '尚未填體重——熱量顯示為「—」。',
   'body.set': '已儲存 {kg} kg（{when}）。新舊運動都會顯示估算。',
-  'body.disclaimer': '估算採版本化 MET 模型（Compendium 2011），依非暫停時間與速度計算。不是醫療或飲食建議；不作 PB、XP、排名或獎勵依據。',
+  'body.disclaimer': '估算採版本化 MET 模型（2024 Adult Compendium），依非暫停時間與速度計算。不是醫療或飲食建議；不作 PB、XP、排名或獎勵依據。',
   'sum.kcalEstimated': '活動 kcal · 估算',
   'sum.kcalHint': '想看熱量估算？到 Profile 填體重（只存在這支手機）。',
   'sum.kcalHintLink': '到 Profile 填體重',
