@@ -1,7 +1,7 @@
 import { freezeWorkoutArtwork } from "../workouts/appearance.js";
 import { randomUUID } from "node:crypto";
 import { compareLeaderboard } from "./leaderboard.js";
-import type {
+import type { PlayerCohortStats, QuestFunnelRow,
   SkrEntitlement,
   SkrOrder,
   SkrReceipt, CosmeticEntitlement, QuestContribution, QuestEnrollment, QuestReceipt, QuestTemplate, GalleryBoard, LevelHistoryEntry, AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
@@ -763,6 +763,33 @@ export class MemoryStore implements Store {
     { templateId: "timed_goal", version: 1, kind: "goal_time", params: { minutes: [10, 20, 30] }, cosmeticId: "chapter_01_timed_goal", active: true },
   ];
   private questEnrollments = new Map<string, QuestEnrollment>();
+  async questFunnel(since: Date, until: Date): Promise<QuestFunnelRow[]> {
+    const rows = new Map<string, QuestFunnelRow>();
+    for (const e of this.questEnrollments.values()) {
+      if (e.acceptedAt < since || e.acceptedAt > until) continue;
+      const r = rows.get(e.templateId) ?? { templateId: e.templateId, accepted: 0, started: 0, completed: 0, claimed: 0, revoked: 0, expired: 0 };
+      r.accepted++;
+      // 開始＝接受後、截止前有任何一筆該錢包的跑步／走路（不論是否合格）
+      if ([...this.workouts.values()].some((w) => w.wallet === e.wallet && w.status !== "deleted" && w.startedAt >= e.acceptedAt && w.endedAt < e.periodEnd)) r.started++;
+      if (e.status === "completed" || e.status === "claimed") r.completed++;
+      if (e.status === "claimed") r.claimed++;
+      if (e.status === "revoked") r.revoked++;
+      if (e.status === "expired") r.expired++;
+      rows.set(e.templateId, r);
+    }
+    return [...rows.values()].sort((a, b) => a.templateId.localeCompare(b.templateId));
+  }
+  async playerCohortStats(since: Date, now: Date): Promise<PlayerCohortStats> {
+    const all = [...this.players.values()].filter((p) => !p.deletedAt);
+    const d = 86_400_000;
+    const cohort = all.filter((p) => p.firstSeenAt >= since && p.firstSeenAt < new Date(since.getTime() + 7 * d));
+    return {
+      players: all.length,
+      new7d: all.filter((p) => p.firstSeenAt >= new Date(now.getTime() - 7 * d)).length,
+      active7d: all.filter((p) => p.lastSeenAt >= new Date(now.getTime() - 7 * d)).length,
+      cohort: { size: cohort.length, retainedD7: cohort.filter((p) => p.lastSeenAt.getTime() - p.firstSeenAt.getTime() >= 7 * d).length, retainedD30: cohort.filter((p) => p.lastSeenAt.getTime() - p.firstSeenAt.getTime() >= 30 * d).length },
+    };
+  }
   private questContributions = new Map<string, QuestContribution[]>();
   private questReceipts = new Map<string, QuestReceipt>(); // by enrollmentId
   private cosmetics: CosmeticEntitlement[] = [];

@@ -98,3 +98,4 @@ SKR_GENESIS_FRAME_PRICE=2500000      # 最小單位（6 decimals；2.5 SKR）
 
 `GET /v1/ops/players/:wallet`（OPS_TOKEN；未設定時 404）回傳該錢包的運動（status／quality／review_reasons／pb_eligible）、目前 PB、里程碑解析（eligible／pending_review／device_pending）、成就狀態與 SKR 訂單／權限；不含路線、原始健康資料或 token。腳本以 ssh 於執行時讀 OPS_TOKEN，不落地。用途：回答「這筆跑步為什麼沒算首次 5 km」、「成就卡在 pending_registry 還是 approved」、「SKR 訂單為何 needs_review」。
 
+`scripts/ops/funnel.sh [since]`：XD-07 任務漏斗與玩家／留存概況（`GET /v1/ops/metrics/funnel`，只有計數）。

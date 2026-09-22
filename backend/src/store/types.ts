@@ -423,7 +423,13 @@ export type QuestContribution = { enrollmentId: string; sourceKind: "workout"; s
 export type QuestReceipt = { receiptId: string; wallet: string; enrollmentId: string; cosmeticId: string; issuedAt: Date; revokedAt: Date | null; revokeReason: string | null };
 export type CosmeticEntitlement = { wallet: string; cosmeticId: string; receiptId: string; status: "active" | "revoked"; grantedAt: Date; updatedAt: Date };
 
+/** XD-07 任務漏斗（只回計數，不含錢包）：每模板 接受→開始→合格完成→領取；另附撤銷／過期 */
+export type QuestFunnelRow = { templateId: string; accepted: number; started: number; completed: number; claimed: number; revoked: number; expired: number };
+/** XD-07 玩家概況與粗略留存（只回計數）：cohort＝since 起 7 天內首見；retained＝首見後 ≥7／≥30 天仍有活動（last_seen） */
+export type PlayerCohortStats = { players: number; new7d: number; active7d: number; cohort: { size: number; retainedD7: number; retainedD30: number } };
 export interface QuestStore {
+  questFunnel(since: Date, until: Date): Promise<QuestFunnelRow[]>;
+  playerCohortStats(since: Date, now: Date): Promise<PlayerCohortStats>;
   listQuestTemplates(): Promise<QuestTemplate[]>;
   listQuestEnrollments(wallet: string): Promise<QuestEnrollment[]>;
   getQuestEnrollment(wallet: string, enrollmentId: string): Promise<QuestEnrollment | null>;

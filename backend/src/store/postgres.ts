@@ -1,7 +1,7 @@
 import { freezeWorkoutArtwork } from "../workouts/appearance.js";
 import type pg from "pg";
 
-import type {
+import type { PlayerCohortStats, QuestFunnelRow,
   SkrEntitlement,
   SkrOrder,
   SkrReceipt, AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBadges, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, CosmeticEntitlement, QuestContribution, QuestEnrollment, QuestReceipt, QuestTemplate, GalleryBoard, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, LevelHistoryEntry, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
@@ -1084,6 +1084,32 @@ export class PostgresStore implements Store {
   private questEnrollmentRow(x: Row): QuestEnrollment { return { enrollmentId: x.enrollment_id as string, wallet: x.wallet as string, templateId: x.template_id as string, templateVersion: Number(x.template_version), goal: (x.goal as Record<string, unknown>) ?? {}, timezone: x.timezone as string, periodStart: x.period_start as Date, periodEnd: x.period_end as Date, acceptedAt: x.accepted_at as Date, status: x.status as QuestEnrollment["status"], idempotencyKey: x.idempotency_key as string, completedAt: (x.completed_at as Date | null) ?? null, updatedAt: x.updated_at as Date }; }
   private questReceiptRow(x: Row): QuestReceipt { return { receiptId: x.receipt_id as string, wallet: x.wallet as string, enrollmentId: x.enrollment_id as string, cosmeticId: x.cosmetic_id as string, issuedAt: x.issued_at as Date, revokedAt: (x.revoked_at as Date | null) ?? null, revokeReason: (x.revoke_reason as string | null) ?? null }; }
   async listQuestTemplates() { const r = await this.pool.query(`SELECT * FROM quest_templates WHERE active ORDER BY template_id, version`); return (r.rows as Row[]).map((x) => this.questTemplateRow(x)); }
+  async questFunnel(since: Date, until: Date): Promise<QuestFunnelRow[]> {
+    const r = await this.pool.query(
+      `SELECT template_id,
+              COUNT(*)::int AS accepted,
+              COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM workout_sessions w WHERE w.wallet = e.wallet AND w.deleted_at IS NULL AND w.started_at >= e.accepted_at AND w.ended_at < e.period_end))::int AS started,
+              COUNT(*) FILTER (WHERE status IN ('completed', 'claimed'))::int AS completed,
+              COUNT(*) FILTER (WHERE status = 'claimed')::int AS claimed,
+              COUNT(*) FILTER (WHERE status = 'revoked')::int AS revoked,
+              COUNT(*) FILTER (WHERE status = 'expired')::int AS expired
+         FROM quest_enrollments e
+        WHERE accepted_at >= $1 AND accepted_at <= $2
+        GROUP BY template_id ORDER BY template_id`, [since, until]);
+    return (r.rows as Row[]).map((x) => ({ templateId: x.template_id as string, accepted: Number(x.accepted), started: Number(x.started), completed: Number(x.completed), claimed: Number(x.claimed), revoked: Number(x.revoked), expired: Number(x.expired) }));
+  }
+  async playerCohortStats(since: Date, now: Date): Promise<PlayerCohortStats> {
+    const r = await this.pool.query(
+      `SELECT COUNT(*)::int AS players,
+              COUNT(*) FILTER (WHERE first_seen_at >= $2 - interval '7 days')::int AS new7d,
+              COUNT(*) FILTER (WHERE last_seen_at >= $2 - interval '7 days')::int AS active7d,
+              COUNT(*) FILTER (WHERE first_seen_at >= $1 AND first_seen_at < $1 + interval '7 days')::int AS cohort,
+              COUNT(*) FILTER (WHERE first_seen_at >= $1 AND first_seen_at < $1 + interval '7 days' AND last_seen_at >= first_seen_at + interval '7 days')::int AS d7,
+              COUNT(*) FILTER (WHERE first_seen_at >= $1 AND first_seen_at < $1 + interval '7 days' AND last_seen_at >= first_seen_at + interval '30 days')::int AS d30
+         FROM players WHERE deleted_at IS NULL`, [since, now]);
+    const x = r.rows[0] as Row;
+    return { players: Number(x.players), new7d: Number(x.new7d), active7d: Number(x.active7d), cohort: { size: Number(x.cohort), retainedD7: Number(x.d7), retainedD30: Number(x.d30) } };
+  }
   async listQuestEnrollments(wallet: string) { const r = await this.pool.query(`SELECT * FROM quest_enrollments WHERE wallet = $1 ORDER BY period_end DESC, accepted_at DESC`, [wallet]); return (r.rows as Row[]).map((x) => this.questEnrollmentRow(x)); }
   async getQuestEnrollment(wallet: string, enrollmentId: string) { const r = await this.pool.query(`SELECT * FROM quest_enrollments WHERE wallet = $1 AND enrollment_id = $2`, [wallet, enrollmentId]); return r.rows[0] ? this.questEnrollmentRow(r.rows[0] as Row) : null; }
   async createQuestEnrollment(e: Omit<QuestEnrollment, "status" | "completedAt" | "updatedAt">, now: Date) {
