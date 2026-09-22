@@ -128,12 +128,27 @@ for (const b of BENEFITS) {
   if (!haveB.find((x) => x.name === b.name)) { await post(`/v1/partner/events/${evId}/benefits`, b, owner.token); console.log(`建立品項 ${b.name}`); }
 }
 
-// NFC 標籤（報到站一枚）
+// NFC 標籤（報到站一枚）。沒有「列出標籤」端點，改以上次 fixture 的 opaque_ref 驗證；有效就重用，
+// 否則才新建（2026-09-22：先前每跑一次就多一枚標籤，實體卡片會對不上）。
+const fixtureFile = join(KEY_DIR, "fixture.json");
+const previous = existsSync(fixtureFile) ? JSON.parse(readFileSync(fixtureFile, "utf8")) : null;
 let tag = null;
-try {
-  tag = await post(`/v1/partner/events/${evId}/tags`, { purpose: "checkpoint", checkpoint_id: checkpoints.check_in }, owner.token);
-} catch (e) {
-  console.warn(`標籤未建立（可略過）：${e.message}`);
+const prevTag = previous?.nfc_tag?.tags?.[0] ?? null;
+if (prevTag?.opaque_ref) {
+  try {
+    await get(`/v1/events/${evId}/tags/${prevTag.opaque_ref}`, owner.token);
+    tag = { tags: [prevTag] };
+    console.log(`重用既有標籤 ${prevTag.opaque_ref}`);
+  } catch {
+    console.log("既有標籤已失效，改建新的");
+  }
+}
+if (!tag) {
+  try {
+    tag = await post(`/v1/partner/events/${evId}/tags`, { purpose: "checkpoint", checkpoint_id: checkpoints.check_in }, owner.token);
+  } catch (e) {
+    console.warn(`標籤未建立（可略過）：${e.message}`);
+  }
 }
 
 const fixture = {

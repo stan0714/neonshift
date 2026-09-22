@@ -38,17 +38,19 @@
 
 沒有合作方網頁；主辦方動作走 API／腳本，參加者與 staff 在 App。**同一錢包不能自己幫自己報到**——staff 用第二個帳號（Seeker Wallet 新增帳號，或 demo staff 金鑰經 curl）。
 
-### 2.1 建 fixture（電腦，5 分鐘）
+### 2.1 Fixture（2026-09-22 已建好，值見[活動手冊 §3](../store/event-demo-playbook.md)）
+
+活動 `wild-guardian-day`（`d67d6da9-…`）published、容量 200／已報名 0、兩站點、毛巾 100＋數位章、報到章與完賽章開啟、有效期到 2026-10-17。NFC 有效標籤 `…?tag=sI2Sp38LhM5PQkRMl7l_H7Ybrgm1Gkju`，另備一枚**已停用**標籤 `…?tag=wJC05v3G9ubBsD9ptmZo5xnUMI0GuSM5` 供測試。
 
 ```bash
 cd backend
-OPS_TOKEN=$(ssh root@l2.neonshift.cc 'grep ^OPS_TOKEN= /etc/neonshift/api.env | cut -d= -f2') \
-  node scripts/demo-event.mjs http://l2.neonshift.cc:6080
-cat ~/.config/neonshift/dev/demo/fixture.json   # event id／slug／站點／標籤 URL／staff 位址
+node scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 show                     # 目前狀態（報名／庫存／報到筆數）
+node scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 add-staff <第二帳號> check_in   # 指派 App staff
+node scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 set-stock 荒野守護紀念毛巾 1     # 最後一件競態測試
+# 重建／補齊（幂等，標籤會重用）：OPS_TOKEN=$(ssh root@l2.neonshift.cc 'grep ^OPS_TOKEN= /etc/neonshift/api.env | cut -d= -f2') node scripts/demo-event.mjs http://l2.neonshift.cc:6080
 ```
-驗證：`curl https://api.neonshift.cc/v1/events` 看到 `wild-guardian-day` state=published、capacity 200、兩個站點、兩個品項（毛巾 100、數位章）。把 fixture 值填到 [活動手冊 §3 表](../store/event-demo-playbook.md)。
 
-要讓你的 Seeker 第二帳號當 staff：`curl -X POST $API/partner/events/$EV/roles -H "Authorization: Bearer $OWNER" -d '{"wallet":"<第二帳號>","role":"staff","checkpoint_id":"<Gate id>"}'`（`$OWNER` 用 demo owner 金鑰 SIWS，腳本內有同樣流程）。
+**要先給我第二個錢包位址**（Seeker Wallet 新增帳號 → 複製位址），我才能把它指派成 staff；同一錢包不能自己幫自己報到。
 
 ### 2.2 手機流程（帳號 A＝參加者，帳號 B＝staff）
 
