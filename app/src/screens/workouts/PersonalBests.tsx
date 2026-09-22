@@ -1,3 +1,4 @@
+import { MintProgress, type MintPhase } from '@/components/MintProgress';
 import { useNftRevealStore } from '@/state/nftRevealStore';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
@@ -20,6 +21,7 @@ export function PersonalBests({ reloadKey = 0 }: { reloadKey?: number }) {
   const session = useWalletStore((st) => st.session);
   const [data, setData] = useState<Pbs | null>(null);
   const [achievements, setAchievements] = useState<AchievementView[]>([]);
+  const [mintPhase, setMintPhase] = useState<MintPhase | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: 'success' | 'info' | 'warning' | 'error'; title: string; body?: string } | null>(null);
   const load = useCallback(async () => {
@@ -44,13 +46,15 @@ export function PersonalBests({ reloadKey = 0 }: { reloadKey?: number }) {
     if (!session) return;
     setBusy(pbId);
     setNotice(null);
+    setMintPhase('server');
     try {
       const intent = await achievementService.intent(pbId, consent);
       if (intent.status === 'minted') { setNotice({ kind: 'success', title: t('pb.minted'), body: t('pb.mintedBody') }); return; }
       if (intent.status !== 'approved' || !intent.proof) {
-        setNotice(intent.status === 'pending_registry' ? { kind: 'info', title: t('pb.mintPending'), body: t('pb.pendingBody') } : { kind: 'warning', title: t('pb.revoked'), body: t('pb.revokedBody') });
+        setNotice((intent.status === 'pending_registry' || intent.status === 'approved' && !intent.proof) ? { kind: 'info', title: t('pb.mintPending'), body: t('pb.pendingBody') } : { kind: 'warning', title: t('pb.revoked'), body: t('pb.revokedBody') });
         return;
       }
+      setMintPhase('approved');
       const sol = (intent.fee_estimate_lamports / 1e9).toFixed(4);
       await new Promise<void>((resolve) => {
         Alert.alert(t('pb.feeTitle'), t('pb.feeBody', { sol }), [
@@ -60,7 +64,7 @@ export function PersonalBests({ reloadKey = 0 }: { reloadKey?: number }) {
             onPress: () => {
               void (async () => {
                 try {
-                  const r = await achievementService.mint(session.publicKey, intent);
+                  const r = await achievementService.mint(session.publicKey, intent, setMintPhase);
                   if (r.kind === 'minted' && !r.alreadyMinted) useNftRevealStore.getState().enqueue({ id: r.asset, title: typeof intent.metadata_preview.name === 'string' ? intent.metadata_preview.name : undefined });
                   if (r.kind === 'minted') setNotice({ kind: 'success', title: t('pb.minted'), body: t('pb.mintedBody') });
                 } catch (e) {
@@ -77,6 +81,7 @@ export function PersonalBests({ reloadKey = 0 }: { reloadKey?: number }) {
     } catch (e) {
       setNotice({ kind: 'error', title: t('pb.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
     } finally {
+      setMintPhase(null);
       setBusy(null);
       await load();
     }
@@ -88,6 +93,7 @@ export function PersonalBests({ reloadKey = 0 }: { reloadKey?: number }) {
   const groups = data.groups.filter((g) => g.current || g.history.length);
   return (
     <Surface style={styles.card} testID="pbs">
+      <MintProgress phase={mintPhase} />
       <Text variant="title">{t('pb.title')}</Text>
       <Text variant="bodySmall" tone="secondary" style={styles.mt}>{t('pb.explainer')}</Text>
       {data.imported_since ? (

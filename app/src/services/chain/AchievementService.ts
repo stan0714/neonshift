@@ -31,7 +31,7 @@ export const achievementService = {
     return apiClient.eventBadgeMintIntent(eventId, kind, publicConsent);
   },
 
-  async mint(wallet: PublicKey, intent: MintIntent): Promise<MintOutcome> {
+  async mint(wallet: PublicKey, intent: MintIntent, onPhase?: (phase: 'wallet' | 'confirming') => void): Promise<MintOutcome> {
     if (!APP_CONFIG.chainConfigured) throw new ClaimError('NOT_AVAILABLE', 'Onchain program is not configured for this build');
     if (!intent.proof) return { kind: intent.status === 'approved' || intent.status === 'minted' ? 'pending_registry' : (intent.status as 'pending_registry' | 'revoke_pending' | 'revoked'), intent };
     const id = Buffer.from(intent.achievement.achievement_id, 'hex');
@@ -42,7 +42,7 @@ export const achievementService = {
       const message = new Uint8Array(Buffer.from(intent.proof.message_b64, 'base64'));
       const signature = new Uint8Array(Buffer.from(intent.proof.signature_b64, 'base64'));
       const attestor = bs58.decode(intent.proof.attestor);
-      const sent = await sendWithWallet(wallet, [ed25519Instruction(message, signature, attestor), claimAchievementInstruction(wallet, message)]);
+      const sent = await sendWithWallet(wallet, [ed25519Instruction(message, signature, attestor), claimAchievementInstruction(wallet, message)], onPhase);
       return { kind: 'minted', asset, signature: sent.signature, alreadyMinted: false };
     } catch (e) {
       if (e instanceof WalletError) {

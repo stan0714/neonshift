@@ -1,3 +1,4 @@
+import { MintProgress, type MintPhase } from '@/components/MintProgress';
 import { useNftRevealStore } from '@/state/nftRevealStore';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
@@ -22,6 +23,7 @@ export function EventBadges({ eventId, badges, registration, reloadKey = 0 }: Pr
   const session = useWalletStore((st) => st.session);
   const [items, setItems] = useState<EventBadgeItem[] | null>(null);
   const [achievements, setAchievements] = useState<AchievementView[]>([]);
+  const [mintPhase, setMintPhase] = useState<MintPhase | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: 'success' | 'info' | 'warning' | 'error'; title: string; body?: string } | null>(null);
   const offered = !!badges && (badges.check_in || badges.finish);
@@ -48,14 +50,16 @@ export function EventBadges({ eventId, badges, registration, reloadKey = 0 }: Pr
     if (!session) return;
     setBusy(b.key);
     setNotice(null);
+    setMintPhase('server');
     try {
       const intent = await achievementService.eventBadgeIntent(b.event_id, b.kind, consent);
       if (intent.status === 'minted') { setNotice({ kind: 'success', title: t('pb.minted'), body: t('pb.mintedBody') }); return; }
       if (intent.status !== 'approved' || !intent.proof) {
-        setNotice(intent.status === 'pending_registry' ? { kind: 'info', title: t('pb.mintPending'), body: t('pb.pendingBody') } : { kind: 'warning', title: t('pb.revoked'), body: t('eb.revokedBody') });
+        setNotice((intent.status === 'pending_registry' || intent.status === 'approved' && !intent.proof) ? { kind: 'info', title: t('pb.mintPending'), body: t('pb.pendingBody') } : { kind: 'warning', title: t('pb.revoked'), body: t('eb.revokedBody') });
         return;
       }
       const attrs = ((intent.metadata_preview.attributes as { trait_type: string; value: string }[] | undefined) ?? []).map((a) => `• ${a.trait_type}: ${a.value}`).join('\n');
+      setMintPhase('approved');
       const sol = (intent.fee_estimate_lamports / 1e9).toFixed(4);
       await new Promise<void>((resolve) => {
         Alert.alert(t('ms.previewTitle'), t('ms.previewBody', { attrs, sol }), [
@@ -65,7 +69,7 @@ export function EventBadges({ eventId, badges, registration, reloadKey = 0 }: Pr
             onPress: () => {
               void (async () => {
                 try {
-                  const r = await achievementService.mint(session.publicKey, intent);
+                  const r = await achievementService.mint(session.publicKey, intent, setMintPhase);
                   if (r.kind === 'minted' && !r.alreadyMinted) useNftRevealStore.getState().enqueue({ id: r.asset, title: typeof intent.metadata_preview.name === 'string' ? intent.metadata_preview.name : undefined });
                   if (r.kind === 'minted') setNotice({ kind: 'success', title: t('pb.minted'), body: t('pb.mintedBody') });
                 } catch (e) {
@@ -83,6 +87,7 @@ export function EventBadges({ eventId, badges, registration, reloadKey = 0 }: Pr
       const msg = e instanceof Error ? e.message : String(e);
       setNotice({ kind: 'error', title: /EVENT_BADGE_NOT_ELIGIBLE/.test(msg) ? t('eb.notEligible') : t('pb.err.generic', { message: msg }) });
     } finally {
+      setMintPhase(null);
       setBusy(null);
       await load();
     }
@@ -92,6 +97,7 @@ export function EventBadges({ eventId, badges, registration, reloadKey = 0 }: Pr
   const kinds: ('check_in' | 'finish')[] = [...(badges!.check_in ? ['check_in' as const] : []), ...(badges!.finish ? ['finish' as const] : [])];
   return (
     <Surface style={styles.card} testID="event-badges">
+      <MintProgress phase={mintPhase} />
       <Text variant="title">{t('eb.title')}</Text>
       <Text variant="caption" tone="muted">
         {t('eb.note')}

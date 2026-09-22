@@ -1,3 +1,4 @@
+import { MintProgress, type MintPhase } from '@/components/MintProgress';
 import { useNftRevealStore } from '@/state/nftRevealStore';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
@@ -28,6 +29,7 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
   const framed = genesisFrameActive(skr, session?.address ?? null); // SKR-06：擁有且選用 Genesis 邊框時套在里程碑卡片
   const [data, setData] = useState<Ms | null>(null);
   const [achievements, setAchievements] = useState<AchievementView[]>([]);
+  const [mintPhase, setMintPhase] = useState<MintPhase | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: 'success' | 'info' | 'warning' | 'error'; title: string; body?: string } | null>(null);
   const load = useCallback(async () => {
@@ -56,14 +58,16 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
     if (!session) return;
     setBusy(key);
     setNotice(null);
+    setMintPhase('server');
     try {
       const intent = await achievementService.milestoneIntent(key, consent);
       if (intent.status === 'minted') { setNotice({ kind: 'success', title: t('pb.minted'), body: t('pb.mintedBody') }); return; }
       if (intent.status !== 'approved' || !intent.proof) {
-        setNotice(intent.status === 'pending_registry' ? { kind: 'info', title: t('pb.mintPending'), body: t('pb.pendingBody') } : { kind: 'warning', title: t('pb.revoked'), body: t('ms.revokedBody') });
+        setNotice((intent.status === 'pending_registry' || intent.status === 'approved' && !intent.proof) ? { kind: 'info', title: t('pb.mintPending'), body: t('pb.pendingBody') } : { kind: 'warning', title: t('pb.revoked'), body: t('ms.revokedBody') });
         return;
       }
       const attrs = ((intent.metadata_preview.attributes as { trait_type: string; value: string }[] | undefined) ?? []).map((a) => `• ${a.trait_type}: ${a.value}`).join('\n');
+      setMintPhase('approved');
       const sol = (intent.fee_estimate_lamports / 1e9).toFixed(4);
       await new Promise<void>((resolve) => {
         Alert.alert(t('ms.previewTitle'), t('ms.previewBody', { attrs, sol }), [
@@ -73,7 +77,7 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
             onPress: () => {
               void (async () => {
                 try {
-                  const r = await achievementService.mint(session.publicKey, intent);
+                  const r = await achievementService.mint(session.publicKey, intent, setMintPhase);
                   if (r.kind === 'minted' && !r.alreadyMinted) useNftRevealStore.getState().enqueue({ id: r.asset, milestone: data?.items.find(item => item.key === key)?.category, title: typeof intent.metadata_preview.name === 'string' ? intent.metadata_preview.name : undefined });
                   if (r.kind === 'minted') setNotice({ kind: 'success', title: t('pb.minted'), body: t('pb.mintedBody') });
                 } catch (e) {
@@ -91,6 +95,7 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
       const msg = e instanceof Error ? e.message : String(e);
       setNotice({ kind: 'error', title: /MILESTONE_NOT_ELIGIBLE/.test(msg) ? t('ms.notEligible') : t('pb.err.generic', { message: msg }) });
     } finally {
+      setMintPhase(null);
       setBusy(null);
       await load();
     }
@@ -101,6 +106,7 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
   const multi = data.unlocked_by_source.filter((s) => s.categories.length > 1);
   return (
     <View testID="milestones">
+      <MintProgress phase={mintPhase} />
       <Text variant="label" tone="secondary" uppercase style={styles.groupTitle}>
         {t('ms.title')}
       </Text>

@@ -31,9 +31,11 @@ export async function estimateFeeLamports(feePayer: PublicKey, instructions: Tra
 }
 
 /** 由錢包簽章送出並等待 confirmed；回傳可供冪等查詢的資訊 */
-export async function sendWithWallet(feePayer: PublicKey, instructions: TransactionInstruction[]): Promise<SentTx> {
+export async function sendWithWallet(feePayer: PublicKey, instructions: TransactionInstruction[], onPhase?: (phase: 'wallet' | 'confirming') => void): Promise<SentTx> {
   const { tx, blockhash, lastValidBlockHeight, minContextSlot } = await buildTransaction(feePayer, instructions);
+  onPhase?.('wallet');
   const signature = await walletService.signAndSendTransaction(tx, { minContextSlot });
+  onPhase?.('confirming');
   const result = await getConnection().confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
   if (result.value.err) throw new Error(`Transaction failed: ${JSON.stringify(result.value.err)}`);
   return { signature, blockhash, lastValidBlockHeight };

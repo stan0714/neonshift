@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { ApprovalNotice } from '@/components/ApprovalNotice';
+import { useEffect, useState } from 'react';
 import { CommonActions, useNavigation, StackActions } from '@react-navigation/native';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { GameGuideScreen } from '@/screens/GameGuideScreen';
-import { NavigationContainer, type LinkingOptions } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef, type LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { color, motion } from '@/theme';
@@ -51,9 +52,12 @@ const linking: LinkingOptions<RootParamList> = {
 
 /** Root：Bootstrap → Landing → Onboarding → Main（SD 5.2）。頁面 transition ≤ 320ms（Style 15）。 */
 export function RootNavigator() {
+  const navRef = useNavigationContainerRef<RootParamList>();
+  const [approvalVisible, setApprovalVisible] = useState(false);
+  const updateApprovalVisibility = () => setApprovalVisible(['Main', 'Home', 'ActivityTab', 'Gear', 'Arena', 'Profile', 'Workouts', 'Events', 'EventDetail', 'Gallery', 'Activity'].includes(navRef.getCurrentRoute()?.name ?? ''));
   const { t } = useT();
   return (
-    <NavigationContainer theme={navigationTheme} linking={linking}>
+    <NavigationContainer ref={navRef} onReady={updateApprovalVisibility} onStateChange={updateApprovalVisibility} theme={navigationTheme} linking={linking}>
       <Stack.Navigator
         initialRouteName="Bootstrap"
         screenOptions={{
@@ -97,6 +101,12 @@ export function RootNavigator() {
         <Stack.Screen name="StaffCheckIn" component={StaffCheckInScreen} options={{ headerShown: true, title: t('staff.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         {__DEV__ ? <Stack.Screen name="DevHealth" component={HealthDiagnosticsScreen} options={{ headerShown: true, title: 'Health Connect (dev)', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} /> : null}
       </Stack.Navigator>
+      <ApprovalNotice visible={approvalVisible} onOpen={item => {
+        if (!navRef.isReady()) return;
+        const eventId = item.kind === 'event' ? item.milestone_key?.split('|')[1] : undefined;
+        if (eventId) navRef.dispatch(StackActions.push('EventDetail', { idOrSlug: eventId }));
+        else navRef.dispatch(StackActions.push('Workouts'));
+      }} />
     </NavigationContainer>
   );
 }
