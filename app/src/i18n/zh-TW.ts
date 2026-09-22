@@ -718,6 +718,7 @@ export const zhTW: Record<keyof typeof en, string> = {
   'signin.retryVerify': '重新連線並登入',
   'signin.noReply': '{wallet} 已核准訊息，但沒有把簽章送回 NeonShift（Seeker 上 Phantom 的已知問題）。請改用 Seeker 內建錢包：Profile → 斷開錢包 → 連接錢包 → 選「Wallet」並按「僅此一次」，再登入一次。',
   'signin.phantomHint': '提醒：Seeker 上的 Phantom 目前簽完訊息不會回傳結果。若簽完沒有跳回這裡，請改用 Seeker Wallet 重新連接（Profile → 斷開錢包）。',
+  'signin.staleHint': '上一個錢包工作階段仍在關閉中（最多 {s} 秒），下一次錢包請求可能需要等它結束。',
   'act.errBody': '{message} 你的紀錄安全無虞，沒有任何變更。',
   'act.empty.title': '還沒有打卡紀錄',
   'act.empty.body': "達到 8,000 步後，從首頁打卡。打卡紀錄會在這裡保留 30 天。",

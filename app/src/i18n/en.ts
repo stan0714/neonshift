@@ -734,6 +734,7 @@ export const en = {
   'signin.retryVerify': 'Reconnect and sign in',
   'signin.noReply': '{wallet} approved the message but never sent the signature back to NeonShift (a known Phantom issue on Seeker). Use Seeker Wallet instead: Profile → Disconnect wallet → Connect wallet → choose “Wallet”, tap “Just once”, then sign in again.',
   'signin.phantomHint': 'Heads-up: Phantom on Seeker currently does not return signed messages. If the wallet does not bring you back here, reconnect with Seeker Wallet (Profile → Disconnect wallet).',
+  'signin.staleHint': 'The previous wallet session is still closing (up to {s} s); the next wallet request may wait for it.',
   'act.errBody': '{message} Your records are safe; nothing changed.',
   'act.empty.title': 'No clock-ins yet',
   'act.empty.body': "Hit 8,000 steps and clock in from Home. Claim records show here for 30 days.",

@@ -12,6 +12,7 @@ import * as SecureStore from 'expo-secure-store';
 import { Buffer } from 'buffer';
 
 import { APP_CONFIG } from '@/config/app';
+import { guardWalletOp } from '@/services/wallet/mwaGuard';
 
 export type WalletSession = {
   /** base58 */
@@ -43,6 +44,9 @@ type Stored = { authToken: string; address: string; label?: string; walletUriBas
 
 const identity = { name: 'NeonShift', uri: APP_CONFIG.siteUrl, icon: 'favicon.png' } as const;
 const chain = `solana:${APP_CONFIG.cluster}` as const;
+
+/** COMP-W01：所有 MWA 操作都經守門（回前景寬限／硬逾時 → WALLET_NO_REPLY，晚到結果丟棄） */
+const guarded = <T>(cb: (wallet: Web3MobileWallet) => Promise<T>) => guardWalletOp(() => transact(cb));
 
 function toSession(address: string, label: string | undefined, walletUriBase: string): WalletSession {
   return { address, publicKey: new PublicKey(address), label, walletUriBase };
@@ -125,7 +129,7 @@ const isAuthFailure = (e: unknown) => {
 async function withAuthorizedWallet<T>(stored: Stored, op: (wallet: Web3MobileWallet, auth: Authorized) => Promise<T>): Promise<T> {
   let authorized = false;
   const run = (authToken: string | undefined) =>
-    transact(async (wallet: Web3MobileWallet) => {
+    guarded(async (wallet: Web3MobileWallet) => {
       const auth = await wallet.authorize(authToken ? { identity, chain, auth_token: authToken } : { identity, chain });
       authorized = true;
       const account = auth.accounts[0];
@@ -167,7 +171,7 @@ export const walletService = {
   async connect(opts?: { onPhase?: (phase: ConnectPhase) => void; onLoginError?: (error: unknown) => void; afterAuthorize?: (address: string, sign: (message: Uint8Array) => Promise<Uint8Array>) => Promise<void> }): Promise<WalletSession> {
     try {
       opts?.onPhase?.('opening');
-      const result = await transact(async (wallet: Web3MobileWallet) => {
+      const result = await guarded(async (wallet: Web3MobileWallet) => {
         opts?.onPhase?.('authorizing');
         const auth = await wallet.authorize({ identity, chain });
         const account = auth.accounts[0];
@@ -205,7 +209,7 @@ export const walletService = {
     const stored = await readStored();
     if (!stored) return null;
     try {
-      const result = await transact(async (wallet: Web3MobileWallet) =>
+      const result = await guarded(async (wallet: Web3MobileWallet) =>
         wallet.authorize({ identity, chain, auth_token: stored.authToken }),
       );
       const account = result.accounts[0];
@@ -245,7 +249,7 @@ export const walletService = {
     const stored = await readStored();
     if (stored) {
       try {
-        await transact(async (wallet: Web3MobileWallet) => wallet.deauthorize({ auth_token: stored.authToken }));
+        await guarded(async (wallet: Web3MobileWallet) => wallet.deauthorize({ auth_token: stored.authToken }));
       } catch {
         // 忽略：本機狀態優先清除
       }
@@ -285,7 +289,7 @@ export const walletService = {
     try { token = await SecureStore.getItemAsync(key); } catch { token = null; }
     let sent = false;
     const run = (authToken: string | null) =>
-      transact(async (wallet: Web3MobileWallet) => {
+      guarded(async (wallet: Web3MobileWallet) => {
         const auth = await wallet.authorize(authToken ? { identity, chain: targetChain, auth_token: authToken } : { identity, chain: targetChain });
         const account = auth.accounts[0];
         if (!account || base64ToBase58(account.address) !== stored.address) throw new WalletError('SESSION_EXPIRED', 'Wallet returned a different account for the payment network');

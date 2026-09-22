@@ -141,3 +141,5 @@ SKR No-go 不自動取消主賽；主賽仍需自身資格與實機 gate 全數�
 4. **主網小額實測**：待負責人錢包持有真實 SKR 後，把 l1 改為 `SKR_NETWORK=mainnet-beta`、`SKR_MINT=SKRbvo6…hW3`（收款公鑰不變）並重啟，由負責人親自核准一筆 2.5 SKR；在此之前維持 devnet TEST。**提交版必須是主網設定**（config.ts 守門會拒絕 devnet 沿用官方 mint、主網沿用測試 mint）。
 5. 真機驗收前置：負責人需完成一場 ≥ 5 km 的 GPS 跑步並同步 → 後端產生 first_5k 里程碑（pending_registry）→ ops 登錄 approved（`tools/chain-admin` registry 流程）→ 卡片變為可購買。
 
+2026-09-22：COMP-W01（MWA session 中止策略）落地——`app/src/services/wallet/mwaGuard.ts`：所有 MWA 操作經守門，App 回前景後 8 s 無回覆或 120 s 硬逾時 → `WALLET_NO_REPLY`（呼叫端以「可能已送出」處理：打卡查 receipt、SKR recover、登入重試）；晚到結果丟棄；放棄後標記 stale 90 s（原生 invoke 逾時），登入卡提示下一次請求可能等待。**未做**：直接呼叫原生 `endSession` 中止（transact 的 finally 會二次呼叫並在原生層丟例外，有崩潰風險，需上游 SDK 支援）。測試 5。
+

@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { InlineState } from '@/components/InlineState';
 import { ApiError, apiClient } from '@/services/api/ApiClient';
+import { staleUntil } from '@/services/wallet/mwaGuard';
 import { isKnownNoReplyWallet, WalletError } from '@/services/wallet/WalletService';
 import { useWalletStore } from '@/state/walletStore';
 import { useT } from '@/i18n';
@@ -42,7 +43,8 @@ export function SignInState({ title, body, onSignedIn, testID }: { title: string
     : error.kind === 'rejected' ? t('signin.rejected')
     : error.kind === 'noReply' ? t('signin.noReply', { wallet: walletLabel })
     : t('signin.failed', { message: error.message });
-  const hint = !error && isKnownNoReplyWallet(session) ? ` ${t('signin.phantomHint')}` : '';
+  const staleMs = staleUntil() - Date.now();
+  const hint = `${!error && isKnownNoReplyWallet(session) ? ` ${t('signin.phantomHint')}` : ''}${staleMs > 0 ? ` ${t('signin.staleHint', { s: Math.ceil(staleMs / 1000) })}` : ''}`;
   return (
     <InlineState
       kind={error ? 'warning' : 'info'}
