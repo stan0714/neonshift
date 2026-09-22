@@ -51,7 +51,7 @@ OUT="$ROOT/docs/evidence/$(date +%Y-%m-%d)-clean-build.md"
   echo "| commit | \`$HEAD_SHA\`$( [ "$DIRTY" != 0 ] && echo "（工作樹另有 $DIRTY 個未提交變更，未納入）" ) |"
   echo "| env | $ENV_NAME（ABI: ${APP_ARCHS:-armeabi-v7a,arm64-v8a,x86,x86_64}） |"
   echo "| 開始／耗時 | $START · $((T1-T0)) s |"
-  echo "| 工具鏈 | node $(node -v 2>/dev/null || echo ?) · npm $(npm -v 2>/dev/null || echo ?) · java $(java -version 2>&1 | head -1 | sed 's/.*"\(.*\)".*/\1/') · $(uname -sm) |"
+  echo "| 工具鏈 | $(bash -lc "source \"$ROOT/scripts/env.sh\" >/dev/null 2>&1; echo node \$(node -v) · npm \$(npm -v) · java \$(java -version 2>&1 | head -1 | sed 's/.*\"\\(.*\\)\".*/\\1/')") · $(uname -sm) |"
   echo "| 重建 APK SHA-256 | \`$SHA\`（$SIZE bytes） |"
   if [ -n "$WT_SHA" ]; then
     echo "| 工作樹 APK SHA-256 | \`$WT_SHA\`（${WT_NOTE:-commit 未知}） |"
