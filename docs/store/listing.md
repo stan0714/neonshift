@@ -48,6 +48,7 @@ Built for Solana Mobile: Mobile Wallet Adapter sign-in, Seed Vault-compatible si
 6. ✅ Gallery 玩家頁與收藏：Lv.1 Origin、XP 100、首次 5 km NFT（5.502 km、device recorded）→ `06-gallery.png`；排行榜 → `06-gallery-list.png`
 6b. ✅ Explore 探索冊：任務卡狀態、GPS 計入、進度 1/3 → `06b-explore.png`
 7. ✅ Profile：權限與資料 → `07-profile.png`
+8. ✅ 成就護照：4 Valid／0 Pending／0 Revoked／0 Locked，首次 5K 為 device record · public · NFT minted → `08-passport.png`（另存證據 `docs/evidence/2026-09-23-passport-first5k.png`）
 
 ## 圖示
 
