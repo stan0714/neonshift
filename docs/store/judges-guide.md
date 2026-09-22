@@ -103,4 +103,5 @@ flowchart LR
 - 錢包顯示連接／登入階段與不完整登入提示；目前另有 mwaGuard 逾時與晚到結果處理程式，但未據此宣稱所有錢包均已實測通過。上述 Phantom 記錄僅代表指定版本當次測試，不作所有版本的結論。
 - 保存後路線外觀固定，改鞋或偏好只影響新運動。自動同步預設關閉，打開後依舊到新處理，不代表自動核准交易。
 - SKR 收藏外觀付款（Genesis Mint 邊框）：Gear 里程碑區與 Gallery 本人頁的邊框卡。資格＝已核准的「首次 5 km」成就；未達標顯示 LOCKED，不可用 DEMO 或本機 GPS 解鎖。購買前確認框列出金額（2.5 SKR）、網路、收款人；簽署走 MWA `solana:mainnet` 獨立授權（與 devnet 任務／NFT 分開）；送出後只查詢確認、不重送；關 App 重開會恢復待確認訂單。目前部署為 **devnet 測試 mint**（`TEST SKR`，無價值），官方 SKR 主網小額測試待負責人核准——在此之前不可視為官方 SKR 整合證據；tSKR／.skr 名稱與本功能無關。依 [參賽開發計畫](competition-development-plan.md) 的 Go／No-go 更新最終文案。
+- 真機驗收方法與證據欄位：[docs/evidence/device-acceptance-runbook.md](../evidence/device-acceptance-runbook.md)（W02 主線、E-02～06 活動、截圖／影片、回歸）。
 - 可重建：`scripts/release/clean-build.sh` 從 Git HEAD 乾淨 clone 重建 release APK，紀錄於 `docs/evidence/<日期>-clean-build-<env>.md`；第三方授權見 [neonshift.cc/licenses](https://neonshift.cc/licenses/)（App Profile 亦有入口）。
