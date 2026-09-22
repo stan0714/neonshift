@@ -21,6 +21,8 @@ export class ApiError extends Error {
     public readonly body?: unknown,
     /** 後端 request id（Style 14 reference ID） */
     public readonly requestId?: string,
+    /** NETWORK_ERROR 細分：逾時／被取消／連不上（畫面用來給人看得懂的說明，不直接印技術訊息） */
+    public readonly netReason?: 'timeout' | 'aborted' | 'unreachable',
   ) {
     super(message);
     this.name = 'ApiError';
@@ -193,14 +195,17 @@ export class ApiClient {
       if (opts.signal.aborted) onAbort();
       else opts.signal.addEventListener('abort', onAbort, { once: true });
     }
-    const timer = timeoutMs > 0 ? setTimeout(() => ctrl.abort(new Error(`timeout after ${timeoutMs} ms`)), timeoutMs) : null;
+    // 實機 2026-09-22：RN 的 AbortController 不保證帶 `signal.reason`，逾時只剩 "aborted" 字樣；用本地旗標判定
+    let timedOut = false;
+    const timer = timeoutMs > 0 ? setTimeout(() => { timedOut = true; ctrl.abort(new Error(`timeout after ${timeoutMs} ms`)); }, timeoutMs) : null;
     try {
       // 進到這裡之前（讀 token／refresh）就已被取消：不再發請求
       if (ctrl.signal.aborted) throw new Error('aborted before request');
       return await this.fetchImpl(url, { ...init, signal: ctrl.signal });
     } catch (e) {
-      const reason = ctrl.signal.aborted ? (ctrl.signal.reason instanceof Error ? ctrl.signal.reason.message : 'aborted') : e instanceof Error ? e.message : String(e);
-      throw new ApiError(0, 'NETWORK_ERROR', reason);
+      if (timedOut) throw new ApiError(0, 'NETWORK_ERROR', `timeout after ${timeoutMs} ms`, undefined, undefined, undefined, 'timeout');
+      if (ctrl.signal.aborted) throw new ApiError(0, 'NETWORK_ERROR', ctrl.signal.reason instanceof Error ? ctrl.signal.reason.message : 'aborted', undefined, undefined, undefined, 'aborted');
+      throw new ApiError(0, 'NETWORK_ERROR', e instanceof Error ? e.message : String(e), undefined, undefined, undefined, 'unreachable');
     } finally {
       if (timer) clearTimeout(timer);
       opts.signal?.removeEventListener('abort', onAbort);

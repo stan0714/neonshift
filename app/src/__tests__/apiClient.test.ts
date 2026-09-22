@@ -1,3 +1,4 @@
+import { apiErrorText } from '@/services/api/errorText';
 import { Buffer } from 'buffer';
 import * as SecureStore from 'expo-secure-store';
 
@@ -220,7 +221,32 @@ describe('2026-09-19 review：refresh 區分憑證失效與暫時失敗；請求
       expect(aborted).toBe(true);
       expect((err as ApiError).code).toBe('NETWORK_ERROR');
       expect((err as ApiError).message).toMatch(/timeout after 500 ms/);
+      expect((err as ApiError).netReason).toBe('timeout');
     } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('實機 2026-09-22：AbortController 不帶 signal.reason 時，逾時仍判定為 timeout（不是 "aborted"）', async () => {
+    jest.useFakeTimers();
+    const Orig = global.AbortController;
+    try {
+      // 模擬 RN 的 AbortController：abort(reason) 忽略 reason
+      global.AbortController = class extends Orig { abort() { super.abort(); } } as typeof AbortController;
+      const f = ((_url: string, init: RequestInit) => new Promise<Response>((_res, rej) => {
+        init.signal?.addEventListener('abort', () => rej(new Error('Aborted')));
+      })) as unknown as typeof fetch;
+      await SecureStore.setItemAsync(TOK, JSON.stringify({ ...expiredTokens, accessExpiresAt: 2_000_000 }));
+      const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000, 500);
+      const pending = api.history().catch((e: unknown) => e);
+      await jest.advanceTimersByTimeAsync(600);
+      const err = await pending;
+      expect((err as ApiError).code).toBe('NETWORK_ERROR');
+      expect((err as ApiError).netReason).toBe('timeout');
+      expect((err as ApiError).message).toMatch(/timeout after 500 ms/);
+      expect(apiErrorText((k, p) => `${k}:${p?.s ?? ''}`, err)).toBe('common.net.timeout:1');
+    } finally {
+      global.AbortController = Orig;
       jest.useRealTimers();
     }
   });

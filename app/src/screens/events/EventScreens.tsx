@@ -15,10 +15,11 @@ import { Perks } from './Perks';
 import { Results } from './Results';
 import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
-import { useT, type TKey } from '@/i18n';
+import { t, useT, type TKey } from '@/i18n';
+import { apiErrorText } from '@/services/api/errorText';
 
 type Err = { code: string; message: string; ref?: string };
-const toErr = (e: unknown): Err => (e instanceof ApiError ? { code: e.code, message: e.message, ...(e.requestId ? { ref: e.requestId } : {}) } : { code: 'UNKNOWN', message: String(e) });
+const toErr = (e: unknown): Err => (e instanceof ApiError ? { code: e.code, message: e.code === 'NETWORK_ERROR' ? apiErrorText(t, e) : e.message, ...(e.requestId ? { ref: e.requestId } : {}) } : { code: 'UNKNOWN', message: String(e) });
 type T = ReturnType<typeof useT>['t'];
 const fmt = (t: T, iso: string | null, tz?: string) => (iso ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', ...(tz ? { timeZone: tz } : {}) }) : t('ev.tba'));
 const stateLabel = (t: T, s: PartnerEventView['state']) => t(`ev.state.${s}` as TKey);

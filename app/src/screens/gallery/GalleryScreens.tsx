@@ -20,10 +20,11 @@ import { collectibleService } from '@/services/chain/CollectibleService';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
 import { PbCard } from './PbCard';
 import { color, layout, radius, space, Text } from '@/theme';
-import { useT, type TKey } from '@/i18n';
+import { t, useT, type TKey } from '@/i18n';
+import { apiErrorText } from '@/services/api/errorText';
 
 type Err = { code: string; message: string; ref?: string };
-const toErr = (e: unknown): Err => (e instanceof ApiError ? { code: e.code, message: e.message, ...(e.requestId ? { ref: e.requestId } : {}) } : { code: 'UNKNOWN', message: String(e) });
+const toErr = (e: unknown): Err => (e instanceof ApiError ? { code: e.code, message: e.code === 'NETWORK_ERROR' ? apiErrorText(t, e) : e.message, ...(e.requestId ? { ref: e.requestId } : {}) } : { code: 'UNKNOWN', message: String(e) });
 const dateOf = (taskDate: number) => new Date(taskDate * 86_400_000).toISOString().slice(0, 10);
 const lvl = (n: number) => Math.min(5, Math.max(1, n)) as ShoeLevel;
 /** 搜尋去抖（review：每輸入一字就發請求，舊回應可能蓋掉新結果） */
