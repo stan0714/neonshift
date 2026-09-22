@@ -3,7 +3,7 @@
 #   scripts/release/clean-build.sh [env] [--keep]      # 預設 env=demo；--keep 保留 clone 目錄
 #   APP_ARCHS=arm64-v8a scripts/release/clean-build.sh dev
 # 流程：git clone <本 repo> → 複製 keystore.properties（gitignore，指向 ~/.config/neonshift/... 的絕對路徑）→ npm ci → build.sh <env> release
-#      → 記錄 SHA-256、與工作樹既有 APK 比對 → docs/evidence/<日期>-clean-build.md。
+#      → 記錄 SHA-256、與工作樹既有 APK 比對 → docs/evidence/<日期>-clean-build-<env>.md。
 # 注意：Gradle／R8 產物不保證 bit-for-bit 一致（簽章時間戳、資源順序），本檔比對只作參考；主要證據是「乾淨 clone 能成功建出同 commit 的 APK」。
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -41,7 +41,7 @@ if [ -n "$WT_SHA" ] && command -v unzip >/dev/null; then
                        <(unzip -lv "$WT_APK" | awk 'NR>3 && $1 ~ /^[0-9]+$/ {print $8, $1, $7}' | grep -v '^META-INF/' | sort) | grep -c '^[<>]' || true)"
 fi
 mkdir -p "$ROOT/docs/evidence"
-OUT="$ROOT/docs/evidence/$(date +%Y-%m-%d)-clean-build.md"
+OUT="$ROOT/docs/evidence/$(date +%Y-%m-%d)-clean-build-$ENV_NAME.md"
 {
   echo "# 乾淨環境重建紀錄（$(date +%Y-%m-%d)）"
   echo

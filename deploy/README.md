@@ -1,6 +1,6 @@
 # 部署設定（PG-I-07，SD 8）
 
-`dev` 與 `demo` 使用**不同**的 program id、attestor 金鑰、資料庫與 App build configuration。
+`dev` 與 `demo` 原規劃使用不同的 program id、attestor 金鑰與資料庫；**本屆提交（2026-09-22 決定）demo.env 沿用 dev 的 program／tSKR／vault 與同一套後端（api.neonshift.cc）**，兩者只差 App build configuration（demo 強制無展示覆寫、https、無 DEV_ROUTE）；正式上架時再分離。
 每個環境一個 `<env>.env`，內容只有公開資訊與金鑰**路徑**；金鑰本身放在 `~/.config/neonshift/<env>/`，永不進 repo。
 
 | 檔案 | 用途 |
