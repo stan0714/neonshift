@@ -38,15 +38,15 @@ Built for Solana Mobile: Mobile Wallet Adapter sign-in, Seed Vault-compatible si
 
 ## 截圖清單（1080×2400，深色）
 
-依 `docs/evidence/` 的 Seeker 截圖重拍正式版：
+依 `docs/evidence/` 的 Seeker 截圖重拍正式版。2026-09-22 已從 9/20 實機截圖裁成 1080×2400 放在 [screenshots/](screenshots/)（Git `08e3232` 之前的畫面，真實 Lv.1 資料、DEVNET 標示）；打勾＝已有，其餘待實機：
 
-1. Landing（品牌與 devnet 標示）
-2. Dashboard：今日步數、跑鞋與步數任務卡
-3. 打卡 sheet：驗證 → 錢包簽章 → 完成
-4. Gear：等級、XP ring、My collection（Claimable 狀態）
-5. Arena：進行中排行榜
-6. Gallery：玩家頁與收藏
-7. Profile：權限與刪除資料
+1. Landing（品牌與 devnet 標示）— 待重拍（現有為 9/14 舊版）
+2. ✅ Dashboard：今日步數、跑鞋與步數／運動任務卡 → `02-dashboard.png`；另有 `02b-activity.png`（Activity 儀表板）
+3. 打卡 sheet：驗證 → 錢包簽章 → 完成 — 待實機打卡（PG-V-06）
+4. ✅ Gear：等級、XP ring、本期維持 → `04-gear.png`；收藏一覽 → `04-gear-collection.png`（Claimable 狀態待 Lv.2）
+5. Arena：進行中排行榜 — 待週末賽事
+6. Gallery：玩家頁與收藏 — 待實機（`07b-profile-gallery-settings.png` 只是 Profile 的藝廊設定，不算）
+7. ✅ Profile：權限與資料 → `07-profile.png`
 
 ## 圖示
 
