@@ -82,3 +82,15 @@ SKR_GENESIS_FRAME_PRICE=2500000      # 最小單位（6 decimals；2.5 SKR）
 - 單例工作只在 l1：`INDEXER_ENABLED`／`RETENTION_ENABLED` 在 l2 設 false（chain_cursor 沒有跨主機鎖）。**若 l1 下線，需在 l2 改為 true 並重啟**，否則鏈上事件索引與保留清理停止。
 - 導流：前端 nginx（另一台）把 `https://api.neonshift.cc` 改指 `l2.neonshift.cc:6080`（或 l1／l2 都列為 upstream）；切換前後用 `/healthz`、`/readyz`、`/v1/rules/version` 比對兩台一致。
 
+## 前端 nginx（api.neonshift.cc）檢查清單（2026-09-22）
+
+公網 `https://api.neonshift.cc` 延遲 10～30 s 隨機、l1／l2 直連 0.1 s 時，問題在 Cloudflare → nginx → upstream 這段。範本 `deploy/l1/nginx-api.neonshift.cc.conf`（l1＋l2 並列、IP 節點、`proxy_connect_timeout 3s`、`proxy_next_upstream`、upstream 時間紀錄）。
+
+1. `nginx -T | grep -A4 'upstream neonshift_api'`：節點是否只有 `104.105.136.214:6080`、`104.105.147.98:6080`；沒有舊 IP、沒有主機名（主機名只在啟動時解析一次）。
+2. `grep -E 'upstream timed out|connect\(\) failed|no live upstreams' /var/log/nginx/error.log | tail`：看指到哪個節點。
+3. 在 nginx 主機上直接打兩台：`curl -s -o /dev/null -w '%{http_code} %{time_total}\n' http://104.105.136.214:6080/healthz`（l2 同理）；若這裡就慢，是 nginx 主機到 API 主機的網路／防火牆（`ss -tn state syn-sent` 可看卡住的連線）。
+4. `proxy_connect_timeout`／`proxy_read_timeout` 是否過長；有沒有 `proxy_next_upstream off`。
+5. access log 用範本的 `neonshift_upstream` 格式：`rt=`（總時間）大、`urt=`（upstream 時間）小 → 問題在 Cloudflare 或 TLS；`urt=` 也大 → 問題在 upstream／連線。
+6. Cloudflare：DNS 記錄 proxied（橘雲）時，Origin 需 SSL 模式 Full；若 nginx 主機同時有 IPv6 `AAAA` 而 nginx 沒 `listen [::]:443`，會間歇失敗。
+7. `nginx -t && systemctl reload nginx` 後，從外面量 10 次：`for i in $(seq 10); do curl -s -o /dev/null -w '%{http_code} %{time_starttransfer}\n' https://api.neonshift.cc/v1/rules/version; done`，應全部 < 1 s。
+
