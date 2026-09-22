@@ -1,4 +1,5 @@
 import { MintProgress, type MintPhase } from '@/components/MintProgress';
+import { applyLocalMints, recordLocalMint } from '@/services/chain/localMints';
 import { useNftRevealStore } from '@/state/nftRevealStore';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
@@ -31,7 +32,7 @@ export function EventBadges({ eventId, badges, registration, reloadKey = 0 }: Pr
     if (!session || registration === 'none') { setItems([]); return; }
     try {
       setItems((await apiClient.eventBadges()).items.filter((b) => b.event_id === eventId));
-      setAchievements((await apiClient.myAchievements().catch(() => ({ items: [] }))).items.filter((a) => a.kind === 'event'));
+      setAchievements(applyLocalMints((await apiClient.myAchievements().catch(() => ({ items: [] }))).items).filter((a) => a.kind === 'event'));
     } catch {
       setItems((x) => x ?? []);
     }
@@ -70,6 +71,7 @@ export function EventBadges({ eventId, badges, registration, reloadKey = 0 }: Pr
               void (async () => {
                 try {
                   const r = await achievementService.mint(session.publicKey, intent, setMintPhase);
+                  if (r.kind === 'minted') recordLocalMint(intent.achievement.achievement_id, { asset: r.asset, signature: r.signature ?? '' });
                   if (r.kind === 'minted' && !r.alreadyMinted) useNftRevealStore.getState().enqueue({ id: r.asset, title: typeof intent.metadata_preview.name === 'string' ? intent.metadata_preview.name : undefined });
                   if (r.kind === 'minted') setNotice({ kind: 'success', title: t('pb.minted'), body: t('pb.mintedBody') });
                 } catch (e) {
