@@ -12,6 +12,7 @@ import { LocalWorkoutStore } from '@/services/workouts/LocalWorkoutStore';
 import { WorkoutSummaryScreen } from '@/screens/workouts/WorkoutSummaryScreen';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { FREE_GOAL, useWorkoutPrefs } from '@/state/workoutPrefsStore';
+import { useBody } from '@/state/bodyStore';
 import { useWalletStore } from '@/state/walletStore';
 import { PublicKey } from '@solana/web3.js';
 import { ThemeProvider } from '@/theme';
@@ -210,6 +211,13 @@ test('記錄頁：健走顯示速度、時間／距離；目標進度 → 達標
 test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分段含末段 Partial；圈數含手動圈與 400 m 自動圈；品質；已同步', async () => {
   await render(<WorkoutSummaryScreen />, { wrapper: Wrapper });
   expect(screen.getByTestId('sum-distance').props.children).toBe('0.36 km');
+  // PG-R-11：沒體重 → kcal — 並提示到 Profile 填；填了體重 → 顯示「≈N」估算
+  expect(screen.getByTestId('sum-kcal-value').props.children).toBe('—');
+  expect(screen.getByTestId('sum-kcal-hint')).toBeTruthy();
+  await act(async () => { await useBody.getState().setWeight(65); });
+  await waitFor(() => expect(screen.getByTestId('sum-kcal-value').props.children).toMatch(/^≈\d+$/));
+  expect(screen.queryByTestId('sum-kcal-hint')).toBeNull();
+  await act(async () => { await useBody.getState().setWeight(null); });
   // PG-U-01：模式標籤、目標結果、同步 payload 帶 intent／goal
   expect(screen.getAllByText(/^Brisk walk · /).length).toBeGreaterThan(0);
   expect(screen.getByTestId('sum-goal-met').props.children).toBe('Goal 10 min reached');

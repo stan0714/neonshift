@@ -6,7 +6,9 @@ import { Chip, InlineState, Screen, Surface } from '@/components';
 import { SignInState } from '@/components/SignInState';
 import { itemFromRemote, type ActivityItem } from '@/domain/activity';
 import { stageName } from '@/domain/collectibles';
+import { estimateEnergy } from '@/domain/energy';
 import { formatDuration, formatKcal, formatKm, formatPace, modeLabel, qualityKind } from '@/domain/workouts';
+import { useBody } from '@/state/bodyStore';
 import { useT, type TKey } from '@/i18n';
 import type { RootParamList } from '@/navigation/types';
 import { ApiError, apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
@@ -27,6 +29,7 @@ export function ActivityDetailScreen() {
     catch (e) { setErr(e instanceof ApiError ? { code: e.code, message: e.message } : { code: 'UNKNOWN', message: String(e) }); }
   }, [params.serverId]);
   useEffect(() => { void load(); }, [load]);
+  const weightKg = useBody((b) => b.weightKg); // PG-R-11（hook 須在 early return 之前）
   if (err) {
     return (
       <Screen testID="activity-detail-screen">
@@ -41,6 +44,8 @@ export function ActivityDetailScreen() {
   if (!w) return <Screen testID="activity-detail-screen"><InlineState kind="info" title={t('common.loading')} testID="activity-detail-loading" /></Screen>;
   const it: ActivityItem = itemFromRemote(w);
   const isWalk = it.sport === 'walk';
+  // PG-R-11：無裝置熱量時，以手機上的體重估算（分段優先）
+  const energy = it.activeKcalMkcal === null ? estimateEnergy({ sport: it.sport, weightKg, movingMs: it.movingMs, distanceMm: it.distanceMm, segments: it.splits?.filter((l) => !l.isPartial).map((l) => ({ distanceMm: l.distanceMm, durationMs: l.durationMs })) ?? null }) : null;
   const when = (ms: number | null) => (ms === null ? '—' : new Date(ms).toLocaleString(undefined, { timeZone: it.timeZone ?? undefined }));
   return (
     <Screen scroll testID="activity-detail-screen">
@@ -61,7 +66,7 @@ export function ActivityDetailScreen() {
           [t('sum.moving'), it.movingMs === null ? '—' : formatDuration(String(it.movingMs))],
           [isWalk ? t('sum.avgSpeed') : t('sum.avgPace'), isWalk ? (it.avgSpeedKmh === null ? '—' : `${it.avgSpeedKmh.toFixed(1)} km/h`) : formatPace(it.avgPaceSPerKm)],
           [t('actv.detail.steps'), it.steps === null ? '—' : String(it.steps)],
-          [t('sum.kcal'), it.activeKcalMkcal === null ? '—' : formatKcal(String(it.activeKcalMkcal))],
+          [energy ? t('sum.kcalEstimated') : t('sum.kcal'), it.activeKcalMkcal !== null ? formatKcal(String(it.activeKcalMkcal)) : energy ? `≈${energy.activeKcal} kcal` : '—'],
           [t('sum.shoe'), it.shoe ? `Lv.${it.shoe.level} · ${stageName(t, it.shoe.level)}` : t('sum.shoeUnknown')],
           [t('actv.detail.pb'), it.pbEligible === null ? '—' : t(it.pbEligible ? 'actv.detail.pbYes' : 'actv.detail.pbNo')],
           [t('actv.detail.sync'), t('actv.status.server_only')],

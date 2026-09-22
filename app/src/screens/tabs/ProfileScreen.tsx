@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
+import { BodyWeightCard } from '@/components/BodyWeightCard';
 import { WalletTimelineCard } from '@/components/WalletTimelineCard';
 import { useAppearance } from '@/hooks/useAppearance';
 import { useOutbox } from '@/hooks/useOutbox';
@@ -229,6 +230,9 @@ export function ProfileScreen() {
         {/* XD-03 成就護照（本人只讀） */}
         <Button label={t('profile.passport')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('Passport')} testID="profile-passport" />
       </Section>
+
+      {/* PG-R-11：熱量估算體重（選填，只存手機） */}
+      <BodyWeightCard />
 
       <Section title={t('profile.privacy')}>
         <Text variant="bodySmall" tone="secondary">
