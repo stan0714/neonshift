@@ -113,6 +113,8 @@ export function GearScreen() {
     status: collectibleStatus(d.profile, c.claimed, item.kind),
   }));
   const claimedCount = items.filter((i) => i.status === "claimed").length;
+  // 下拉重新整理原本只重讀收藏；里程碑／成就狀態（含 registry 核准）也要跟著重抓
+  const [refreshTick, setRefreshTick] = useState(0);
   const shoes = items.filter((i) => i.item.group === "shoe");
   const badges = items.filter((i) => i.item.group === "badge");
 
@@ -125,7 +127,7 @@ export function GearScreen() {
       refreshControl={
         <RefreshControl
           refreshing={c.loading}
-          onRefresh={() => void refresh()}
+          onRefresh={() => { setRefreshTick((n) => n + 1); void refresh(); }}
           tintColor={color.mint}
         />
       }
@@ -443,7 +445,7 @@ export function GearScreen() {
         ))}
       </View>
 
-      <Milestones reloadKey={claimedCount} />
+      <Milestones reloadKey={`${claimedCount}:${refreshTick}`} />
 
       <Text variant="caption" tone="muted" style={styles.disclaimer}>
         {t("common.testToken")}

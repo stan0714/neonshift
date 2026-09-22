@@ -14,7 +14,7 @@ import { color, radius, space, Text } from '@/theme';
  * 狀態：未開放（隱藏）／未達成／待登錄／可購買（價格、網路、收款人預覽）／訂單進行中（查看狀態、取消）／需人工處理／已擁有（選用開關）。
  * 規則（計畫 §1／§5）：成就不能買；SKR 不加 XP／排名；devnet 試跑一律標 TEST；付款送出後不重送、遺失回覆走 recover。
  */
-export function GenesisFrameCard({ reloadKey = 0 }: { reloadKey?: number }) {
+export function GenesisFrameCard({ reloadKey = 0 }: { reloadKey?: number | string }) {
   const { t } = useT();
   const session = useWalletStore((s) => s.session);
   const st = useSkrStore();

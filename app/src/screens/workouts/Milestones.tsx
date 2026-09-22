@@ -1,4 +1,5 @@
 import { useNftRevealStore } from '@/state/nftRevealStore';
+import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
@@ -20,7 +21,7 @@ import { color, radius, space, Text } from '@/theme';
 const ORDER: MilestoneItem['category'][] = ['first_5k', 'first_10k', 'first_half', 'first_marathon', 'first_finish'];
 const IMAGE_BASE = 'https://neonshift.cc/nft/achievements/milestones/';
 
-export function Milestones({ reloadKey = 0 }: { reloadKey?: number }) {
+export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
   const { t } = useT();
   const session = useWalletStore((st) => st.session);
   const skr = useSkrStore();
@@ -39,6 +40,8 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number }) {
     }
   }, [session]);
   useEffect(() => { void load(); }, [load, reloadKey]);
+  // registry 核准是伺服器端非同步發生的：回到這個分頁就重抓，否則「待核准」會一直停在畫面上直到重開 App
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   /** 逐次公開同意 → intent → 預覽會公開的內容＋費用 → 錢包簽送（與 PB 流程一致） */
   const mint = (key: string) => {
