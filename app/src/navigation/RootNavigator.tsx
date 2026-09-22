@@ -1,3 +1,6 @@
+import { useEffect } from 'react';
+import { useNavigation, StackActions } from '@react-navigation/native';
+import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { GameGuideScreen } from '@/screens/GameGuideScreen';
 import { NavigationContainer, type LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -38,6 +41,7 @@ const linking: LinkingOptions<RootParamList> = {
   config: {
     screens: {
       Landing: 'landing',
+      WorkoutReturn: 'workout-return',
       DemoPreview: 'preview',
       EventDetail: { path: 'e/:idOrSlug', parse: { idOrSlug: String, source: String, tag: String } },
       ...(__DEV__ ? { DevHealth: 'dev/health' } : {}),
@@ -85,6 +89,7 @@ export function RootNavigator() {
         <Stack.Screen name="Passport" component={PassportScreen} options={{ headerShown: true, title: t('pass.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="Workouts" component={WorkoutsScreen} options={{ headerShown: true, title: t('nav.workouts'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="WorkoutStart" component={WorkoutStartScreen} options={{ headerShown: true, title: t('rec.start.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="WorkoutReturn" component={WorkoutReturnScreen} />
         <Stack.Screen name="WorkoutRecord" component={WorkoutRecordScreen} options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }} />
         <Stack.Screen name="WorkoutSummary" component={WorkoutSummaryScreen} options={{ headerShown: true, title: t('sum.title'), headerBackVisible: false, animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="Events" component={EventsScreen} options={{ headerShown: true, title: t('nav.events'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
@@ -94,4 +99,14 @@ export function RootNavigator() {
       </Stack.Navigator>
     </NavigationContainer>
   );
+}
+
+
+// A stale notification never starts a new recording or resumes GPS automatically.
+function WorkoutReturnScreen() {
+  const navigation = useNavigation();
+  useEffect(() => {
+    navigation.dispatch(StackActions.replace(workoutRecorder.active() ? 'WorkoutRecord' : 'Workouts'));
+  }, [navigation]);
+  return null;
 }

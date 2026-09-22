@@ -1,10 +1,11 @@
+import { ensureWorkoutChannel, setWorkoutReturnTarget, type WorkoutChannelState } from '@/services/workouts/notificationChannel';
 import { Feather } from '@expo/vector-icons';
 import { StackActions, useNavigation } from '@react-navigation/native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Alert, Animated, BackHandler, Easing, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Animated, AppState, BackHandler, Easing, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Chip, InlineState, Screen } from '@/components';
 import { RouteTrace } from '@/components/RouteTrace';
@@ -418,7 +419,20 @@ export function WorkoutRecordScreen() {
 /** 長按解鎖列（實機回饋：按住時看不出「正在 HOLD」）：按下即開始 1.2 s 進度填滿＋文案「繼續按住…」，放開歸零，滿格解鎖並震動 */
 const HOLD_MS = 1200;
 function HoldToUnlock({ onUnlock }: { onUnlock: () => void }) {
-  const { t } = useT();
+  const { t, locale } = useT();
+  const [notificationState, setNotificationState] = useState<WorkoutChannelState | null>(null);
+  useEffect(() => {
+    const check = () => {
+      setNotificationState(ensureWorkoutChannel({ name: t('rec.notif.channelName'), description: t('rec.notif.channelDesc') }));
+      setWorkoutReturnTarget();
+    };
+    check();
+    const delayed = setTimeout(check, 1000);
+    const sub = AppState.addEventListener('change', state => { if (state === 'active') check(); });
+    return () => { clearTimeout(delayed); sub.remove(); };
+  // Translation callback is recreated per render; only locale changes require a refresh.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale]);
   const reduced = useReduceMotion();
   const progress = useRef(new Animated.Value(0)).current;
   const [holding, setHolding] = useState(false);

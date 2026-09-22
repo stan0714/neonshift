@@ -5,6 +5,7 @@ export type ChannelOptions = { id: string; name: string; description: string; im
 export type ChannelState = { importance: number; silenced: boolean; appNotificationsEnabled: boolean };
 
 declare class NeonshiftNotifyModule extends NativeModule {
+  setWorkoutReturnTarget(taskName: string): void;
   ensureChannel(options: ChannelOptions): ChannelState;
 }
 

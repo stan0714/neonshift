@@ -1,5 +1,9 @@
 package expo.modules.neonshiftnotify
 
+import android.app.Notification
+import android.app.PendingIntent
+import android.content.Intent
+import android.net.Uri
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -31,6 +35,25 @@ class NeonshiftNotifyModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("NeonshiftNotify")
+
+    // Preserve expo-location's foreground service notification, replacing only its tap destination.
+    Function("setWorkoutReturnTarget") { taskName: String ->
+      val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      val channelId = "${context.packageName}:$taskName"
+      val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+      if (launch != null) {
+        launch.action = Intent.ACTION_VIEW
+        launch.data = Uri.parse("neonshift://workout-return")
+        launch.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        val pending = PendingIntent.getActivity(context, 7041, launch,
+          PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        manager.activeNotifications.filter { it.notification.channelId == channelId }.forEach {
+          val notification = Notification.Builder.recoverBuilder(context, it.notification)
+            .setContentIntent(pending).setOngoing(true).setAutoCancel(false).setOnlyAlertOnce(true).build()
+          manager.notify(it.tag, it.id, notification)
+        }
+      }
+    }
 
     /** 回傳頻道目前的重要性（建立後由系統／使用者決定），供畫面提示「通知已被靜音」 */
     Function("ensureChannel") { options: ChannelOptions ->

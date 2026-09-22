@@ -18,3 +18,12 @@ export function ensureWorkoutChannel(labels: { name: string; description: string
     return null;
   }
 }
+
+
+/** Older binaries may lack this method; recording must remain available. */
+export function setWorkoutReturnTarget(): void {
+  try {
+    const { NeonshiftNotify } = require('../../../modules/neonshift-notify') as typeof import('../../../modules/neonshift-notify');
+    NeonshiftNotify.setWorkoutReturnTarget(WORKOUT_LOCATION_TASK);
+  } catch { /* Native update requires a new APK. */ }
+}

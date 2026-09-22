@@ -1,3 +1,4 @@
+import { setWorkoutReturnTarget } from './notificationChannel';
 import { randomUUID } from 'expo-crypto';
 import * as Location from 'expo-location';
 import { AppState } from 'react-native';
@@ -260,7 +261,8 @@ export class WorkoutRecorder {
    */
   private runLocationOp(op: () => Promise<void>): Promise<void> {
     const prev = this.locationBusy;
-    const run = prev ? prev.then(op, op) : op();
+    const execute = async () => { await op(); setWorkoutReturnTarget(); };
+    const run = prev ? prev.then(execute, execute) : execute();
     const tracked: Promise<void> = run.catch(() => undefined).finally(() => {
       if (this.locationBusy === tracked) this.locationBusy = null;
     });

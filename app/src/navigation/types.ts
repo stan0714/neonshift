@@ -30,6 +30,7 @@ export type RootParamList = {
   Explore: undefined;
   /** 運動紀錄（PG-R-01，FR-14.1）：匯入的跑步／健走摘要 */
   Workouts: undefined;
+  WorkoutReturn: undefined;
   /** PG-LINK-04 我的運動日誌；month＝YYYY-MM */
   Activity: { month?: string } | undefined;
   ActivityDetail: { serverId: string };
