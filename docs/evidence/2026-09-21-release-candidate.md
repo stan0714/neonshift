@@ -86,3 +86,7 @@
 | GitHub | （公開可讀；release tag） |
 | 簡報 | （網址／版本） |
 | APK 下載 | （網址；SHA-256 同上） |
+
+## 2026-09-22 診斷（`scripts/ops/player.sh`）
+
+負責人錢包 `AcBU5r…vbV2`：運動 3 筆（9/16 4.51 km saved、9/19 3.96 km saved、**9/21 5.31 km needs_review：`gps_gap`＋`gap_teleport`**）。PB baseline 為 9/16（fastest_1k 6:32、longest_run 4.51 km）；`first_5k|outdoor|device` 狀態 **pending_review**（待審來源＝9/21 那筆），成就 0、SKR 訂單 0。結論：COMP-W02 的 NFT 領取與 SKR 購買尚未能開始，需一筆無 GPS 缺口的 ≥5 km 跑步；不以人工核准自家待審紀錄取代（計畫 §6「待審與正式資格區隔」）。
