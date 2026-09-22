@@ -38,14 +38,15 @@ Built for Solana Mobile: Mobile Wallet Adapter sign-in, Seed Vault-compatible si
 
 ## 截圖清單（1080×2400，深色）
 
-依 `docs/evidence/` 的 Seeker 截圖重拍正式版。2026-09-22 已從 9/20 實機截圖裁成 1080×2400 放在 [screenshots/](screenshots/)（Git `08e3232` 之前的畫面，真實 Lv.1 資料、DEVNET 標示）；打勾＝已有，其餘待實機：
+依 `docs/evidence/` 的 Seeker 截圖重拍正式版，全部 1080×2400 放在 [screenshots/](screenshots/)。2026-09-23 於實機補齊 Landing／打卡／Gallery／Explore（真實資料：8,789 步打卡、5.50 km 跑步、已鑄造的首次 5 km NFT）；打勾＝已有：
 
-1. Landing（品牌與 devnet 標示）— 待重拍（現有為 9/14 舊版）
+1. ✅ Landing：品牌、DEVNET 標示、tSKR 無金錢價值註記 → `01-landing.png`
 2. ✅ Dashboard：今日步數、跑鞋與步數／運動任務卡 → `02-dashboard.png`；另有 `02b-activity.png`（Activity 儀表板）
-3. 打卡 sheet：驗證 → 錢包簽章 → 完成 — 待實機打卡（PG-V-06）
+3. ✅ 打卡完成：`CLAIMED TODAY` · Step mission +10 tSKR · Goal reached (8,789 / 8,000) → `03-clockin.png`
 4. ✅ Gear：等級、XP ring、本期維持 → `04-gear.png`；收藏一覽 → `04-gear-collection.png`（Claimable 狀態待 Lv.2）
-5. Arena：進行中排行榜 — 待週末賽事
-6. Gallery：玩家頁與收藏 — 待實機（`07b-profile-gallery-settings.png` 只是 Profile 的藝廊設定，不算）
+5. Arena：進行中排行榜 — **待週末賽事**（唯一未補齊）
+6. ✅ Gallery 玩家頁與收藏：Lv.1 Origin、XP 100、首次 5 km NFT（5.502 km、device recorded）→ `06-gallery.png`；排行榜 → `06-gallery-list.png`
+6b. ✅ Explore 探索冊：任務卡狀態、GPS 計入、進度 1/3 → `06b-explore.png`
 7. ✅ Profile：權限與資料 → `07-profile.png`
 
 ## 圖示
