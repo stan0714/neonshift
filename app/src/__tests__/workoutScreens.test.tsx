@@ -18,7 +18,7 @@ import { PublicKey } from '@solana/web3.js';
 import { ThemeProvider } from '@/theme';
 
 jest.mock('expo-crypto', () => { let n = 0; return { randomUUID: () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}` }; });
-const mockNav = { navigate: jest.fn(), dispatch: jest.fn() };
+const mockNav = { navigate: jest.fn(), dispatch: jest.fn(), setOptions: jest.fn(), getState: jest.fn(() => ({ routes: [{ name: 'Main' }, { name: 'Workouts' }, { name: 'WorkoutSummary' }] })) };
 let mockRoute: { params: Record<string, unknown> } = { params: {} };
 jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => mockNav, useRoute: () => mockRoute }));
 jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { myWorkouts: jest.fn(async () => ({ items: [], rules_version: 1 })), importWorkouts: jest.fn(async (sessions: { external_record_id: string }[]) => ({ imported: 1, results: sessions.map((s) => ({ external_record_id: s.external_record_id, outcome: 'created', session: { session_id: 'server-9' } })) })), signIn: jest.fn(async () => ({})) } }));
@@ -281,6 +281,8 @@ test('摘要頁：距離／時間／平均配速／最高 5 秒／kcal —；分
   // 完整性：健走以 3 m/s（10.8 km/h）持續 2 分鐘 → sustained_speed（防弊）
   expect(screen.getByTestId('sum-integrity')).toBeTruthy();
   expect(screen.getByText(/^Sustained speed: 1 stretch/)).toBeTruthy();
+  // 從紀錄點進來看舊場次：上一頁是真的，返回鍵要出現（剛跑完是 replace 進來的才隱藏）
+  expect(mockNav.setOptions).toHaveBeenCalledWith({ headerBackVisible: true });
   // 離開摘要要重設堆疊：Workouts 的上一頁是首頁，不是已作廢的開始頁／摘要頁（否則返回鍵像卡住）
   await fireEvent.press(screen.getByTestId('sum-done'));
   expect(mockNav.navigate).not.toHaveBeenCalledWith('Workouts');

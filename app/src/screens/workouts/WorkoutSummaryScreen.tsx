@@ -43,6 +43,14 @@ export function WorkoutSummaryScreen() {
   const [syncing, setSyncing] = useState(false);
   const [syncOutcome, setSyncOutcome] = useState<SyncOutcome | null>(null);
 
+  // 剛跑完是由記錄頁 replace 進來的：上一頁是已作廢的準備畫面，返回鍵會把人往回帶（所以預設隱藏）。
+  // 從運動紀錄／Activity 點進來看舊紀錄時，上一頁是真的，返回鍵要出現，否則只能靠底下的按鈕離開。
+  useEffect(() => {
+    const st = navigation.getState();
+    const prev = st?.routes[st.routes.length - 2]?.name;
+    navigation.setOptions({ headerBackVisible: prev !== undefined && prev !== 'WorkoutStart' && prev !== 'WorkoutRecord' });
+  }, [navigation]);
+
   const reload = useCallback(() => setMeta(store.readMeta(params.sessionId)), [params.sessionId]);
   useEffect(reload, [reload]);
   // finish() 保存後即進入本頁，同步在背景進行；完成時 recorder 會 emit，這裡重讀 meta 讓「已同步」即時更新

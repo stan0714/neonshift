@@ -6,7 +6,8 @@ import { GameGuideScreen } from '@/screens/GameGuideScreen';
 import { NavigationContainer, useNavigationContainerRef, type LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import { color, motion, Text } from '@/theme';
+import { HomeHeaderButton } from '@/components/HomeHeaderButton';
+import { color, motion } from '@/theme';
 import { ActivityHistoryScreen } from '@/screens/ActivityHistoryScreen';
 import { ExploreScreen } from '@/screens/ExploreScreen';
 import { AchievementDetailScreen } from '@/screens/gallery/AchievementDetailScreen';
@@ -30,9 +31,6 @@ import { OnboardingNavigator } from './OnboardingNavigator';
 import { navigationTheme } from './theme';
 import type { RootParamList } from './types';
 import { useT } from '@/i18n';
-import { Pressable, StyleSheet } from 'react-native';
-import Feather from '@expo/vector-icons/Feather';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 const Stack = createNativeStackNavigator<RootParamList>();
 
@@ -92,13 +90,13 @@ export function RootNavigator() {
         <Stack.Screen name="GalleryPlayer" component={GalleryPlayerScreen} options={{ headerShown: true, title: t('nav.player'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="AchievementDetail" component={AchievementDetailScreen} options={{ headerShown: true, title: t('nftd.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="Activity" component={ActivityScreen} options={{ headerShown: true, title: t('actv.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
-        <Stack.Screen name="ActivityDetail" component={ActivityDetailScreen} options={{ headerShown: true, title: t('actv.detail.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="ActivityDetail" component={ActivityDetailScreen} options={{ headerShown: true, title: t('actv.detail.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary, headerRight: () => <HomeHeaderButton /> }} />
         <Stack.Screen name="Passport" component={PassportScreen} options={{ headerShown: true, title: t('pass.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="Workouts" component={WorkoutsScreen} options={{ headerShown: true, title: t('nav.workouts'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary, headerRight: () => <HomeHeaderButton /> }} />
         <Stack.Screen name="WorkoutStart" component={WorkoutStartScreen} options={{ headerShown: true, title: t('rec.start.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary, headerRight: () => <HomeHeaderButton /> }} />
         <Stack.Screen name="WorkoutReturn" component={WorkoutReturnScreen} />
         <Stack.Screen name="WorkoutRecord" component={WorkoutRecordScreen} options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }} />
-        <Stack.Screen name="WorkoutSummary" component={WorkoutSummaryScreen} options={{ headerShown: true, title: t('sum.title'), headerBackVisible: false, animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="WorkoutSummary" component={WorkoutSummaryScreen} options={{ headerShown: true, title: t('sum.title'), headerBackVisible: false, animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary, headerRight: () => <HomeHeaderButton /> }} />
         <Stack.Screen name="Events" component={EventsScreen} options={{ headerShown: true, title: t('nav.events'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="EventDetail" component={EventDetailScreen} options={{ headerShown: true, title: t('nav.event'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="StaffCheckIn" component={StaffCheckInScreen} options={{ headerShown: true, title: t('staff.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
@@ -116,22 +114,6 @@ export function RootNavigator() {
 
 
 // A stale notification never starts a new recording or resumes GPS automatically.
-/**
- * 這些頁疊在 Main 之上，底部分頁列看不到，離開只能靠返回鍵——而返回去哪要看從哪裡進來。
- * 給一個固定的回首頁出口，位置與 Activity 頁右上角一致。
- */
-function HomeHeaderButton() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootParamList>>();
-  const { t } = useT();
-  return (
-    <Pressable onPress={() => navigation.navigate('Main', { screen: 'Home' })} accessibilityRole="button" accessibilityLabel={t('actv.home')} hitSlop={8} style={styles.homeBtn} testID="header-home">
-      <Feather name="home" size={16} color={color.mint} />
-      <Text variant="label" tone="mint">{t('actv.home')}</Text>
-    </Pressable>
-  );
-}
-const styles = StyleSheet.create({ homeBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 } });
-
 function WorkoutReturnScreen() {
   const navigation = useNavigation();
   useEffect(() => {
