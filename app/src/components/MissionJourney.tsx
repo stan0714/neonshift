@@ -7,9 +7,11 @@ import type { TaskStatus } from '@/domain/taskEngine';
 import { useT, type TKey } from '@/i18n';
 import { space, Text } from '@/theme';
 
-export function MissionJourney({ profile, config, statuses, onGear, onChallenges }: {
+export function MissionJourney({ profile, config, statuses, onGear, onChallenges, onStartWorkout, onSteps }: {
   profile: PlayerProfile | null; config: ChainConfig | null; statuses: TaskStatus[];
   onGear: () => void; onChallenges: () => void;
+  /** 兩個每日任務各自的入口：規則只用文字說明時，使用者讀完不知道該去哪裡做 */
+  onStartWorkout: () => void; onSteps: () => void;
 }) {
   const { t } = useT();
   const [expanded, setExpanded] = useState(false);
@@ -23,6 +25,10 @@ export function MissionJourney({ profile, config, statuses, onGear, onChallenges
       <Text variant="title" tone="mint">{t('journey.today', { done, total: statuses.length })}</Text>
       <Text variant="bodySmall" tone="secondary">{t(done === statuses.length ? 'journey.complete' : ready > 0 ? 'journey.ready' : 'journey.start', { n: ready })}</Text>
       <Text variant="bodySmall">{t('journey.rules')}</Text>
+      <View style={{ gap: space.xs }}>
+        <Button variant="secondary" label={t('journey.goWorkout')} onPress={onStartWorkout} testID="journey-go-workout" />
+        <Button variant="secondary" label={t('journey.goSteps')} onPress={onSteps} testID="journey-go-steps" />
+      </View>
       <Text variant="label">{t('journey.next')}</Text>
       {remaining !== null ? <>
         <Text variant="title">{t('journey.target', { name: t(`col.stage.${next + 1}` as TKey), xp: remaining.toString() })}</Text>

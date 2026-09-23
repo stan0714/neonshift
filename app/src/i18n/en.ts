@@ -140,6 +140,8 @@ export const en = {
   'journey.ready': '{n} mission(s) ready: confirm your claim below to receive the reward.',
   'journey.start': 'Choose a mission below. Progress counts toward the goal; rewards arrive after a confirmed claim.',
   'journey.rules': 'Daily choices: 8,000 steps, or one GPS walk/run of at least 1 km and 10 moving minutes. You can complete both; each can be claimed once per UTC day. GPS records must be synced and approved.',
+  'journey.goWorkout': 'Start a walk or run',
+  'journey.goSteps': 'Steps & health access',
   'journey.next': 'NEXT SHOE TARGET',
   'journey.target': '{name} · {xp} XP to go',
   'journey.claims': 'Equivalent to {n} successful 100 XP mission claims. This is a claim count, not days; active gear also follows maintenance rules.',

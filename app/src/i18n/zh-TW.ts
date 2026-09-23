@@ -136,6 +136,8 @@ export const zhTW: Record<keyof typeof en, string> = {
   'journey.ready': '有 {n} 個任務已達標：在下方確認打卡，即可進行獎勵領取。',
   'journey.start': '從下方選一個任務開始。累積進度達標後，確認打卡才會取得獎勵。',
   'journey.rules': '每日可挑戰：8,000 步，或單次 GPS 跑步／健走至少 1 km 且移動 10 分鐘。兩項都能完成，各於每個 UTC 任務日領取一次；GPS 紀錄需已同步且審核通過。',
+  'journey.goWorkout': '開始健走或跑步',
+  'journey.goSteps': '步數與健康權限',
   'journey.next': '下一雙跑鞋目標',
   'journey.target': '{name} · 還差 {xp} XP',
   'journey.claims': '相當於再成功領取 {n} 次 100 XP 任務。這是任務次數，不是天數；現役鞋階另受維持規則影響。',
