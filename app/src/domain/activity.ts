@@ -96,7 +96,10 @@ export function mergeActivity(local: SessionMeta[], remote: WorkoutSummary[], en
     const r = m.syncedSessionId ? remoteById.get(m.syncedSessionId) : undefined;
     if (r) {
       remoteById.delete(m.syncedSessionId!);
-      if (r.status === 'needs_review') { item.status = item.status === 'delete_pending' ? item.status : 'needs_review'; item.needsReview = true; }
+      // 審查結果以伺服器為準（雙向）：本機錄製當下的自評只是初判，伺服器覆核通過就不該再被排除在統計外。
+      // 只標不清會讓本機判定 needs_review、伺服器判定 saved 的紀錄永遠不計入距離／次數，但它在伺服器上照樣算 PB。
+      item.needsReview = r.status === 'needs_review';
+      if (item.status !== 'delete_pending') item.status = r.status === 'needs_review' ? 'needs_review' : 'synced';
       item.pbEligible = r.pb_eligible;
       item.reviewReasons = r.review_reasons ?? [];
       item.steps = r.metrics.steps;

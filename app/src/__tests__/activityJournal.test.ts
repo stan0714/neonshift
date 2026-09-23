@@ -8,6 +8,19 @@ const local = (id: string, startedAtUtc: number, o: Partial<SessionMeta> = {}): 
 const remote = (id: string, startedAt: string, o: Partial<WorkoutSummary> = {}): WorkoutSummary => ({ session_id: id, sport: 'walk', environment: 'unknown', intent: 'brisk', goal: null, source: { origin: 'health_connect' as never, source_id: 'hc', external_record_id: `x-${id}`, source_revision: 1 }, started_at: startedAt, ended_at: new Date(Date.parse(startedAt) + 1_500_000).toISOString(), elapsed_ms: '1500000', paused_ms: '0', status: 'saved', quality: 'complete' as never, rules_version: 1, review_reasons: [], possible_duplicate_of: null, metrics: { distance: { value_mm: '2400000', method: 'device' }, steps: 3000, active_energy: null, total_energy: null, avg_pace_s_per_km: null, avg_speed_kmh: 5.76, step_length_mm: null }, pb_eligible: false, extras: {}, revision: 1, imported_at: startedAt, updated_at: startedAt, ...o });
 const entry = (meta: SessionMeta, status: OutboxEntry['status']): OutboxEntry => ({ meta, op: 'upload', status, attempt: 0, nextAttemptAt: null, lastError: null, revision: 1 });
 
+test('審查結果雙向以伺服器為準：本機自評 needs_review、伺服器覆核為 saved → 計入距離與次數（伺服器照樣拿它算 PB）', () => {
+  const l16 = local('l16', Date.UTC(2026, 8, 16, 1), { status: 'needs_review', syncedSessionId: 'srv-16' });
+  const [item] = mergeActivity([l16], [remote('srv-16', '2026-09-16T01:00:00Z', { status: 'saved', pb_eligible: true })], []);
+  expect([item!.needsReview, item!.status, item!.pbEligible]).toEqual([false, 'synced', true]);
+  expect(monthSummary([item!], '2026-09')).toMatchObject({ count: 1, excluded: 0 });
+
+  // 反向仍成立：伺服器判定要審 → 不計入
+  const l17 = local('l17', Date.UTC(2026, 8, 17, 1), { syncedSessionId: 'srv-17' });
+  const [r] = mergeActivity([l17], [remote('srv-17', '2026-09-17T01:00:00Z', { status: 'needs_review' })], []);
+  expect([r!.needsReview, r!.status]).toEqual([true, 'needs_review']);
+  expect(monthSummary([r!], '2026-09')).toMatchObject({ count: 0, excluded: 1 });
+});
+
 test('日曆日依 session 時區：台北 09/18 07:10 開跑（UTC 09/17 23:10）歸 09/18；伺服器紀錄缺時區 → 裝置時區；[from,to) 月份範圍含前後一天緩衝', () => {
   const utc = Date.UTC(2026, 8, 17, 23, 10);
   expect(calendarDay(utc, 'Asia/Taipei')).toBe('2026-09-18');
