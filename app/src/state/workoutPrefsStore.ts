@@ -28,6 +28,8 @@ export type WorkoutPrefs = {
   detailView: boolean;
   /** PG-LINK-04：日誌排序（預設由舊到新，與同步順序一致）與檢視（清單／月曆）——瀏覽偏好，不影響同步 */
   activityOrder: 'asc' | 'desc';
+  /** 偏好結構版本（遷移用；不顯示於介面） */
+  prefsSchema?: number;
   activityView: 'list' | 'calendar';
   /** PG-LINK-06：儀表板期間（週／月／年／全部） */
   activityPeriod: 'week' | 'month' | 'year' | 'all';
@@ -39,10 +41,15 @@ export type WorkoutPrefs = {
 export const GOAL_VERSION = 2;
 export const FREE_GOAL: WorkoutGoal = { kind: 'free', target: 0, unit: 's', version: GOAL_VERSION };
 const KEY = 'neonshift.workout.prefs.v1';
-const initial: WorkoutPrefs = { mode: 'run', goal: FREE_GOAL, voice: false, haptic: false, showRoute: true, traceLayer: 'shoe', autoPause: false, cueEvery: '1000', keepAwake: true, detailView: false, activityOrder: 'asc', activityView: 'list', activityPeriod: 'month' };
+/**
+ * 偏好結構版本。2：Activity 預設改為由新到舊（運動紀錄的慣例是最近的在最上面）。
+ * 舊裝置存的 'asc' 是當初的預設值、不是使用者選的，一次性翻成 'desc'；之後使用者自己切換的選擇照常保留。
+ */
+const PREFS_SCHEMA = 2;
+const initial: WorkoutPrefs = { mode: 'run', goal: FREE_GOAL, voice: false, haptic: false, showRoute: true, traceLayer: 'shoe', autoPause: false, cueEvery: '1000', keepAwake: true, detailView: false, activityOrder: 'desc', activityView: 'list', activityPeriod: 'month', prefsSchema: PREFS_SCHEMA };
 
 type State = WorkoutPrefs & { loaded: boolean; load: () => Promise<WorkoutPrefs>; set: (patch: Partial<WorkoutPrefs>) => Promise<void> };
-const pick = (s: State): WorkoutPrefs => ({ mode: s.mode, goal: s.goal, voice: s.voice, haptic: s.haptic, showRoute: s.showRoute, traceLayer: s.traceLayer, autoPause: s.autoPause, cueEvery: s.cueEvery, keepAwake: s.keepAwake, detailView: s.detailView, activityOrder: s.activityOrder, activityView: s.activityView, activityPeriod: s.activityPeriod });
+const pick = (s: State): WorkoutPrefs => ({ mode: s.mode, goal: s.goal, voice: s.voice, haptic: s.haptic, showRoute: s.showRoute, traceLayer: s.traceLayer, autoPause: s.autoPause, cueEvery: s.cueEvery, keepAwake: s.keepAwake, detailView: s.detailView, activityOrder: s.activityOrder, activityView: s.activityView, activityPeriod: s.activityPeriod, prefsSchema: PREFS_SCHEMA });
 
 export const useWorkoutPrefs = create<State>((set, get) => ({
   ...initial,
@@ -50,7 +57,12 @@ export const useWorkoutPrefs = create<State>((set, get) => ({
   async load() {
     try {
       const raw = await SecureStore.getItemAsync(KEY);
-      const prefs = raw ? { ...initial, ...(JSON.parse(raw) as Partial<WorkoutPrefs>) } : initial;
+      const stored = raw ? (JSON.parse(raw) as Partial<WorkoutPrefs>) : null;
+      let prefs = stored ? { ...initial, ...stored } : initial;
+      if (stored && (stored.prefsSchema ?? 1) < PREFS_SCHEMA) {
+        prefs = { ...prefs, activityOrder: initial.activityOrder, prefsSchema: PREFS_SCHEMA };
+        try { await SecureStore.setItemAsync(KEY, JSON.stringify(prefs)); } catch { /* 遷移寫回失敗下次再試 */ }
+      }
       set({ ...prefs, loaded: true });
       return prefs;
     } catch {
