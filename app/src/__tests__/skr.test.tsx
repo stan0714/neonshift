@@ -18,6 +18,8 @@ import { genesisFrameActive, ownsGenesisFrame, pendingOrderFor, useSkrStore } fr
 import { useWalletStore } from '@/state/walletStore';
 import { ThemeProvider } from '@/theme';
 
+jest.mock('@/hooks/useOnline', () => ({ useOnline: jest.fn(() => true) }));
+
 jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { skrCatalog: jest.fn(), skrCreateOrder: jest.fn(), skrConfirm: jest.fn(), skrRecover: jest.fn(), skrCancel: jest.fn(), skrOrders: jest.fn(), skrEntitlements: jest.fn() } }));
 const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'skrCatalog' | 'skrCreateOrder' | 'skrConfirm' | 'skrRecover' | 'skrCancel' | 'skrOrders', jest.Mock>;
 
@@ -117,12 +119,21 @@ describe('購買狀態機', () => {
 
 describe('skrStore 與 Genesis 卡片', () => {
   const Wrapper = ({ children }: PropsWithChildren) => <ThemeProvider>{children}</ThemeProvider>;
+  const online = jest.requireMock('@/hooks/useOnline').useOnline as jest.Mock;
   beforeEach(() => {
     jest.clearAllMocks();
+    online.mockReturnValue(true);
     useSkrStore.setState({ loaded: true, persisted: { pending: {}, entitlements: {}, useGenesisFrame: {} }, catalog: null, catalogWallet: null, catalogError: null, phase: null, error: null, outcome: null });
     useWalletStore.setState({ status: 'connected', session: { address: wallet.toBase58(), publicKey: wallet, walletUriBase: '', label: 'Seeker Wallet' }, error: null } as never);
   });
 
+  test('離線：購買鍵停用並說明（建單要連伺服器，離線按下去必定在第一步失敗）', async () => {
+    online.mockReturnValue(false);
+    api.skrCatalog.mockResolvedValue(catalog());
+    await render(<GenesisFrameCard />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('genesis-frame-offline')).toBeTruthy());
+    expect(screen.getByTestId('genesis-frame-buy-btn').props.accessibilityState.disabled).toBe(true);
+  });
   test('未開放 → 不顯示', async () => {
     api.skrCatalog.mockResolvedValueOnce({ enabled: false, reason: 'not_configured' });
     await render(<GenesisFrameCard />, { wrapper: Wrapper });

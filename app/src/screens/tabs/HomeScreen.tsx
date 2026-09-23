@@ -64,7 +64,12 @@ export function HomeScreen() {
   const workout = workoutProgress(d.workout);
   const syncedAgoMin = d.health?.syncedAt ? Math.round((Date.now() - d.health.syncedAt) / 60_000) : null;
   const outdated = d.health?.syncedAt ? Date.now() - d.health.syncedAt > OUTDATED_MS : false;
-  const stepsStatus = syncedAgoMin === null ? t('home.notSynced') : outdated ? t('home.outdated') : d.health?.error ? t('home.offlineCached') : t('home.updatedAgo', { n: syncedAgoMin });
+  // 過期／離線快取時要講清楚是「什麼時候的讀數」——只說「可能過期」使用者無從判斷該不該相信畫面上的步數
+  const syncedAtLabel = d.health?.syncedAt ? new Date(d.health.syncedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
+  const stepsStatus = syncedAgoMin === null ? t('home.notSynced')
+    : outdated ? t('home.outdated', { time: syncedAtLabel! })
+    : d.health?.error ? t('home.offlineCached', { time: syncedAtLabel! })
+    : t('home.updatedAgo', { n: syncedAgoMin });
   const untilMidnight = secondsUntilUtcMidnight(now);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t('home.morning') : hour < 18 ? t('home.afternoon') : t('home.evening');

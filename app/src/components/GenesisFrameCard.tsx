@@ -5,6 +5,7 @@ import { Button, Chip, InlineState } from '@/components';
 import { useT, type TKey } from '@/i18n';
 import type { SkrSkuView } from '@/services/api/ApiClient';
 import { skrService } from '@/services/skr/SkrService';
+import { useOnline } from '@/hooks/useOnline';
 import { genesisFrameActive, ownsGenesisFrame, pendingOrderFor, useSkrStore } from '@/state/skrStore';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
@@ -19,6 +20,7 @@ export function GenesisFrameCard({ reloadKey = 0 }: { reloadKey?: number | strin
   const session = useWalletStore((s) => s.session);
   const st = useSkrStore();
   const wallet = session?.address ?? null;
+  const online = useOnline(); // hooks 一律在提早 return 之前
   useEffect(() => { if (wallet) void st.refreshCatalog(wallet); }, [wallet, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!session || !wallet || !st.catalog || !st.catalog.enabled) return null;
   const cat = st.catalog;
@@ -69,7 +71,7 @@ export function GenesisFrameCard({ reloadKey = 0 }: { reloadKey?: number | strin
           <Text variant="caption" tone="secondary" style={styles.mtXs}>{t(`skr.orderHint.${open.status}` as TKey, { amount: open.amount_display })}</Text>
           <View style={styles.actions}>
             {open.status !== 'needs_review' ? <Button label={t('skr.checkStatus')} variant="secondary" onPress={() => void st.recover(wallet, open.order_id)} loading={busy} disabled={busy} testID="genesis-frame-recover" /> : null}
-            {open.status === 'awaiting_payment' ? <Button label={t('skr.payNow')} onPress={buy} disabled={busy} testID="genesis-frame-pay" /> : null}
+            {open.status === 'awaiting_payment' ? <Button label={t('skr.payNow')} onPress={buy} disabled={busy || !online} testID="genesis-frame-pay" /> : null}
             {open.status === 'awaiting_payment' ? <Button label={t('common.cancel')} variant="secondary" onPress={() => void st.cancel(wallet, open.order_id)} disabled={busy} testID="genesis-frame-cancel" /> : null}
           </View>
         </View>
@@ -77,7 +79,9 @@ export function GenesisFrameCard({ reloadKey = 0 }: { reloadKey?: number | strin
         <View style={styles.mt} testID="genesis-frame-buy">
           <Text variant="heading2" numeric>{t('skr.price', { amount: sku.price_display })}</Text>
           <Text variant="caption" tone="muted">{t('skr.priceHint', { recipient: shortAddress(cat.recipient, 6) })}</Text>
-          <Button label={busy && st.phase ? t(`skr.phase.${st.phase}` as TKey) : t('skr.buy')} onPress={buy} loading={busy} disabled={busy} style={styles.mt} testID="genesis-frame-buy-btn" />
+          <Button label={busy && st.phase ? t(`skr.phase.${st.phase}` as TKey) : t('skr.buy')} onPress={buy} loading={busy} disabled={busy || !online} style={styles.mt} testID="genesis-frame-buy-btn" />
+          {/* 建單就要連伺服器：離線時按下去必定在第一步失敗，不如先說清楚 */}
+          {!online ? <Text variant="caption" tone="muted" style={styles.mtXs} testID="genesis-frame-offline">{t('skr.offline')}</Text> : null}
         </View>
       ) : (
         <View style={styles.mt} testID={`genesis-frame-${sku.eligibility}`}>
