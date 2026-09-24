@@ -91,3 +91,7 @@ export function modeLabel(t: (k: TKey) => string, sport: 'run' | 'walk', intent:
   if (intent === 'casual') return t('wo.mode.walk');
   return t('wo.mode.unset');
 }
+
+/** 審查原因：伺服器回的是代碼（gps_gap…），畫面不可原樣印出；未知代碼保留代碼本身以免吞掉資訊 */
+export const reviewReasonsText = (t: (k: TKey) => string, reasons: string[]) =>
+  reasons.map((r) => { const key = `wo.reason.${r}` as TKey; const s = t(key); return s === key ? r : s; }).join('、');

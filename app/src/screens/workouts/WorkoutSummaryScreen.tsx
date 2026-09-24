@@ -139,7 +139,7 @@ export function WorkoutSummaryScreen() {
       {(meta.unsavedPoints ?? 0) > 0 ? (
         <InlineState kind="warning" title={t('sum.unsaved.title')} body={t('sum.unsaved.body', { n: meta.unsavedPoints ?? 0 })} testID="sum-unsaved" />
       ) : null}
-      {meta.status === 'needs_review' ? <InlineState kind="warning" title={t('sum.needsReview')} testID="sum-needs-review" /> : null}
+      {meta.status === 'needs_review' ? <InlineState kind="warning" title={t('sum.needsReview')} body={t('sum.needsReview.next')} testID="sum-needs-review" /> : null}
       <View style={styles.syncRow}>
         <Text variant="caption" tone={meta.syncedSessionId ? 'success' : 'muted'} testID="sum-sync">
           {meta.syncedSessionId ? t('sum.synced') : t('sum.notSynced')}

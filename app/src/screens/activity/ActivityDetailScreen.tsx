@@ -7,7 +7,7 @@ import { SignInState } from '@/components/SignInState';
 import { itemFromRemote, type ActivityItem } from '@/domain/activity';
 import { stageName } from '@/domain/collectibles';
 import { estimateEnergy } from '@/domain/energy';
-import { formatDuration, formatKcal, formatKm, formatPace, modeLabel, qualityKind } from '@/domain/workouts';
+import { formatDuration, formatKcal, formatKm, formatPace, modeLabel, qualityKind, reviewReasonsText } from '@/domain/workouts';
 import { useBody } from '@/state/bodyStore';
 import { useT, type TKey } from '@/i18n';
 import type { RootParamList } from '@/navigation/types';
@@ -91,7 +91,7 @@ export function ActivityDetailScreen() {
       ) : (
         <Text variant="caption" tone="muted" style={styles.mt} testID="activity-detail-no-splits">{t('actv.detail.noSplits')}</Text>
       )}
-      {it.reviewReasons.length ? <InlineState kind="warning" title={t('sum.needsReview')} body={it.reviewReasons.join(', ')} testID="activity-detail-review" /> : null}
+      {it.reviewReasons.length ? <InlineState kind="warning" title={t('sum.needsReview')} body={`${reviewReasonsText(t, it.reviewReasons)}\n${t('sum.needsReview.next')}`} testID="activity-detail-review" /> : null}
       <Text variant="caption" tone="muted" style={styles.mt}>{t('actv.detail.noRoute')}</Text>
       <Text variant="caption" tone="cyan" style={styles.mt} onPress={() => navigation.goBack()}>{t('common.close')}</Text>
     </Screen>
