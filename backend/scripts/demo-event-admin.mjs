@@ -4,7 +4,6 @@
  *   node scripts/demo-event-admin.mjs <base> show
  *   node scripts/demo-event-admin.mjs <base> add-staff <wallet> [check_in|redemption|all]  # 指派 staff（真機雙角色驗收用；一個錢包同時只有一個 staff 站點）
  *   node scripts/demo-event-admin.mjs <base> revoke-tag <tag_id>                        # 停用一枚 NFC 標籤
- *   node scripts/demo-event-admin.mjs <base> set-stock <benefit_name> <n>               # 調整庫存（最後一件競態測試）
  * 金鑰在 $KEY_DIR（預設 ~/.config/neonshift/dev/demo），不進 repo；不動使用者錢包。
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -75,13 +74,6 @@ if (cmd === "show") {
   if (!tagId) throw new Error("用法：revoke-tag <tag_id>");
   await req("POST", `/v1/partner/events/${evId}/tags/${tagId}/revoke`, {}, owner.token);
   console.log(`已停用標籤 ${tagId}`);
-} else if (cmd === "set-stock") {
-  const [name, n] = [process.argv[4], Number(process.argv[5])];
-  const benefits = await req("GET", `/v1/partner/events/${evId}/benefits`, undefined, owner.token);
-  const b = (benefits.items ?? benefits.benefits ?? []).find((x) => x.name === name || x.benefit_id === name);
-  if (!b) throw new Error(`找不到品項 ${name}`);
-  const r = await req("PATCH", `/v1/partner/events/${evId}/benefits/${b.benefit_id}`, { stock_total: n }, owner.token);
-  console.log(`庫存改為 ${n}`, JSON.stringify(r));
 } else {
   throw new Error(`未知指令 ${cmd}`);
 }

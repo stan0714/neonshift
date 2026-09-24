@@ -17,22 +17,27 @@ const base = (process.argv[2] ?? "http://127.0.0.1:6080").replace(/\/$/, "");
 const OPS = process.env.OPS_TOKEN ?? "";
 const KEY_DIR = process.env.KEY_DIR ?? join(homedir(), ".config", "neonshift", "dev", "demo");
 const ORG = { slug: "wild-guardians", name: "荒野守護 Wild Guardians（測試主辦方）" };
+// 評審與 Demo 影片以英文進行：活動資料是主辦方自填的單一字串，不走 App 的 i18n，
+// 英文介面裡冒出中文品項會像未在地化的缺陷，所以 fixture 一律英文。
 const EVENT = {
-  slug: "wild-guardian-day",
-  title: "荒野守護體驗日 · Wild Guardian Day（測試活動）",
-  description: "NeonShift 評審／錄影用測試活動，非真實合作活動、無捐款。流程：App 報名 → 現場向 staff 出示 120 秒報到碼 → 報到後可預留紀念毛巾 → 主辦方發布成績 → 符合資格者領活動留念章。",
+  slug: "wild-guardian-day-2026",
+  title: "Wild Guardian Day (test event)",
+  description: "Test event for NeonShift judging and video capture. Not a real partner event; no donations are involved. Flow: register in the app - show the 120-second check-in code to staff on site - reserve the commemorative towel after check-in - the organizer publishes results - eligible runners claim the event badge.",
   timezone: "Asia/Taipei",
   capacity: 200,
   badges: { check_in: true, finish: true },
 };
-const RULES = { distance_m: 3000, course: "河濱 3 km 體驗走／跑", check_in_window: "活動日 08:00–11:00（測試環境全天開放）", results: "主辦方 CSV 匯入後發布；App 只顯示發布版本", conservation_note: "教育示範；不宣稱 WWF 合作或捐款" };
+const RULES = { distance_m: 3000, course: "3 km riverside walk/run", check_in_window: "08:00-11:00 on event day (open all day in the test environment)", results: "Published by the organizer after a CSV import; the app shows only the published version", conservation_note: "Educational demo; no WWF partnership or donation is claimed" };
 const CHECKPOINTS = [
-  { name: "Gate 報到站", purpose: "check_in" },
-  { name: "Booth 權益攤位", purpose: "redemption" },
+  { name: "Gate (check-in)", purpose: "check_in" },
+  { name: "Booth (perk pickup)", purpose: "redemption" },
 ];
+// 品項建立後不可改名也不可改庫存（後端只有 POST／GET，沒有 PATCH／DELETE——庫存是對參加者的承諾）。
+// 因此「最後一件」競態測試需要的低庫存品項必須在建立時就備好，不能事後調。
 const BENEFITS = [
-  { kind: "physical", name: "荒野守護紀念毛巾", stock_total: 100, per_person_limit: 1, requires_checkin: true, claim_deadline: null },
-  { kind: "digital_badge", name: "體驗日數位守護章", stock_total: 100_000, per_person_limit: 1, requires_checkin: true, claim_deadline: null },
+  { kind: "physical", name: "Wild Guardian towel", stock_total: 100, per_person_limit: 1, requires_checkin: true, claim_deadline: null },
+  { kind: "digital_badge", name: "Experience Day digital badge", stock_total: 100_000, per_person_limit: 1, requires_checkin: true, claim_deadline: null },
+  { kind: "physical", name: "Last one on the shelf (test)", stock_total: 1, per_person_limit: 1, requires_checkin: true, claim_deadline: null },
 ];
 
 const req = async (method, p, body, token) => {

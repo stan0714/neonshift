@@ -52,22 +52,25 @@
 9. 主片只取已驗收的報名→報到片段；完整步驟改由本手冊承接，不再要求六分鐘影片。時間跳轉、預先建立的資料、不同帳號皆加字幕。
 10. 評審 fixture 與錄影 fixture 分開或留下足夠名額／庫存。不得在有人試用時任意刪除、重設其資料；維護負責人與支援時段登錄於指南。
 
-### Fixture 登錄（2026-09-22 已建立並核對；`backend/scripts/demo-event.mjs`，幂等）
+### Fixture 登錄（2026-09-24 重建為英文並核對；`backend/scripts/demo-event.mjs`，幂等）
+
+評審與 Demo 影片以英文進行；活動資料是主辦方自填的單一字串、不走 App 的 i18n，英文介面裡冒出中文品項會像未在地化的缺陷。
 
 | 欄位 | 值 |
 |---|---|
-| 測試活動 slug／ID／規則 revision | `wild-guardian-day`／`d67d6da9-4a4b-4b75-9702-28ded6dcb5dc`／`57ab0800-e40c-48fe-a4a3-56760445ccd9`（v1，state=published） |
-| 報名與活動起訖／時區 | 2026-09-17T00:28Z → 2026-10-17T01:28Z（Asia/Taipei）；容量 200，已報名 0 |
-| 站點 ID／purpose | 報到 `b1d8cd5a-d108-4584-92c2-b4ac7776a756`／check_in；權益攤位 `e38b4169-0d0d-4b2d-9876-c033d6f92afa`／redemption |
-| 測試權益／庫存／領取條件 | 荒野守護紀念毛巾（physical，100，每人 1，需報到）；體驗日數位守護章（digital_badge，100,000，每人 1，需報到） |
+| 測試活動 slug／ID／規則 revision | `wild-guardian-day-2026`／`ff478fd8-85ed-4b99-b263-9bceb14eb805`／`b7ac14b4-2c0b-4b73-8c1a-4c239002a425`（v1，state=published）· 標題 `Wild Guardian Day (test event)` |
+| 報名與活動起訖／時區 | 2026-09-24T00:59Z → 2026-10-24T01:59Z（Asia/Taipei）；容量 200，已報名 0 |
+| 站點 ID／purpose | `Gate (check-in)` `5cdfc185-849f-426b-ac41-160c28dd832b`／check_in；`Booth (perk pickup)` `c2d59ea3-143e-45b0-86e8-2bf33470e280`／redemption |
+| 測試權益／庫存／領取條件 | `Wild Guardian towel`（physical，100）；`Experience Day digital badge`（digital_badge，100,000）；`Last one on the shelf (test)`（physical，**1**，供最後一件競態測試）。三者皆每人 1、需報到。**品項建立後不可改名改庫存**（後端無 PATCH／DELETE） |
 | 報到章／完賽章設定 | 皆開啟（報名時需 Lv≥2 才有資格，Lv1 顯示 level_locked） |
 | 參加者／staff 公開地址 | 參加者＝負責人 Seeker 錢包；demo owner `4sUmyriePDzJvyr8vm4zPzJP7fVv1fMVJwWHrjrNAZm1`、demo staff `B5gsSiLZ3cL1N6AKRHtuJis4GhPQCuFxDNJvyMJc91T7`（金鑰只在 `~/.config/neonshift/dev/demo/`，不進 repo） |
-| NFC 標籤 | 有效：`https://neonshift.cc/e/wild-guardian-day?tag=sI2Sp38LhM5PQkRMl7l_H7Ybrgm1Gkju`；**已停用（測試用）**：`…?tag=wJC05v3G9ubBsD9ptmZo5xnUMI0GuSM5` |
+| NFC 標籤 | 有效：`https://neonshift.cc/e/wild-guardian-day-2026?tag=jE6irsFYsOC5CvJmW9KlFaRVqR68IirU`；**已停用（測試用）**：`…?tag=WbB9O_K3PCYqHbppBU2q0mkXasjpoNv-` |
 | API／APK／Commit | `https://api.neonshift.cc/v1`（直連驗證走 `http://l2.neonshift.cc:6080`）／提交版 APK 見 `docs/evidence/<日期>-release-candidate.md` |
 | registry 狀態／Explorer | 待真機鑄造後登錄 |
 | 支援人／時段／維護期 | 待負責人指定 |
+| 舊的中文活動 | `wild-guardian-day`／`d67d6da9-4a4b-4b75-9702-28ded6dcb5dc` 保留未動，供真機驗收第 11 步「取消活動」測試使用 |
 
-App 內 staff 需要第二個錢包帳號：`node backend/scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 add-staff <第二帳號位址> check_in`（同工具另有 `show`／`revoke-tag`／`set-stock`，供最後一件競態與停用標籤測試）。
+App 內 staff 需要第二個錢包帳號：`node backend/scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 add-staff <第二帳號位址> check_in`（同工具另有 `show`／`revoke-tag`；**沒有** set-stock——品項建立後不可改庫存，低庫存品項須在建立 fixture 時備好）。
 
 ## 4. 沒有 NFC、健康資料或 staff 時
 
