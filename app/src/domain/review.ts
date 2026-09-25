@@ -97,11 +97,11 @@ export type ShareCardInput = {
   autoPausedMs: number;
 };
 type ShareT = (key: string, params?: Record<string, string | number>) => string;
-const fmtDur = (ms: number) => {
+export const fmtDur = (ms: number) => {
   const sec = Math.round(ms / 1000);
   return `${Math.floor(sec / 3600) ? `${Math.floor(sec / 3600)}:` : ''}${pad(Math.floor((sec % 3600) / 60))}:${pad(sec % 60)}`;
 };
-const fmtPace = (p: number) => `${Math.floor(p / 60)}:${pad(p % 60)}`;
+export const fmtPace = (p: number) => `${Math.floor(p / 60)}:${pad(p % 60)}`;
 
 export function shareCard(w: ShareCardInput, fields: ShareCardFields, t: ShareT, labels: { mode: string; app: string; site: string }): string {
   const emoji = w.sport === 'run' ? '🏃' : w.intent === 'brisk' ? '⚡🚶' : '🚶';

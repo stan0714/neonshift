@@ -59,6 +59,28 @@ export function buildTrace(points: RawPoint[], opts: { width: number; height: nu
   return { segments, metersPerPx: 1 / scale, start: first, end: last, pointCount: usable.length };
 }
 
+/**
+ * 分享用：裁去起點與終點各 meters 公尺（社群分享規劃 §5.2）。
+ * 路線形狀可能透露常跑地點，最敏感的是出發與結束的位置；中段形狀保留。
+ * 總長不足 3×meters 時回空陣列——裁完剩不到一段可辨識的形狀，寧可不給圖。
+ */
+export function trimEnds(points: RawPoint[], meters: number): RawPoint[] {
+  const usable = points.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon)).sort((a, b) => a.seq - b.seq);
+  if (meters <= 0 || usable.length < 2) return meters <= 0 ? usable : [];
+  const cos = Math.cos(((usable.reduce((a, p) => a + p.lat, 0) / usable.length) * Math.PI) / 180);
+  const cum = [0];
+  for (let i = 1; i < usable.length; i++) {
+    const a = usable[i - 1]!;
+    const b = usable[i]!;
+    const dx = (((b.lon - a.lon) * Math.PI) / 180) * R_M * cos;
+    const dy = (((b.lat - a.lat) * Math.PI) / 180) * R_M;
+    cum.push(cum[i - 1]! + Math.hypot(dx, dy));
+  }
+  const total = cum[cum.length - 1]!;
+  if (total < meters * 3) return [];
+  return usable.filter((_, i) => cum[i]! >= meters && cum[i]! <= total - meters);
+}
+
 /** 比例尺長度：挑 1／2／5×10^n 公尺中畫在畫布上介於 40～120 px 的一個 */
 export function scaleBarMeters(metersPerPx: number | null): number | null {
   if (!metersPerPx || !Number.isFinite(metersPerPx) || metersPerPx <= 0) return null;
