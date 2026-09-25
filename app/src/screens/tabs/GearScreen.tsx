@@ -10,6 +10,7 @@ import { RevealCeremony } from "@/components/EvolutionReveal";
 import { formatEditionNo } from "@/components/CollectorPlate";
 import { ShoeHero } from "@/components/ShoeHero";
 import { Milestones } from "@/screens/workouts/Milestones";
+import { SeasonalFootprints } from "@/components/SeasonalFootprints";
 import { maintenanceView, nextSteps } from "@/domain/maintenance";
 import { freezeActive } from "@/chain/accounts";
 import { shoeSection, type ShoeSection } from "@/domain/collectibles";
@@ -446,6 +447,8 @@ export function GearScreen() {
       </View>
 
       <Milestones reloadKey={`${claimedCount}:${refreshTick}`} />
+      {/* PG-SEASON-03：收藏分三線（里程碑／個人最佳／節日）；節日只呈現資格，尚未開放領取 */}
+      <SeasonalFootprints reloadKey={refreshTick} />
 
       <Text variant="caption" tone="muted" style={styles.disclaimer}>
         {t("common.testToken")}

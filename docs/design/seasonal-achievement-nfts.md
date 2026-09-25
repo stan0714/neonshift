@@ -69,7 +69,7 @@
 |---|---|---|
 | PG-SEASON-01 | campaign schema、來源核對、UTC／地方時區與上傳寬限 | P1・**WIP**（`backend/seasonal/campaigns.json` ＋ `src/seasonal/campaigns.ts`；窗口一律寫 UTC 瞬間，`display_timezone`＋`expect_local_days` 由 loader 反算驗證，DST／時區打錯會啟動失敗；全部 `enabled:false`） |
 | PG-SEASON-02 | 資格計算與去重，離線補同步、revision／撤銷 | P1・**WIP**（`src/seasonal/compute.ts` 純函式＋`GET /v1/seasonal`、`GET /v1/me/seasonal`；嚴格單筆、寬限只放寬上傳時間、每屆一枚取最早、待審另列；29 項測試通過。撤銷語意待 04 的 registry 一起做） |
-| PG-SEASON-03 | 原創 SVG 美術、任務／詳情／年度收藏與多語文案 | P1・TODO；只有概念預覽（後端已可提供狀態，App 尚未接） |
+| PG-SEASON-03 | 原創 SVG 美術、任務／詳情／年度收藏與多語文案 | P1・**WIP**（`components/SeasonalBadge.tsx` 程序繪製五種主題＋上鎖鎖圖示；`components/SeasonalFootprints.tsx` 掛在 Gear 收藏頁，顯示窗口狀態、活動時區＋本地時間、單筆 20 分規則、進度與「看這次運動」；zh／en 文案齊。年份篩選與收藏頁分類切換尚未做） |
 | PG-SEASON-04 | seasonal mint-intent、registry proof、receipt 與錢包整合 | P1・TODO；需確認鏈上相容性。**目前 API 刻意不含任何 mintable／achievement 欄位**（`mint_enabled:false`），資料庫 `achievements_kind_ck` 也還沒有 `seasonal`，避免偽裝成 `first_5k` |
 | PG-SEASON-05 | 核准通知、揭曉、社群卡與同意模型 | P1・TODO；複用現有能力，不表示已接妥 |
 | PG-SEASON-06 | 提醒訂閱、推播與年度營運工具 | P2・TODO |

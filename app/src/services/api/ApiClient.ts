@@ -136,6 +136,19 @@ export type SkrEntitlementView = { cosmetic_id: string; order_id: string; status
 export type SkrSkuView = { sku: string; version: number; cosmetic_id: string; requires: { kind: 'milestone'; category: string }; price_base_units: string; price_display: string; eligibility: 'eligible' | 'not_achieved' | 'pending_registry' | 'revoked'; achievement_id: string | null; owned: boolean; open_order: SkrOrderView | null };
 export type SkrCatalog = { enabled: false; reason: string | null } | { enabled: true; network: SkrNetwork; mint: string; decimals: number; recipient: string; recipient_token_account: string; order_ttl_sec: number; skus: SkrSkuView[]; entitlements: SkrEntitlementView[] };
 
+/** PG-SEASON-01／02 節日收藏：後端只判定資格，沒有鑄造路徑（`mint_enabled` 目前一律 false） */
+export type SeasonalWindowState = 'upcoming' | 'open' | 'grace' | 'closed';
+export type SeasonalStatus = 'locked' | 'pending_review' | 'eligible';
+export type SeasonalSource = { source: { kind: string; id: string; revision: number }; started_at: string; moving_ms: number };
+export type SeasonalCampaignView = {
+  campaign_id: string; theme_id: string; year: number; art_version: number; rules_version: number; prototype: boolean;
+  window: { starts_at: string; ends_at: string; display_timezone: string; state: SeasonalWindowState };
+  rules: { min_moving_minutes: number; grace_days: number; single_session: boolean; gps_counts: boolean };
+  source: { fact: string; url: string; checked_on: string };
+  mint_enabled: boolean;
+};
+export type MySeasonalItem = SeasonalCampaignView & { status: SeasonalStatus; first: SeasonalSource | null; pending: SeasonalSource | null; progress: { best_moving_ms: number; required_ms: number }; reason: string | null };
+
 export type Milestones = { rules_major: number; imported_since: string | null; items: MilestoneItem[]; unlocked_by_source: { kind: 'workout' | 'result'; id: string; categories: MilestoneCategory[] }[] };
 /** PG-M-04：活動留念章（報到／完賽分開；報名時鞋階承諾） */
 export type EventBadgeKind = 'check_in' | 'finish';
@@ -437,6 +450,15 @@ export class ApiClient {
   }
   skrEntitlements(): Promise<{ entitlements: SkrEntitlementView[] }> {
     return this.request('GET', '/me/skr/entitlements');
+  }
+
+  /** 公開目錄（未登入也能看「即將開始／進行中」） */
+  seasonal(): Promise<{ items: SeasonalCampaignView[] }> {
+    return this.request('GET', '/seasonal');
+  }
+
+  mySeasonal(): Promise<{ items: MySeasonalItem[]; notes: string[] }> {
+    return this.request('GET', '/me/seasonal');
   }
 
   milestones(): Promise<Milestones> {
