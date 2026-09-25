@@ -52,7 +52,7 @@
 1. **完全沒有圖片分享**。`Share.share({ message })` 只送文字，IG／Threads 這類以圖為主的平台幾乎貼不出東西。
 2. ~~網站沒有任何 OG／Twitter card 標籤~~ → 首頁／`/en/`／`/e/`／`/s/*` 已補齊，圖為 `web/og/<kind>-v1.png`（1200×630，`tools/og-assets/build.mjs` 產生，`verify.mjs` 靜態檢查）。**各平台實際抓取結果仍須部署後實測**，不推論點擊率。
 3. ~~落地頁沒有安裝按鈕~~ → `/s/` 已有安裝入口區塊；因為**還沒上架**，按規格顯示「尚未開放下載」並給複製連結，不假裝可安裝。
-4. **非活動分享沒有任何歸因**。運動成績卡、成就卡分享出去後無法知道有沒有帶人進來；`bumpCampaign` 目前綁 `event_id`。
+4. ~~非活動分享沒有任何歸因~~ → 新增 `share_aggregates`（kind × source × day × event_name → count，migration 0020）與匿名 `POST /v1/metrics/share`；落地頁以 sendBeacon 送 `landing_view`／`app_open`。`store_click`／`connect_complete` 已定義但**還沒有送出端**（未上架、也沒有跨安裝來源保留）。
 5. ~~分享與剪貼簿套件未安裝~~ → 已於 2026-09-25 安裝 `expo-sharing`、`expo-clipboard`（另加純 JS 的 `qrcode`）；**不需要** react-native-view-shot（見 §6.1）。**需要重新出包**才會生效。
 
 ---
@@ -233,7 +233,7 @@ Sharing.shareAsync(file.uri, { mimeType: 'image/png', dialogTitle })
 
 ### 6.3 後端（歸因）
 
-- 把 `bumpCampaign` 的概念擴一個**非活動的彙總表**：`(kind, source, day, event_name) → count；事件區分 landing_view／store_click／app_open／connect_complete`，或最省的做法是新增 `POST /v1/metrics/share`（無身分、只收 `kind`＋`source`、有速率限制）。
+- 已實作：`share_aggregates (kind, source, day, event_name) → count`（migration 0020）＋ 匿名 `POST /v1/metrics/share`（無身分、只收允許清單內的 kind／source／event、日期由伺服器決定、`RATE_LIMIT_PER_MINUTE` 限流、strict schema 拒絕任何夾帶欄位）。讀取走 `GET /v1/ops/metrics/share`（OPS_TOKEN，JSON 或 CSV）與 `scripts/ops/share.sh`。
 - 落地頁進站時打一次計數（`kind` 從路徑、`source` 從 query）。**不設分析 cookie、不在業務計數表保存 IP**。傳輸層與主機日誌、限流可能接觸 IP，需盤點實際設定、保存期限與遮罩方式後，才能對外聲稱「不記 IP」。
 - 沒有此計數時，仍可做操作訪談與實機驗收，但不能宣稱已量測跨平台轉換。事件只接受 kind／source／event_name 允許清單；伺服器指定日期，限制 payload 與流量，不保存完整 referrer 或任意 query。重載、爬蟲及重試可能增加計數，報表明示是非唯一事件數，不用它計發獎勵。
 
@@ -269,7 +269,7 @@ Sharing.shareAsync(file.uri, { mimeType: 'image/png', dialogTitle })
 | PG-SHARE-02 | `ShareCard`（react-native-svg，1080×1350）＋ A／B 兩種卡型與預覽 | **WIP（碼完，實機未驗）** | 01 |
 | PG-SHARE-03 | 安裝 `expo-sharing`／`expo-clipboard`，出圖、分享、TTL 清理、失敗選項、複製文案 | **WIP（碼完，待重新出包與實機驗收）** | 02 |
 | PG-SHARE-04 | 網站：`/s/` 落地頁 ＋ 全站 OG／Twitter card ＋ 安裝入口；App `/s/` routing、App Link intent filter | **WIP（碼完，待部署與實機驗收）** | 無 |
-| PG-SHARE-05 | 歸因：`/v1/metrics/share` 或彙總表 ＋ 落地頁計數 ＋ CSV 匯出 | TODO | 04 |
+| PG-SHARE-05 | 歸因：`POST /v1/metrics/share` ＋ `share_aggregates` ＋ 落地頁 beacon ＋ `GET /v1/ops/metrics/share`（JSON／CSV）＋ `scripts/ops/share.sh` | **WIP（碼完，待部署）** | 04 |
 | PG-SHARE-06 | C／D／E 卡型與 S4～S7 進入點 | TODO | 03 |
 | PG-SHARE-07 | `story` 9:16 尺寸與安全區 | TODO | 03 |
 | PG-SHARE-08 | 凍結外觀／Mint 狀態／獨立分享同意、deep link 回退與裝置驗收 | TODO・首批必要 | 01～04 |

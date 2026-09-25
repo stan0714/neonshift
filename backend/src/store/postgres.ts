@@ -391,6 +391,19 @@ export class PostgresStore implements Store {
   async bumpCampaign(eventId: string, source: string, day: string, field: "views" | "registrations" | "checkins" | "redemptions") {
     await this.pool.query(`INSERT INTO campaign_aggregates (event_id, source, day, ${field}) VALUES ($1,$2,$3,1) ON CONFLICT (event_id, source, day) DO UPDATE SET ${field} = campaign_aggregates.${field} + 1`, [eventId, source, day]);
   }
+  async bumpShare(kind: string, source: string, day: string, eventName: string) {
+    await this.pool.query(
+      `INSERT INTO share_aggregates (kind, source, day, event_name, count) VALUES ($1,$2,$3,$4,1) ON CONFLICT (kind, source, day, event_name) DO UPDATE SET count = share_aggregates.count + 1`,
+      [kind, source, day, eventName],
+    );
+  }
+  async listShare(sinceDay: string, untilDay: string) {
+    const r = await this.pool.query(
+      `SELECT kind, source, day::text AS day, event_name, count FROM share_aggregates WHERE day >= $1 AND day <= $2 ORDER BY day, kind, source, event_name`,
+      [sinceDay, untilDay],
+    );
+    return (r.rows as Row[]).map((x) => ({ kind: x.kind as string, source: x.source as string, day: x.day as string, eventName: x.event_name as string, count: Number(x.count) }));
+  }
   async listCampaign(eventId: string) {
     const r = await this.pool.query(`SELECT source, day::text AS day, views, registrations, checkins, redemptions FROM campaign_aggregates WHERE event_id = $1 ORDER BY day, source`, [eventId]);
     return (r.rows as Row[]).map((x) => ({ source: x.source as string, day: x.day as string, views: Number(x.views), registrations: Number(x.registrations), checkins: Number(x.checkins), redemptions: Number(x.redemptions) }));

@@ -294,6 +294,9 @@ export interface PartnerStore {
   listEventParticipants(eventId: string): Promise<EventParticipant[]>;
   updateParticipantPrivacy(eventId: string, wallet: string, patch: { displayName?: string | null; publicConsent?: boolean }, now: Date): Promise<EventParticipant | null>;
   bumpCampaign(eventId: string, source: string, day: string, field: "views" | "registrations" | "checkins" | "redemptions"): Promise<void>;
+  /** PG-SHARE-05：分享落地頁彙總（非唯一事件數；不存 IP／referrer／個人識別） */
+  bumpShare(kind: string, source: string, day: string, eventName: string): Promise<void>;
+  listShare(sinceDay: string, untilDay: string): Promise<{ kind: string; source: string; day: string; eventName: string; count: number }[]>;
   listCampaign(eventId: string): Promise<{ source: string; day: string; views: number; registrations: number; checkins: number; redemptions: number }[]>;
 
   // ---- PG-E-04：站點與 NFC 載具 ----

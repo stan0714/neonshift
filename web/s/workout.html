@@ -92,6 +92,19 @@
   var source = ALLOWED.indexOf(raw) >= 0 ? raw : '';
   var open = document.getElementById('open');
   open.href = 'neonshift://s/workout' + (source ? '?source=' + encodeURIComponent(source) : '');
+  // 匿名彙總（social-share §6.3）：只送 kind／source／event 三個允許清單內的值。
+  // 用 sendBeacon＋text/plain（CORS 安全清單，不觸發 preflight、也讀不到回應）；
+  // 不送 referrer、不設 cookie、不帶任何識別碼。計數是非唯一事件數，重載與爬蟲都會加一。
+  var KIND = 'workout';
+  function ping(event) {
+    if (!KIND || !navigator.sendBeacon) return;
+    try {
+      var body = JSON.stringify({ kind: KIND, source: source || 'direct', event: event });
+      navigator.sendBeacon('https://api.neonshift.cc/v1/metrics/share', new Blob([body], { type: 'text/plain' }));
+    } catch (e) { /* 量測失敗不影響頁面 */ }
+  }
+  ping('landing_view');
+  open.addEventListener('click', function () { ping('app_open'); });
   document.getElementById('copy').addEventListener('click', function () {
     var url = 'https://neonshift.cc/s/workout' + (source ? '?source=' + encodeURIComponent(source) : '');
     var done = function () { document.getElementById('copy').textContent = '已複製 / Copied'; };

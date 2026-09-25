@@ -291,6 +291,16 @@ export class MemoryStore implements Store {
     row[field] += 1;
     this.campaign.set(k, row);
   }
+  private share = new Map<string, { kind: string; source: string; day: string; eventName: string; count: number }>();
+  async bumpShare(kind: string, source: string, day: string, eventName: string) {
+    const k = `${kind}:${source}:${day}:${eventName}`;
+    const row = this.share.get(k) ?? { kind, source, day, eventName, count: 0 };
+    row.count += 1;
+    this.share.set(k, row);
+  }
+  async listShare(sinceDay: string, untilDay: string) {
+    return [...this.share.values()].filter((r) => r.day >= sinceDay && r.day <= untilDay).sort((a, b) => a.day.localeCompare(b.day) || a.kind.localeCompare(b.kind) || a.source.localeCompare(b.source) || a.eventName.localeCompare(b.eventName));
+  }
   async listCampaign(eventId: string) {
     return [...this.campaign.entries()].filter(([k]) => k.startsWith(`${eventId}:`)).map(([, v]) => v);
   }

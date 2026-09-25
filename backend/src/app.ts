@@ -10,6 +10,7 @@ import { PublicKey } from "@solana/web3.js";
 import { ChallengeService } from "./auth/challenge.js";
 import { RpcChainReader, StaticChainReader, type ChainReader } from "./chain/reader.js";
 import { galleryRoutes } from "./gallery/routes.js";
+import { metricsRoutes } from "./metrics/routes.js";
 import { partnerRoutes } from "./partner/routes.js";
 import { AchievementService, achievementRoutes } from "./pb/achievements.js";
 import { EventBadgeService } from "./milestones/eventBadges.js";
@@ -191,6 +192,7 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch, ch
     await v1.register(opsPlayerRoutes, { store: dataStore, pbs, milestones, now: now ?? (() => new Date()) }); // ops 診斷摘要（OPS_TOKEN）
     await v1.register(passportRoutes, { auth, passport: new PassportService(dataStore, pbs, milestones, eventBadges, quests) }); // XD-03 成就護照
     await v1.register(opsFunnelRoutes, { store: dataStore, now: now ?? (() => new Date()) }); // XD-07 漏斗／留存（OPS_TOKEN）
+    await v1.register(metricsRoutes, { store: dataStore, now: now ?? (() => new Date()), publicLimit: config.RATE_LIMIT_PER_MINUTE }); // PG-SHARE-05 分享彙總（匿名回報＋OPS_TOKEN 讀取）
     // SKR-02～06：官方 SKR 外觀付款（獨立 RPC／網路，與 devnet 程式無關）
     await v1.register(skrRoutes, { auth, skr, sensitiveLimit: config.RATE_LIMIT_SENSITIVE_PER_MINUTE });
     v1.get("/rules/version", async () => ({ rules_version: ruleSet.version, rules_hash: `sha256:${ruleSet.hash.toString("hex")}`, description: ruleSet.config.description ?? null }));
