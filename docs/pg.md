@@ -908,3 +908,16 @@ WIP（碼完、自動測試通過、**實機與部署未驗收**）：
 延後：PG-SHARE-06（C／D／E 卡型）、07（story 9:16）、09（路線形狀匯出——裁切規則未驗收前開關不露出）。
 
 驗收表：[2026-09-25 分享驗收](evidence/2026-09-25-share.md)。規格與紅線：[社群分享規劃](social-share/README.md)。
+
+
+## 2026-09-25 節日收藏後端（PG-SEASON-01／02）
+
+WIP（後端碼完、264 項後端測試通過；App 未接、無鑄造路徑）：
+
+- 每屆設定在 `backend/seasonal/campaigns.json`（可 review、可 diff，附來源 URL 與核對日期）。窗口**一律寫明確 UTC 瞬間**，地方節日不在伺服器做「當地日期→UTC」換算；改由 `display_timezone` ＋ `expect_local_days` 讓 loader 反算驗證，時區或 DST 打錯會直接啟動失敗。同主題同年兩屆、窗口顛倒、缺來源 URL 一律拒絕。
+- 目前三屆（genesis-stride-2027、seeker-horizon-2027、moonlit-steps-2026-demo）**全部 `enabled:false`**：設定檔進倉庫不等於活動上線。
+- 資格（`src/seasonal/compute.ts`，純函式）：嚴格單筆——同一筆運動的開始與結束都要落在 `[starts_at, ends_at)`，moving time（elapsed − paused）≥ 20 分；多筆不能拼滿、跨午夜不算。窗口依運動發生時間，7 天寬限只放寬上傳時間。GPS 沿用 `QUEST_GPS_MIN_RULES_VERSION` 同一道門檻。每屆一枚取最早開始那筆，重匯入不換來源。
+- API：`GET /v1/seasonal`（公開目錄）、`GET /v1/me/seasonal`（本人狀態與進度）。**刻意不含任何 mintable／achievement 欄位、`mint_enabled:false`**，不讓 App 把「已達標」誤當成「已取得 NFT」。
+- 尚未做：PG-SEASON-03 美術與 App 畫面、04 registry／mint（`achievements_kind_ck` 還沒有 `seasonal`）、05 通知與分享、06 提醒訂閱。
+
+規格：[節日與生態紀念 NFT](design/seasonal-achievement-nfts.md)。

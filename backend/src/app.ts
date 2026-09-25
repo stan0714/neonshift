@@ -2,6 +2,7 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import bs58 from "bs58";
 
@@ -11,6 +12,8 @@ import { ChallengeService } from "./auth/challenge.js";
 import { RpcChainReader, StaticChainReader, type ChainReader } from "./chain/reader.js";
 import { galleryRoutes } from "./gallery/routes.js";
 import { metricsRoutes } from "./metrics/routes.js";
+import { loadCampaignsFile, type SeasonalCampaign } from "./seasonal/campaigns.js";
+import { SeasonalService, seasonalRoutes } from "./seasonal/service.js";
 import { partnerRoutes } from "./partner/routes.js";
 import { AchievementService, achievementRoutes } from "./pb/achievements.js";
 import { EventBadgeService } from "./milestones/eventBadges.js";
@@ -71,6 +74,10 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch, ch
   const chainReader: ChainReader = chain ?? (config.PROGRAM_ID ? new RpcChainReader(config.RPC_URL, new PublicKey(config.PROGRAM_ID)) : new StaticChainReader());
   const tournaments = new TournamentService(dataStore, chainReader, challenge, now);
   const ruleSet = rules ?? loadRuleSetFile(resolve(process.cwd(), config.RULES_FILE));
+  // 節日收藏設定：檔案不存在就是「沒有任何屆次」（安全的預設，不會誤發資格）；
+  // 檔案存在但內容有問題（窗口顛倒、時區打錯、同主題同年兩屆）則直接啟動失敗，不帶著壞設定上線。
+  const seasonalPath = resolve(process.cwd(), config.SEASONAL_FILE);
+  const seasonalCampaigns: SeasonalCampaign[] = existsSync(seasonalPath) ? loadCampaignsFile(seasonalPath) : [];
   const attestorSigner = signer ?? createSigner(config);
   const app = Fastify({
     bodyLimit: config.BODY_LIMIT_BYTES,
@@ -184,6 +191,7 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch, ch
     pbs.onRecomputed = async (w, rows) => { await achievements.reconcile(w, rows); await achievements.reconcileMilestones(w); await achievements.reconcileEventBadges(w); }; // PG-M-02／M-04：來源變動同步里程碑／活動章
     await v1.register(partnerRoutes, { auth, store: dataStore, now: now ?? (() => new Date()), pbs, onParticipationChanged: (w) => achievements.reconcileEventBadges(w) });
     const quests = new QuestService(dataStore, now ?? (() => new Date()), config.QUEST_GPS_MIN_RULES_VERSION ?? null); // PG-U-04
+    const seasonal = new SeasonalService(dataStore, now ?? (() => new Date()), seasonalCampaigns, config.QUEST_GPS_MIN_RULES_VERSION ?? null); // PG-SEASON-01／02
     await v1.register(workoutRoutes, { auth, store: dataStore, now: now ?? (() => new Date()), pbs, onWorkoutsChanged: (w) => quests.reevaluate(w).then(() => undefined) });
     await v1.register(questRoutes, { auth, store: dataStore, quests });
     await v1.register(pbRoutes, { auth, store: dataStore, pbs });
@@ -193,6 +201,7 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch, ch
     await v1.register(passportRoutes, { auth, passport: new PassportService(dataStore, pbs, milestones, eventBadges, quests) }); // XD-03 成就護照
     await v1.register(opsFunnelRoutes, { store: dataStore, now: now ?? (() => new Date()) }); // XD-07 漏斗／留存（OPS_TOKEN）
     await v1.register(metricsRoutes, { store: dataStore, now: now ?? (() => new Date()), publicLimit: config.RATE_LIMIT_PER_MINUTE }); // PG-SHARE-05 分享彙總（匿名回報＋OPS_TOKEN 讀取）
+    await v1.register(seasonalRoutes, { auth, seasonal }); // PG-SEASON-01／02 節日收藏（只判定資格，尚未開放鑄造）
     // SKR-02～06：官方 SKR 外觀付款（獨立 RPC／網路，與 devnet 程式無關）
     await v1.register(skrRoutes, { auth, skr, sensitiveLimit: config.RATE_LIMIT_SENSITIVE_PER_MINUTE });
     v1.get("/rules/version", async () => ({ rules_version: ruleSet.version, rules_hash: `sha256:${ruleSet.hash.toString("hex")}`, description: ruleSet.config.description ?? null }));

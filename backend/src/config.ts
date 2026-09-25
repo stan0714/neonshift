@@ -45,6 +45,8 @@ export const configSchema = z.object({
   JWT_SECRET: z.string().min(32).optional(),
   /** 規則集檔案（PG-B-07） */
   RULES_FILE: z.string().default("rules/v4.json"),
+  /** PG-SEASON-01：節日收藏每屆設定；檔案不存在＝沒有任何屆次（不發資格），內容錯誤則啟動失敗 */
+  SEASONAL_FILE: z.string().default("seasonal/campaigns.json"),
   /** attestor signer：`http:<url>`（隔離 signer service，配 SIGNER_TOKEN）或 dev 用 `local:<keypair 路徑|base58>` */
   ATTESTOR_SIGNER: z.string().optional(),
   SIGNER_TOKEN: z.string().optional(),

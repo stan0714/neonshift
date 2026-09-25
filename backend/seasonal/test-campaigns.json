@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "note": "只給自動測試用的固定窗口（src/seasonal/api.test.ts）；正式設定在 campaigns.json。",
+  "campaigns": [
+    {
+      "campaign_id": "test-stride-2026",
+      "theme_id": "test_stride",
+      "year": 2026,
+      "art_version": 1,
+      "rules_version": 1,
+      "enabled": true,
+      "prototype": true,
+      "starts_at": "2026-09-25T00:00:00.000Z",
+      "ends_at": "2026-09-26T00:00:00.000Z",
+      "display_timezone": "UTC",
+      "expect_local_days": ["2026-09-25"],
+      "min_moving_ms": 1200000,
+      "grace_ms": 604800000,
+      "source": { "fact": "測試用窗口", "url": "https://neonshift.cc/", "checked_on": "2026-09-25" }
+    },
+    {
+      "campaign_id": "test-moon-2026",
+      "theme_id": "test_moon",
+      "year": 2026,
+      "art_version": 1,
+      "rules_version": 1,
+      "enabled": false,
+      "starts_at": "2026-09-24T16:00:00.000Z",
+      "ends_at": "2026-09-25T16:00:00.000Z",
+      "display_timezone": "Asia/Taipei",
+      "expect_local_days": ["2026-09-25"],
+      "min_moving_ms": 1200000,
+      "grace_ms": 604800000,
+      "source": { "fact": "測試用地方節日窗口", "url": "https://neonshift.cc/", "checked_on": "2026-09-25" }
+    }
+  ]
+}
