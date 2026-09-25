@@ -76,13 +76,20 @@ const monthOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padS
  * 運動成績卡（卡型 A）。欄位開關沿用文字卡的 ShareCardFields，不另開一套——
  * 否則會出現「文字沒寫但圖裡有」。route 只有呼叫端明確傳入才會出現。
  */
+/**
+ * 運動的真實狀態（§4.5）：本機完成、待同步或待審的紀錄一律標「個人紀錄／尚未驗證」，
+ * 不得讓圖看起來像官方認證或已取得 NFT。`synced` 也只是裝置記錄，不是主辦方驗證。
+ */
+export type WorkoutShareStatus = 'local' | 'needs_review' | 'synced';
+
 export function workoutShareLayout(
   w: ShareCardInput,
   fields: ShareCardFields,
-  opts: { t: T; labels: { mode: string; tagline: string; site: string }; route?: ShareRouteShape | null; qr?: string | null },
+  opts: { t: T; labels: { mode: string; tagline: string; site: string }; route?: ShareRouteShape | null; qr?: string | null; status?: WorkoutShareStatus },
 ): ShareImageLayout {
   const { t, labels } = opts;
-  const lines = [t('share.time', { t: fmtDur(w.elapsedMs) })];
+  // 狀態放在第一行：看圖的人先知道這是「誰的紀錄、驗到什麼程度」，再看數字
+  const lines = [t(`share.card.status.${opts.status ?? 'local'}`), t('share.time', { t: fmtDur(w.elapsedMs) })];
   if (w.movingMs > 0 && w.movingMs < w.elapsedMs - 1000) lines.push(t('share.moving', { t: fmtDur(w.movingMs) }));
   if (fields.pace) {
     if (w.sport === 'run' && w.avgPaceSPerKm !== null) lines.push(t('share.avgPace', { p: fmtPace(w.avgPaceSPerKm) }));

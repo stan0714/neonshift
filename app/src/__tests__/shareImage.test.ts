@@ -37,7 +37,7 @@ const workout: ShareCardInput = {
   qualityRejected: 37,
   autoPausedMs: 0,
 };
-const layoutOf = (fields: Partial<ShareCardFields> = {}, extra: { route?: ReturnType<typeof routeShapeOf> } = {}) =>
+const layoutOf = (fields: Partial<ShareCardFields> = {}, extra: { route?: ReturnType<typeof routeShapeOf>; status?: 'local' | 'needs_review' | 'synced' } = {}) =>
   workoutShareLayout(workout, { ...SHARE_CARD_DEFAULT, ...fields }, { t: tr, labels, ...extra });
 
 const M_PER_DEG_LAT = 111_195;
@@ -52,6 +52,16 @@ describe('運動成績卡（A）', () => {
     expect(l.tagline).toBe(labels.tagline);
     expect(l.site).toBe('neonshift.cc');
     expect(sharePublishable(l)).toBe(true);
+  });
+
+  test('真實狀態如實呈現：未同步標尚未驗證、待審標待審查、同步成功也只說裝置記錄', () => {
+    expect(layoutOf().lines[0]).toBe(t('share.card.status.local'));
+    expect(layoutOf({}, { status: 'needs_review' }).lines[0]).toBe(t('share.card.status.needs_review'));
+    expect(layoutOf({}, { status: 'synced' }).lines[0]).toBe(t('share.card.status.synced'));
+    // 任何狀態都不得出現官方認證字樣
+    for (const st of ['local', 'needs_review', 'synced'] as const) {
+      expect(layoutOf({}, { status: st }).lines.join('|')).not.toMatch(/verified by|official|certified|organizer/i);
+    }
   });
 
   test('關掉配速 → 圖上沒有任何配速或速度', () => {

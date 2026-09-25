@@ -17,7 +17,7 @@ import { useBody } from '@/state/bodyStore';
 import { stageName } from '@/domain/collectibles';
 import { useLocaleStore, useT, type TKey } from '@/i18n';
 import { compareSameCategory, SHARE_CARD_DEFAULT, shareCard, type ShareCardFields, type ShareCardInput } from '@/domain/review';
-import { SHARE_RENDERER_VERSION, shareUrl, workoutShareLayout, type ShareRenderSpec } from '@/domain/shareImage';
+import { SHARE_RENDERER_VERSION, shareUrl, workoutShareLayout, type ShareRenderSpec, type WorkoutShareStatus } from '@/domain/shareImage';
 import { ShareCard } from '@/components/ShareCard';
 import { copyCaption, shareLayout, shareTextInstead } from '@/services/share/shareImage';
 import { APP_CONFIG } from '@/config/app';
@@ -103,12 +103,15 @@ export function WorkoutSummaryScreen() {
   const [shareErr, setShareErr] = useState<'render_failed' | 'no_target' | 'unpublishable' | 'stale' | null>(null);
   const [shareNote, setShareNote] = useState<string | null>(null);
   const shareLink = shareUrl(APP_CONFIG.siteUrl, 'workout', 'summary');
+  // 尚未同步或待審一律標「尚未驗證／待審查」；同步成功也只寫「裝置記錄」，不宣稱官方認證（§4.5）
+  const shareStatus: WorkoutShareStatus = meta?.status === 'needs_review' ? 'needs_review' : meta?.syncedSessionId ? 'synced' : 'local';
   const shareImageLayout = meta && shareInput
     ? workoutShareLayout(shareInput, shareFields, {
         t: (k, pr) => t(k as TKey, pr),
         labels: { mode: modeLabel(t, meta.sport, meta.intent), tagline: t('share.card.tagline'), site: 'neonshift.cc' },
         route: null,
         qr: shareLink,
+        status: shareStatus,
       })
     : null;
   const shareCaption = shareInput ? t('share.invite.workout', { km: (shareInput.distanceMm / 1_000_000).toFixed(2), url: shareLink }) : '';

@@ -888,3 +888,23 @@ DEC-02 仍 OPEN（devnet 替代展示是否被主辦方接受）；本實作以�
 需新增原生依賴 `react-native-view-shot`／`expo-sharing`（須重新出包），此即 PG-LINK-10 所記「社群圖片分享列候選，另立工作」。工期／負責人待排，不改既有交付承諾。
 
 完整規劃、圖卡規格與驗收：[社群分享規劃](social-share/README.md)。
+
+
+## 2026-09-25 社群分享實作（PG-SHARE-01～05／08 部分）
+
+WIP（碼完、自動測試通過、**實機與部署未驗收**）：
+
+| 編號 | 內容 | 狀態 |
+|---|---|---|
+| PG-SHARE-01 | `domain/shareImage.ts` 版面資料層；關掉的欄位不出現、路線預設 null、`sharePublishable` 擋掉缺網路標示的成就卡 | WIP |
+| PG-SHARE-02 | `components/ShareCard.tsx` 單一 SVG（1080×1350）；A／B 卡型、程序繪製徽章、QR 疊成單一 Path | WIP |
+| PG-SHARE-03 | `services/share/shareImage.ts`：`Svg.toDataURL` 出圖（**不用 react-native-view-shot**）、TTL 延後刪檔、失敗只回原因不自動改發文字、複製文案 | WIP |
+| PG-SHARE-04 | `web/s/{workout,achievement,gear,guardian,passport}` ＋ `/s/`；首頁／`/en/`／`/e/` 補 OG；`web/og/<kind>-v1.png`；App `/s/` routing 與 App Link intent filter | WIP |
+| PG-SHARE-05 | migration 0020 `share_aggregates`、匿名 `POST /v1/metrics/share`、`GET /v1/ops/metrics/share`（JSON／CSV）、`scripts/ops/share.sh` | WIP |
+| PG-SHARE-08 | 凍結 `ShareRenderSpec`（來源 ID 只留本機）、成就狀態門檻（只有已鑄造能出收藏卡）、A 卡標「個人紀錄／尚未驗證」、獨立分享同意（精確值與月份預設關） | WIP |
+
+新依賴：`expo-sharing`、`expo-clipboard`、`qrcode`（純 JS）。前兩者是原生模組，**必須重新出包**才會生效；`/s/` App Link 也需新 APK 才會驗證網域。
+
+延後：PG-SHARE-06（C／D／E 卡型）、07（story 9:16）、09（路線形狀匯出——裁切規則未驗收前開關不露出）。
+
+驗收表：[2026-09-25 分享驗收](evidence/2026-09-25-share.md)。規格與紅線：[社群分享規劃](social-share/README.md)。
