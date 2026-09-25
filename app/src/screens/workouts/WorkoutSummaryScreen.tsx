@@ -1,5 +1,5 @@
 import { CommonActions, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Share, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
@@ -16,7 +16,12 @@ import { formatDuration, formatKm, formatPace, modeLabel } from '@/domain/workou
 import { useBody } from '@/state/bodyStore';
 import { stageName } from '@/domain/collectibles';
 import { useT, type TKey } from '@/i18n';
-import { compareSameCategory, SHARE_CARD_DEFAULT, shareCard, type ShareCardFields } from '@/domain/review';
+import { compareSameCategory, SHARE_CARD_DEFAULT, shareCard, type ShareCardFields, type ShareCardInput } from '@/domain/review';
+import { routeShapeOf, SHARE_ROUTE_TRIM_M, shareUrl, workoutShareLayout } from '@/domain/shareImage';
+import { ShareCard } from '@/components/ShareCard';
+import { copyCaption, shareLayout } from '@/services/share/shareImage';
+import { APP_CONFIG } from '@/config/app';
+import type Svg from 'react-native-svg';
 import { apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
 import type { RootParamList } from '@/navigation/types';
 import { LocalWorkoutStore, type SessionMeta } from '@/services/workouts/LocalWorkoutStore';
@@ -84,14 +89,39 @@ export function WorkoutSummaryScreen() {
   const autoPausedMs = (meta?.pauses ?? []).filter((p) => p.kind === 'auto').reduce((n, p) => n + ((p.resumedAtMs ?? meta?.endedAtUtc ?? p.atMs) - p.atMs), 0); // 舊 session（規則 v1）沒有 integrity → 視為未檢查（顯示 ok 但不宣稱）
   const asSummary: WorkoutSummary | null = meta && s ? ({ session_id: meta.syncedSessionId ?? meta.sessionId, sport: meta.sport, intent: meta.intent ?? null, environment: meta.environment, source: { origin: 'gps', source_id: 'cc.neonshift.app/gps', external_record_id: meta.sessionId, source_revision: 1 }, started_at: new Date(meta.startedAtUtc).toISOString(), ended_at: new Date(meta.endedAtUtc ?? meta.startedAtUtc + s.elapsedMs).toISOString(), elapsed_ms: String(s.elapsedMs), paused_ms: String(s.pausedMs), status: 'saved', quality: 'complete', rules_version: s.rulesVersion, review_reasons: [], metrics: { distance: s.distanceMm > 0 ? { value_mm: String(s.distanceMm), method: 'gps' } : null, steps: null, active_energy: null, total_energy: null, avg_pace_s_per_km: s.avgPaceSPerKm, avg_speed_kmh: s.avgSpeedKmh, step_length_mm: null }, pb_eligible: false, possible_duplicate_of: null, extras: {}, revision: 1, imported_at: '', updated_at: '' } as WorkoutSummary) : null;
   const cmp = asSummary && peers ? compareSameCategory(asSummary, peers) : null;
-  const sharePreview = meta && s
-    ? shareCard(
-        { sport: meta.sport, intent: meta.intent ?? null, startedAt: new Date(meta.startedAtUtc), elapsedMs: s.elapsedMs, movingMs: s.movingMs, distanceMm: s.distanceMm, avgPaceSPerKm: s.movingAvgPaceSPerKm ?? s.avgPaceSPerKm, avgSpeedKmh: s.movingAvgSpeedKmh ?? s.avgSpeedKmh, maxSpeed5sKmh: s.maxSpeed5sKmh, splits: s.splits.map((x) => ({ index: x.index, paceSPerKm: x.paceSPerKm, isPartial: x.isPartial })), lapCount: s.laps.length, goal: meta.goal ?? null, goalMet: !!meta.goal && goalReached(meta.goal, s.movingMs, s.distanceMm), qualityAccepted: s.quality.accepted, qualityRejected: Object.values(s.quality.rejected).reduce((a, b) => a + b, 0), autoPausedMs },
-        shareFields,
-        (k, p) => t(k as TKey, p),
-        { mode: modeLabel(t, meta.sport, meta.intent), app: 'NeonShift', site: 'neonshift.cc' },
-      )
+  const shareInput: ShareCardInput | null = meta && s
+    ? { sport: meta.sport, intent: meta.intent ?? null, startedAt: new Date(meta.startedAtUtc), elapsedMs: s.elapsedMs, movingMs: s.movingMs, distanceMm: s.distanceMm, avgPaceSPerKm: s.movingAvgPaceSPerKm ?? s.avgPaceSPerKm, avgSpeedKmh: s.movingAvgSpeedKmh ?? s.avgSpeedKmh, maxSpeed5sKmh: s.maxSpeed5sKmh, splits: s.splits.map((x) => ({ index: x.index, paceSPerKm: x.paceSPerKm, isPartial: x.isPartial })), lapCount: s.laps.length, goal: meta.goal ?? null, goalMet: !!meta.goal && goalReached(meta.goal, s.movingMs, s.distanceMm), qualityAccepted: s.quality.accepted, qualityRejected: Object.values(s.quality.rejected).reduce((a, b) => a + b, 0), autoPausedMs }
+    : null;
+  const sharePreview = meta && shareInput
+    ? shareCard(shareInput, shareFields, (k, p) => t(k as TKey, p), { mode: modeLabel(t, meta.sport, meta.intent), app: 'NeonShift', site: 'neonshift.cc' })
     : '';
+  // PG-SHARE-02／03：圖卡與文字卡共用同一組欄位開關；路線形狀是另一個預設關閉的開關
+  const svgRef = useRef<Svg>(null);
+  const [shareRoute, setShareRoute] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareNote, setShareNote] = useState<string | null>(null);
+  const routeShape = useMemo(() => (shareRoute && points ? routeShapeOf(points) : null), [shareRoute, points]);
+  const shareLink = shareUrl(APP_CONFIG.siteUrl, 'workout', 'summary');
+  const shareImageLayout = meta && shareInput
+    ? workoutShareLayout(shareInput, shareFields, {
+        t: (k, pr) => t(k as TKey, pr),
+        labels: { mode: modeLabel(t, meta.sport, meta.intent), tagline: t('share.card.tagline'), site: 'neonshift.cc' },
+        route: routeShape,
+        qr: shareLink,
+      })
+    : null;
+  const shareCaption = shareInput ? t('share.invite.workout', { km: (shareInput.distanceMm / 1_000_000).toFixed(2), url: shareLink }) : '';
+  const onShareImage = async () => {
+    if (!shareImageLayout) return;
+    setShareBusy(true);
+    setShareNote(null);
+    try {
+      const r = await shareLayout({ svg: svgRef.current, layout: shareImageLayout, message: shareCaption, dialogTitle: t('share.card.title') });
+      if (r.ok && !r.withImage) setShareNote(t('share.card.imageFailed'));
+    } finally {
+      setShareBusy(false);
+    }
+  };
   // PG-U-01：目標結果（未達標仍保存，顯示實際完成）；模式標籤
   // review 2：時間目標以運動時間判定（goal v2）；舊紀錄（v1）也改用運動時間呈現，與記錄頁一致
   const goalMet = !!meta?.goal && !!s && goalReached(meta.goal, s.movingMs, s.distanceMm);
@@ -308,6 +338,34 @@ export function WorkoutSummaryScreen() {
           {sharePreview}
         </Text>
         <Button label={t('sum.share.button')} variant="secondary" style={styles.mt} onPress={() => void Share.share({ message: sharePreview }).catch(() => {})} testID="sum-share-button" />
+        {points && points.length > 0 && meta.environment !== 'indoor' ? (
+          <>
+            <View style={styles.rowBetween}>
+              <Text variant="bodySmall" style={styles.flex}>{t('share.card.route')}</Text>
+              <Switch value={shareRoute} onValueChange={setShareRoute} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('share.card.route')} testID="share-card-route" />
+            </View>
+            <Text variant="caption" tone="muted">{t('share.card.routeWarn', { m: SHARE_ROUTE_TRIM_M })}</Text>
+            {shareRoute && !routeShape ? (
+              <Text variant="caption" tone="warning" testID="share-card-route-unavailable">{t('share.card.routeUnavailable')}</Text>
+            ) : null}
+          </>
+        ) : null}
+        {shareImageLayout ? (
+          <View style={styles.sharePreview}>
+            <ShareCard ref={svgRef} layout={shareImageLayout} width={300} a11yLabel={t('share.card.a11y', { label: shareImageLayout.label, hero: `${shareImageLayout.hero.value} ${shareImageLayout.hero.unit}` })} />
+          </View>
+        ) : null}
+        <Button label={t('share.card.image')} style={styles.mt} onPress={() => void onShareImage()} disabled={shareBusy || !shareImageLayout} testID="share-card-image" />
+        <Button
+          label={t('share.card.copy')}
+          variant="secondary"
+          style={styles.mtXs}
+          onPress={() => void copyCaption(shareCaption).then((ok) => setShareNote(ok ? t('share.card.copied') : null))}
+          testID="share-card-copy"
+        />
+        {shareNote ? (
+          <Text variant="caption" tone="secondary" style={styles.mtXs} testID="share-card-note">{shareNote}</Text>
+        ) : null}
       </Surface>
       {params.celebrate ? <WorkoutActionFeedback key={params.sessionId} mode={modeOfIntent(meta.sport, meta.intent) ?? (meta.sport === 'run' ? 'run' : 'walk')} action="finish" /> : null}
     </Screen>
@@ -361,4 +419,5 @@ const styles = StyleSheet.create({
   layerChipOnText: { color: color.onMint },
   layerChipDisabled: { opacity: 0.6, borderStyle: 'dashed' },
   mt: { marginTop: space.m },
+  sharePreview: { alignItems: 'center', marginTop: space.m },
 });

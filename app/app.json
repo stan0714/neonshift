@@ -62,7 +62,8 @@
           "isAndroidForegroundServiceEnabled": true,
           "isAndroidBackgroundLocationEnabled": false
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "platforms": [
       "android"

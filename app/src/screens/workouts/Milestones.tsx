@@ -2,7 +2,7 @@ import { MintProgress, type MintPhase } from '@/components/MintProgress';
 import { applyLocalMints, recordLocalMint } from '@/services/chain/localMints';
 import { useNftRevealStore } from '@/state/nftRevealStore';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { Button, Chip, InlineState } from '@/components';
@@ -14,6 +14,11 @@ import { achievementService } from '@/services/chain/AchievementService';
 import { ClaimError } from '@/services/chain/StarterShoeService';
 import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
+import { ShareCard } from '@/components/ShareCard';
+import { achievementShareLayout, shareUrl, type ShareImageLayout } from '@/domain/shareImage';
+import { copyCaption, shareLayout } from '@/services/share/shareImage';
+import { APP_CONFIG } from '@/config/app';
+import type Svg from 'react-native-svg';
 
 /**
  * Milestones 收藏（PG-M-03；commemorative-nfts 5、Style 22、FR-17.4）：Genesis Distance 四枚＋First Finish。
@@ -45,6 +50,36 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
   useEffect(() => { void load(); }, [load, reloadKey]);
   // registry 核准是伺服器端非同步發生的：回到這個分頁就重抓，否則「待核准」會一直停在畫面上直到重開 App
   useFocusEffect(useCallback(() => { void load(); }, [load]));
+
+  // PG-SHARE-06：已鑄造的成就才可分享；先在畫面上看到整張圖，再按一次才送出（§4.4 送出前一定要有預覽）
+  const svgRef = useRef<Svg>(null);
+  const [share, setShare] = useState<{ key: string; layout: ShareImageLayout; caption: string } | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareNote, setShareNote] = useState<string | null>(null);
+  const openShare = (m: MilestoneItem, a: AchievementView | undefined) => {
+    const title = t(`ms.cat.${m.category}` as TKey);
+    const km = m.threshold_mm ? `${(Number(m.threshold_mm) / 1_000_000).toFixed(m.category === 'first_half' ? 4 : 3)} km` : null;
+    setShareNote(null);
+    setShare({
+      key: m.key,
+      // 精確值只有該 NFT 已同意公開才進圖（§5.4：NFT 公開同意 ≠ 社群分享同意，但沒同意就一定不放）
+      layout: achievementShareLayout(
+        { category: m.category, title, series: t('share.card.series'), detail: a?.public_consent ? km : null, achievedAt: m.first?.achieved_at ? new Date(m.first.achieved_at) : null, verification: m.verification_class, edition: null },
+        { t: (k, pr) => t(k as TKey, pr), labels: { tagline: t('share.card.tagline'), site: 'neonshift.cc', notice: t('share.card.devnet') }, qr: shareUrl(APP_CONFIG.siteUrl, 'achievement', 'mint') },
+      ),
+      caption: t('share.invite.achievement', { name: title, url: shareUrl(APP_CONFIG.siteUrl, 'achievement', 'mint') }),
+    });
+  };
+  const sendShare = async () => {
+    if (!share) return;
+    setShareBusy(true);
+    try {
+      const r = await shareLayout({ svg: svgRef.current, layout: share.layout, message: share.caption, dialogTitle: t('share.card.title') });
+      setShareNote(r.ok && !r.withImage ? t('share.card.imageFailed') : null);
+    } finally {
+      setShareBusy(false);
+    }
+  };
 
   /** 逐次公開同意 → intent → 預覽會公開的內容＋費用 → 錢包簽送（與 PB 流程一致） */
   const mint = (key: string) => {
@@ -155,14 +190,27 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
                 </Text>
               ) : null}
               {state === 'minted' ? (
-                <Text variant="caption" tone="muted" style={styles.mtXs} numberOfLines={1}>
-                  {`${IMAGE_BASE}${m.category}-${m.verification_class}.svg`}
-                </Text>
+                <>
+                  <Text variant="caption" tone="muted" style={styles.mtXs} numberOfLines={1}>
+                    {`${IMAGE_BASE}${m.category}-${m.verification_class}.svg`}
+                  </Text>
+                  <Button label={t('share.card.image')} variant="secondary" style={styles.mtXs} onPress={() => openShare(m, a)} testID={`ms-share-${m.category}-${m.verification_class}`} />
+                </>
               ) : null}
             </View>
           );
         })}
       </View>
+      {share ? (
+        <View style={styles.shareBox} testID="ms-share-preview">
+          <Text variant="title">{t('share.card.title')}</Text>
+          <ShareCard ref={svgRef} layout={share.layout} width={300} a11yLabel={t('share.card.a11y', { label: share.layout.label, hero: share.layout.hero.value })} />
+          <Button label={t('share.card.image')} onPress={() => void sendShare()} loading={shareBusy} disabled={shareBusy} testID="ms-share-send" />
+          <Button label={t('share.card.copy')} variant="secondary" onPress={() => void copyCaption(share.caption).then((ok) => setShareNote(ok ? t('share.card.copied') : null))} testID="ms-share-copy" />
+          <Button label={t('common.cancel')} variant="secondary" onPress={() => { setShare(null); setShareNote(null); }} testID="ms-share-cancel" />
+          {shareNote ? <Text variant="caption" tone="secondary" testID="ms-share-note">{shareNote}</Text> : null}
+        </View>
+      ) : null}
       {notice ? <InlineState kind={notice.kind} title={notice.title} body={notice.body} testID={`ms-${notice.kind}`} /> : null}
       <GenesisFrameCard reloadKey={reloadKey} />
     </View>
@@ -177,4 +225,5 @@ const styles = StyleSheet.create({
   cardLocked: { opacity: 0.7 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.s, gap: space.s },
   mtXs: { marginTop: space.xs },
+  shareBox: { marginTop: space.m, padding: space.m, gap: space.s, alignItems: 'center', borderWidth: 1, borderColor: color.borderSubtle, borderRadius: radius.m, backgroundColor: color.surface },
 });

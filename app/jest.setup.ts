@@ -75,6 +75,10 @@ jest.mock('expo-network', () => ({
   NetworkStateType: { WIFI: 'WIFI', NONE: 'NONE' },
 }));
 
+// PG-SHARE-03：分享面板與剪貼簿是原生模組；預設可用，個別測試可覆寫
+jest.mock('expo-sharing', () => ({ isAvailableAsync: jest.fn(async () => true), shareAsync: jest.fn(async () => {}) }));
+jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(async () => true) }));
+
 // PG-R-03：定位／背景任務／檔案系統在 Jest 無原生實作；recorder 測試以注入替代
 jest.mock('expo-keep-awake', () => ({ useKeepAwake: () => {}, activateKeepAwakeAsync: jest.fn(async () => {}), deactivateKeepAwake: jest.fn(async () => {}) }));
 jest.mock('expo-speech', () => ({ speak: jest.fn(), stop: jest.fn() }));
