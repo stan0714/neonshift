@@ -50,8 +50,8 @@
 ### 2.2 缺的（本規劃要補的）
 
 1. **完全沒有圖片分享**。`Share.share({ message })` 只送文字，IG／Threads 這類以圖為主的平台幾乎貼不出東西。
-2. **網站沒有任何 OG／Twitter card 標籤**（`web/` 全站 grep 無 `og:image`）。現在把 `neonshift.cc/e/<slug>` 貼到 LINE／X／Facebook，無法保證出現指定預覽圖；各平台實際回退結果需驗收，不推論點擊率。
-3. **落地頁沒有安裝按鈕**。首頁只有一句「即將於 Solana dApp Store 上架」，`storeUrl`（`solanadappstore://details?id=cc.neonshift.app`）沒有出現在任何網頁上。
+2. ~~網站沒有任何 OG／Twitter card 標籤~~ → 首頁／`/en/`／`/e/`／`/s/*` 已補齊，圖為 `web/og/<kind>-v1.png`（1200×630，`tools/og-assets/build.mjs` 產生，`verify.mjs` 靜態檢查）。**各平台實際抓取結果仍須部署後實測**，不推論點擊率。
+3. ~~落地頁沒有安裝按鈕~~ → `/s/` 已有安裝入口區塊；因為**還沒上架**，按規格顯示「尚未開放下載」並給複製連結，不假裝可安裝。
 4. **非活動分享沒有任何歸因**。運動成績卡、成就卡分享出去後無法知道有沒有帶人進來；`bumpCampaign` 目前綁 `event_id`。
 5. ~~分享與剪貼簿套件未安裝~~ → 已於 2026-09-25 安裝 `expo-sharing`、`expo-clipboard`（另加純 JS 的 `qrcode`）；**不需要** react-native-view-shot（見 §6.1）。**需要重新出包**才會生效。
 
@@ -268,7 +268,7 @@ Sharing.shareAsync(file.uri, { mimeType: 'image/png', dialogTitle })
 | PG-SHARE-01 | 圖卡資料層：沿用 `ShareCardInput`／`ShareCardFields`，加 `kind`、`route`（預設關）與純函式版面資料 | **WIP（碼完，實機未驗）** | 無 |
 | PG-SHARE-02 | `ShareCard`（react-native-svg，1080×1350）＋ A／B 兩種卡型與預覽 | **WIP（碼完，實機未驗）** | 01 |
 | PG-SHARE-03 | 安裝 `expo-sharing`／`expo-clipboard`，出圖、分享、TTL 清理、失敗選項、複製文案 | **WIP（碼完，待重新出包與實機驗收）** | 02 |
-| PG-SHARE-04 | 網站：`/s/` 落地頁 ＋ 全站 OG／Twitter card ＋ `Get NeonShift` 按鈕 | TODO | 無 |
+| PG-SHARE-04 | 網站：`/s/` 落地頁 ＋ 全站 OG／Twitter card ＋ 安裝入口；App `/s/` routing、App Link intent filter | **WIP（碼完，待部署與實機驗收）** | 無 |
 | PG-SHARE-05 | 歸因：`/v1/metrics/share` 或彙總表 ＋ 落地頁計數 ＋ CSV 匯出 | TODO | 04 |
 | PG-SHARE-06 | C／D／E 卡型與 S4～S7 進入點 | TODO | 03 |
 | PG-SHARE-07 | `story` 9:16 尺寸與安全區 | TODO | 03 |

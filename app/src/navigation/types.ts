@@ -31,6 +31,8 @@ export type RootParamList = {
   /** 運動紀錄（PG-R-01，FR-14.1）：匯入的跑步／健走摘要 */
   Workouts: undefined;
   WorkoutReturn: undefined;
+  /** PG-SHARE-04：分享連結 neonshift://s/<kind>（或 https://neonshift.cc/s/<kind>）進 App 後轉往對應畫面 */
+  ShareLanding: { kind?: string; source?: string };
   /** PG-LINK-04 我的運動日誌；month＝YYYY-MM */
   Activity: { month?: string } | undefined;
   ActivityDetail: { serverId: string };

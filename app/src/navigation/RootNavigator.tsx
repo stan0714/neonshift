@@ -1,12 +1,13 @@
 import { ApprovalNotice } from '@/components/ApprovalNotice';
 import { useEffect, useState } from 'react';
-import { CommonActions, useNavigation, StackActions } from '@react-navigation/native';
+import { CommonActions, useNavigation, useRoute, StackActions, type RouteProp } from '@react-navigation/native';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { GameGuideScreen } from '@/screens/GameGuideScreen';
 import { NavigationContainer, useNavigationContainerRef, type LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { HomeHeaderButton } from '@/components/HomeHeaderButton';
+import { shareLandingTarget } from './shareLanding';
 import { color, motion } from '@/theme';
 import { ActivityHistoryScreen } from '@/screens/ActivityHistoryScreen';
 import { ExploreScreen } from '@/screens/ExploreScreen';
@@ -44,6 +45,7 @@ const linking: LinkingOptions<RootParamList> = {
     screens: {
       Landing: 'landing',
       WorkoutReturn: 'workout-return',
+      ShareLanding: { path: 's/:kind', parse: { kind: String, source: String } },
       DemoPreview: 'preview',
       EventDetail: { path: 'e/:idOrSlug', parse: { idOrSlug: String, source: String, tag: String } },
       ...(__DEV__ ? { DevHealth: 'dev/health' } : {}),
@@ -95,6 +97,7 @@ export function RootNavigator() {
         <Stack.Screen name="Workouts" component={WorkoutsScreen} options={{ headerShown: true, title: t('nav.workouts'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary, headerRight: () => <HomeHeaderButton /> }} />
         <Stack.Screen name="WorkoutStart" component={WorkoutStartScreen} options={{ headerShown: true, title: t('rec.start.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary, headerRight: () => <HomeHeaderButton /> }} />
         <Stack.Screen name="WorkoutReturn" component={WorkoutReturnScreen} />
+        <Stack.Screen name="ShareLanding" component={ShareLandingScreen} />
         <Stack.Screen name="WorkoutRecord" component={WorkoutRecordScreen} options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }} />
         <Stack.Screen name="WorkoutSummary" component={WorkoutSummaryScreen} options={{ headerShown: true, title: t('sum.title'), headerBackVisible: false, animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary, headerRight: () => <HomeHeaderButton /> }} />
         <Stack.Screen name="Events" component={EventsScreen} options={{ headerShown: true, title: t('nav.events'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
@@ -112,6 +115,26 @@ export function RootNavigator() {
   );
 }
 
+
+/**
+ * 分享連結落地（PG-SHARE-04）：從 `/s/<kind>` 進來時轉到對應畫面，不停在一個空白頁。
+ * 去向由 navigation/shareLanding 的純函式決定；不因為分享連結就要求登入。
+ */
+function ShareLandingScreen() {
+  const navigation = useNavigation();
+  const { params } = useRoute<RouteProp<RootParamList, 'ShareLanding'>>();
+  useEffect(() => {
+    const target = shareLandingTarget(params?.kind);
+    if (target.screen === 'Main') {
+      navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'Main', params: target.tab ? { screen: target.tab } : undefined }] }));
+      return;
+    }
+    // 由連結冷啟動時這頁是堆疊唯一一頁：replace 之後沒有上一頁，返回鍵會消失。改成在下面墊一層首頁。
+    const alone = navigation.getState()?.routes.length === 1;
+    navigation.dispatch(alone ? CommonActions.reset({ index: 1, routes: [{ name: 'Main' }, { name: target.screen }] }) : StackActions.replace(target.screen));
+  }, [navigation, params?.kind]);
+  return null;
+}
 
 // A stale notification never starts a new recording or resumes GPS automatically.
 function WorkoutReturnScreen() {

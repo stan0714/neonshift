@@ -50,6 +50,13 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="https" android:host="neonshift.cc" android:pathPrefix="/e/"/>
       </intent-filter>
+      <!-- PG-SHARE-04：分享落地頁（https://neonshift.cc/s/<kind>）；未安裝時落到 /s/ 網頁並顯示安裝狀態 -->
+      <intent-filter android:autoVerify="true">
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="https" android:host="neonshift.cc" android:pathPrefix="/s/"/>
+      </intent-filter>
       <!-- PG-E-04：NFC NDEF HTTPS URI 直接進 App（Android 16 起也可由 ACTION_VIEW 處理） -->
       <intent-filter>
         <action android:name="android.nfc.action.NDEF_DISCOVERED"/>

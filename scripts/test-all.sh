@@ -112,6 +112,17 @@ else
   skip "Node.js 未安裝或 app/ 尚未 npm install"
 fi
 
+section "網站社群預覽（OG head）"
+if command -v node >/dev/null; then
+  if node tools/og-assets/verify.mjs >/tmp/ns-og.log 2>&1; then
+    ok "$(tail -1 /tmp/ns-og.log)"
+  else
+    bad "OG head 檢查"; tail -20 /tmp/ns-og.log
+  fi
+else
+  skip "Node.js 未安裝"
+fi
+
 section "鏈上程式（Anchor + LiteSVM）"
 if ! command -v anchor >/dev/null; then
   skip "Anchor 未安裝"
