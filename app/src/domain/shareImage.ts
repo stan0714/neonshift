@@ -11,6 +11,9 @@ import { buildTrace, trimEnds } from '@/domain/gps/trace';
  */
 export const SHARE_IMAGE = { post: { width: 1080, height: 1350 } } as const;
 
+/** 版面演算法版本（§4.6 ShareRenderSpec）：同一筆紀錄日後重分享，靠這個判斷是否同一版版面 */
+export const SHARE_RENDERER_VERSION = 1;
+
 /** 起終點各裁掉的公尺數（§5.2）：出發與結束的位置最敏感 */
 export const SHARE_ROUTE_TRIM_M = 150;
 
@@ -114,14 +117,14 @@ export function workoutShareLayout(
   };
 }
 
-/** 成就收藏卡（卡型 B）。detail 只有該 NFT 已同意公開精確值時才由呼叫端傳入 */
+/** 成就收藏卡（卡型 B）。§4.3：日期與精確數值都預設關閉，需要本次社群分享另外勾選 */
 export type AchievementShareInput = {
   category: string;
   /** 已翻譯的章名 */
   title: string;
   /** 已翻譯的系列字 */
   series: string;
-  /** 已同意公開時的精確值（距離／時間）；否則 null */
+  /** 精確值（距離／時間）；勾選 detail 才會進圖 */
   detail: string | null;
   achievedAt: Date | null;
   verification: 'organizer' | 'device';
@@ -129,11 +132,22 @@ export type AchievementShareInput = {
   edition: string | null;
 };
 
-export function achievementShareLayout(a: AchievementShareInput, opts: { t: T; labels: { tagline: string; site: string; notice: string }; qr?: string | null }): ShareImageLayout {
+/**
+ * 成就卡的分享欄位（§5.4）：與 NFT metadata 的 `pb.consentShare` 是兩件事，
+ * NFT 已公開也不自動勾選——所以預設兩個都關。
+ */
+export type AchievementShareFields = { detail: boolean; date: boolean };
+export const ACHIEVEMENT_SHARE_DEFAULT: AchievementShareFields = { detail: false, date: false };
+
+export function achievementShareLayout(
+  a: AchievementShareInput,
+  fields: AchievementShareFields,
+  opts: { t: T; labels: { tagline: string; site: string; notice: string }; qr?: string | null },
+): ShareImageLayout {
   const { t, labels } = opts;
   const lines = [t(`share.card.class.${a.verification}`)];
-  if (a.detail) lines.push(a.detail);
-  if (a.achievedAt) lines.push(monthOf(a.achievedAt));
+  if (fields.detail && a.detail) lines.push(a.detail);
+  if (fields.date && a.achievedAt) lines.push(monthOf(a.achievedAt));
   return {
     kind: 'achievement',
     label: a.series,
@@ -150,7 +164,28 @@ export function achievementShareLayout(a: AchievementShareInput, opts: { t: T; l
   };
 }
 
-/** 分享連結：落地頁帶 kind 與 source，讓成效可分桶量測（§6.3）；不含任何個人識別 */
-export function shareUrl(site: string, kind: string, source: string): string {
-  return `${site}/s/${kind}?source=${encodeURIComponent(source)}`;
+/**
+ * 分享連結（§6.2／§6.3）：落地頁路徑帶 kind、query 只帶允許清單內的 source。
+ * 不含任何個人識別，也不帶來源紀錄 ID——ShareRenderSpec 的來源 ID 只留在本機。
+ */
+export const SHARE_KINDS = ['workout', 'achievement', 'gear', 'guardian', 'passport'] as const;
+export type ShareKind = (typeof SHARE_KINDS)[number];
+export const SHARE_SOURCES = ['summary', 'mint', 'levelup', 'guardian', 'passport', 'invite', 'finish'] as const;
+export type ShareSource = (typeof SHARE_SOURCES)[number];
+
+export function shareUrl(site: string, kind: ShareKind, source: ShareSource): string {
+  return `${site}/s/${kind}?source=${source}`;
 }
+
+/**
+ * 一次預覽的凍結輸入（§4.6）。來源 ID／revision 只供本機重建與失效判斷，
+ * 不寫進圖檔 metadata、QR 或歸因連結；帳號換了或來源紀錄被刪改就作廢重新確認。
+ */
+export type ShareRenderSpec = {
+  kind: ShareImageKind;
+  source: { id: string; revision: number } | null;
+  owner: string | null;
+  rendererVersion: number;
+  locale: string;
+  format: 'post';
+};

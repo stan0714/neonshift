@@ -78,3 +78,9 @@ Gear／My collection 新增 Milestones；Profile／Running history 的摘要可�
 必測：4,999.999／5,000 m、9,999.999／10,000 m、21,097.499／21,097.5 m、42,194.999／42,195 m；官方全馬與裝置短測；跨日 session、不累加多次跑步；長距離解鎖多章；首次／PB 權限不同；重複來源／更早回填／修正／失效後再達標；轉出 NFT 後重領；並發鑄造與拒簽；公開同意與資料刪除；回歸紀錄涵蓋不足不誤判。
 
 本設計不修改現有代幣／XP／維持點計分，也不新增「跑越遠維持點越多」機制。
+
+## 2026-09-25 擴充：年度節日與生態紀念系列
+
+新增 [Seasonal Footprints 規格](design/seasonal-achievement-nfts.md) 與 [原創徽章預覽](design/seasonal-badges-preview.html)。參考使用者提供 Garmin 徽章的資訊層次，以原創動物／棲地插畫、年份、限時條件與關聯 Activity 呈現。候選涵蓋中秋、Bitcoin Pizza Day、Solana Mainnet Beta、Mobile Stack 發表與 Seeker 出貨紀念。
+
+這是獨立 seasonal 類型的待開發方案；不改首次里程碑的終身去重、不取代 PB 資格，也不把核准當成已鑄造。PG-SEASON-01～06 定義日期來源、時區、離線補同步、年度去重、Mint 與通知驗收。

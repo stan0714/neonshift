@@ -15,11 +15,11 @@ import { estimateEnergy } from '@/domain/energy';
 import { formatDuration, formatKm, formatPace, modeLabel } from '@/domain/workouts';
 import { useBody } from '@/state/bodyStore';
 import { stageName } from '@/domain/collectibles';
-import { useT, type TKey } from '@/i18n';
+import { useLocaleStore, useT, type TKey } from '@/i18n';
 import { compareSameCategory, SHARE_CARD_DEFAULT, shareCard, type ShareCardFields, type ShareCardInput } from '@/domain/review';
-import { routeShapeOf, SHARE_ROUTE_TRIM_M, shareUrl, workoutShareLayout } from '@/domain/shareImage';
+import { SHARE_RENDERER_VERSION, shareUrl, workoutShareLayout, type ShareRenderSpec } from '@/domain/shareImage';
 import { ShareCard } from '@/components/ShareCard';
-import { copyCaption, shareLayout } from '@/services/share/shareImage';
+import { copyCaption, shareLayout, shareTextInstead } from '@/services/share/shareImage';
 import { APP_CONFIG } from '@/config/app';
 import type Svg from 'react-native-svg';
 import { apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
@@ -95,31 +95,37 @@ export function WorkoutSummaryScreen() {
   const sharePreview = meta && shareInput
     ? shareCard(shareInput, shareFields, (k, p) => t(k as TKey, p), { mode: modeLabel(t, meta.sport, meta.intent), app: 'NeonShift', site: 'neonshift.cc' })
     : '';
-  // PG-SHARE-02／03：圖卡與文字卡共用同一組欄位開關；路線形狀是另一個預設關閉的開關
+  // PG-SHARE-02／03：圖卡與文字卡共用同一組欄位開關。
+  // 路線形狀屬於 PG-SHARE-09（第二階段）：裁切規則尚未驗收前不露出開關，圖上一律沒有路線。
   const svgRef = useRef<Svg>(null);
-  const [shareRoute, setShareRoute] = useState(false);
-  const [shareBusy, setShareBusy] = useState(false);
+  const locale = useLocaleStore((st) => st.locale);
+  const [sharePhase, setSharePhase] = useState<'preview' | 'rendering' | 'handing_off' | 'returned'>('preview');
+  const [shareErr, setShareErr] = useState<'render_failed' | 'no_target' | 'unpublishable' | 'stale' | null>(null);
   const [shareNote, setShareNote] = useState<string | null>(null);
-  const routeShape = useMemo(() => (shareRoute && points ? routeShapeOf(points) : null), [shareRoute, points]);
   const shareLink = shareUrl(APP_CONFIG.siteUrl, 'workout', 'summary');
   const shareImageLayout = meta && shareInput
     ? workoutShareLayout(shareInput, shareFields, {
         t: (k, pr) => t(k as TKey, pr),
         labels: { mode: modeLabel(t, meta.sport, meta.intent), tagline: t('share.card.tagline'), site: 'neonshift.cc' },
-        route: routeShape,
+        route: null,
         qr: shareLink,
       })
     : null;
   const shareCaption = shareInput ? t('share.invite.workout', { km: (shareInput.distanceMm / 1_000_000).toFixed(2), url: shareLink }) : '';
+  // 凍結這次預覽的輸入；來源 ID 只留在本機，不進圖檔、QR 或連結（§4.6）
+  const shareSpec: ShareRenderSpec = { kind: 'workout', source: { id: params.sessionId, revision: meta?.summary?.rulesVersion ?? 0 }, owner: meta?.owner ?? useWalletStore.getState().session?.address ?? null, rendererVersion: SHARE_RENDERER_VERSION, locale, format: 'post' };
   const onShareImage = async () => {
-    if (!shareImageLayout) return;
-    setShareBusy(true);
+    if (!shareImageLayout || sharePhase === 'rendering' || sharePhase === 'handing_off') return;
+    setShareErr(null);
     setShareNote(null);
+    setSharePhase('rendering');
     try {
-      const r = await shareLayout({ svg: svgRef.current, layout: shareImageLayout, message: shareCaption, dialogTitle: t('share.card.title') });
-      if (r.ok && !r.withImage) setShareNote(t('share.card.imageFailed'));
+      setSharePhase('handing_off');
+      const r = await shareLayout({ svg: svgRef.current, layout: shareImageLayout, dialogTitle: t('share.card.title'), spec: shareSpec, stillValid: (sp) => !!store.readMeta(sp.source?.id ?? '') });
+      setSharePhase(r.ok ? 'returned' : 'preview');
+      if (!r.ok) setShareErr(r.reason);
     } finally {
-      setShareBusy(false);
+      setSharePhase((ph) => (ph === 'rendering' || ph === 'handing_off' ? 'preview' : ph));
     }
   };
   // PG-U-01：目標結果（未達標仍保存，顯示實際完成）；模式標籤
@@ -338,24 +344,20 @@ export function WorkoutSummaryScreen() {
           {sharePreview}
         </Text>
         <Button label={t('sum.share.button')} variant="secondary" style={styles.mt} onPress={() => void Share.share({ message: sharePreview }).catch(() => {})} testID="sum-share-button" />
-        {points && points.length > 0 && meta.environment !== 'indoor' ? (
-          <>
-            <View style={styles.rowBetween}>
-              <Text variant="bodySmall" style={styles.flex}>{t('share.card.route')}</Text>
-              <Switch value={shareRoute} onValueChange={setShareRoute} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('share.card.route')} testID="share-card-route" />
-            </View>
-            <Text variant="caption" tone="muted">{t('share.card.routeWarn', { m: SHARE_ROUTE_TRIM_M })}</Text>
-            {shareRoute && !routeShape ? (
-              <Text variant="caption" tone="warning" testID="share-card-route-unavailable">{t('share.card.routeUnavailable')}</Text>
-            ) : null}
-          </>
-        ) : null}
         {shareImageLayout ? (
           <View style={styles.sharePreview}>
             <ShareCard ref={svgRef} layout={shareImageLayout} width={300} a11yLabel={t('share.card.a11y', { label: shareImageLayout.label, hero: `${shareImageLayout.hero.value} ${shareImageLayout.hero.unit}` })} />
           </View>
         ) : null}
-        <Button label={t('share.card.image')} style={styles.mt} onPress={() => void onShareImage()} disabled={shareBusy || !shareImageLayout} testID="share-card-image" />
+        <Button
+          label={t('share.card.image')}
+          style={styles.mt}
+          onPress={() => void onShareImage()}
+          loading={sharePhase === 'rendering' || sharePhase === 'handing_off'}
+          loadingLabel={t('share.card.rendering')}
+          disabled={!shareImageLayout || sharePhase === 'rendering' || sharePhase === 'handing_off'}
+          testID="share-card-image"
+        />
         <Button
           label={t('share.card.copy')}
           variant="secondary"
@@ -363,6 +365,25 @@ export function WorkoutSummaryScreen() {
           onPress={() => void copyCaption(shareCaption).then((ok) => setShareNote(ok ? t('share.card.copied') : null))}
           testID="share-card-copy"
         />
+        {/* 分享面板返回不代表對方社群已發布（§6.1） */}
+        {sharePhase === 'returned' && !shareErr ? (
+          <Text variant="caption" tone="secondary" style={styles.mtXs} testID="share-card-returned">{t('share.card.returned')}</Text>
+        ) : null}
+        {shareErr ? (
+          <View style={styles.shareErr} testID={`share-card-error-${shareErr}`}>
+            <InlineState
+              kind={shareErr === 'unpublishable' ? 'warning' : 'error'}
+              title={t(shareErr === 'no_target' ? 'share.card.noTargetTitle' : shareErr === 'unpublishable' ? 'share.card.blockedTitle' : 'share.card.failedTitle')}
+              body={t(shareErr === 'no_target' ? 'share.card.noTargetBody' : shareErr === 'unpublishable' ? 'share.card.blockedBody' : 'share.card.failedBody')}
+            />
+            {shareErr !== 'unpublishable' ? (
+              <>
+                {shareErr === 'render_failed' ? <Button label={t('share.card.retry')} variant="secondary" onPress={() => void onShareImage()} testID="share-card-retry" /> : null}
+                <Button label={t('share.card.shareTextInstead')} variant="secondary" onPress={() => void shareTextInstead(shareCaption)} testID="share-card-text" />
+              </>
+            ) : null}
+          </View>
+        ) : null}
         {shareNote ? (
           <Text variant="caption" tone="secondary" style={styles.mtXs} testID="share-card-note">{shareNote}</Text>
         ) : null}
@@ -420,4 +441,5 @@ const styles = StyleSheet.create({
   layerChipDisabled: { opacity: 0.6, borderStyle: 'dashed' },
   mt: { marginTop: space.m },
   sharePreview: { alignItems: 'center', marginTop: space.m },
+  shareErr: { marginTop: space.s, gap: space.s },
 });

@@ -4,13 +4,14 @@ import { isOnboardingComplete, useOnboardingStore } from '@/state/onboardingStor
 import { useWalletStore } from '@/state/walletStore';
 import { useSyncPrefs } from '@/state/syncPrefsStore';
 import { workoutOutbox } from '@/services/workouts/WorkoutOutbox';
+import { cleanupShareCache } from '@/services/share/shareImage';
 
 import type { BootstrapTask } from './types';
 import { LOADING_COPY } from './types';
 
 /**
  * 預設 bootstrap 步驟（Style 8.2 載入順序）。
- * - profile：本機 onboarding 旗標（PG-A-11）
+ * - profile：本機 onboarding 旗標（PG-A-11），順手清掉過期的分享暫存圖（PG-SHARE-03）
  * - health：Health Connect availability 與既有權限，不彈 dialog（PG-A-04）
  * - wallet：只讀本機保存的 MWA session，不開啟錢包；reauthorize 延後到首次簽章（PG-A-06）
  * - network：Config 版本檢查與 dashboard 快取，待 PG-A-07／A-12 接入
@@ -20,6 +21,8 @@ export const defaultBootstrapTasks: readonly BootstrapTask[] = [
     id: 'profile',
     label: LOADING_COPY.profile,
     run: async (ctx) => {
+      // 分享圖不在分享 API 返回時刪（接收 App 可能還沒讀完），改在啟動時清掉已到期的（social-share §6.1）
+      cleanupShareCache();
       const flags = await useOnboardingStore.getState().load();
       ctx.onboardingComplete = isOnboardingComplete(flags);
       return { status: 'done' };

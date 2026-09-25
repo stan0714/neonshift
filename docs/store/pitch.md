@@ -57,3 +57,11 @@
 ## 2026-09-22 版本與展示狀態
 
 評審版為 [九頁英文 PPTX](../../output/hackathon-flexclip-en/NeonShift_Hackathon_EN_Judges.pptx)，另有三頁 NFT 專題及中文講稿。原六頁保留影片用途。Activity／有序同步／切鞋背景已有程式，靜態投影片仍為示意；Workouts PB 解釋與四欄週回顧需新實錄。手動鞋款為 SVG 側面，非 3D。官方 SKR 付款尚在計畫，不與 tSKR 混用；提交以 [開發 gate](competition-development-plan.md) 與 [評審指南](judges-guide.md) 為準。
+
+## 2026-09-25：評審問答／Roadmap 補充 — Seasonal Footprints
+
+新增 [節日 NFT 規格與英文說明](../design/seasonal-achievement-nfts.md#7-參賽說明用語)／[原創徽章概念](../design/seasonal-badges-preview.html)。建議放在留存策略與 NFT 收藏附錄，標示 **ROADMAP / DESIGN PROTOTYPE**：年度生態與文化主題 → 限時有效運動 → server approval → 自主 Mint → 收藏／分享。
+
+可用英文說明：“Seasonal Footprints is our proposed annual collection: walk or run during a published window, earn approval, and choose whether to mint an original badge inspired by shared cultural and Solana ecosystem milestones.”
+
+強調參與與回訪，不宣稱官方授權、零成本鑄造、已提升留存或已完成 SKR 整合。現有 PPTX／PDF 未在本次重建；錄影／簡報正式加入前需將本段轉入 roadmap 頁並維持影片時間限制，不以概念圖替代實機證據。

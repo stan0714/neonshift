@@ -143,3 +143,9 @@ SKR No-go 不自動取消主賽；主賽仍需自身資格與實機 gate 全數�
 
 2026-09-22：COMP-W01（MWA session 中止策略）落地——`app/src/services/wallet/mwaGuard.ts`：所有 MWA 操作經守門，App 回前景後 8 s 無回覆或 120 s 硬逾時 → `WALLET_NO_REPLY`（呼叫端以「可能已送出」處理：打卡查 receipt、SKR recover、登入重試）；晚到結果丟棄；放棄後標記 stale 90 s（原生 invoke 逾時），登入卡提示下一次請求可能等待。**未做**：直接呼叫原生 `endSession` 中止（transact 的 finally 會二次呼叫並在原生層丟例外，有崩潰風險，需上游 SDK 支援）。測試 5。
 
+
+## 2026-09-25 新增候選：PG-SEASON-01～06
+
+[Seasonal Footprints](../design/seasonal-achievement-nfts.md)：以 Garmin 式清楚的徽章資訊層次為參考，新增原創年度節日／Solana／Solana Mobile 紀念成就。優先級 P1，正式核心功能與參賽驗收優先；本次可用標示 Prototype 的概念頁在 roadmap 說明，不排擠錢包、運動、同步與發版工作。
+
+放行條件：日期來源核對、單一屆次窗口／時區／補同步規則、後端資格與鏈上去重、server approval → Mint → confirmed 實測。未完成前不列已上線功能，不承諾官方合作或 SKR 獎項加分。

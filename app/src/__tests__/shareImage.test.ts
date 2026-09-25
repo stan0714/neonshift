@@ -5,7 +5,7 @@
 import type { RawPoint } from '@/domain/gps/engine';
 import { SHARE_CARD_DEFAULT, type ShareCardFields, type ShareCardInput } from '@/domain/review';
 import { trimEnds } from '@/domain/gps/trace';
-import { achievementShareLayout, routeShapeOf, type AchievementShareInput, SHARE_ROUTE_TRIM_M, sharePublishable, shareUrl, workoutShareLayout } from '@/domain/shareImage';
+import { achievementShareLayout, ACHIEVEMENT_SHARE_DEFAULT, routeShapeOf, type AchievementShareFields, type AchievementShareInput, SHARE_ROUTE_TRIM_M, sharePublishable, shareUrl, workoutShareLayout } from '@/domain/shareImage';
 import { t, useLocaleStore } from '@/i18n';
 
 beforeEach(() => useLocaleStore.setState({ setting: 'en', locale: 'en' }));
@@ -125,9 +125,10 @@ describe('路線形狀裁切', () => {
 
 describe('成就收藏卡（B）', () => {
   const base: AchievementShareInput = { category: 'first_5k', title: 'First 5K', series: t('share.card.series'), detail: null, achievedAt: new Date('2026-09-24T22:10:00Z'), verification: 'device', edition: 'No. 12' };
-  const mk = (o: Partial<AchievementShareInput> = {}) => achievementShareLayout({ ...base, ...o }, { t: tr, labels: { tagline: labels.tagline, site: labels.site, notice: t('share.card.devnet') } });
+  const mk = (o: Partial<AchievementShareInput> = {}, f: Partial<AchievementShareFields> = {}) =>
+    achievementShareLayout({ ...base, ...o }, { ...ACHIEVEMENT_SHARE_DEFAULT, ...f }, { t: tr, labels: { tagline: labels.tagline, site: labels.site, notice: t('share.card.net.devnet') } });
 
-  test('鏈上資產必標 DEVNET 與測試代幣', () => {
+  test('鏈上資產必標所屬網路；devnet 資產標 DEVNET 且說明無金錢價值', () => {
     expect(mk().notice).toMatch(/DEVNET/);
     expect(mk().notice).toMatch(/No monetary value/);
     expect(sharePublishable(mk())).toBe(true);
@@ -137,13 +138,18 @@ describe('成就收藏卡（B）', () => {
     expect(sharePublishable({ ...mk(), notice: null })).toBe(false);
   });
 
-  test('未同意公開 → 圖上沒有精確值；同意後才出現', () => {
-    expect(mk().lines.join('|')).not.toMatch(/5\.50|38:12/);
-    expect(mk({ detail: '5.50 km · 38:12' }).lines.join('|')).toMatch(/5\.50 km/);
+  test('精確值預設不出現（NFT 已公開也不自動勾選）；本次分享另外勾選才進圖', () => {
+    expect(mk({ detail: '5.50 km · 38:12' }).lines.join('|')).not.toMatch(/5\.50/);
+    expect(mk({ detail: '5.50 km · 38:12' }, { detail: true }).lines.join('|')).toMatch(/5\.50 km/);
   });
 
-  test('日期只到月份；驗證方式如實呈現', () => {
-    expect(mk().lines).toContain('2026-09');
+  test('日期預設關閉；勾選後只到月份，不含日', () => {
+    expect(mk().lines.join('|')).not.toMatch(/2026/);
+    expect(mk({}, { date: true }).lines).toContain('2026-09');
+    expect(mk({}, { date: true }).lines.join('|')).not.toMatch(/-24/);
+  });
+
+  test('驗證方式如實呈現，不因分享而升格', () => {
     expect(mk().lines).toContain(t('share.card.class.device'));
     expect(mk({ verification: 'organizer' }).lines).toContain(t('share.card.class.organizer'));
   });

@@ -104,12 +104,16 @@ jest.mock('expo-file-system', () => {
     get name() { return this.uri.split('/').pop()!; }
     create() { dirs.add(this.uri); }
     delete() { dirs.delete(this.uri); for (const k of [...files.keys()]) if (k.startsWith(`${this.uri}/`)) files.delete(k); for (const d of [...dirs]) if (d.startsWith(`${this.uri}/`)) dirs.delete(d); }
-    list() { return [...dirs].filter((d) => d.startsWith(`${this.uri}/`) && !d.slice(this.uri.length + 1).includes('/')).map((d) => new Directory(d)); }
+    list() {
+      const own = (k: string) => k.startsWith(`${this.uri}/`) && !k.slice(this.uri.length + 1).includes('/');
+      return [...[...dirs].filter(own).map((d) => new Directory(d)), ...[...files.keys()].filter(own).map((f) => new File(f))];
+    }
   }
   class File {
     uri: string;
     constructor(...parts: unknown[]) { this.uri = join(parts); }
     get exists() { return files.has(this.uri); }
+    get name() { return this.uri.split('/').pop()!; }
     create() { if (!files.has(this.uri)) files.set(this.uri, ''); }
     write(content: string, opts?: { append?: boolean }) { files.set(this.uri, (opts?.append ? (files.get(this.uri) ?? '') : '') + content); }
     async move(dest: File, opts?: { overwrite?: boolean }) {

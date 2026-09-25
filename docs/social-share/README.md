@@ -2,9 +2,9 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.2（2026-09-25 檢視修訂；新增功能仍未實作） |
+| 文件版本 | v0.3（2026-09-25：01～03 實作完成，尚未實機驗收） |
 | 建立日期 | 2026-09-25 |
-| 狀態 | **TODO**；PG-LINK-10 已記載「社群圖片分享列候選，尚未實作（需 react-native-view-shot／expo-sharing 原生依賴，另立工作）」——本文件即該工作的規劃 |
+| 狀態 | **WIP**；PG-SHARE-01～03 已實作（自動測試通過、實機未驗收），04／05／08 未開始。PG-LINK-10 記載的「社群圖片分享另立工作」即本文件 |
 | 對應需求 | [BRD v0.6](../brd-detailed.md)、[SD](../sd.md)、[Style Guide](../style.md)、[PG](../pg.md) |
 | 相關文件 | [跑鞋連動與路線外觀](../design/shoe-route-linkage.md)、[特殊圖案路線挑戰](../design/pattern-route-challenges.md)（R2 可撤銷分享連結）、[商店素材](../store/listing.md)、[活動 Demo 腳本](../store/event-demo-playbook.md) |
 | 目標平台 | Android／Solana Mobile Seeker；分享目的地為 Instagram、Threads、X、LINE、Facebook、Discord |
@@ -53,7 +53,7 @@
 2. **網站沒有任何 OG／Twitter card 標籤**（`web/` 全站 grep 無 `og:image`）。現在把 `neonshift.cc/e/<slug>` 貼到 LINE／X／Facebook，無法保證出現指定預覽圖；各平台實際回退結果需驗收，不推論點擊率。
 3. **落地頁沒有安裝按鈕**。首頁只有一句「即將於 Solana dApp Store 上架」，`storeUrl`（`solanadappstore://details?id=cc.neonshift.app`）沒有出現在任何網頁上。
 4. **非活動分享沒有任何歸因**。運動成績卡、成就卡分享出去後無法知道有沒有帶人進來；`bumpCampaign` 目前綁 `event_id`。
-5. **react-native-view-shot／expo-sharing 尚未安裝**（`app/package.json` 已有 `expo-file-system`、`react-native-svg` 與 `react-native-qrcode-svg`，但沒有這兩個套件）。需要新原生依賴＋重新出包。
+5. ~~分享與剪貼簿套件未安裝~~ → 已於 2026-09-25 安裝 `expo-sharing`、`expo-clipboard`（另加純 JS 的 `qrcode`）；**不需要** react-native-view-shot（見 §6.1）。**需要重新出包**才會生效。
 
 ---
 
@@ -187,22 +187,23 @@
 ### 6.1 App 端（圖卡）
 
 ```
-ShareCardView (react-native-svg，離屏 1080×1350)
+ShareCard（react-native-svg，單一 <Svg> viewBox 0 0 1080 1350；畫面上顯示 300 pt 縮圖）
         │  ShareRenderSpec（運動資料沿用 ShareCardInput／ShareCardFields）
         ▼
-captureRef()  ← react-native-view-shot
+svgRef.toDataURL(cb, { width: 1080, height: 1350 })   ← react-native-svg（已安裝）
         ▼
-cacheDirectory/share-<kind>-<ts>.png  ← expo-file-system（已安裝）
+new File(Paths.cache, 'neonshift-share-<kind>-<到期時間>-<隨機>.png').write(b64, { encoding: 'base64' })
         ▼
-expo-sharing.shareAsync(uri, { dialogTitle, mimeType: 'image/png' })
+Sharing.shareAsync(file.uri, { mimeType: 'image/png', dialogTitle })
         ▼
-記錄暫存到期時間 → 下次啟動／清理工作刪除過期檔（不立即刪除）
+到期時間寫在檔名 → 啟動時與下次產圖前清理過期檔（不在分享返回時刪）
 ```
 
-- 新增原生依賴：`react-native-view-shot`、`expo-sharing`。兩者都需要重新 prebuild／出包（`scripts/app/build.sh demo release`），不能靠 OTA。
-- 版面用 **`react-native-svg`（已安裝）** 繪製，字級與色彩吃 token，搭配字型載入完成檢查、文字量測與換行上限；SVG 本身不能保證不裁字。
+- **不用 react-native-view-shot**。圖卡本身就是 SVG，`toDataURL` 在原生端依 viewBox 重算成 1080×1350 點陣（Android 實作見 `react-native-svg/android/.../SvgView.java` 的 `toDataURL(int,int)`：以 `canvas.getWidth()` 套 viewBox 轉換），因此畫面上顯示縮圖也能輸出正確尺寸、不受 PixelRatio 影響，也不必把整張卡掛在螢幕外。少一個原生依賴，輸出與預覽必然同一份版面。
+- 新增依賴：`expo-sharing`（送出）、`expo-clipboard`（複製文案），另加純 JS 的 `qrcode`（產 QR 矩陣，疊成單一 Path；一格一個 Rect 會是上千個節點）。需要重新出包（`scripts/app/build.sh demo release`），不能靠 OTA。
+- 版面用 **`react-native-svg`（已安裝）** 繪製，字級與色彩吃 token，搭配文字量測與換行上限；SVG 本身不能保證不裁字。
 - **失敗提供明確下一步**：出圖失敗、無分享目標、空間不足時保留預覽設定，顯示「重試／改分享文字／複製文案」。只有使用者選擇後才開第二個分享面板；使用者取消分享不算錯誤，也不自動再彈文字分享。
-- **離線可用**：圖卡資料全部來自本機運動紀錄與已快取的成就圖；離線時不去抓遠端圖，改用打包在 App 內的成就美術。
+- **離線可用**：圖卡資料全部來自本機運動紀錄；成就徽章改為**程序繪製**（不抓 `neonshift.cc/nft/...` 的 SVG），離線一樣畫得出來。
 - **圖片與文案分開保證**：首版用 `expo-sharing.shareAsync` 分享 PNG，另提供「複製文案與連結」。此 API 的 options 沒有一般文字 payload，不能假設會附帶 caption；若要單一 intent 同送圖片＋文字，另做原生橋接評估與各接收 App 測試。
 
 **匯出生命週期與失敗處理補充**：
@@ -264,9 +265,9 @@ expo-sharing.shareAsync(uri, { dialogTitle, mimeType: 'image/png' })
 
 | 編號 | 名稱 | 狀態 | 依賴 |
 |---|---|---|---|
-| PG-SHARE-01 | 圖卡資料層：沿用 `ShareCardInput`／`ShareCardFields`，加 `kind`、`route`（預設關）與純函式版面資料 | TODO | 無（可先寫測試） |
-| PG-SHARE-02 | `ShareCardView`（react-native-svg，1080×1350）＋ A／B 兩種卡型與預覽 | TODO | 01 |
-| PG-SHARE-03 | 安裝 `react-native-view-shot`／`expo-sharing`，出圖、分享、快取清除、失敗 fallback、重新出包 | TODO | 02 |
+| PG-SHARE-01 | 圖卡資料層：沿用 `ShareCardInput`／`ShareCardFields`，加 `kind`、`route`（預設關）與純函式版面資料 | **WIP（碼完，實機未驗）** | 無 |
+| PG-SHARE-02 | `ShareCard`（react-native-svg，1080×1350）＋ A／B 兩種卡型與預覽 | **WIP（碼完，實機未驗）** | 01 |
+| PG-SHARE-03 | 安裝 `expo-sharing`／`expo-clipboard`，出圖、分享、TTL 清理、失敗選項、複製文案 | **WIP（碼完，待重新出包與實機驗收）** | 02 |
 | PG-SHARE-04 | 網站：`/s/` 落地頁 ＋ 全站 OG／Twitter card ＋ `Get NeonShift` 按鈕 | TODO | 無 |
 | PG-SHARE-05 | 歸因：`/v1/metrics/share` 或彙總表 ＋ 落地頁計數 ＋ CSV 匯出 | TODO | 04 |
 | PG-SHARE-06 | C／D／E 卡型與 S4～S7 進入點 | TODO | 03 |
@@ -346,3 +347,9 @@ expo-sharing.shareAsync(uri, { dialogTitle, mimeType: 'image/png' })
 - [Open Graph protocol](https://ogp.me/)：基本 head metadata、圖片與 canonical URL；每個路徑的靜態 HTML 交付方式仍須新增。
 
 尚待實機證據：接收端讀檔時機、IG／Threads／LINE 等目的地行為、正式簽章 App Links、商店上架與下載入口。文件內建議值不是已完成驗收，也不是社群平台保證。
+
+## 2026-09-25 延伸：節日收藏分享
+
+B 成就卡可擴充 [Seasonal Footprints 年度徽章](../design/seasonal-achievement-nfts.md)：主題插畫、年份、活動名與真實收藏狀態。節日日期與年份是公開主題，不等於使用者精確取得時間；後者仍預設關閉。核准但未 Mint 只能分享「可領取」狀態；已 confirmed 才顯示「已鑄造」。公開連結導向主題介紹，不包含自己的 Activity ID、起終點或錢包。
+
+此為 PG-SEASON-05 與社群卡的未實作整合；不因概念頁存在就宣稱節日挑戰已上線。

@@ -9,13 +9,16 @@ import * as Sharing from 'expo-sharing';
 import { File } from 'expo-file-system';
 
 import { ShareCard, wrapText } from '@/components/ShareCard';
-import { achievementShareLayout, workoutShareLayout, type ShareImageLayout } from '@/domain/shareImage';
+import { achievementShareLayout, ACHIEVEMENT_SHARE_DEFAULT, SHARE_RENDERER_VERSION, workoutShareLayout, type ShareImageLayout, type ShareRenderSpec } from '@/domain/shareImage';
 import { SHARE_CARD_DEFAULT } from '@/domain/review';
-import { copyCaption, shareLayout } from '@/services/share/shareImage';
+import { cleanupShareCache, copyCaption, SHARE_CACHE_MAX_FILES, SHARE_CACHE_TTL_MS, shareLayout } from '@/services/share/shareImage';
+import { Directory, Paths } from 'expo-file-system';
+import * as FS from 'expo-file-system';
 import { t, useLocaleStore } from '@/i18n';
 
 beforeEach(() => {
   jest.clearAllMocks();
+  (FS as unknown as { __reset: () => void }).__reset(); // 每個測試自己一份記憶體檔案系統
   useLocaleStore.setState({ setting: 'en', locale: 'en' });
 });
 
@@ -45,7 +48,8 @@ const mkWorkout = () => workoutShareLayout(
 );
 const mkAchievement = () => achievementShareLayout(
   { category: 'first_5k', title: 'First 5K', series: t('share.card.series'), detail: null, achievedAt: new Date('2026-09-24T00:00:00Z'), verification: 'device', edition: 'No. 12' },
-  { t: tr, labels: { tagline: t('share.card.tagline'), site: 'neonshift.cc', notice: t('share.card.devnet') } },
+  ACHIEVEMENT_SHARE_DEFAULT,
+  { t: tr, labels: { tagline: t('share.card.tagline'), site: 'neonshift.cc', notice: t('share.card.net.devnet') } },
 );
 
 describe('圖卡渲染', () => {
@@ -64,7 +68,7 @@ describe('圖卡渲染', () => {
     expect(screen.getByTestId('share-card-route')).toBeTruthy();
   });
 
-  test('成就卡：徽章程序繪製（不抓遠端圖），且一定印出 DEVNET 與測試代幣', async () => {
+  test('成就卡：徽章程序繪製（不抓遠端圖），且一定印出資產所屬網路', async () => {
     await render(<ShareCard layout={mkAchievement()} />);
     expect(screen.getByTestId('share-card-emblem-first_5k')).toBeTruthy();
     expect(textOf('share-card-notice')).toMatch(/DEVNET/);
@@ -81,36 +85,71 @@ describe('圖卡渲染', () => {
 
 describe('出圖與分享', () => {
   const fakeSvg = (b64: string | null) => ({ toDataURL: (cb: (s: string) => void) => cb(b64 as string) }) as unknown as Svg;
+  const spec: ShareRenderSpec = { kind: 'workout', source: { id: 's1', revision: 2 }, owner: 'wallet-a', rendererVersion: SHARE_RENDERER_VERSION, locale: 'en', format: 'post' };
+  const cacheFiles = () => (new Directory(Paths.cache).list() as { name: string; uri: string }[]).filter((f) => f.name?.startsWith('neonshift-share-'));
 
-  test('成功：寫進 cache、以 image/png 分享，結束後刪檔（不留殘檔、不寫相簿）', async () => {
-    const r = await shareLayout({ svg: fakeSvg('QUJD'), layout: mkWorkout(), message: 'caption', dialogTitle: 'Share card' });
+  test('成功：寫進 cache、以 image/png 分享；分享返回後不立刻刪檔（接收 App 可能還在讀）', async () => {
+    const r = await shareLayout({ svg: fakeSvg('QUJD'), layout: mkWorkout(), dialogTitle: 'Share card' });
     expect(r).toEqual({ ok: true, withImage: true });
     const uri = (Sharing.shareAsync as jest.Mock).mock.calls[0]![0] as string;
-    expect(uri).toMatch(/neonshift-workout-\d+\.png$/);
+    expect(uri).toMatch(/neonshift-share-workout-\d+-[0-9a-f]+\.png$/);
     expect((Sharing.shareAsync as jest.Mock).mock.calls[0]![1]).toMatchObject({ mimeType: 'image/png' });
+    expect(new File(uri).exists).toBe(true);
+  });
+
+  test('檔名不含使用者資料，只有 kind、到期時間與隨機值', async () => {
+    await shareLayout({ svg: fakeSvg('QUJD'), layout: mkWorkout(), dialogTitle: 'x', spec });
+    const uri = (Sharing.shareAsync as jest.Mock).mock.calls[0]![0] as string;
+    expect(uri).not.toMatch(/s1|wallet-a/);
+    const expiry = Number(/-(\d{10,})-/.exec(uri)![1]);
+    expect(expiry).toBeGreaterThan(Date.now());
+    expect(expiry).toBeLessThanOrEqual(Date.now() + SHARE_CACHE_TTL_MS);
+  });
+
+  test('清理：只刪已到期的；未到期與交付中的都留著', async () => {
+    await shareLayout({ svg: fakeSvg('QUJD'), layout: mkWorkout(), dialogTitle: 'x' });
+    const uri = (Sharing.shareAsync as jest.Mock).mock.calls[0]![0] as string;
+    expect(cleanupShareCache()).toBe(0);
+    expect(new File(uri).exists).toBe(true);
+    // 到期後（現在 + TTL + 1 秒）才清
+    expect(cleanupShareCache(Date.now() + SHARE_CACHE_TTL_MS + 1000)).toBe(1);
     expect(new File(uri).exists).toBe(false);
   });
 
-  test('出圖失敗 → 退回純文字分享，不丟例外', async () => {
-    const share = jest.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction' } as never);
-    const r = await shareLayout({ svg: fakeSvg(null), layout: mkWorkout(), message: 'caption', dialogTitle: 'x' });
-    expect(r).toEqual({ ok: true, withImage: false });
-    expect(share).toHaveBeenCalledWith({ message: 'caption' });
+  test('清理：超過數量上限時連未到期的最舊檔一起清', async () => {
+    for (let i = 0; i < SHARE_CACHE_MAX_FILES + 3; i++) {
+      await shareLayout({ svg: fakeSvg('QUJD'), layout: mkWorkout(), dialogTitle: 'x' });
+    }
+    cleanupShareCache();
+    expect(cacheFiles().length).toBeLessThanOrEqual(SHARE_CACHE_MAX_FILES);
+  });
+
+  test('出圖失敗 → 回報原因，不自己彈第二個分享面板', async () => {
+    const share = jest.spyOn(Share, 'share');
+    expect(await shareLayout({ svg: fakeSvg(null), layout: mkWorkout(), dialogTitle: 'x' })).toEqual({ ok: false, reason: 'render_failed' });
+    expect(share).not.toHaveBeenCalled();
     share.mockRestore();
   });
 
-  test('分享面板不可用 → 同樣退回純文字', async () => {
+  test('沒有可接收的 App → no_target，也不自動改發文字', async () => {
     (Sharing.isAvailableAsync as jest.Mock).mockResolvedValueOnce(false);
-    const share = jest.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction' } as never);
-    expect(await shareLayout({ svg: fakeSvg('QUJD'), layout: mkWorkout(), message: 'caption', dialogTitle: 'x' })).toEqual({ ok: true, withImage: false });
+    const share = jest.spyOn(Share, 'share');
+    expect(await shareLayout({ svg: fakeSvg('QUJD'), layout: mkWorkout(), dialogTitle: 'x' })).toEqual({ ok: false, reason: 'no_target' });
     expect(Sharing.shareAsync).not.toHaveBeenCalled();
+    expect(share).not.toHaveBeenCalled();
     share.mockRestore();
   });
 
-  test('成就卡缺環境標示 → 不出圖也不發文', async () => {
+  test('預覽後帳號／來源變了 → stale，不匯出到別的帳號', async () => {
+    const r = await shareLayout({ svg: fakeSvg('QUJD'), layout: mkWorkout(), dialogTitle: 'x', spec, stillValid: (sp) => sp.owner === 'wallet-b' });
+    expect(r).toEqual({ ok: false, reason: 'stale' });
+    expect(Sharing.shareAsync).not.toHaveBeenCalled();
+  });
+
+  test('成就卡缺網路標示 → 不出圖也不發文', async () => {
     const share = jest.spyOn(Share, 'share');
     const bad: ShareImageLayout = { ...mkAchievement(), notice: null };
-    expect(await shareLayout({ svg: fakeSvg('QUJD'), layout: bad, message: 'caption', dialogTitle: 'x' })).toEqual({ ok: false, reason: 'unpublishable' });
+    expect(await shareLayout({ svg: fakeSvg('QUJD'), layout: bad, dialogTitle: 'x' })).toEqual({ ok: false, reason: 'unpublishable' });
     expect(Sharing.shareAsync).not.toHaveBeenCalled();
     expect(share).not.toHaveBeenCalled();
     share.mockRestore();

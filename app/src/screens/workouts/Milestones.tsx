@@ -3,20 +3,20 @@ import { applyLocalMints, recordLocalMint } from '@/services/chain/localMints';
 import { useNftRevealStore } from '@/state/nftRevealStore';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState } from '@/components';
 import { GenesisFrameCard, genesisFrameStyle } from '@/components/GenesisFrameCard';
 import { genesisFrameActive, useSkrStore } from '@/state/skrStore';
-import { useT, type TKey } from '@/i18n';
+import { useLocaleStore, useT, type TKey } from '@/i18n';
 import { apiClient, type AchievementView, type MilestoneItem, type Milestones as Ms } from '@/services/api/ApiClient';
 import { achievementService } from '@/services/chain/AchievementService';
 import { ClaimError } from '@/services/chain/StarterShoeService';
 import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
 import { ShareCard } from '@/components/ShareCard';
-import { achievementShareLayout, shareUrl, type ShareImageLayout } from '@/domain/shareImage';
-import { copyCaption, shareLayout } from '@/services/share/shareImage';
+import { achievementShareLayout, ACHIEVEMENT_SHARE_DEFAULT, SHARE_RENDERER_VERSION, shareUrl, type AchievementShareFields, type ShareImageLayout, type ShareRenderSpec } from '@/domain/shareImage';
+import { copyCaption, shareLayout, shareTextInstead } from '@/services/share/shareImage';
 import { APP_CONFIG } from '@/config/app';
 import type Svg from 'react-native-svg';
 
@@ -51,33 +51,59 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
   // registry 核准是伺服器端非同步發生的：回到這個分頁就重抓，否則「待核准」會一直停在畫面上直到重開 App
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  // PG-SHARE-06：已鑄造的成就才可分享；先在畫面上看到整張圖，再按一次才送出（§4.4 送出前一定要有預覽）
+  // PG-SHARE-02／03：只有確認鑄造成功的成就能出收藏卡（§4.5）；送出前一定看得到整張圖（§4.4）
   const svgRef = useRef<Svg>(null);
-  const [share, setShare] = useState<{ key: string; layout: ShareImageLayout; caption: string } | null>(null);
-  const [shareBusy, setShareBusy] = useState(false);
+  const locale = useLocaleStore((st) => st.locale);
+  type ShareTarget = { key: string; item: MilestoneItem; detail: string | null; achievedAt: Date | null; title: string; spec: ShareRenderSpec };
+  const [share, setShare] = useState<ShareTarget | null>(null);
+  const [shareFields, setShareFields] = useState<AchievementShareFields>(ACHIEVEMENT_SHARE_DEFAULT);
+  // preview → rendering → handing_off → returned／error；一次只做一件事，連點不會產生兩張圖（§6.1）
+  const [sharePhase, setSharePhase] = useState<'preview' | 'rendering' | 'handing_off' | 'returned'>('preview');
+  const [shareErr, setShareErr] = useState<'render_failed' | 'no_target' | 'unpublishable' | 'stale' | null>(null);
   const [shareNote, setShareNote] = useState<string | null>(null);
-  const openShare = (m: MilestoneItem, a: AchievementView | undefined) => {
-    const title = t(`ms.cat.${m.category}` as TKey);
-    const km = m.threshold_mm ? `${(Number(m.threshold_mm) / 1_000_000).toFixed(m.category === 'first_half' ? 4 : 3)} km` : null;
+  const networkLabel = APP_CONFIG.cluster === 'mainnet-beta' ? t('share.card.net.mainnet') : t('share.card.net.devnet');
+  const shareLink = shareUrl(APP_CONFIG.siteUrl, 'achievement', 'mint');
+  const openShare = (m: MilestoneItem, a: AchievementView) => {
+    setShareFields(ACHIEVEMENT_SHARE_DEFAULT); // NFT 已公開也不預先勾選（§5.4）
+    setSharePhase('preview');
+    setShareErr(null);
     setShareNote(null);
     setShare({
       key: m.key,
-      // 精確值只有該 NFT 已同意公開才進圖（§5.4：NFT 公開同意 ≠ 社群分享同意，但沒同意就一定不放）
-      layout: achievementShareLayout(
-        { category: m.category, title, series: t('share.card.series'), detail: a?.public_consent ? km : null, achievedAt: m.first?.achieved_at ? new Date(m.first.achieved_at) : null, verification: m.verification_class, edition: null },
-        { t: (k, pr) => t(k as TKey, pr), labels: { tagline: t('share.card.tagline'), site: 'neonshift.cc', notice: t('share.card.devnet') }, qr: shareUrl(APP_CONFIG.siteUrl, 'achievement', 'mint') },
-      ),
-      caption: t('share.invite.achievement', { name: title, url: shareUrl(APP_CONFIG.siteUrl, 'achievement', 'mint') }),
+      item: m,
+      title: t(`ms.cat.${m.category}` as TKey),
+      detail: m.threshold_mm ? `${(Number(m.threshold_mm) / 1_000_000).toFixed(m.category === 'first_half' ? 4 : 3)} km` : null,
+      achievedAt: m.first?.achieved_at ? new Date(m.first.achieved_at) : null,
+      // 來源 ID／revision 只留在本機（§4.6）：不寫進圖檔、QR 或連結
+      spec: { kind: 'achievement', source: a.source ? { id: a.source.id, revision: a.source.revision } : null, owner: session?.address ?? null, rendererVersion: SHARE_RENDERER_VERSION, locale, format: 'post' },
     });
   };
+  const shareCardLayout = (target: ShareTarget, fields: AchievementShareFields): ShareImageLayout =>
+    achievementShareLayout(
+      { category: target.item.category, title: target.title, series: t('share.card.series'), detail: target.detail, achievedAt: target.achievedAt, verification: target.item.verification_class, edition: null },
+      fields,
+      { t: (k, pr) => t(k as TKey, pr), labels: { tagline: t('share.card.tagline'), site: 'neonshift.cc', notice: networkLabel }, qr: shareLink },
+    );
+  const captionOf = (target: ShareTarget) => t('share.invite.achievement', { name: target.title, network: networkLabel, url: shareLink });
   const sendShare = async () => {
-    if (!share) return;
-    setShareBusy(true);
+    if (!share || sharePhase === 'rendering' || sharePhase === 'handing_off') return;
+    setShareErr(null);
+    setShareNote(null);
+    setSharePhase('rendering');
     try {
-      const r = await shareLayout({ svg: svgRef.current, layout: share.layout, message: share.caption, dialogTitle: t('share.card.title') });
-      setShareNote(r.ok && !r.withImage ? t('share.card.imageFailed') : null);
+      setSharePhase('handing_off');
+      const r = await shareLayout({
+        svg: svgRef.current,
+        layout: shareCardLayout(share, shareFields),
+        dialogTitle: t('share.card.title'),
+        spec: share.spec,
+        // 匯出期間換了帳號就作廢，不把圖寫到另一個帳號的分享（§4.6）
+        stillValid: (spec) => spec.owner === (useWalletStore.getState().session?.address ?? null),
+      });
+      setSharePhase(r.ok ? 'returned' : 'preview');
+      if (!r.ok) setShareErr(r.reason);
     } finally {
-      setShareBusy(false);
+      setSharePhase((ph) => (ph === 'rendering' || ph === 'handing_off' ? 'preview' : ph));
     }
   };
 
@@ -194,7 +220,7 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
                   <Text variant="caption" tone="muted" style={styles.mtXs} numberOfLines={1}>
                     {`${IMAGE_BASE}${m.category}-${m.verification_class}.svg`}
                   </Text>
-                  <Button label={t('share.card.image')} variant="secondary" style={styles.mtXs} onPress={() => openShare(m, a)} testID={`ms-share-${m.category}-${m.verification_class}`} />
+                  {a ? <Button label={t('share.card.image')} variant="secondary" style={styles.mtXs} onPress={() => openShare(m, a)} testID={`ms-share-${m.category}-${m.verification_class}`} /> : null}
                 </>
               ) : null}
             </View>
@@ -204,10 +230,42 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
       {share ? (
         <View style={styles.shareBox} testID="ms-share-preview">
           <Text variant="title">{t('share.card.title')}</Text>
-          <ShareCard ref={svgRef} layout={share.layout} width={300} a11yLabel={t('share.card.a11y', { label: share.layout.label, hero: share.layout.hero.value })} />
-          <Button label={t('share.card.image')} onPress={() => void sendShare()} loading={shareBusy} disabled={shareBusy} testID="ms-share-send" />
-          <Button label={t('share.card.copy')} variant="secondary" onPress={() => void copyCaption(share.caption).then((ok) => setShareNote(ok ? t('share.card.copied') : null))} testID="ms-share-copy" />
-          <Button label={t('common.cancel')} variant="secondary" onPress={() => { setShare(null); setShareNote(null); }} testID="ms-share-cancel" />
+          <ShareCard ref={svgRef} layout={shareCardLayout(share, shareFields)} width={300} a11yLabel={t('share.card.a11y', { label: share.title, hero: share.title })} />
+          {share.detail ? (
+            <>
+              <View style={styles.shareRow}>
+                <Text variant="bodySmall" style={styles.shareLabel}>{t('share.card.detail')}</Text>
+                <Switch value={shareFields.detail} onValueChange={(v) => setShareFields((f) => ({ ...f, detail: v }))} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('share.card.detail')} testID="ms-share-detail" />
+              </View>
+              <Text variant="caption" tone="muted">{t('share.card.detailNote')}</Text>
+            </>
+          ) : null}
+          {share.achievedAt ? (
+            <View style={styles.shareRow}>
+              <Text variant="bodySmall" style={styles.shareLabel}>{t('share.card.date')}</Text>
+              <Switch value={shareFields.date} onValueChange={(v) => setShareFields((f) => ({ ...f, date: v }))} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('share.card.date')} testID="ms-share-date" />
+            </View>
+          ) : null}
+          <Button label={t('share.card.image')} onPress={() => void sendShare()} loading={sharePhase === 'rendering' || sharePhase === 'handing_off'} loadingLabel={t('share.card.rendering')} disabled={sharePhase === 'rendering' || sharePhase === 'handing_off'} testID="ms-share-send" />
+          <Button label={t('share.card.copy')} variant="secondary" onPress={() => void copyCaption(captionOf(share)).then((ok) => setShareNote(ok ? t('share.card.copied') : null))} testID="ms-share-copy" />
+          <Button label={t('common.cancel')} variant="secondary" onPress={() => { setShare(null); setShareErr(null); setShareNote(null); }} testID="ms-share-cancel" />
+          {/* 交付流程返回不等於對方已發布（§6.1） */}
+          {sharePhase === 'returned' && !shareErr ? <Text variant="caption" tone="secondary" testID="ms-share-returned">{t('share.card.returned')}</Text> : null}
+          {shareErr ? (
+            <View style={styles.shareErr} testID={`ms-share-error-${shareErr}`}>
+              <InlineState
+                kind={shareErr === 'unpublishable' ? 'warning' : 'error'}
+                title={t(shareErr === 'no_target' ? 'share.card.noTargetTitle' : shareErr === 'unpublishable' ? 'share.card.blockedTitle' : 'share.card.failedTitle')}
+                body={t(shareErr === 'no_target' ? 'share.card.noTargetBody' : shareErr === 'unpublishable' ? 'share.card.blockedBody' : 'share.card.failedBody')}
+              />
+              {shareErr !== 'unpublishable' ? (
+                <>
+                  {shareErr === 'render_failed' ? <Button label={t('share.card.retry')} variant="secondary" onPress={() => void sendShare()} testID="ms-share-retry" /> : null}
+                  <Button label={t('share.card.shareTextInstead')} variant="secondary" onPress={() => void shareTextInstead(captionOf(share))} testID="ms-share-text" />
+                </>
+              ) : null}
+            </View>
+          ) : null}
           {shareNote ? <Text variant="caption" tone="secondary" testID="ms-share-note">{shareNote}</Text> : null}
         </View>
       ) : null}
@@ -225,5 +283,8 @@ const styles = StyleSheet.create({
   cardLocked: { opacity: 0.7 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.s, gap: space.s },
   mtXs: { marginTop: space.xs },
+  shareRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch', gap: space.s, minHeight: 44 },
+  shareLabel: { flex: 1 },
+  shareErr: { alignSelf: 'stretch', gap: space.s },
   shareBox: { marginTop: space.m, padding: space.m, gap: space.s, alignItems: 'center', borderWidth: 1, borderColor: color.borderSubtle, borderRadius: radius.m, backgroundColor: color.surface },
 });
