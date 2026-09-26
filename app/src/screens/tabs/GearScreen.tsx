@@ -57,6 +57,12 @@ export function GearScreen() {
   const [detailKind, setDetailKind] = useState<ShoeLevel | null>(null);
   const [previewLevel, setPreviewLevel] = useState<ShoeLevel | null>(null);
   const [gearShareOpen, setGearShareOpen] = useState(false);
+  /**
+   * PG-SEASON-03 收藏分類切換（設計 §5「不把每年卡片全部塞到首頁」）。
+   * 預設 all——這一頁本來就同時顯示四塊，改成預設只顯示一塊會讓現有使用者找不到東西；
+   * 分類是用來收斂那條很長的捲軸，不是用來藏內容。個人最佳仍在「運動」分頁，這裡不搬也不複製。
+   */
+  const [cat, setCat] = useState<"all" | "shoes" | "milestones" | "seasonal">("all");
   /** PG-LINK-01：外觀（可切換的已取得跑鞋＋棲地背景）與有效等級分開 */
   const ap = useAppearance();
   // 每雙鞋的運動歷程（本機紀錄，依開始時鞋款快照歸組；recorder 變化時重算）
@@ -404,6 +410,27 @@ export function GearScreen() {
         />
       ) : null}
 
+      <View style={styles.cats} accessibilityRole="tablist" testID="gear-cats">
+        {(["all", "shoes", "milestones", "seasonal"] as const).map((k) => (
+          <Pressable
+            key={k}
+            onPress={() => setCat(k)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: cat === k }}
+            style={[styles.cat, cat === k && styles.catOn]}
+            testID={`gear-cat-${k}`}
+          >
+            <Text variant="caption" tone={cat === k ? undefined : "secondary"} style={cat === k && styles.catOnText}>
+              {t(`gear.cat.${k}` as TKey)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      {/* 個人最佳沒有搬過來，所以要說它在哪一頁，而不是讓人以為收藏頁少了一類 */}
+      <Text variant="caption" tone="muted" style={styles.subhead} testID="gear-cat-note">{t("gear.cat.note")}</Text>
+
+      {cat === "all" || cat === "shoes" ? (
+        <>
       <Text
         variant="label"
         tone="secondary"
@@ -481,9 +508,12 @@ export function GearScreen() {
         ))}
       </View>
 
-      <Milestones reloadKey={`${claimedCount}:${refreshTick}`} />
+        </>
+      ) : null}
+
+      {cat === "all" || cat === "milestones" ? <Milestones reloadKey={`${claimedCount}:${refreshTick}`} /> : null}
       {/* PG-SEASON-03：收藏分三線（里程碑／個人最佳／節日）；節日只呈現資格，尚未開放領取 */}
-      <SeasonalFootprints reloadKey={refreshTick} />
+      {cat === "all" || cat === "seasonal" ? <SeasonalFootprints reloadKey={refreshTick} /> : null}
 
       <Text variant="caption" tone="muted" style={styles.disclaimer}>
         {t("common.testToken")}
@@ -848,6 +878,10 @@ const styles = StyleSheet.create({
   detailRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.m, minHeight: 44, borderBottomWidth: 1, borderBottomColor: color.borderSubtle },
   detailValue: { flexShrink: 1, textAlign: "right" },
   groupTitle: { marginTop: space.m, marginBottom: space.xs },
+  cats: { flexDirection: "row", flexWrap: "wrap", gap: space.xs, marginTop: space.m },
+  cat: { minHeight: 36, paddingHorizontal: space.s, borderRadius: radius.m, borderWidth: 1, borderColor: color.borderSubtle, alignItems: "center", justifyContent: "center" },
+  catOn: { backgroundColor: color.mint, borderColor: color.mint },
+  catOnText: { color: color.onMint },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button, Chip, InlineState } from '@/components';
 import { SeasonalBadge, type SeasonalBadgeState } from '@/components/SeasonalBadge';
@@ -41,6 +41,8 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
   const session = useWalletStore((s) => s.session);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [failed, setFailed] = useState(false);
+  /** 年份篩選（設計 §5「不把每年卡片全部塞到首頁」）；'all' 代表不篩 */
+  const [year, setYear] = useState<number | 'all'>('all');
 
   const load = useCallback(async () => {
     try {
@@ -58,16 +60,41 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   if (rows === null) return null;
+  // 年份新的在前，同年依窗口開始排——每年一屆，時間順序才讀得懂（設計 §7「收藏年份排序」）
+  const years = [...new Set(rows.map((r) => r.year))].sort((a, b) => b - a);
+  const shown = rows
+    .filter((r) => year === 'all' || r.year === year)
+    .sort((a, b) => b.year - a.year || Date.parse(a.window.starts_at) - Date.parse(b.window.starts_at));
   return (
     <View testID="seasonal-footprints">
       <Text variant="label" tone="secondary" uppercase style={styles.head}>{t('season.title')}</Text>
       <Text variant="caption" tone="muted" style={styles.note}>{t('season.intro')}</Text>
       {failed ? <InlineState kind="warning" title={t('season.loadFailed')} testID="seasonal-failed" /> : null}
+      {/* 只有跨年份才給篩選：一個年份時這排按鈕只是雜訊 */}
+      {years.length > 1 ? (
+        <View style={styles.years} accessibilityRole="tablist" testID="seasonal-years">
+          {(['all', ...years] as const).map((y) => (
+            <Pressable
+              key={String(y)}
+              onPress={() => setYear(y as number | 'all')}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: year === y }}
+              accessibilityLabel={y === 'all' ? t('season.year.all') : `${t('season.yearFilter')} ${y}`}
+              style={[styles.year, year === y && styles.yearOn]}
+              testID={`seasonal-year-${y}`}
+            >
+              <Text variant="caption" tone={year === y ? undefined : 'secondary'} style={year === y && styles.yearOnText}>
+                {y === 'all' ? t('season.year.all') : String(y)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
       {rows.length === 0 ? (
         <Text variant="bodySmall" tone="muted" testID="seasonal-empty">{t('season.none')}</Text>
       ) : (
         <View style={styles.list}>
-          {rows.map((r) => {
+          {shown.map((r) => {
             const w = windowLabel(r, locale);
             const state = badgeState(r);
             const nameKey = `season.name.${r.theme_id}` as TKey;
@@ -129,6 +156,10 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
 const styles = StyleSheet.create({
   head: { marginTop: space.l, marginBottom: space.xs },
   note: { marginBottom: space.s },
+  years: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginBottom: space.s },
+  year: { minHeight: 36, paddingHorizontal: space.s, borderRadius: radius.m, borderWidth: 1, borderColor: color.borderSubtle, alignItems: 'center', justifyContent: 'center' },
+  yearOn: { backgroundColor: color.mint, borderColor: color.mint },
+  yearOnText: { color: color.onMint },
   list: { gap: space.s },
   card: { borderWidth: 1, borderColor: color.borderSubtle, borderRadius: radius.m, padding: space.m, backgroundColor: color.surface, gap: space.xs },
   row: { flexDirection: 'row', gap: space.m, alignItems: 'flex-start' },

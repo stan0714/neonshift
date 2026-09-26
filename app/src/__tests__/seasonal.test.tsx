@@ -2,7 +2,7 @@
  * PG-SEASON-03（設計 §4）：節日章的畫面只呈現「活動與資格狀態」。
  * 最重要的是——達標不得出現領取按鈕，也不能說 NFT 已到手（後端 mint_enabled: false）。
  */
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import type { PropsWithChildren } from 'react';
 
@@ -128,4 +128,45 @@ test('徽章：五種主題各有自己的插畫，未知主題也畫得出來�
     expect(v.getByTestId(`seasonal-badge-${theme}-earned`)).toBeTruthy();
     await v.unmount();
   }
+});
+
+describe('年份篩選（PG-SEASON-03；設計 §5「不把每年卡片全部塞到首頁」）', () => {
+  const y2026 = campaign({ campaign_id: 'moonlit-steps-2026-demo', theme_id: 'moonlit_steps', year: 2026, prototype: true, window: { starts_at: '2026-10-01T00:00:00.000Z', ends_at: '2026-10-02T00:00:00.000Z', display_timezone: 'UTC', state: 'closed' } });
+  const y2027b = campaign({ campaign_id: 'seeker-horizon-2027', theme_id: 'seeker_horizon', year: 2027, window: { starts_at: '2027-08-04T00:00:00.000Z', ends_at: '2027-08-05T00:00:00.000Z', display_timezone: 'UTC', state: 'upcoming' } });
+
+  test('只有一個年份時不出現篩選列', async () => {
+    mockMine([campaign()]);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('seasonal-genesis-stride-2027')).toBeTruthy());
+    expect(screen.queryByTestId('seasonal-years')).toBeNull();
+  });
+
+  test('跨年份：預設全部、年份新的在前、選一年只留那一年', async () => {
+    mockMine([y2026, y2027b, campaign()]);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('seasonal-years')).toBeTruthy());
+    expect(screen.getByTestId('seasonal-year-all')).toBeTruthy();
+    // 新的年份排在前面
+    const years = screen.getAllByRole('tab').map((n) => n.props.accessibilityLabel as string);
+    expect(years).toEqual([t('season.year.all'), 'Year 2027', 'Year 2026']);
+    // 預設不篩：三屆都在
+    expect(screen.getByTestId('seasonal-moonlit-steps-2026-demo')).toBeTruthy();
+    expect(screen.getByTestId('seasonal-genesis-stride-2027')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('seasonal-year-2026'));
+    await waitFor(() => expect(screen.queryByTestId('seasonal-genesis-stride-2027')).toBeNull());
+    expect(screen.getByTestId('seasonal-moonlit-steps-2026-demo')).toBeTruthy();
+    expect(screen.queryByTestId('seasonal-seeker-horizon-2027')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('seasonal-year-all'));
+    await waitFor(() => expect(screen.getByTestId('seasonal-genesis-stride-2027')).toBeTruthy());
+  });
+
+  test('同一年依窗口開始時間排序（收藏年份排序）', async () => {
+    mockMine([y2027b, campaign(), y2026]);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('seasonal-years')).toBeTruthy());
+    const order = screen.getAllByTestId(/^seasonal-(?!year-)[a-z].*-\d{4}(-demo)?$/).map((n) => n.props.testID as string);
+    expect(order).toEqual(['seasonal-genesis-stride-2027', 'seasonal-seeker-horizon-2027', 'seasonal-moonlit-steps-2026-demo']);
+  });
 });

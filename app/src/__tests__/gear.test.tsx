@@ -222,4 +222,25 @@ describe('PG-A-14 Gear', () => {
     useWalletStore.setState({ status: 'disconnected', session: null, error: null } as never);
     await waitFor(() => expect(screen.queryByTestId('habitat-scene-forest', { includeHiddenElements: true })).toBeNull());
   });
+  test('PG-SEASON-03：收藏分類切換——預設全部都在，選一類只留那一類；個人最佳在哪一頁要寫清楚', async () => {
+    await render(<GearScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('gear-cats')).toBeTruthy());
+    // 預設 all：這一頁本來同時顯示四塊，分類是收斂捲軸，不是藏內容
+    expect(screen.getByTestId('gear-shoes-equipped')).toBeTruthy();
+    expect(screen.getByTestId('seasonal-footprints')).toBeTruthy();
+    // 個人最佳沒有搬來這頁，所以要說它在哪裡
+    expect(screen.getByTestId('gear-cat-note')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('gear-cat-seasonal'));
+    await waitFor(() => expect(screen.queryByTestId('gear-shoes-equipped')).toBeNull());
+    expect(screen.getByTestId('seasonal-footprints')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('gear-cat-shoes'));
+    await waitFor(() => expect(screen.getByTestId('gear-shoes-equipped')).toBeTruthy());
+    expect(screen.queryByTestId('seasonal-footprints')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('gear-cat-all'));
+    await waitFor(() => expect(screen.getByTestId('seasonal-footprints')).toBeTruthy());
+    expect(screen.getByTestId('gear-shoes-equipped')).toBeTruthy();
+  });
 });

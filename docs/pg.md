@@ -947,3 +947,16 @@ WIP（碼完、App 全套 79 suites／547 tests 通過、實機未驗）：
 - 環境備註：App 測試要 Node 24（`source scripts/env.sh`）。系統預設的 Node 18 下 jest 沙箱沒有 `crypto.getRandomValues`，`Keypair.generate()` 會讓 `milestoneApproval`、`mintTransactionPhases` 兩個套件失敗——與程式無關。
 
 規格：[社群分享規劃 §3.2／§4.3／§4.5／§5.4](social-share/README.md)。
+
+
+## 2026-09-26 收藏頁年份篩選與分類切換（PG-SEASON-03 完成）
+
+WIP（碼完、App 全套 79 suites／551 tests 通過、實機未驗）：
+
+- **年份篩選**（`SeasonalFootprints`）：只有跨年份才出現這排按鈕——一個年份時它只是雜訊。年份新的在前，同年依窗口開始時間排（設計 §7 的「收藏年份排序」）。選定年份只留那一年，`全部年份` 回到不篩。
+- **收藏頁分類切換**（`GearScreen`）：全部／跑鞋／里程碑／節日，`accessibilityRole="tab"`。**預設「全部」**——這一頁本來就同時顯示四塊，改成預設只顯示一塊會讓現有使用者找不到東西；分類是用來收斂那條很長的捲軸，不是用來藏內容。
+- **個人最佳沒有搬進收藏頁**（仍在「運動」分頁），所以分類列下面直接寫一行說它在哪裡，而不是讓人以為收藏頁少了一類。設計 §5 列的「已收藏／可領取／未解鎖」狀態篩選要等 PG-SEASON-04 有領取路徑才有意義，這次不做。
+
+尚未做：PG-SEASON-04 registry／mint（`achievements_kind_ck` 還沒有 `seasonal`；鏈上 `category` 只到 1..=13，需程式改版與重新部署——格式待決）、05 通知與分享、06 提醒訂閱。
+
+規格：[節日與生態紀念 NFT §5](design/seasonal-achievement-nfts.md)。
