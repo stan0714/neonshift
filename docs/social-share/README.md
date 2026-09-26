@@ -2,9 +2,9 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.3（2026-09-25：01～03 實作完成，尚未實機驗收） |
+| 文件版本 | v0.4（2026-09-26：01～06 碼完，尚未實機驗收） |
 | 建立日期 | 2026-09-25 |
-| 狀態 | **WIP**；PG-SHARE-01～03 已實作（自動測試通過、實機未驗收），04／05／08 未開始。PG-LINK-10 記載的「社群圖片分享另立工作」即本文件 |
+| 狀態 | **WIP**；PG-SHARE-01～06 與 08 已碼完（自動測試通過、實機未驗收；04 待部署、05 待套 migration 0020），07／09 未開始。PG-LINK-10 記載的「社群圖片分享另立工作」即本文件 |
 | 對應需求 | [BRD v0.6](../brd-detailed.md)、[SD](../sd.md)、[Style Guide](../style.md)、[PG](../pg.md) |
 | 相關文件 | [跑鞋連動與路線外觀](../design/shoe-route-linkage.md)、[特殊圖案路線挑戰](../design/pattern-route-challenges.md)（R2 可撤銷分享連結）、[商店素材](../store/listing.md)、[活動 Demo 腳本](../store/event-demo-playbook.md) |
 | 目標平台 | Android／Solana Mobile Seeker；分享目的地為 Instagram、Threads、X、LINE、Facebook、Discord |
@@ -270,7 +270,7 @@ Sharing.shareAsync(file.uri, { mimeType: 'image/png', dialogTitle })
 | PG-SHARE-03 | 安裝 `expo-sharing`／`expo-clipboard`，出圖、分享、TTL 清理、失敗選項、複製文案 | **WIP（碼完，待重新出包與實機驗收）** | 02 |
 | PG-SHARE-04 | 網站：`/s/` 落地頁 ＋ 全站 OG／Twitter card ＋ 安裝入口；App `/s/` routing、App Link intent filter | **WIP（碼完，待部署與實機驗收）** | 無 |
 | PG-SHARE-05 | 歸因：`POST /v1/metrics/share` ＋ `share_aggregates` ＋ 落地頁 beacon ＋ `GET /v1/ops/metrics/share`（JSON／CSV）＋ `scripts/ops/share.sh` | **WIP（碼完，待部署）** | 04 |
-| PG-SHARE-06 | C／D／E 卡型與 S4～S7 進入點 | TODO | 03 |
+| PG-SHARE-06 | C／D／E 卡型與 S3～S7 進入點（S3 護照多格卡、S5 完賽卡） | **WIP（碼完，實機未驗）** | 03 |
 | PG-SHARE-07 | `story` 9:16 尺寸與安全區 | TODO | 03 |
 | PG-SHARE-08 | 凍結外觀／Mint 狀態／獨立分享同意、deep link 回退與裝置驗收 | TODO・首批必要 | 01～04 |
 | PG-SHARE-09 | 路線形狀匯出：裁切、再經過起終點保護區、多段路線與隱私預覽 | TODO・第二階段 | 01、03、08 |

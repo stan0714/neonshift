@@ -282,7 +282,7 @@ export function EventDetailScreen() {
           )}
           {event.state !== 'cancelled' ? <Perks eventId={event.event_id} slug={event.slug} registration={registered ? (reg?.status === 'checked_in' ? 'checked_in' : 'registered') : 'none'} signedIn={!!session} /> : null}
           {event.state !== 'cancelled' ? <EventBadges eventId={event.event_id} badges={event.badges} registration={registered ? (reg?.status === 'checked_in' ? 'checked_in' : 'registered') : 'none'} reloadKey={reg?.status === 'checked_in' ? 1 : 0} /> : null}
-          <Results eventId={event.event_id} slug={event.slug} registration={registered ? reg : null} onPrivacyChanged={setReg} />
+          <Results eventId={event.event_id} slug={event.slug} registration={registered ? reg : null} event={{ title: event.title, whenLabel: `${fmt(t, event.starts_at, event.timezone)} (${event.timezone})` }} onPrivacyChanged={setReg} />
         </>
       ) : null}
     </Screen>

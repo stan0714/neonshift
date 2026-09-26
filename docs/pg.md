@@ -935,3 +935,15 @@ WIP（碼完、App 全套 78 suites／537 tests 通過、實機未驗）：
 - Guardian 與活動的**純文字分享保持原樣**（既有測試與行為不動），圖片是另一個入口。
 
 規格：[社群分享規劃 §4.3](social-share/README.md)。
+
+
+## 2026-09-26 護照卡與完賽卡（PG-SHARE-06 完成）
+
+WIP（碼完、App 全套 79 suites／547 tests 通過、實機未驗）：
+
+- **S3 成就護照卡（卡型 B 多格）**：掛在護照頁計數之後，`counts.valid > 0` 才出現入口。主數字是**目前有效**的枚數，與畫面上的 valid 計數同一個來源——待核准、已撤銷與上鎖都不計入，也不進格子；圖上另寫一行計數規則，看圖的人才知道這個數字不含待核准。**「有效」不等於「鏈上有」**：網路標示看的是已鑄造（`nft.status === 'minted'`）的枚數，一枚都沒鑄造就不掛 DEVNET。格子最多 8 格、同一種類不佔兩格；達成日期、成績與 asset id 完全不進版面資料。
+- **S5 完賽卡**：掛在活動成績頁的「我的成績」之後，`finish_status === 'finished'` 才出現——DNF／DNS／DQ 不產生「完賽」圖。第一行先說這筆成績**主辦方公布了沒有**（`published_at`），而不是先把時間放大。**完賽時間與名次預設關閉**（`FINISH_SHARE_DEFAULT`）：這是本次社群分享的獨立同意，與成績榜的 `public_consent` 是兩件事，成績榜已公開也不預先勾選；名次另外要求主辦方已公布，否則沒有可引用的來源。主辦方更正過的成績在圖上明寫。完賽章 NFT 是另一枚收藏（由成就卡呈現），這張卡不宣稱任何鏈上資產。
+- `ShareImageLayout` 加 `grid: string[]`（多格徽章），`ShareCard` 的縮放階梯補 200 px 徽章與 46 px 行距，六行文字加徽章也不壓到分隔線。
+- 環境備註：App 測試要 Node 24（`source scripts/env.sh`）。系統預設的 Node 18 下 jest 沙箱沒有 `crypto.getRandomValues`，`Keypair.generate()` 會讓 `milestoneApproval`、`mintTransactionPhases` 兩個套件失敗——與程式無關。
+
+規格：[社群分享規劃 §3.2／§4.3／§4.5／§5.4](social-share/README.md)。

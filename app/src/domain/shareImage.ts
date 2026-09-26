@@ -17,7 +17,7 @@ export const SHARE_RENDERER_VERSION = 1;
 /** 起終點各裁掉的公尺數（§5.2）：出發與結束的位置最敏感 */
 export const SHARE_ROUTE_TRIM_M = 150;
 
-export type ShareImageKind = 'workout' | 'achievement' | 'event' | 'gear' | 'guardian';
+export type ShareImageKind = 'workout' | 'achievement' | 'event' | 'gear' | 'guardian' | 'passport' | 'finish';
 
 /** 路線形狀：已裁去起終點、正規化到 0–1 的單位方框，等比置中。不含座標、時間、距離與比例尺 */
 export type ShareRouteShape = { segments: { x: number; y: number }[][] };
@@ -34,6 +34,11 @@ export type ShareImageLayout = {
   chips: string[];
   /** 程序繪製的徽章代號（成就卡）；運動卡為 null */
   emblem: string | null;
+  /**
+   * 多格徽章（護照卡）：一張圖放多枚收藏的短標。空陣列代表這張卡只有單一徽章或沒有徽章。
+   * 只放**目前有效**的項目——待核准與已撤銷不得出現在格子裡，否則圖會比護照畫面多算幾枚。
+   */
+  grid: string[];
   /** 只有使用者明確開啟才有值 */
   route: ShareRouteShape | null;
   /** 產品線索，必要（§4.2：沒用過的人要看得懂這個 App 在做什麼） */
@@ -121,6 +126,7 @@ export function workoutShareLayout(
     lines,
     chips,
     emblem: null,
+    grid: [],
     route: opts.route ?? null,
     tagline: labels.tagline,
     site: labels.site,
@@ -169,6 +175,7 @@ export function achievementShareLayout(
     lines,
     chips: a.edition ? [a.edition] : [],
     emblem: a.category,
+    grid: [],
     // 成就卡不放路線：這是收藏品，不是運動紀錄
     route: null,
     tagline: labels.tagline,
@@ -200,6 +207,7 @@ export function eventShareLayout(
     lines,
     chips: [],
     emblem: 'event',
+    grid: [],
     route: null,
     tagline: labels.tagline,
     site: labels.site,
@@ -228,6 +236,7 @@ export function gearShareLayout(
     lines,
     chips: [],
     emblem: `shoe:${g.level}`,
+    grid: [],
     route: null,
     tagline: labels.tagline,
     site: labels.site,
@@ -256,6 +265,109 @@ export function guardianShareLayout(
     lines,
     chips: [],
     emblem: `guardian:${g.level}`,
+    grid: [],
+    route: null,
+    tagline: labels.tagline,
+    site: labels.site,
+    qr: opts.qr ?? null,
+    notice: null,
+    chainAsset: false,
+  };
+}
+
+/** 護照卡一次最多放幾格徽章（§4.3 卡型 B 多格）：再多就只看得到一堆看不清的小圈 */
+export const PASSPORT_SHARE_EMBLEMS = 8;
+
+/**
+ * 成就護照卡（卡型 B 多格，時機 S3）。主數字是**目前有效**的枚數。
+ *
+ * 「有效」的定義與護照畫面同一個（`validity === 'valid'`）：待核准（pending）、已撤銷（revoked）
+ * 與上鎖（locked）都不計入，也不進格子——圖上的數字比畫面多一枚，就是在對外宣稱沒有的收藏。
+ * 有效不等於鏈上：一枚已核准但還沒鑄造的成就仍然有效，所以**是否標網路取決於已鑄造的枚數**，
+ * 不是有效枚數（§4.5）。達成時間屬個人資訊，這張卡完全不放。
+ */
+export type PassportShareInput = {
+  /** 目前有效的枚數 */
+  validCount: number;
+  /** 其中已在鏈上鑄造完成（confirmed）的枚數；交易中、待核准都不算 */
+  mintedCount: number;
+  /** 格子裡的徽章代號，只取有效項目 */
+  emblems: string[];
+};
+
+export function passportShareLayout(
+  p: PassportShareInput,
+  opts: { t: T; labels: { tagline: string; site: string; notice: string }; qr?: string | null },
+): ShareImageLayout {
+  const { t, labels } = opts;
+  const minted = p.mintedCount > 0;
+  return {
+    kind: 'passport',
+    label: t('share.card.passport'),
+    hero: { value: String(p.validCount), unit: t('share.card.passport.unit') },
+    lines: [
+      minted ? t('share.card.passport.minted', { n: p.mintedCount }) : t('share.card.passport.noneMinted'),
+      // 計數規則寫在圖上：看圖的人才知道這個數字不含待核准與已撤銷
+      t('share.card.passport.rule'),
+    ],
+    chips: [],
+    emblem: null,
+    grid: p.emblems.slice(0, PASSPORT_SHARE_EMBLEMS),
+    route: null,
+    tagline: labels.tagline,
+    site: labels.site,
+    qr: opts.qr ?? null,
+    // 一枚都沒鑄造時這張圖沒有鏈上資產，不掛網路標示
+    notice: minted ? labels.notice : null,
+    chainAsset: minted,
+  };
+}
+
+/**
+ * 完賽卡（時機 S5，卡型 B／C 之間）。成績只由主辦方發布（`rank_source: organizer`），
+ * 所以第一行先說這筆成績「是否已由主辦方公布」，而不是先放時間。
+ *
+ * **完賽時間與名次預設關閉**：這是本次社群分享的獨立同意，與公開成績榜的 `public_consent`
+ * 是兩件事（§5.4）；成績榜已公開也不自動勾選。名次另外要求 official——主辦方還沒公布時
+ * 沒有可引用的名次來源。這張卡不描繪鏈上資產：完賽章是另一枚收藏，由成就卡呈現。
+ */
+export type FinishShareFields = { time: boolean; rank: boolean };
+export const FINISH_SHARE_DEFAULT: FinishShareFields = { time: false, rank: false };
+
+export type FinishShareInput = {
+  eventTitle: string;
+  /** 活動時間（已格式化、含時區） */
+  whenLabel: string;
+  /** 項目（10K、半馬…）＋距離，已翻譯 */
+  disciplineLabel: string;
+  /** 主辦方公布的完賽時間，已格式化；勾選 time 才進圖 */
+  finishTime: string | null;
+  /** 主辦方公布的名次；勾選 rank 且 official 才進圖 */
+  rank: number | null;
+  /** 這筆成績是否已由主辦方公布 */
+  official: boolean;
+  /** 主辦方更正過這筆成績——圖上要說，否則舊圖與新成績對不上也沒人知道 */
+  corrected: boolean;
+};
+
+export function finishShareLayout(
+  f: FinishShareInput,
+  fields: FinishShareFields,
+  opts: { t: T; labels: { tagline: string; site: string }; qr?: string | null },
+): ShareImageLayout {
+  const { t, labels } = opts;
+  const lines = [t(f.official ? 'share.card.finish.official' : 'share.card.finish.unofficial'), f.whenLabel, f.disciplineLabel];
+  if (fields.time && f.finishTime) lines.push(t('share.card.finish.time', { t: f.finishTime }));
+  if (fields.rank && f.official && f.rank !== null) lines.push(t('share.card.finish.rank', { n: f.rank }));
+  if (f.corrected) lines.push(t('share.card.finish.corrected'));
+  return {
+    kind: 'finish',
+    label: t('share.card.finish'),
+    hero: { value: f.eventTitle, unit: '' },
+    lines,
+    chips: [],
+    emblem: 'event_finish',
+    grid: [],
     route: null,
     tagline: labels.tagline,
     site: labels.site,

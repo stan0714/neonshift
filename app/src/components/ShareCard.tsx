@@ -17,6 +17,11 @@ const W = SHARE_IMAGE.post.width;
 const H = SHARE_IMAGE.post.height;
 const PAD = 64;
 const QR_SIZE = 200;
+/** 多格徽章（護照卡）：一列 4 格，格距與半徑讓 8 格兩列剛好放在主數字與次要行之間 */
+const GRID_COLS = 4;
+const GRID_CELL = 200;
+const GRID_ROW_H = 176;
+const GRID_R = 72;
 
 /** 徽章短標：成就美術以程序繪製，離線也畫得出來（不抓 neonshift.cc 的 SVG） */
 const EMBLEM_LABEL: Record<string, string> = {
@@ -84,6 +89,9 @@ export const ShareCard = forwardRef<Svg, { layout: ShareImageLayout; width?: num
     // 主數字是文字（章名、活動名、物種名）時要折行並縮字級；數字（距離、里程）維持大字
     const textHero = layout.hero.unit === '';
     const hasEmblem = layout.emblem !== null;
+    // 多格徽章（護照卡）：格子取代單一徽章，高度由列數決定，不參與縮放階梯
+    const gridRows = Math.ceil(layout.grid.length / GRID_COLS);
+    const hasGrid = gridRows > 0;
     const heroLines = textHero ? wrapText(layout.hero.value, 15) : [layout.hero.value];
     const heroSize = textHero ? (layout.hero.value.length <= 12 ? 112 : 88) : 200;
     let y = textHero ? 300 : 260;
@@ -92,15 +100,15 @@ export const ShareCard = forwardRef<Svg, { layout: ShareImageLayout; width?: num
     // 徽章與行距一起算：行數多時縮徽章、必要時縮行距，讓最後一行不會壓到分隔線
     const afterHero = y;
     const fit = (() => {
-      for (const block of hasEmblem ? [400, 320, 260] : [0]) {
-        for (const gap of [58, 52]) {
+      for (const block of hasGrid ? [gridRows * GRID_ROW_H] : hasEmblem ? [400, 320, 260, 200] : [0]) {
+        for (const gap of [58, 52, 46]) {
           const top = afterHero + block + 56;
           if (top + (layout.lines.length - 1) * gap <= 1040) return { block, gap };
         }
       }
-      return { block: hasEmblem ? 260 : 0, gap: 52 };
+      return { block: hasGrid ? gridRows * GRID_ROW_H : hasEmblem ? 200 : 0, gap: 46 };
     })();
-    const emblemR = fit.block >= 400 ? 176 : fit.block >= 320 ? 140 : 112;
+    const emblemR = fit.block >= 400 ? 176 : fit.block >= 320 ? 140 : fit.block >= 260 ? 112 : 88;
     const emblemY = hasEmblem ? afterHero + fit.block / 2 : 0;
     y = afterHero + fit.block;
     const lineTop = y + 56;
@@ -139,13 +147,30 @@ export const ShareCard = forwardRef<Svg, { layout: ShareImageLayout; width?: num
           </SvgText>
         ))}
 
-        {hasEmblem && layout.emblem ? (
+        {hasEmblem && !hasGrid && layout.emblem ? (
           <G testID={`share-card-emblem-${layout.emblem}`}>
             <Circle cx={W / 2} cy={emblemY} r={emblemR} fill={color.surface} stroke={tint} strokeWidth={4} />
             <Circle cx={W / 2} cy={emblemY} r={emblemR - 28} fill="none" stroke={tint} strokeOpacity={0.35} strokeWidth={2} strokeDasharray="8 14" />
             <SvgText x={W / 2} y={emblemY + emblemR * 0.2} fontSize={Math.round(emblemR * 0.55)} fontWeight="700" fill={tint} textAnchor="middle">{emblemLabel(layout.emblem)}</SvgText>
           </G>
         ) : null}
+
+        {/* 多格徽章：每格只有短標，一列置中。格子只放有效收藏（domain 已篩過） */}
+        {hasGrid
+          ? layout.grid.map((e, i) => {
+              const row = Math.floor(i / GRID_COLS);
+              const inRow = Math.min(GRID_COLS, layout.grid.length - row * GRID_COLS);
+              const cx = W / 2 - (inRow * GRID_CELL) / 2 + GRID_CELL / 2 + (i % GRID_COLS) * GRID_CELL;
+              const cy = afterHero + row * GRID_ROW_H + GRID_ROW_H / 2;
+              const t = emblemTint(e);
+              return (
+                <G key={`grid${i}`} testID={`share-card-grid-${e}`}>
+                  <Circle cx={cx} cy={cy} r={GRID_R} fill={color.surface} stroke={t} strokeWidth={3} />
+                  <SvgText x={cx} y={cy + 14} fontSize={36} fontWeight="700" fill={t} textAnchor="middle">{emblemLabel(e)}</SvgText>
+                </G>
+              );
+            })
+          : null}
 
         {layout.lines.map((l, i) => (
           <SvgText key={`line${i}`} x={PAD} y={lineTop + i * fit.gap} fontSize={fit.gap >= 58 ? 40 : 36} fill={color.textPrimary} testID={`share-card-line-${i}`}>{l}</SvgText>
