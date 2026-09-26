@@ -1,6 +1,6 @@
 import { fmtDur, fmtPace, type ShareCardFields, type ShareCardInput } from '@/domain/review';
 import type { RawPoint } from '@/domain/gps/engine';
-import { buildTrace, trimEnds } from '@/domain/gps/trace';
+import { shareRouteShape, type ShareRouteConfig } from '@/domain/gps/shareRoute';
 
 /**
  * 社群分享圖卡的版面資料（docs/social-share/README.md §4）。
@@ -27,8 +27,8 @@ export const SHARE_STORY_SAFE_PX = 250;
 /** 版面演算法版本（§4.6 ShareRenderSpec）：同一筆紀錄日後重分享，靠這個判斷是否同一版版面 */
 export const SHARE_RENDERER_VERSION = 1;
 
-/** 起終點各裁掉的公尺數（§5.2）：出發與結束的位置最敏感 */
-export const SHARE_ROUTE_TRIM_M = 150;
+/** 路線形狀的裁切與保護區規則都在 `domain/gps/shareRoute`（PG-SHARE-09） */
+export { SHARE_ROUTE } from '@/domain/gps/shareRoute';
 
 export type ShareImageKind = 'workout' | 'achievement' | 'event' | 'gear' | 'guardian' | 'passport' | 'finish';
 
@@ -82,18 +82,14 @@ export function sharePublishable(layout: ShareImageLayout): boolean {
 }
 
 /**
- * 路線形狀：先裁去起終點各 SHARE_ROUTE_TRIM_M 公尺，再等比投影到 0–1 單位方框。
- * 裁完點數過少（或總長不足）回 null——寧可沒有形狀，也不要一段能對回街口的短軌跡。
+ * 路線形狀（PG-SHARE-09）。規則全在 `shareRouteShape`：按距離裁兩端、移除全程再次進入
+ * 起終點保護區的點、不跨缺口與裁掉的區段補連線、裁完才正規化、長度不足就不給形狀。
+ * 這裡只把結果收成版面用的型別——`keptM` 不往上傳，圖卡不需要也不該知道剩多長。
  */
-export function routeShapeOf(points: RawPoint[], opts?: { trimM?: number }): ShareRouteShape | null {
-  const kept = trimEnds(points, opts?.trimM ?? SHARE_ROUTE_TRIM_M);
-  if (kept.length < 10) return null;
-  const trace = buildTrace(kept, { width: 1, height: 1, padding: 0 });
-  const segments = trace.segments.filter((s) => s.length > 1).map((s) => s.map((p) => ({ x: round3(p.x), y: round3(p.y) })));
-  return segments.length ? { segments } : null;
+export function routeShapeOf(points: RawPoint[], opts?: Partial<ShareRouteConfig>): ShareRouteShape | null {
+  const r = shareRouteShape(points, opts ?? {});
+  return r ? { segments: r.segments } : null;
 }
-
-const round3 = (n: number) => Math.round(n * 1000) / 1000;
 const monthOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
 /**

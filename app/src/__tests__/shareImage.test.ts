@@ -4,8 +4,8 @@
  */
 import type { RawPoint } from '@/domain/gps/engine';
 import { SHARE_CARD_DEFAULT, type ShareCardFields, type ShareCardInput } from '@/domain/review';
-import { trimEnds } from '@/domain/gps/trace';
-import { achievementShareLayout, ACHIEVEMENT_SHARE_DEFAULT, routeShapeOf, type AchievementShareFields, type AchievementShareInput, SHARE_ROUTE_TRIM_M, sharePublishable, shareUrl, workoutShareLayout } from '@/domain/shareImage';
+import { SHARE_ROUTE, shareRouteShape } from '@/domain/gps/shareRoute';
+import { achievementShareLayout, ACHIEVEMENT_SHARE_DEFAULT, routeShapeOf, type AchievementShareFields, type AchievementShareInput, sharePublishable, shareUrl, workoutShareLayout } from '@/domain/shareImage';
 import { t, useLocaleStore } from '@/i18n';
 
 beforeEach(() => useLocaleStore.setState({ setting: 'en', locale: 'en' }));
@@ -96,7 +96,7 @@ describe('運動成績卡（A）', () => {
 
   test('路線預設不出現（型別上也拿不到座標）', () => {
     expect(layoutOf().route).toBeNull();
-    const shape = routeShapeOf(line(101, 10));
+    const shape = routeShapeOf(line(301, 10)); // 3 km：裁掉兩端各 200 m 後還剩 2.6 km
     const l = layoutOf({}, { route: shape });
     expect(l.route).not.toBeNull();
     const all = l.route!.segments.flat();
@@ -111,25 +111,74 @@ describe('運動成績卡（A）', () => {
   });
 });
 
-describe('路線形狀裁切', () => {
-  test('起終點各裁 150 m', () => {
-    const kept = trimEnds(line(101, 10), SHARE_ROUTE_TRIM_M);
-    expect(kept[0]!.seq).toBe(15);
-    expect(kept[kept.length - 1]!.seq).toBe(85);
+/**
+ * PG-SHARE-09 的五道門檻（docs/social-share §9.1「路線第二階段的發布門檻」）。
+ * 每一條都要能被測出來——這些規則的目的是「圖不能對回地點」，不是「圖好看」。
+ */
+describe('路線形狀（PG-SHARE-09）', () => {
+  /** 東向直線 3 km：裁掉兩端各 200 m 後剩 2.6 km */
+  const straight3k = () => line(301, 10);
+
+  test('門檻 1：按距離裁兩端，不是刪固定點數', () => {
+    const r = shareRouteShape(straight3k())!;
+    expect(r.keptM).toBe(3000 - SHARE_ROUTE.trimM * 2);
+    // 每點 10 m：261 個點剩下來（含兩端邊界點）
+    expect(r.segments[0]!.length).toBe(261);
   });
 
-  test('總長不足 3 倍裁切量 → 不給任何點（寧可沒有形狀）', () => {
-    expect(trimEnds(line(41, 10), SHARE_ROUTE_TRIM_M)).toEqual([]);
+  test('門檻 5：長度不足就沒有形狀，不會為了出圖調小保護距離', () => {
+    expect(shareRouteShape(line(101, 10))).toBeNull(); // 1 km：裁完只剩 600 m
+    expect(shareRouteShape(line(140, 10))).toBeNull(); // 1.39 km：差 10 m 也不給
+    expect(shareRouteShape(line(141, 10))).not.toBeNull(); // 1.4 km：剛好 2×200 ＋ 1000
     expect(routeShapeOf(line(41, 10))).toBeNull();
   });
 
-  test('裁完點數過少 → null', () => {
-    expect(routeShapeOf(line(11, 50))).toBeNull(); // 500 m 只剩 4 點
+  test('門檻 2：折返經過起終點保護區的中段一併移除，形狀因此斷開', () => {
+    // 東行 3 km 後折返，在 1.5 km 附近結束：**去程**經過終點附近的那一段也要消失。
+    // 去程與回程刻意錯開 5 m，兩條腿沒有任何一點重合——這樣 zoneM: 0 的對照組才真的只有一段。
+    const out = Array.from({ length: 151 }, (_, i) => pt(i, 10 + i * 20));
+    const back = Array.from({ length: 75 }, (_, i) => pt(151 + i, 2985 - i * 20));
+    const course = [...out, ...back];
+    const withZone = shareRouteShape(course)!;
+    // 去程在終點（1.5 km）附近被切掉 → 去程斷成兩段
+    expect(withZone.segments.length).toBe(2);
+    // 關掉保護區就只有一段——證明斷開是這條規則造成的，不是缺口或裁切
+    expect(shareRouteShape(course, { zoneM: 0 })!.segments.length).toBe(1);
+    expect(withZone.keptM).toBeLessThan(shareRouteShape(course, { zoneM: 0 })!.keptM);
   });
 
-  test('缺口（> 5 s）讓形狀斷成兩段，不用直線把缺口補起來', () => {
-    const pts = line(101, 10).map((p) => (p.seq > 50 ? { ...p, monotonicMs: p.monotonicMs + 60_000 } : p));
-    expect(routeShapeOf(pts)!.segments.length).toBe(2);
+  test('門檻 3：缺口（> 5 s）與裁掉的區段都不用直線補起來', () => {
+    const pts = straight3k().map((p) => (p.seq > 150 ? { ...p, monotonicMs: p.monotonicMs + 60_000 } : p));
+    expect(shareRouteShape(pts)!.segments.length).toBe(2);
+  });
+
+  test('門檻 3：剩不到 minSegPoints 點的段整段丟掉，不硬畫兩點一條線', () => {
+    // 每點 800 m：裁完只剩 3 點
+    expect(shareRouteShape(line(5, 800))).toBeNull();
+    expect(SHARE_ROUTE.minSegPoints).toBeGreaterThan(2);
+  });
+
+  test('門檻 4：正規化只看留下來的點（裁掉的頭尾不影響比例與位置）', () => {
+    const all = shareRouteShape(straight3k())!.segments.flat();
+    const xs = all.map((p) => p.x);
+    // 留下來的點自己撐滿 0–1；若 bbox 還含被裁掉的段，兩端就到不了 0 與 1
+    expect(Math.min(...xs)).toBe(0);
+    expect(Math.max(...xs)).toBe(1);
+    for (const p of all) {
+      expect(p.y).toBe(0.5); // 直線置中
+      expect(Object.keys(p).sort()).toEqual(['x', 'y']); // 沒有 lat／lon／時間搭車混進來
+    }
+  });
+
+  test('精度超過引擎門檻的點不進形狀（離譜的點會把 bbox 撐大）', () => {
+    const pts = straight3k();
+    const withWild = [...pts, { ...pt(999, 50_000), accuracyM: 400 }];
+    expect(shareRouteShape(withWild)!.segments.flat()).toEqual(shareRouteShape(pts)!.segments.flat());
+  });
+
+  test('版面資料只拿得到形狀，拿不到剩餘長度（圖卡不需要也不該知道）', () => {
+    const shape = routeShapeOf(straight3k())!;
+    expect(Object.keys(shape)).toEqual(['segments']);
   });
 });
 
