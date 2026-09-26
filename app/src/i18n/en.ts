@@ -1927,6 +1927,10 @@ export const en = {
   'sum.done': 'View my activities',
   // 社群分享圖卡（docs/social-share v0.2）：按鈕與說明都跟隨 App 語系
   'share.card.title': 'Share card',
+  // PG-SHARE-07 output sizes
+  'share.card.format.post': 'Post 4:5',
+  'share.card.format.story': 'Story 9:16',
+  'share.card.storyNote': 'The same card, centred on a 9:16 canvas with 285 px clear top and bottom to stay out of each platform’s UI.',
   'share.card.image': 'Share image',
   'share.card.copy': 'Copy caption',
   'share.card.copied': 'Caption and link copied',

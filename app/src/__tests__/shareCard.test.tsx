@@ -9,7 +9,7 @@ import * as Sharing from 'expo-sharing';
 import { File } from 'expo-file-system';
 
 import { ShareCard, wrapText } from '@/components/ShareCard';
-import { achievementShareLayout, ACHIEVEMENT_SHARE_DEFAULT, SHARE_RENDERER_VERSION, workoutShareLayout, type ShareImageLayout, type ShareRenderSpec } from '@/domain/shareImage';
+import { achievementShareLayout, ACHIEVEMENT_SHARE_DEFAULT, SHARE_IMAGE, SHARE_RENDERER_VERSION, SHARE_STORY_SAFE_PX, workoutShareLayout, type ShareImageLayout, type ShareRenderSpec } from '@/domain/shareImage';
 import { SHARE_CARD_DEFAULT } from '@/domain/review';
 import { cleanupShareCache, copyCaption, SHARE_CACHE_MAX_FILES, SHARE_CACHE_TTL_MS, shareLayout } from '@/services/share/shareImage';
 import { Directory, Paths } from 'expo-file-system';
@@ -83,6 +83,34 @@ describe('圖卡渲染', () => {
   });
 });
 
+describe('PG-SHARE-07 story 9:16', () => {
+  test('畫布換成 1080×1920，內容置中且上下留白超過 250 px 安全區', async () => {
+    await render(<ShareCard layout={mkWorkout()} format="story" testID="story-card" />);
+    // react-native-svg 把 viewBox 拆成 vbWidth／vbHeight，不留原字串
+    const svg = screen.getByTestId('story-card').props as { vbWidth: number; vbHeight: number };
+    expect([svg.vbWidth, svg.vbHeight]).toEqual([SHARE_IMAGE.story.width, SHARE_IMAGE.story.height]);
+    // 同一塊 1350 高的內容置中 → 上下各 285 px，比規格的 250 px 再寬一點
+    const offset = (SHARE_IMAGE.story.height - SHARE_IMAGE.post.height) / 2;
+    expect(offset).toBeGreaterThanOrEqual(SHARE_STORY_SAFE_PX);
+    // G 的位移在 matrix 的第 6 位（translate y）
+    expect((screen.getByTestId('share-card-block-story').props as { matrix: number[] }).matrix[5]).toBe(offset);
+  });
+
+  test('post 仍是 1080×1350，內容不位移（story 不影響既有版面）', async () => {
+    await render(<ShareCard layout={mkWorkout()} testID="post-card" />);
+    const svg = screen.getByTestId('post-card').props as { vbWidth: number; vbHeight: number };
+    expect([svg.vbWidth, svg.vbHeight]).toEqual([SHARE_IMAGE.post.width, SHARE_IMAGE.post.height]);
+    expect((screen.getByTestId('share-card-block-post').props as { matrix: number[] }).matrix[5]).toBe(0);
+  });
+
+  test('story 與 post 的內容完全相同（送出的是同一份已預覽內容）', async () => {
+    await render(<ShareCard layout={mkWorkout()} testID="a" />);
+    const post = deepText(screen.getByTestId('a'));
+    await render(<ShareCard layout={mkWorkout()} format="story" testID="b" />);
+    expect(deepText(screen.getByTestId('b'))).toBe(post);
+  });
+});
+
 describe('出圖與分享', () => {
   const fakeSvg = (b64: string | null) => ({ toDataURL: (cb: (s: string) => void) => cb(b64 as string) }) as unknown as Svg;
   const spec: ShareRenderSpec = { kind: 'workout', source: { id: 's1', revision: 2 }, owner: 'wallet-a', rendererVersion: SHARE_RENDERER_VERSION, locale: 'en', format: 'post' };
@@ -95,6 +123,14 @@ describe('出圖與分享', () => {
     expect(uri).toMatch(/neonshift-share-workout-\d+-[0-9a-f]+\.png$/);
     expect((Sharing.shareAsync as jest.Mock).mock.calls[0]![1]).toMatchObject({ mimeType: 'image/png' });
     expect(new File(uri).exists).toBe(true);
+  });
+
+  test('story：以 1080×1920 出圖，不寫死 post 尺寸（輸出錯尺寸等於裁掉內容）', async () => {
+    const sizes: { width: number; height: number }[] = [];
+    const svg = { toDataURL: (cb: (v: string) => void, o: { width: number; height: number }) => { sizes.push(o); cb('QUJD'); } } as unknown as Svg;
+    await shareLayout({ svg, layout: mkWorkout(), dialogTitle: 'x', format: 'story' });
+    await shareLayout({ svg, layout: mkWorkout(), dialogTitle: 'x' });
+    expect(sizes).toEqual([{ width: 1080, height: 1920 }, { width: 1080, height: 1350 }]);
   });
 
   test('檔名不含使用者資料，只有 kind、到期時間與隨機值', async () => {

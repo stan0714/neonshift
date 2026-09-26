@@ -1,14 +1,14 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import type Svg from 'react-native-svg';
 
 import { Button } from './Button';
 import { InlineState } from './InlineState';
 import { ShareCard } from './ShareCard';
-import type { ShareImageLayout, ShareRenderSpec } from '@/domain/shareImage';
+import { SHARE_FORMATS, type ShareFormat, type ShareImageLayout, type ShareRenderSpec } from '@/domain/shareImage';
 import { copyCaption, shareLayout, shareTextInstead } from '@/services/share/shareImage';
 import { useT } from '@/i18n';
-import { space, Text } from '@/theme';
+import { color, radius, space, Text } from '@/theme';
 
 /**
  * 分享圖卡的共用區塊（PG-SHARE-06）：預覽 → 分享圖片／複製文案，以及失敗後的下一步。
@@ -39,6 +39,8 @@ export function ShareImageBlock({
   const [phase, setPhase] = useState<'preview' | 'rendering' | 'handing_off' | 'returned'>('preview');
   const [err, setErr] = useState<'render_failed' | 'no_target' | 'unpublishable' | 'stale' | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  /** PG-SHARE-07：輸出尺寸。story 是同一塊內容置中在 9:16 畫布上，所以預覽不必換一張 */
+  const [format, setFormat] = useState<ShareFormat>('post');
   const busy = phase === 'rendering' || phase === 'handing_off';
 
   const send = async () => {
@@ -48,7 +50,7 @@ export function ShareImageBlock({
     setPhase('rendering');
     try {
       setPhase('handing_off');
-      const r = await shareLayout({ svg: svgRef.current, layout, dialogTitle: t('share.card.title'), ...(spec ? { spec } : {}), ...(stillValid ? { stillValid } : {}) });
+      const r = await shareLayout({ svg: svgRef.current, layout, dialogTitle: t('share.card.title'), format, ...(spec ? { spec: { ...spec, format } } : {}), ...(stillValid ? { stillValid } : {}) });
       setPhase(r.ok ? 'returned' : 'preview');
       if (!r.ok) setErr(r.reason);
     } finally {
@@ -59,8 +61,24 @@ export function ShareImageBlock({
   return (
     <View style={styles.box} testID={`${prefix}-block`}>
       <View style={styles.preview}>
-        <ShareCard ref={svgRef} layout={layout} width={300} a11yLabel={t('share.card.a11y', { label: layout.label, hero: `${layout.hero.value} ${layout.hero.unit}`.trim() })} testID={`${prefix}-preview`} />
+        <ShareCard ref={svgRef} layout={layout} width={format === 'story' ? 240 : 300} format={format} a11yLabel={t('share.card.a11y', { label: layout.label, hero: `${layout.hero.value} ${layout.hero.unit}`.trim() })} testID={`${prefix}-preview`} />
       </View>
+      {/* 尺寸切換：預覽就是實際輸出的那一張（同一個 SVG），不是另外畫一張示意圖 */}
+      <View style={styles.formats} accessibilityRole="tablist">
+        {SHARE_FORMATS.map((f) => (
+          <Pressable
+            key={f}
+            onPress={() => setFormat(f)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: format === f }}
+            style={[styles.format, format === f && styles.formatOn]}
+            testID={`${prefix}-format-${f}`}
+          >
+            <Text variant="caption" tone={format === f ? undefined : 'secondary'} style={format === f && styles.formatOnText}>{t(`share.card.format.${f}`)}</Text>
+          </Pressable>
+        ))}
+      </View>
+      {format === 'story' ? <Text variant="caption" tone="muted" testID={`${prefix}-story-note`}>{t('share.card.storyNote')}</Text> : null}
       {children}
       <Button label={t('share.card.image')} onPress={() => void send()} loading={busy} loadingLabel={t('share.card.rendering')} disabled={busy} testID={`${prefix}-image`} />
       <Button label={t('share.card.copy')} variant="secondary" onPress={() => void copyCaption(caption).then((ok) => setNote(ok ? t('share.card.copied') : null))} testID={`${prefix}-copy`} />
@@ -93,5 +111,9 @@ export function ShareImageBlock({
 const styles = StyleSheet.create({
   box: { gap: space.s, marginTop: space.s },
   preview: { alignItems: 'center' },
+  formats: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  format: { minHeight: 36, paddingHorizontal: space.s, borderRadius: radius.m, borderWidth: 1, borderColor: color.borderSubtle, alignItems: 'center', justifyContent: 'center' },
+  formatOn: { backgroundColor: color.mint, borderColor: color.mint },
+  formatOnText: { color: color.onMint },
   err: { gap: space.s },
 });

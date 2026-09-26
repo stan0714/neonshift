@@ -1906,6 +1906,10 @@ export const zhTW: Record<keyof typeof en, string> = {
   'sum.done': '查看運動紀錄',
   // 社群分享圖卡（docs/social-share v0.2）：按鈕與說明都跟隨 App 語系
   'share.card.title': '分享圖卡',
+  // PG-SHARE-07 輸出尺寸
+  'share.card.format.post': '貼文 4:5',
+  'share.card.format.story': '限時動態 9:16',
+  'share.card.storyNote': '同一張圖置中在 9:16 畫布上，上下各留 285 px，避開各平台的介面。',
   'share.card.image': '分享圖片',
   'share.card.copy': '複製文案',
   'share.card.copied': '文案與連結已複製',

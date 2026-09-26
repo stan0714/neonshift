@@ -2,7 +2,7 @@ import QRCode from 'qrcode';
 import { forwardRef } from 'react';
 import Svg, { Circle, G, Path, Polyline, Rect, Text as SvgText, TSpan } from 'react-native-svg';
 
-import { SHARE_IMAGE, type ShareImageLayout } from '@/domain/shareImage';
+import { SHARE_IMAGE, type ShareFormat, type ShareImageLayout } from '@/domain/shareImage';
 import { color } from '@/theme';
 
 /**
@@ -14,6 +14,7 @@ import { color } from '@/theme';
  * 色彩一律走 token，不散落 hex。
  */
 const W = SHARE_IMAGE.post.width;
+/** 版面高度永遠是 post 的 1350——story 只是把同一塊內容置中在更高的畫布上（§4.1） */
 const H = SHARE_IMAGE.post.height;
 const PAD = 64;
 const QR_SIZE = 200;
@@ -83,8 +84,11 @@ function qrPath(value: string, size: number): { d: string; modules: number } | n
   }
 }
 
-export const ShareCard = forwardRef<Svg, { layout: ShareImageLayout; width?: number; a11yLabel?: string; testID?: string }>(
-  function ShareCard({ layout, width = 340, a11yLabel, testID = 'share-card' }, ref) {
+export const ShareCard = forwardRef<Svg, { layout: ShareImageLayout; width?: number; format?: ShareFormat; a11yLabel?: string; testID?: string }>(
+  function ShareCard({ layout, width = 340, format = 'post', a11yLabel, testID = 'share-card' }, ref) {
+    const canvas = SHARE_IMAGE[format];
+    // story：同一塊 1350 高的內容垂直置中，上下各 285 px（> 250 px 安全區）
+    const offsetY = (canvas.height - H) / 2;
     const tint = layout.emblem ? emblemTint(layout.emblem) : color.mint;
     // 主數字是文字（章名、活動名、物種名）時要折行並縮字級；數字（距離、里程）維持大字
     const textHero = layout.hero.unit === '';
@@ -124,14 +128,15 @@ export const ShareCard = forwardRef<Svg, { layout: ShareImageLayout; width?: num
       <Svg
         ref={ref}
         width={width}
-        height={(width * H) / W}
-        viewBox={`0 0 ${W} ${H}`}
+        height={(width * canvas.height) / canvas.width}
+        viewBox={`0 0 ${canvas.width} ${canvas.height}`}
         accessible
         accessibilityRole="image"
         accessibilityLabel={a11yLabel ?? `${layout.label} ${layout.hero.value} ${layout.hero.unit}`}
         testID={testID}
       >
-        <Rect x={0} y={0} width={W} height={H} fill={color.canvas} />
+        <Rect x={0} y={0} width={canvas.width} height={canvas.height} fill={color.canvas} />
+        <G y={offsetY} testID={`share-card-block-${format}`}>
         {/* 品牌列：霓虹只打在這裡與主數字（§4.2 Signal over spectacle） */}
         <Rect x={PAD} y={84} width={8} height={48} fill={tint} />
         <SvgText x={PAD + 28} y={124} fontSize={44} fontWeight="700" fill={color.textPrimary} letterSpacing={6}>NEONSHIFT</SvgText>
@@ -221,6 +226,7 @@ export const ShareCard = forwardRef<Svg, { layout: ShareImageLayout; width?: num
             </G>
           </G>
         ) : null}
+        </G>
       </Svg>
     );
   },

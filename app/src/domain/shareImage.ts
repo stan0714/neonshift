@@ -9,7 +9,20 @@ import { buildTrace, trimEnds } from '@/domain/gps/trace';
  * 拆開的理由是隱私可測——「關掉的欄位絕不出現」「路線預設不出現」要能用單元測試證明，
  * 而不是靠讀 SVG 程式碼確認。
  */
-export const SHARE_IMAGE = { post: { width: 1080, height: 1350 } } as const;
+/**
+ * 兩種輸出尺寸（§4.1）。`post` 是版面的唯一真實尺寸；`story` 用同一塊 1080×1350 內容
+ * **垂直置中**在 1080×1920 的畫布上，上下各留 285 px 空白——比規格要求的 250 px 安全區
+ * 再寬一點，而且不必為 9:16 重算一套版面：使用者預覽到的那張圖與 story 的內容完全相同，
+ * 只是畫布更高。這是「送出同一份已預覽內容」（§4.6）最省風險的做法。
+ */
+export const SHARE_IMAGE = {
+  post: { width: 1080, height: 1350 },
+  story: { width: 1080, height: 1920 },
+} as const;
+export const SHARE_FORMATS = ['post', 'story'] as const;
+export type ShareFormat = (typeof SHARE_FORMATS)[number];
+/** story 的安全區下限（§4.1）：上下各要留這麼多才不會被平台 UI 蓋住 */
+export const SHARE_STORY_SAFE_PX = 250;
 
 /** 版面演算法版本（§4.6 ShareRenderSpec）：同一筆紀錄日後重分享，靠這個判斷是否同一版版面 */
 export const SHARE_RENDERER_VERSION = 1;
@@ -400,5 +413,5 @@ export type ShareRenderSpec = {
   owner: string | null;
   rendererVersion: number;
   locale: string;
-  format: 'post';
+  format: ShareFormat;
 };

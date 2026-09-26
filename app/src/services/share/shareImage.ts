@@ -4,13 +4,14 @@ import * as Sharing from 'expo-sharing';
 import { Share } from 'react-native';
 import type Svg from 'react-native-svg';
 
-import { SHARE_IMAGE, sharePublishable, type ShareImageLayout, type ShareRenderSpec } from '@/domain/shareImage';
+import { SHARE_IMAGE, sharePublishable, type ShareFormat, type ShareImageLayout, type ShareRenderSpec } from '@/domain/shareImage';
 
 /**
  * 出圖與分享（docs/social-share §6.1）。
  *
  * 用 react-native-svg 的 `toDataURL(cb, { width, height })`：原生端依 viewBox 重算後畫成
- * 1080×1350 的點陣（不受 PixelRatio 影響），所以畫面上只顯示縮圖也能輸出正確尺寸的圖。
+ * 所選格式的點陣（post 1080×1350、story 1080×1920，不受 PixelRatio 影響），
+ * 所以畫面上只顯示縮圖也能輸出正確尺寸的圖。
  *
  * 兩條規格上的硬性要求：
  * 1. **不在分享 API 返回時刪檔**。接收 App 可能還沒讀完，只能記到期時間，下次啟動或下次產圖再清。
@@ -64,7 +65,7 @@ export function cleanupShareCache(now = Date.now()): number {
   return removed;
 }
 
-function toPngBase64(svg: Svg): Promise<string> {
+function toPngBase64(svg: Svg, format: ShareFormat): Promise<string> {
   return new Promise((resolve, reject) => {
     let settled = false;
     const timer = setTimeout(() => { if (!settled) { settled = true; reject(new Error('SHARE_IMAGE_TIMEOUT')); } }, RENDER_TIMEOUT_MS);
@@ -77,7 +78,8 @@ function toPngBase64(svg: Svg): Promise<string> {
           if (b64) resolve(b64);
           else reject(new Error('SHARE_IMAGE_EMPTY'));
         },
-        { width: SHARE_IMAGE.post.width, height: SHARE_IMAGE.post.height },
+        // 尺寸**依所選格式**，不寫死 post：story 是 1080×1920，輸出錯尺寸等於裁掉內容
+        { width: SHARE_IMAGE[format].width, height: SHARE_IMAGE[format].height },
       );
     } catch (e) {
       settled = true;
@@ -98,6 +100,8 @@ export async function shareLayout(opts: {
   /** 預覽當下凍結的輸入；帳號或來源變了就作廢，不讓延遲的匯出寫到別的帳號 */
   spec?: ShareRenderSpec;
   stillValid?: (spec: ShareRenderSpec) => boolean;
+  /** 輸出尺寸（§4.1）；預設 post 1080×1350 */
+  format?: ShareFormat;
 }): Promise<ShareOutcome> {
   // 缺必要的網路標示一律不匯出：寧可不分享，也不讓人以為是主網資產或官方 SKR（§4.2）
   if (!sharePublishable(opts.layout)) return { ok: false, reason: 'unpublishable' };
@@ -107,7 +111,7 @@ export async function shareLayout(opts: {
   let uri: string | null = null;
   try {
     if (!(await Sharing.isAvailableAsync())) return { ok: false, reason: 'no_target' };
-    const b64 = await toPngBase64(opts.svg);
+    const b64 = await toPngBase64(opts.svg, opts.format ?? 'post');
     const file = new File(Paths.cache, nameFor(opts.layout.kind, Date.now()));
     file.create({ overwrite: true });
     file.write(b64, { encoding: 'base64' });

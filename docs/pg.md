@@ -960,3 +960,16 @@ WIP（碼完、App 全套 79 suites／551 tests 通過、實機未驗）：
 尚未做：PG-SEASON-04 registry／mint（`achievements_kind_ck` 還沒有 `seasonal`；鏈上 `category` 只到 1..=13，需程式改版與重新部署——格式待決）、05 通知與分享、06 提醒訂閱。
 
 規格：[節日與生態紀念 NFT §5](design/seasonal-achievement-nfts.md)。
+
+
+## 2026-09-26 story 9:16（PG-SHARE-07）
+
+WIP（碼完、App 全套 79 suites／556 tests 通過、實機未驗）：
+
+- `SHARE_IMAGE` 加 `story: 1080×1920`。做法是**把同一塊 1080×1350 的內容垂直置中**在 9:16 畫布上（`<G>` 位移 285 px），不為 story 重算一套版面：上下各 285 px ＞ 規格要求的 250 px 安全區，而且使用者預覽到的那張圖與實際輸出的內容必然相同（§4.6「送出同一份已預覽內容」）。測試直接比對 post 與 story 的文字內容完全一致。
+- `shareLayout` 的 `toDataURL` 尺寸改成**依所選格式**，不再寫死 post——輸出錯尺寸等於裁掉內容。
+- `ShareImageBlock` 加尺寸切換（貼文 4:5／限時動態 9:16，`accessibilityRole="tab"`），預覽本身就是那個尺寸的同一個 SVG，不是另外畫一張示意圖；選 story 時多一行說明上下留白。`ShareRenderSpec.format` 隨切換寫入。
+- 運動摘要與成就（`Milestones`）沿用各自的分享實作，目前仍只出 post；要一起支援 story 需把那兩處也改走 `ShareImageBlock`，本次沒動。
+- 仍待實機：IG／FB 限時動態的實際裁切與上下安全區是否夠。
+
+規格：[社群分享規劃 §4.1](social-share/README.md)。

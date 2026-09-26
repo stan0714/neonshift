@@ -111,6 +111,19 @@ describe('成就護照卡（S3，卡型 B 多格）', () => {
     expect(deepText(screen.getByTestId('passport-share-preview'))).toMatch(new RegExp(`2\\s*${t('share.card.passport.unit')}`));
   });
 
+  test('PG-SHARE-07：切到限時動態，預覽本身就變成 1080×1920（不是另外畫一張示意圖）', async () => {
+    api.passport.mockResolvedValue({ entries: [{ id: 'pb:1', kind: 'pb', category: 'fastest_5k', title_key: 'pb.cat.fastest_5k', source_class: 'device', source: null, rules_version: 'pb/1', achieved_at: null, validity: 'valid', reason: null, public: false, nft: null, original_holder: 'you' }], counts: { valid: 1, pending: 0, revoked: 0, locked: 0 }, trust_note: 'x' });
+    await render(<PassportScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('passport-share-open')).toBeTruthy());
+    await fireEvent.press(screen.getByTestId('passport-share-open'));
+    await waitFor(() => expect(screen.getByTestId('passport-share-preview')).toBeTruthy());
+    const vb = () => (screen.getByTestId('passport-share-preview').props as { vbWidth: number; vbHeight: number });
+    expect([vb().vbWidth, vb().vbHeight]).toEqual([1080, 1350]);
+    await fireEvent.press(screen.getByTestId('passport-share-format-story'));
+    await waitFor(() => expect(vb().vbHeight).toBe(1920));
+    expect(screen.getByTestId('passport-share-story-note')).toBeTruthy();
+  });
+
   test('一枚有效成就都沒有時不提供分享入口', async () => {
     api.passport.mockResolvedValue({ entries: [], counts: { valid: 0, pending: 0, revoked: 0, locked: 0 }, trust_note: 'x' });
     await render(<PassportScreen />, { wrapper: Wrapper });
