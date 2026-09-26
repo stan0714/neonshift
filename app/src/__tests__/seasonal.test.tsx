@@ -7,6 +7,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import type { PropsWithChildren } from 'react';
 
 import { SeasonalBadge } from '@/components/SeasonalBadge';
+import { ShareCard } from '@/components/ShareCard';
+import { seasonalShareLayout, SEASONAL_SHARE_DEFAULT, sharePublishable } from '@/domain/shareImage';
 import { SeasonalFootprints } from '@/components/SeasonalFootprints';
 import { t, useLocaleStore } from '@/i18n';
 import { apiClient, type MySeasonalItem } from '@/services/api/ApiClient';
@@ -168,5 +170,67 @@ describe('年份篩選（PG-SEASON-03；設計 §5「不把每年卡片全部塞
     await waitFor(() => expect(screen.getByTestId('seasonal-years')).toBeTruthy());
     const order = screen.getAllByTestId(/^seasonal-(?!year-)[a-z].*-\d{4}(-demo)?$/).map((n) => n.props.testID as string);
     expect(order).toEqual(['seasonal-genesis-stride-2027', 'seasonal-seeker-horizon-2027', 'seasonal-moonlit-steps-2026-demo']);
+  });
+});
+
+/**
+ * PG-SEASON-05 節日收藏卡（設計 §4.5）。三條界線：狀態如實、公開日期與個人取得時間分開、
+ * 沒有任何鏈上資產就不掛網路標示。
+ */
+describe('節日收藏卡（PG-SEASON-05）', () => {
+  const tr = (k: string, p?: Record<string, string | number>) => t(k as never, p);
+  const base = { themeName: 'Genesis Stride', themeId: 'genesis_stride', year: 2027, windowLabel: 'Mar 16 (UTC)', achievedAt: new Date('2027-03-16T08:00:00Z'), mintEnabled: false };
+  const mk = (o: Partial<typeof base & { status: 'eligible' | 'pending_review' }> = {}, f = SEASONAL_SHARE_DEFAULT) =>
+    seasonalShareLayout({ ...base, status: 'eligible', ...o }, f, { t: tr, labels: { tagline: 'Walk or run to grow your shoes.', site: 'neonshift.cc' } });
+
+  test('mint 沒開放就只能寫「尚未開放領取」，而且不是鏈上資產', () => {
+    const l = mk();
+    expect(l.lines[0]).toBe(t('share.card.seasonal.notOpen'));
+    expect(l.lines.join('|')).not.toMatch(/minted|鑄造/i);
+    expect(l.chainAsset).toBe(false);
+    expect(l.notice).toBeNull();
+    expect(sharePublishable(l)).toBe(true);
+  });
+
+  test('待驗證不能寫成已達標；開放領取後才變成「可領取，尚未鑄造」', () => {
+    expect(mk({ status: 'pending_review' }).lines[0]).toBe(t('share.card.seasonal.pending'));
+    expect(mk({ status: 'pending_review' }).badge).toMatchObject({ state: 'pending' });
+    expect(mk({ mintEnabled: true }).lines[0]).toBe(t('share.card.seasonal.claimable'));
+    // 即使開放領取，沒鑄造就還不是鏈上資產
+    expect(mk({ mintEnabled: true }).chainAsset).toBe(false);
+    expect(mk().badge).toMatchObject({ themeId: 'genesis_stride', year: 2027, state: 'earned' });
+  });
+
+  test('活動窗口（公開）一定在；自己達標的時間預設不在，勾選後只到月份', () => {
+    expect(mk().lines).toContain('Mar 16 (UTC)');
+    expect(mk().lines.join('|')).not.toMatch(/2027-03/);
+    expect(mk({}, { date: true }).lines).toContain(t('share.card.seasonal.achieved', { month: '2027-03' }));
+    // 連勾選後也只到月份：只看新增的那一行（窗口那一行本來就含公開日期）
+    const added = mk({}, { date: true }).lines.filter((l) => !mk().lines.includes(l));
+    expect(added).toHaveLength(1);
+    expect(added[0]).not.toMatch(/-16|08:00/);
+  });
+
+  test('圖上畫的是這一章真正的插畫，不是分享時另畫一個代號', async () => {
+    await render(<ShareCard layout={mk()} />);
+    expect(screen.getByTestId('share-card-badge-genesis_stride-earned')).toBeTruthy();
+    // 待驗證的章畫成 pending（虛線軌道），不會借用已達標的樣式
+    await render(<ShareCard layout={mk({ status: 'pending_review' })} testID="pending-card" />);
+    expect(screen.getByTestId('share-card-badge-genesis_stride-pending')).toBeTruthy();
+  });
+
+  test('收藏頁：達標才有分享入口；未達標沒有', async () => {
+    mockMine([campaign({ status: 'locked' })]);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('seasonal-genesis-stride-2027')).toBeTruthy());
+    expect(screen.queryByTestId('seasonal-genesis-stride-2027-share')).toBeNull();
+
+    mockMine([campaign({ status: 'eligible', first: { source: { kind: 'workout', id: 'w1', revision: 1 }, started_at: '2027-03-16T08:00:00Z', moving_ms: 1_500_000 }, progress: { best_moving_ms: 1_500_000, required_ms: 1_200_000 } })]);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('seasonal-genesis-stride-2027-share-open')).toBeTruthy());
+    await fireEvent.press(screen.getByTestId('seasonal-genesis-stride-2027-share-open'));
+    await waitFor(() => expect(screen.getByTestId('seasonal-genesis-stride-2027-share-preview')).toBeTruthy());
+    // 畫面上也沒有領取按鈕（分享不是領取）
+    expect(screen.queryByTestId('seasonal-genesis-stride-2027-claim')).toBeNull();
   });
 });

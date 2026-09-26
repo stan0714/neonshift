@@ -16,8 +16,8 @@ import { csvSafeCell } from "../partner/csv.js";
 import type { Store } from "../store/types.js";
 
 /** 與 App／落地頁同一份允許清單（app/src/domain/shareImage.ts、web/s/*.html） */
-export const SHARE_KINDS = ["workout", "achievement", "gear", "guardian", "passport", "event"] as const;
-export const SHARE_SOURCES = ["summary", "mint", "levelup", "guardian", "passport", "invite", "finish", "direct"] as const;
+export const SHARE_KINDS = ["workout", "achievement", "gear", "guardian", "passport", "event", "seasonal"] as const;
+export const SHARE_SOURCES = ["summary", "mint", "levelup", "guardian", "passport", "invite", "finish", "seasonal", "direct"] as const;
 /** store_click／connect_complete 已定義但目前沒有送出端（尚未上架、也沒有跨安裝來源保留） */
 export const SHARE_EVENTS = ["landing_view", "store_click", "app_open", "connect_complete"] as const;
 

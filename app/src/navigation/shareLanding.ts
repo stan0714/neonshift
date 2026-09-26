@@ -12,6 +12,8 @@ const TARGETS: Record<ShareKind, ShareLandingTarget> = {
   passport: { screen: 'Passport' },
   gear: { screen: 'Main', tab: 'Gear' },
   guardian: { screen: 'Main', tab: 'Gear' },
+  // 節日收藏掛在 Gear 分頁的收藏區（SeasonalFootprints）
+  seasonal: { screen: 'Main', tab: 'Gear' },
 };
 
 const isKind = (k: string): k is ShareKind => (SHARE_KINDS as readonly string[]).includes(k);

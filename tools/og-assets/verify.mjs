@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const WEB = resolve(ROOT, "web");
-const PAGES = ["index.html", "en/index.html", "e/index.html", "s/index.html", "s/workout.html", "s/achievement.html", "s/gear.html", "s/guardian.html", "s/passport.html"];
+const PAGES = ["index.html", "en/index.html", "e/index.html", "s/index.html", "s/workout.html", "s/achievement.html", "s/gear.html", "s/guardian.html", "s/passport.html", "s/seasonal.html"];
 const REQUIRED = ["og:title", "og:type", "og:url", "og:image", "og:description", "og:image:alt", "og:image:width", "og:image:height", "twitter:card"];
 
 const meta = (html, name) => {
@@ -38,6 +38,14 @@ for (const page of PAGES) {
   if (meta(html, "twitter:card") !== "summary_large_image") bad(page, "twitter:card 不是 summary_large_image");
   // 安裝入口：尚未上架就要說清楚，不假裝可安裝
   if (page.startsWith("s/") && !/尚未開放下載/.test(html)) bad(page, "缺少尚未上架的安裝說明");
+  // deep link 與計數 kind 必須與檔名一致：這幾頁是互相複製出來的，漏改一處就會把人導到別的畫面
+  const kind = /^s\/(.+)\.html$/.exec(page)?.[1];
+  if (kind && kind !== "index") {
+    for (const m of html.matchAll(/neonshift:\/\/s\/([a-z]+)/g)) if (m[1] !== kind) bad(page, `deep link 指向別的 kind：${m[0]}`);
+    const declared = /var KIND = '([a-z]*)'/.exec(html)?.[1];
+    if (declared !== kind) bad(page, `計數 KIND（${declared}）與檔名（${kind}）不一致`);
+    if (!new RegExp(`https://neonshift\\.cc/s/${kind}`).test(html)) bad(page, "複製連結的 URL 不是這一頁");
+  }
   if (fail === 0) console.log(`PASS ${page}`);
 }
 

@@ -1,4 +1,5 @@
 import { ApprovalNotice } from '@/components/ApprovalNotice';
+import { SeasonalNotice } from '@/components/SeasonalNotice';
 import { useEffect, useState } from 'react';
 import { CommonActions, useNavigation, useRoute, StackActions, type RouteProp } from '@react-navigation/native';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
@@ -110,6 +111,11 @@ export function RootNavigator() {
         const eventId = item.kind === 'event' ? item.milestone_key?.split('|')[1] : undefined;
         if (eventId) navRef.dispatch(StackActions.push('EventDetail', { idOrSlug: eventId }));
         else navRef.dispatch(StackActions.push('Workouts'));
+      }} />
+      {/* PG-SEASON-05：節日資格核准通知。沒有領取按鈕——核准的是資格，不是 NFT */}
+      <SeasonalNotice visible={approvalVisible} onOpen={() => {
+        if (!navRef.isReady()) return;
+        navRef.dispatch(CommonActions.navigate({ name: 'Main', params: { screen: 'Gear' } }));
       }} />
     </NavigationContainer>
   );

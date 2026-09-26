@@ -1,4 +1,5 @@
 /** 分享連結落地（PG-SHARE-04）：連結只決定去哪一頁，不夾帶身分也不猜測未知值。 */
+import { SHARE_KINDS } from '@/domain/shareImage';
 import { shareLandingSource, shareLandingTarget } from '@/navigation/shareLanding';
 
 test('每種 kind 有明確去向', () => {
@@ -7,6 +8,9 @@ test('每種 kind 有明確去向', () => {
   expect(shareLandingTarget('passport')).toEqual({ screen: 'Passport' });
   expect(shareLandingTarget('gear')).toEqual({ screen: 'Main', tab: 'Gear' });
   expect(shareLandingTarget('guardian')).toEqual({ screen: 'Main', tab: 'Gear' });
+  expect(shareLandingTarget('seasonal')).toEqual({ screen: 'Main', tab: 'Gear' });
+  // 清單漏一種 kind 就會落到首頁：每一種都要有明確去向
+  expect(SHARE_KINDS.every((k) => shareLandingTarget(k).screen !== 'Main' || 'tab' in shareLandingTarget(k))).toBe(true);
 });
 
 test('未知、空白或被改過的 kind → 回首頁，不猜測意圖', () => {
@@ -19,6 +23,7 @@ test('未知、空白或被改過的 kind → 回首頁，不猜測意圖', () =
 test('source 只收允許清單內的值，其餘丟掉不往下傳', () => {
   expect(shareLandingSource('summary')).toBe('summary');
   expect(shareLandingSource('invite')).toBe('invite');
+  expect(shareLandingSource('seasonal')).toBe('seasonal');
   expect(shareLandingSource('ig_story')).toBeNull();
   expect(shareLandingSource('<script>')).toBeNull();
   expect(shareLandingSource(undefined)).toBeNull();

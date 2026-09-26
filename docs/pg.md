@@ -990,3 +990,19 @@ WIP（規則碼完、App 全套 79 suites／560 tests 通過、實機未驗）�
 **這些公尺數是本專案取值，不是匿名保證**（§9.1 最後一句）：折返／繞圈的實際效果與「足夠剩餘長度」仍待實機驗收，**驗收前 App 不露出這個開關**（目前也沒有任何畫面呼叫 `routeShapeOf`，i18n 的 `share.card.route*` 三個 key 先備好）。
 
 規格：[社群分享規劃 §5.2／§9.1](social-share/README.md)。
+
+
+## 2026-09-26 節日核准通知與收藏卡（PG-SEASON-05；揭曉與領取仍等 04）
+
+WIP（碼完、App 全套 80 suites／569 tests 通過、backend metrics 11 項通過、實機未驗）：
+
+- **資格核准通知**（`app/src/components/SeasonalNotice.tsx`，掛在 RootNavigator 與成就核准通知並列）：只在 `status: 'eligible'` 時出現，文案跟著後端 `mint_enabled`——目前一律 false，所以說的是「本屆尚未開放領取，達標紀錄會留著」，**沒有領取按鈕、沒有揭曉動畫**。伺服器核准的是資格不是 NFT（設計 §4.3）。`pending_review` 刻意不彈通知：還沒核准就先報喜會被讀成已經拿到。輪詢 5 分鐘（成就那邊是 30 秒）——一屆的資格一生只轉一次，回到前景時會立刻檢查。
+- **節日收藏卡**（`seasonalShareLayout` ＋ `ShareImageLayout.badge`）：徽章用**與 App 畫面同一份** `SeasonalBadgeArt`（從 `SeasonalBadge` 抽出不含 `<Svg>` 外框的版本，因為分享圖卡是單一 `<Svg>`），不是分享時另畫兩個字母的代號。狀態如實三分：待驗證／已達標但本屆尚未開放領取／已達標可領取；**`chainAsset` 一律 false**，所以不掛網路標示，也不可能出現「已鑄造」——那要等 04 有 registry／mint 路徑。
+- **同意模型**：活動窗口（公開的節日日期）必出現；**使用者自己達標的時間預設關閉**，勾選後也只到月份，畫面上另寫一行說明這兩者的差別（設計 §4.5）。
+- **落地與歸因**：新 kind `seasonal` 一路打通——`SHARE_KINDS`／`SHARE_SOURCES`、`shareLanding` 去向（Gear 分頁）、`web/s/seasonal.html`、`web/og/seasonal-v1.png`、後端 `share_aggregates` 允許清單。Android intent filter 是 `pathPrefix="/s/"`，不需要改。落地頁明寫「還沒有任何一屆開放、領取尚未開放」。
+- `tools/og-assets/verify.mjs` 多三道檢查：`/s/<kind>.html` 的 deep link、計數 `KIND` 與複製連結的 URL 都要與檔名一致。這幾頁是互相複製出來的，這次就漏改了一處 deep link，靜態檢查當場擋下。
+- **仍未做（等 PG-SEASON-04）**：揭曉動畫、「可領取 → 錢包確認 → confirmed」流程、`minted` 狀態與網路標示、撤銷語意。沒有 mint 路徑就沒有可揭曉的東西，硬做等於演一段假的。
+
+環境備註：`backend/src/player/player.test.ts` 的 3 項在本機逾時失敗，是**既有**問題（在乾淨的 backend 上同樣失敗）——`DELETE /player/data` 會呼叫 `tournaments.activeStakedUntil()` 走鏈上讀取，本機連不到 RPC 就卡住。與本次修改無關。
+
+規格：[節日與生態紀念 NFT §4.3／§4.5／§6](design/seasonal-achievement-nfts.md)、[社群分享規劃 §3.2 S8](social-share/README.md)。

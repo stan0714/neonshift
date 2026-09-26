@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState } from '@/components';
 import { SeasonalBadge, type SeasonalBadgeState } from '@/components/SeasonalBadge';
+import { ShareImageBlock } from '@/components/ShareImageBlock';
+import { APP_CONFIG } from '@/config/app';
+import { seasonalShareLayout, SEASONAL_SHARE_DEFAULT, shareUrl, type SeasonalShareFields } from '@/domain/shareImage';
 import { useT, useLocaleStore, type TKey } from '@/i18n';
 import type { RootParamList } from '@/navigation/types';
 import { apiClient, type MySeasonalItem, type SeasonalCampaignView } from '@/services/api/ApiClient';
@@ -140,6 +143,19 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
                     ) : null}
                   </View>
                 ) : null}
+                {/* PG-SEASON-05：已達標或待驗證才有分享卡；狀態由 domain 如實寫在圖上 */}
+                {r.status === 'eligible' || r.status === 'pending_review' ? (
+                  <SeasonalShare
+                    campaignId={r.campaign_id}
+                    themeId={r.theme_id}
+                    themeName={name === nameKey ? r.theme_id : name}
+                    year={r.year}
+                    status={r.status}
+                    windowLabel={`${w.inZone} (${r.window.display_timezone})`}
+                    achievedAt={(r.status === 'eligible' ? r.first : r.pending)?.started_at ?? null}
+                    mintEnabled={r.mint_enabled}
+                  />
+                ) : null}
                 {r.window.state === 'open' && r.status !== 'eligible' ? (
                   <Button label={t('season.start')} variant="secondary" style={styles.cta} onPress={() => navigation.navigate('WorkoutStart')} testID={`seasonal-${r.campaign_id}-start`} />
                 ) : null}
@@ -149,6 +165,54 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
           })}
         </View>
       )}
+    </View>
+  );
+}
+
+/**
+ * 節日收藏卡入口（PG-SEASON-05）。預設收起來——這一頁一屆一張卡，每張都攤開會變成一面牆。
+ *
+ * 「我什麼時候達標的」預設不進圖，而且勾選後也只到月份：活動日期是公開主題，
+ * 使用者的取得時間是個人資訊（設計 §4.5）。這兩件事在畫面上分開講清楚。
+ */
+function SeasonalShare({
+  campaignId, themeId, themeName, year, status, windowLabel, achievedAt, mintEnabled,
+}: {
+  campaignId: string; themeId: string; themeName: string; year: number;
+  status: 'eligible' | 'pending_review'; windowLabel: string; achievedAt: string | null; mintEnabled: boolean;
+}) {
+  const { t } = useT();
+  const [open, setOpen] = useState(false);
+  const [fields, setFields] = useState<SeasonalShareFields>(SEASONAL_SHARE_DEFAULT);
+  const url = shareUrl(APP_CONFIG.siteUrl, 'seasonal', 'seasonal');
+  const layout = seasonalShareLayout(
+    { themeName, themeId, year, status, windowLabel, achievedAt: achievedAt ? new Date(achievedAt) : null, mintEnabled },
+    fields,
+    { t: (k, p) => t(k as TKey, p), labels: { tagline: t('share.card.tagline'), site: 'neonshift.cc' }, qr: url },
+  );
+  return (
+    <View style={styles.share} testID={`seasonal-${campaignId}-share`}>
+      <Button label={t('season.share')} variant="secondary" onPress={() => setOpen((o) => !o)} accessibilityState={{ expanded: open }} testID={`seasonal-${campaignId}-share-open`} />
+      {open ? (
+        <ShareImageBlock layout={layout} caption={t('share.invite.seasonal', { name: themeName, year, url })} prefix={`seasonal-${campaignId}-share`}>
+          {achievedAt ? (
+            <>
+              <View style={styles.shareRow}>
+                <Text variant="bodySmall" style={styles.flex}>{t('share.card.seasonal.date')}</Text>
+                <Switch
+                  value={fields.date}
+                  onValueChange={(v) => setFields({ date: v })}
+                  trackColor={{ true: color.mint, false: color.borderSubtle }}
+                  thumbColor={color.textPrimary}
+                  accessibilityLabel={t('share.card.seasonal.date')}
+                  testID={`seasonal-${campaignId}-share-date`}
+                />
+              </View>
+              <Text variant="caption" tone="muted">{t('share.card.seasonal.dateNote')}</Text>
+            </>
+          ) : null}
+        </ShareImageBlock>
+      ) : null}
     </View>
   );
 }
@@ -168,5 +232,8 @@ const styles = StyleSheet.create({
   rule: { marginTop: space.xs },
   status: { gap: space.s, marginTop: space.xs },
   cta: { marginTop: space.xs },
+  share: { marginTop: space.xs },
+  shareRow: { flexDirection: 'row', alignItems: 'center', gap: space.s },
+  flex: { flex: 1 },
   source: { marginTop: space.xs },
 });

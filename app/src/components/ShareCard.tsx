@@ -2,6 +2,7 @@ import QRCode from 'qrcode';
 import { forwardRef } from 'react';
 import Svg, { Circle, G, Path, Polyline, Rect, Text as SvgText, TSpan } from 'react-native-svg';
 
+import { SeasonalBadgeArt, seasonalMotif } from '@/components/SeasonalBadge';
 import { SHARE_IMAGE, type ShareFormat, type ShareImageLayout } from '@/domain/shareImage';
 import { color } from '@/theme';
 
@@ -89,13 +90,16 @@ export const ShareCard = forwardRef<Svg, { layout: ShareImageLayout; width?: num
     const canvas = SHARE_IMAGE[format];
     // story：同一塊 1350 高的內容垂直置中，上下各 285 px（> 250 px 安全區）
     const offsetY = (canvas.height - H) / 2;
-    const tint = layout.emblem ? emblemTint(layout.emblem) : color.mint;
+    // 節日卡跟著該章的專屬美術色，不另挑一套顏色（SeasonalBadge 檔頭）
+    const tint = layout.badge ? seasonalMotif(layout.badge.themeId).tint : layout.emblem ? emblemTint(layout.emblem) : color.mint;
     // 主數字是文字（章名、活動名、物種名）時要折行並縮字級；數字（距離、里程）維持大字
     const textHero = layout.hero.unit === '';
     const hasEmblem = layout.emblem !== null;
     // 多格徽章（護照卡）：格子取代單一徽章，高度由列數決定，不參與縮放階梯
     const gridRows = Math.ceil(layout.grid.length / GRID_COLS);
     const hasGrid = gridRows > 0;
+    // 主題徽章（節日卡）：真的畫那一章的插畫，佔用與單一徽章同一塊高度
+    const hasBadge = layout.badge !== null;
     const heroLines = textHero ? wrapText(layout.hero.value, 15) : [layout.hero.value];
     const heroSize = textHero ? (layout.hero.value.length <= 12 ? 112 : 88) : 200;
     let y = textHero ? 300 : 260;
@@ -104,13 +108,13 @@ export const ShareCard = forwardRef<Svg, { layout: ShareImageLayout; width?: num
     // 徽章與行距一起算：行數多時縮徽章、必要時縮行距，讓最後一行不會壓到分隔線
     const afterHero = y;
     const fit = (() => {
-      for (const block of hasGrid ? [gridRows * GRID_ROW_H] : hasEmblem ? [400, 320, 260, 200] : [0]) {
+      for (const block of hasGrid ? [gridRows * GRID_ROW_H] : hasEmblem || hasBadge ? [400, 320, 260, 200] : [0]) {
         for (const gap of [58, 52, 46]) {
           const top = afterHero + block + 56;
           if (top + (layout.lines.length - 1) * gap <= 1040) return { block, gap };
         }
       }
-      return { block: hasGrid ? gridRows * GRID_ROW_H : hasEmblem ? 200 : 0, gap: 46 };
+      return { block: hasGrid ? gridRows * GRID_ROW_H : hasEmblem || hasBadge ? 200 : 0, gap: 46 };
     })();
     const emblemR = fit.block >= 400 ? 176 : fit.block >= 320 ? 140 : fit.block >= 260 ? 112 : 88;
     const emblemY = hasEmblem ? afterHero + fit.block / 2 : 0;
@@ -157,6 +161,16 @@ export const ShareCard = forwardRef<Svg, { layout: ShareImageLayout; width?: num
             <Circle cx={W / 2} cy={emblemY} r={emblemR} fill={color.surface} stroke={tint} strokeWidth={4} />
             <Circle cx={W / 2} cy={emblemY} r={emblemR - 28} fill="none" stroke={tint} strokeOpacity={0.35} strokeWidth={2} strokeDasharray="8 14" />
             <SvgText x={W / 2} y={emblemY + emblemR * 0.2} fontSize={Math.round(emblemR * 0.55)} fontWeight="700" fill={tint} textAnchor="middle">{emblemLabel(layout.emblem)}</SvgText>
+          </G>
+        ) : null}
+
+        {/* 主題徽章：與 App 畫面同一份美術（SeasonalBadgeArt），不是分享時另畫一個代號 */}
+        {layout.badge ? (
+          <G
+            testID={`share-card-badge-${layout.badge.themeId}-${layout.badge.state}`}
+            transform={`translate(${(W - (fit.block * 120) / 140) / 2} ${afterHero}) scale(${fit.block / 140})`}
+          >
+            <SeasonalBadgeArt themeId={layout.badge.themeId} year={layout.badge.year} state={layout.badge.state} clipId="share-card-shield" />
           </G>
         ) : null}
 

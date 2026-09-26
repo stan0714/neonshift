@@ -87,7 +87,7 @@
 </main>
 <script>
   // source 採允許清單：只把已知值轉進 deep link，不順手轉送 tag、token 或其他 query（§6.2）
-  var ALLOWED = ['summary', 'mint', 'levelup', 'guardian', 'passport', 'invite', 'finish'];
+  var ALLOWED = ['summary', 'mint', 'levelup', 'guardian', 'passport', 'invite', 'finish', 'seasonal'];
   var raw = new URLSearchParams(location.search).get('source') || '';
   var source = ALLOWED.indexOf(raw) >= 0 ? raw : '';
   var open = document.getElementById('open');

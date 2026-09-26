@@ -30,7 +30,7 @@ export const SHARE_RENDERER_VERSION = 1;
 /** 路線形狀的裁切與保護區規則都在 `domain/gps/shareRoute`（PG-SHARE-09） */
 export { SHARE_ROUTE } from '@/domain/gps/shareRoute';
 
-export type ShareImageKind = 'workout' | 'achievement' | 'event' | 'gear' | 'guardian' | 'passport' | 'finish';
+export type ShareImageKind = 'workout' | 'achievement' | 'event' | 'gear' | 'guardian' | 'passport' | 'finish' | 'seasonal';
 
 /** 路線形狀：已裁去起終點、正規化到 0–1 的單位方框，等比置中。不含座標、時間、距離與比例尺 */
 export type ShareRouteShape = { segments: { x: number; y: number }[][] };
@@ -52,6 +52,12 @@ export type ShareImageLayout = {
    * 只放**目前有效**的項目——待核准與已撤銷不得出現在格子裡，否則圖會比護照畫面多算幾枚。
    */
   grid: string[];
+  /**
+   * 真正的主題徽章美術（節日卡）：ShareCard 用 `SeasonalBadgeArt` 畫那一章的插畫。
+   * 這一層只說「畫哪一章、哪一年、什麼狀態」——`state` 必須如實反映資格，
+   * 不能用 `earned` 去畫一個還在待審的章。
+   */
+  badge: { themeId: string; year: number; state: 'locked' | 'pending' | 'earned' } | null;
   /** 只有使用者明確開啟才有值 */
   route: ShareRouteShape | null;
   /** 產品線索，必要（§4.2：沒用過的人要看得懂這個 App 在做什麼） */
@@ -136,6 +142,7 @@ export function workoutShareLayout(
     chips,
     emblem: null,
     grid: [],
+    badge: null,
     route: opts.route ?? null,
     tagline: labels.tagline,
     site: labels.site,
@@ -185,6 +192,7 @@ export function achievementShareLayout(
     chips: a.edition ? [a.edition] : [],
     emblem: a.category,
     grid: [],
+    badge: null,
     // 成就卡不放路線：這是收藏品，不是運動紀錄
     route: null,
     tagline: labels.tagline,
@@ -217,6 +225,7 @@ export function eventShareLayout(
     chips: [],
     emblem: 'event',
     grid: [],
+    badge: null,
     route: null,
     tagline: labels.tagline,
     site: labels.site,
@@ -246,6 +255,7 @@ export function gearShareLayout(
     chips: [],
     emblem: `shoe:${g.level}`,
     grid: [],
+    badge: null,
     route: null,
     tagline: labels.tagline,
     site: labels.site,
@@ -275,6 +285,7 @@ export function guardianShareLayout(
     chips: [],
     emblem: `guardian:${g.level}`,
     grid: [],
+    badge: null,
     route: null,
     tagline: labels.tagline,
     site: labels.site,
@@ -322,6 +333,7 @@ export function passportShareLayout(
     chips: [],
     emblem: null,
     grid: p.emblems.slice(0, PASSPORT_SHARE_EMBLEMS),
+    badge: null,
     route: null,
     tagline: labels.tagline,
     site: labels.site,
@@ -377,6 +389,7 @@ export function finishShareLayout(
     chips: [],
     emblem: 'event_finish',
     grid: [],
+    badge: null,
     route: null,
     tagline: labels.tagline,
     site: labels.site,
@@ -387,12 +400,76 @@ export function finishShareLayout(
 }
 
 /**
+ * 節日收藏卡（PG-SEASON-05；docs/design/seasonal-achievement-nfts.md §4.5）。
+ *
+ * 分享的是「這一屆、這個主題、我的真實狀態」。三件事在這張卡上不可協商：
+ *
+ * 1. **狀態如實**。後端目前 `mint_enabled: false`，沒有任何鏈上資產，所以只能寫
+ *    「已達標 · 本屆尚未開放領取」；`chainAsset` 一律 false，也就不掛網路標示。
+ *    PG-SEASON-04 接上 registry／mint 之後才會有 `minted` 狀態與網路標示——**在那之前
+ *    這張卡不能出現「已鑄造」**，否則使用者會拿一張沒有對應 NFT 的圖去證明自己有收藏。
+ * 2. **節日日期是公開主題，取得時間是個人資訊。** 活動窗口（公開）預設出現；
+ *    使用者自己達標的時間預設**不**出現，勾選後也只到月份（§4.5「日期與時間屬私人詳情」）。
+ * 3. **不含自己的 Activity ID、起終點與錢包。** 連結導向主題介紹，不是個人紀錄。
+ */
+export type SeasonalShareStatus = 'pending_review' | 'eligible';
+/** 節日卡的分享欄位：與公開的節日日期無關，這是「我什麼時候達標的」 */
+export type SeasonalShareFields = { date: boolean };
+export const SEASONAL_SHARE_DEFAULT: SeasonalShareFields = { date: false };
+
+export type SeasonalShareInput = {
+  /** 已翻譯的活動名 */
+  themeName: string;
+  themeId: string;
+  year: number;
+  status: SeasonalShareStatus;
+  /** 活動窗口的公開日期字串（含時區），由呼叫端格式化 */
+  windowLabel: string;
+  /** 使用者達標那筆運動的時間；勾選 date 才進圖，且只到月份 */
+  achievedAt: Date | null;
+  /** 後端是否已開放這一屆領取（`mint_enabled`）。false 時圖上明寫尚未開放 */
+  mintEnabled: boolean;
+};
+
+export function seasonalShareLayout(
+  s: SeasonalShareInput,
+  fields: SeasonalShareFields,
+  opts: { t: T; labels: { tagline: string; site: string }; qr?: string | null },
+): ShareImageLayout {
+  const { t, labels } = opts;
+  // 第一行永遠是真實狀態：待審不能寫成已達標，已達標不能寫成已領取
+  const statusKey =
+    s.status === 'pending_review' ? 'share.card.seasonal.pending' : s.mintEnabled ? 'share.card.seasonal.claimable' : 'share.card.seasonal.notOpen';
+  const lines = [t(statusKey), s.windowLabel];
+  if (fields.date && s.achievedAt) lines.push(t('share.card.seasonal.achieved', { month: monthOf(s.achievedAt) }));
+  return {
+    kind: 'seasonal',
+    label: t('share.card.seasonal'),
+    hero: { value: s.themeName, unit: '' },
+    lines,
+    // 年份已經印在徽章底部，chips 不重複一次
+    chips: [],
+    emblem: null,
+    grid: [],
+    // 待審畫虛線軌道、達標才填滿——徽章本身就是狀態，不靠文字補救
+    badge: { themeId: s.themeId, year: s.year, state: s.status === 'eligible' ? 'earned' : 'pending' },
+    route: null,
+    tagline: labels.tagline,
+    site: labels.site,
+    qr: opts.qr ?? null,
+    // 04 之前 mint_enabled 一律 false，圖上沒有鏈上資產，因此不掛網路標示
+    notice: null,
+    chainAsset: false,
+  };
+}
+
+/**
  * 分享連結（§6.2／§6.3）：落地頁路徑帶 kind、query 只帶允許清單內的 source。
  * 不含任何個人識別，也不帶來源紀錄 ID——ShareRenderSpec 的來源 ID 只留在本機。
  */
-export const SHARE_KINDS = ['workout', 'achievement', 'gear', 'guardian', 'passport'] as const;
+export const SHARE_KINDS = ['workout', 'achievement', 'gear', 'guardian', 'passport', 'seasonal'] as const;
 export type ShareKind = (typeof SHARE_KINDS)[number];
-export const SHARE_SOURCES = ['summary', 'mint', 'levelup', 'guardian', 'passport', 'invite', 'finish'] as const;
+export const SHARE_SOURCES = ['summary', 'mint', 'levelup', 'guardian', 'passport', 'invite', 'finish', 'seasonal'] as const;
 export type ShareSource = (typeof SHARE_SOURCES)[number];
 
 export function shareUrl(site: string, kind: ShareKind, source: ShareSource): string {

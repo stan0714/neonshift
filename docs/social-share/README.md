@@ -82,6 +82,7 @@
 | S5 | 活動完賽／領到權益 | 活動結果頁、`EventBadges` | B／C | 完賽時間（依本次社群分享的獨立同意） | `neonshift.cc/e/<slug>?source=finish` | `/e/<slug>` |
 | S6 | 跑鞋升階、里程里程碑 | Gear 卡片、摘要頁 `sum-first-wear` | D | 升階名稱＋累積里程 | `neonshift.cc/s/gear?source=levelup` | `/s/` |
 | S7 | Guardian 解鎖 | `GuardianMilestone`（已有分享） | E | `guardian.shareText` | `neonshift.cc/s/guardian?source=guardian` | `/s/` |
+| S8 | 節日資格達標（PG-SEASON-05） | `SeasonalFootprints`（收藏頁） | B（主題徽章） | 主題名＋年份＋真實狀態（尚未開放領取） | `neonshift.cc/s/seasonal?source=seasonal` | `/s/seasonal` |
 
 > S1／S4／S7 已有純文字分享，本期是**加圖**與**補歸因**，不改既有同意模型。
 
@@ -217,7 +218,7 @@ Sharing.shareAsync(file.uri, { mimeType: 'image/png', dialogTitle })
 
 ### 6.2 網站端（OG 預覽 ＋ 落地頁）
 
-- 新增 `/s/` 落地頁（`web/s/index.html`）：路徑固定為 `/s/workout`、`/s/achievement`、`/s/gear`、`/s/guardian`、`/s/passport`，不採 hash fragment，中英雙語，主按鈕 `Get NeonShift`（`storeUrl`）＋ 次按鈕 `Open in NeonShift`（`neonshift://`），並說明 Seeker／Android 需求。
+- 新增 `/s/` 落地頁（`web/s/index.html`）：路徑固定為 `/s/workout`、`/s/achievement`、`/s/gear`、`/s/guardian`、`/s/passport`、`/s/seasonal`，不採 hash fragment，中英雙語，主按鈕 `Get NeonShift`（`storeUrl`）＋ 次按鈕 `Open in NeonShift`（`neonshift://`），並說明 Seeker／Android 需求。
 - 為 `web/index.html`、`web/e/index.html`、`web/s/index.html` 補 `og:title`／`og:description`／`og:image`／`twitter:card=summary_large_image`。
 - OG 圖（1200×630）**靜態產生**：每種卡型一張通用圖，放 `web/og/<kind>.png`，由既有 SVG 於 build 時轉出。**首版活動頁用品牌通用 OG 圖**。若要每場活動固定主視覺，需另有按 slug 產生 HTML head 的建置／更新流程；不能用同一份 HTML 的瀏覽器 JS 換圖後，就宣稱社群爬蟲會看到各活動圖片。
 - `/e/<slug>` 已保留 query string；`/s/` 同樣保留，讓 `source` 能一路傳進 App。
@@ -348,8 +349,10 @@ Sharing.shareAsync(file.uri, { mimeType: 'image/png', dialogTitle })
 
 尚待實機證據：接收端讀檔時機、IG／Threads／LINE 等目的地行為、正式簽章 App Links、商店上架與下載入口。文件內建議值不是已完成驗收，也不是社群平台保證。
 
-## 2026-09-25 延伸：節日收藏分享
+## 2026-09-25 延伸：節日收藏分享（2026-09-26 已實作）
 
-B 成就卡可擴充 [Seasonal Footprints 年度徽章](../design/seasonal-achievement-nfts.md)：主題插畫、年份、活動名與真實收藏狀態。節日日期與年份是公開主題，不等於使用者精確取得時間；後者仍預設關閉。核准但未 Mint 只能分享「可領取」狀態；已 confirmed 才顯示「已鑄造」。公開連結導向主題介紹，不包含自己的 Activity ID、起終點或錢包。
+B 成就卡擴充 [Seasonal Footprints 年度徽章](../design/seasonal-achievement-nfts.md)：主題插畫、年份、活動名與真實收藏狀態。節日日期與年份是公開主題，不等於使用者精確取得時間；後者仍預設關閉。核准但未 Mint 只能分享「可領取」狀態；已 confirmed 才顯示「已鑄造」。公開連結導向主題介紹，不包含自己的 Activity ID、起終點或錢包。
 
-此為 PG-SEASON-05 與社群卡的未實作整合；不因概念頁存在就宣稱節日挑戰已上線。
+2026-09-26 以 `seasonalShareLayout` ＋ `SeasonalBadgeArt` 實作（PG-SEASON-05）：徽章是與 App 畫面同一份美術，不是分享時另畫一個代號；狀態三分（待驗證／已達標但本屆尚未開放領取／已達標可領取），`chainAsset` 一律 false，因此**不掛網路標示也不可能寫成「已鑄造」**——`minted` 狀態要等 PG-SEASON-04 真的有 registry／mint 路徑。落地頁 `/s/seasonal` 明寫「還沒有任何一屆開放、領取尚未開放」。
+
+節日挑戰本身仍未上線（三屆設定全部 `enabled:false`）；不因概念頁與分享卡存在就宣稱已上線。

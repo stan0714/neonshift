@@ -41,6 +41,11 @@ describe("匿名回報", () => {
     expect((await store.listShare("2026-09-25", "2026-09-25"))[0]!.count).toBe(3);
   });
 
+  it("PG-SEASON-05：seasonal 落地頁的 kind／source 也在清單內", async () => {
+    expect((await post({ kind: "seasonal", source: "seasonal", event: "landing_view" })).statusCode).toBe(202);
+    expect((await store.listShare("2026-09-25", "2026-09-25"))[0]).toMatchObject({ kind: "seasonal", source: "seasonal" });
+  });
+
   it("source 省略時記為 direct", async () => {
     await post({ kind: "gear", event: "app_open" });
     expect((await store.listShare("2026-09-25", "2026-09-25"))[0]).toMatchObject({ source: "direct", eventName: "app_open" });

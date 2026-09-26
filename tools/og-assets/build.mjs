@@ -21,6 +21,7 @@ const cards = [
   { kind: "guardian", tint: color.cyan, en: "Wildlife stories behind the shoes", zh: "跑鞋背後的野生動物故事", badge: "GUARDIAN" },
   { kind: "passport", tint: color.mint, en: "Every achievement, with its source", zh: "每一枚成就都看得到來源與有效性", badge: "PASSPORT" },
   { kind: "event", tint: color.violet, en: "Join a NeonShift event", zh: "一起參加 NeonShift 活動", badge: "EVENT" },
+  { kind: "seasonal", tint: color.violet, en: "An annual themed walk or run", zh: "每年一屆的節日足跡", badge: "SEASONAL" },
 ];
 
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

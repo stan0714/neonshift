@@ -86,21 +86,33 @@ function ThemeArt({ themeId, tint, accent, outline }: { themeId: string; tint: s
 /** 深色底上的描邊色：主題色本身太亮時用它 */
 const c2 = (tint: string) => tint;
 
-export function SeasonalBadge({ themeId, year, state, size = 96, testID }: { themeId: string; year: number; state: SeasonalBadgeState; size?: number; testID?: string }) {
+/** 主題色（該章專屬美術色）。分享卡的品牌條與主數字跟著同一個 tint，不另挑一套顏色 */
+export const seasonalMotif = motifOf;
+
+/**
+ * 徽章**內容**（不含 `<Svg>` 外框），viewBox 固定 120×140。
+ *
+ * 抽出來的理由只有一個：分享圖卡是**單一** `<Svg>`（`toDataURL` 才能整張重畫成點陣），
+ * 所以節日卡不能塞一個嵌套的 `<Svg>` 進去。這樣圖卡上的徽章與畫面上的徽章是同一份美術，
+ * 不會變成「App 裡是插畫、分享出去是兩個英文字母」。
+ *
+ * `clipId` 可傳：同一份 SVG 文件裡 id 不能重複，嵌進別的圖時給它一個不會撞到的名字。
+ */
+export function SeasonalBadgeArt({ themeId, year, state, clipId = 'seasonal-shield' }: { themeId: string; year: number; state: SeasonalBadgeState; clipId?: string }) {
   const { tint, accent } = motifOf(themeId);
   const outline = state === 'locked';
   const orbit = state === 'earned' ? tint : state === 'pending' ? color.textSecondary : color.borderSubtle;
   return (
-    <Svg width={size} height={(size * 140) / 120} viewBox="0 0 120 140" accessible accessibilityRole="image" testID={testID ?? `seasonal-badge-${themeId}-${state}`}>
+    <G>
       <Defs>
-        <ClipPath id="shield">
+        <ClipPath id={clipId}>
           <Path d="M60 6 L108 24 V78 Q108 112 60 134 Q12 112 12 78 V24 Z" />
         </ClipPath>
       </Defs>
       {/* 圓角盾牌＋雙層軌道邊框 */}
       <Path d="M60 6 L108 24 V78 Q108 112 60 134 Q12 112 12 78 V24 Z" fill={color.surface} stroke={orbit} strokeWidth={4} />
       <Path d="M60 15 L100 30 V78 Q100 106 60 124 Q20 106 20 78 V30 Z" fill="none" stroke={orbit} strokeWidth={2} strokeOpacity={0.6} strokeDasharray={state === 'pending' ? '6 6' : undefined} />
-      <G clipPath="url(#shield)">
+      <G clipPath={`url(#${clipId})`}>
         {/* 插畫佔中央約 60%：viewBox 60×70 的圖放大 1.2 倍置中 */}
         <G transform="translate(24 22) scale(1.2)">
           <ThemeArt themeId={themeId} tint={tint} accent={accent} outline={outline} />
@@ -115,6 +127,14 @@ export function SeasonalBadge({ themeId, year, state, size = 96, testID }: { the
           <Path d="M55 64 V60 Q60 54 65 60 V64" fill="none" stroke={color.textMuted} strokeWidth={2} />
         </G>
       ) : null}
+    </G>
+  );
+}
+
+export function SeasonalBadge({ themeId, year, state, size = 96, testID }: { themeId: string; year: number; state: SeasonalBadgeState; size?: number; testID?: string }) {
+  return (
+    <Svg width={size} height={(size * 140) / 120} viewBox="0 0 120 140" accessible accessibilityRole="image" testID={testID ?? `seasonal-badge-${themeId}-${state}`}>
+      <SeasonalBadgeArt themeId={themeId} year={year} state={state} />
     </Svg>
   );
 }
