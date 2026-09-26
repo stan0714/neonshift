@@ -12,6 +12,7 @@ import { seasonalShareLayout, SEASONAL_SHARE_DEFAULT, sharePublishable } from '@
 import { SeasonalFootprints } from '@/components/SeasonalFootprints';
 import { t, useLocaleStore } from '@/i18n';
 import { apiClient, type MySeasonalItem } from '@/services/api/ApiClient';
+import { useSeasonalReminderStore } from '@/state/seasonalReminderStore';
 import { useWalletStore } from '@/state/walletStore';
 import { ThemeProvider } from '@/theme';
 
@@ -46,6 +47,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   useLocaleStore.setState({ setting: 'en', locale: 'en' });
   useWalletStore.setState({ status: 'connected', session: { address: 'wallet-a' } } as never);
+  useSeasonalReminderStore.setState({ loaded: true, subscribed: [], dismissed: [] });
 });
 
 const mockMine = (items: MySeasonalItem[]) => jest.spyOn(apiClient, 'mySeasonal').mockResolvedValue({ items, notes: ['eligibility_only_no_mint_path_yet'] });
@@ -232,5 +234,36 @@ describe('節日收藏卡（PG-SEASON-05）', () => {
     await waitFor(() => expect(screen.getByTestId('seasonal-genesis-stride-2027-share-preview')).toBeTruthy());
     // 畫面上也沒有領取按鈕（分享不是領取）
     expect(screen.queryByTestId('seasonal-genesis-stride-2027-claim')).toBeNull();
+  });
+});
+
+describe('提醒訂閱（PG-SEASON-06）', () => {
+  test('訂閱開關存在本機；打開後說清楚「只有 App 內提醒、不會上傳」', async () => {
+    mockMine([campaign()]);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('seasonal-genesis-stride-2027-remind')).toBeTruthy());
+    // 沒訂閱時不佔版面說明
+    expect(screen.queryByTestId('seasonal-genesis-stride-2027-remind-note')).toBeNull();
+    await fireEvent(screen.getByTestId('seasonal-genesis-stride-2027-remind'), 'valueChange', true);
+    await waitFor(() => expect(useSeasonalReminderStore.getState().subscribed).toEqual(['genesis-stride-2027']));
+    expect(screen.getByTestId('seasonal-genesis-stride-2027-remind-note')).toBeTruthy();
+    expect(screen.getByText(t('season.remindNote'))).toBeTruthy();
+  });
+
+  test('已結束的一屆不再提供訂閱（提醒一個結束的窗口沒有意義）', async () => {
+    mockMine([campaign({ window: { starts_at: '2027-03-16T00:00:00.000Z', ends_at: '2027-03-17T00:00:00.000Z', display_timezone: 'UTC', state: 'closed' } })]);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('seasonal-genesis-stride-2027')).toBeTruthy());
+    expect(screen.queryByTestId('seasonal-genesis-stride-2027-remind')).toBeNull();
+  });
+
+  test('取消訂閱會把這一屆的已讀提醒一起清掉（重新訂閱要收得到）', async () => {
+    useSeasonalReminderStore.setState({ loaded: true, subscribed: ['genesis-stride-2027'], dismissed: ['open:genesis-stride-2027', 'soon:other-2027'] });
+    mockMine([campaign()]);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('seasonal-genesis-stride-2027-remind')).toBeTruthy());
+    await fireEvent(screen.getByTestId('seasonal-genesis-stride-2027-remind'), 'valueChange', false);
+    await waitFor(() => expect(useSeasonalReminderStore.getState().subscribed).toEqual([]));
+    expect(useSeasonalReminderStore.getState().dismissed).toEqual(['soon:other-2027']);
   });
 });

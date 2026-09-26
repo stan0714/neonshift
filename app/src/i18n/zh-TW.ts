@@ -2007,6 +2007,13 @@ export const zhTW: Record<keyof typeof en, string> = {
   'season.notice.notOpen': '{name} 已達標。本屆尚未開放領取，達標紀錄會留著。',
   'season.notice.claimable': '{name} 已達標，可以領取了。',
   'season.notice.open': '看收藏',
+  // PG-SEASON-06 提醒訂閱（只有 App 內提醒，沒有推播）
+  'season.remind': '開始前提醒我',
+  'season.remindNote': 'NeonShift 只會在你打開 App 時提醒，沒有背景推播、也不會把這個訂閱上傳。',
+  'season.reminder.title': '節日提醒',
+  'season.reminder.soon': '{name} 在 {when} 開始（{tz}）。',
+  'season.reminder.open': '{name} 進行中，{when} 結束。單次健走或跑步移動 {min} 分鐘就算。',
+  'season.reminder.grace': '{name} 已結束。窗口內的那一筆運動還可以在 {when} 前同步上來。',
   'season.name.genesis_stride': 'Genesis Stride 創世步伐',
   'season.name.seeker_horizon': 'Seeker Horizon 探索者地平線',
   'season.name.moonlit_steps': 'Moonlit Steps 月光足跡',

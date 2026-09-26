@@ -1006,3 +1006,20 @@ WIP（碼完、App 全套 80 suites／569 tests 通過、backend metrics 11 項�
 環境備註：`backend/src/player/player.test.ts` 的 3 項在本機逾時失敗，是**既有**問題（在乾淨的 backend 上同樣失敗）——`DELETE /player/data` 會呼叫 `tournaments.activeStakedUntil()` 走鏈上讀取，本機連不到 RPC 就卡住。與本次修改無關。
 
 規格：[節日與生態紀念 NFT §4.3／§4.5／§6](design/seasonal-achievement-nfts.md)、[社群分享規劃 §3.2 S8](social-share/README.md)。
+
+
+## 2026-09-26 節日提醒訂閱與年度營運工具（PG-SEASON-06；推播仍未做）
+
+WIP（碼完、實機未驗）：
+
+- **提醒訂閱**（`app/src/state/seasonalReminderStore.ts`）：存在**本機、不分錢包、不上傳**。訂閱的是公開活動不是個人資料，未登入看得到公開目錄就該能訂閱；而且在沒有推播通道的情況下，把「誰在等哪一屆」收到後端只是多存一份沒有用途的資料。取消訂閱會把這一屆的已讀提醒一起清掉，重新訂閱的人收得到。
+- **提醒判定**（純函式 `app/src/domain/seasonalReminder.ts`）：依「最該現在做什麼」排序——`open`（還能出門走一趟）＞ `grace`（只能把窗口內那一筆**同步上來**，寬限放寬的是上傳時間不是運動時間）＞ `soon`（開始前 7 天內）。已達標或待驗證的一屆不提醒（提醒只會讓人以為還沒完成）；同一屆每個階段各提醒一次，關掉 `soon` 之後窗口真的開了還是會再提醒。8 項單元測試。
+- **提醒的出口**：與資格核准共用 `SeasonalNotice` 那一個浮層，**核准優先**（已經發生的事先講）。兩個浮層互相蓋住才是真正的問題。未登入也會提醒（改查公開目錄），但**沒有訂閱任何一屆時完全不發請求**。
+- **文案說實話**：這支 App 沒有推播也沒有本機排程通知（`modules/neonshift-notify` 只負責運動中的前景服務頻道），所以開關旁邊直接寫「NeonShift 只會在你打開 App 時提醒，沒有背景推播、也不會把這個訂閱上傳」。**系統推播是這一項還沒做的部分**，不因為有提醒就宣稱有通知。
+- **年度營運工具**：`backend/src/seasonal/check.ts`（`npm run seasonal:check`，可加 `--now`／`--json`）把設定檔驗一次並印成表——重點是印出**換算回活動時區之後真正涵蓋的當地日期**，因為每年加下一屆真正容易錯的是 UTC 窗口算錯一小時或 DST 讓當地日期跑掉。`scripts/ops/seasonal.sh` 包一層，`--remote` 再跟線上 `/v1/seasonal` 對帳（窗口、時區、門檻、寬限、來源核對日與 `mint_enabled` 全比一次），確認部署上去的設定與 repo 同一版。不需要 OPS_TOKEN（公開目錄），不連資料庫。已加進 `scripts/test-all.sh`。
+
+順手修掉一個會誤導測試結果的環境問題：`scripts/env.sh` 原本只用單一 `BREW_PREFIX` 找 node，而 nvm 是 shell function、非登入 shell 讀不到，於是 `scripts/test-all.sh` 與 `scripts/ops/*.sh` 會默默用系統上的舊版 node 跑——舊版 node 的 jest 沙箱沒有 `crypto.getRandomValues`，`Keypair.generate()` 相關套件就會失敗。這台 Mac 同時有 `/opt/homebrew`（openjdk）與 `/usr/local`（node），所以改成逐一試已知位置挑第一個存在的。
+
+尚未做：PG-SEASON-04 registry／mint（`achievements_kind_ck` 還沒有 `seasonal`；鏈上 `category` 只到 1..=13，需程式改版與重新部署——格式待決）、PG-SEASON-05 的揭曉動畫與「可領取」流程（等 04）、PG-SEASON-06 的系統推播。
+
+規格：[節日與生態紀念 NFT §4／§6](design/seasonal-achievement-nfts.md)。

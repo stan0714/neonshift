@@ -11,6 +11,7 @@ import { seasonalShareLayout, SEASONAL_SHARE_DEFAULT, shareUrl, type SeasonalSha
 import { useT, useLocaleStore, type TKey } from '@/i18n';
 import type { RootParamList } from '@/navigation/types';
 import { apiClient, type MySeasonalItem, type SeasonalCampaignView } from '@/services/api/ApiClient';
+import { useSeasonalReminderStore } from '@/state/seasonalReminderStore';
 import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
 
@@ -44,6 +45,9 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
   const session = useWalletStore((s) => s.session);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [failed, setFailed] = useState(false);
+  // PG-SEASON-06：訂閱清單存在本機（裝置層、不分錢包、不上傳）
+  const reminders = useSeasonalReminderStore();
+  useEffect(() => { void reminders.load(); }, [reminders.load]);
   /** 年份篩選（設計 §5「不把每年卡片全部塞到首頁」）；'all' 代表不篩 */
   const [year, setYear] = useState<number | 'all'>('all');
 
@@ -121,6 +125,23 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
                 <Text variant="caption" tone="secondary" style={styles.rule}>
                   {t('season.rule', { min: r.rules.min_moving_minutes, days: r.rules.grace_days })}
                 </Text>
+                {/* PG-SEASON-06：只有 App 內提醒，沒有推播——開關旁邊直接講清楚 */}
+                {r.window.state !== 'closed' ? (
+                  <View style={styles.remindRow}>
+                    <Text variant="bodySmall" tone="secondary" style={styles.flex}>{t('season.remind')}</Text>
+                    <Switch
+                      value={reminders.subscribed.includes(r.campaign_id)}
+                      onValueChange={() => void reminders.toggle(r.campaign_id)}
+                      trackColor={{ true: color.mint, false: color.borderSubtle }}
+                      thumbColor={color.textPrimary}
+                      accessibilityLabel={t('season.remind')}
+                      testID={`seasonal-${r.campaign_id}-remind`}
+                    />
+                  </View>
+                ) : null}
+                {r.window.state !== 'closed' && reminders.subscribed.includes(r.campaign_id) ? (
+                  <Text variant="caption" tone="muted" testID={`seasonal-${r.campaign_id}-remind-note`}>{t('season.remindNote')}</Text>
+                ) : null}
                 {r.status ? (
                   <View style={styles.status} testID={`seasonal-${r.campaign_id}-status-${r.status}`}>
                     {r.status === 'eligible' ? (
@@ -233,6 +254,7 @@ const styles = StyleSheet.create({
   status: { gap: space.s, marginTop: space.xs },
   cta: { marginTop: space.xs },
   share: { marginTop: space.xs },
+  remindRow: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.xs },
   shareRow: { flexDirection: 'row', alignItems: 'center', gap: space.s },
   flex: { flex: 1 },
   source: { marginTop: space.xs },

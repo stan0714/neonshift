@@ -4,8 +4,10 @@ import { AppState, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, InlineState } from '@/components';
+import { nextSeasonalReminder, type SeasonalReminder } from '@/domain/seasonalReminder';
 import { useT, type TKey } from '@/i18n';
-import { apiClient, type MySeasonalItem } from '@/services/api/ApiClient';
+import { apiClient, type MySeasonalItem, type SeasonalCampaignView } from '@/services/api/ApiClient';
+import { useSeasonalReminderStore } from '@/state/seasonalReminderStore';
 import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space } from '@/theme';
 
@@ -22,22 +24,36 @@ import { color, radius, space } from '@/theme';
  *
  * 輪詢間隔比成就核准通知（30 s）長很多：一屆的資格一生只會轉一次，
  * 沒有必要每半分鐘問一次伺服器。回到前景時會立刻檢查一次。
+ *
+ * ── PG-SEASON-06：同一個浮層也負責「訂閱的一屆要開始／進行中／還能補同步」的提醒 ──
+ * 兩種浮層互相蓋住才是真正的問題，所以共用這一個位置，**資格核准優先**（那是已經發生的事，
+ * 提醒只是還沒發生的事）。提醒完全是 App 內的：這支 App 沒有推播也沒有本機排程通知，
+ * 所以文案只說「打開 App 時提醒」，訂閱清單也只存在這台裝置上（見 seasonalReminderStore）。
+ * 未登入也會提醒——公開目錄看得到的活動就該能被提醒，但**沒有訂閱任何一屆時完全不發請求**。
  */
 const POLL_MS = 5 * 60 * 1000;
 const storageKeyOf = (address: string) => `seasonal-notices-v1.${address}`;
+
+type Row = SeasonalCampaignView & Partial<Pick<MySeasonalItem, 'status'>>;
 
 export function SeasonalNotice({ onOpen, visible = true }: { visible?: boolean; onOpen: () => void }) {
   const { t } = useT();
   const address = useWalletStore((s) => s.session?.address);
   const insets = useSafeAreaInsets();
-  const [notice, setNotice] = useState<{ address: string; item: MySeasonalItem } | null>(null);
+  const [rows, setRows] = useState<{ address: string | null; items: Row[] } | null>(null);
   const acknowledgedRef = useRef(new Set<string>());
   const [seen, setSeen] = useState<Set<string>>(new Set());
+  const reminders = useSeasonalReminderStore();
+  const subscribed = reminders.subscribed;
+  const dismissedReminders = reminders.dismissed;
+
+  useEffect(() => { void reminders.load(); }, [reminders.load]);
 
   useEffect(() => {
-    setNotice(null);
+    setRows(null);
     acknowledgedRef.current = new Set();
-    if (!address) return;
+    // 沒登入又沒訂閱任何一屆：沒有要查的東西，不發請求
+    if (!address && subscribed.length === 0) return;
     let disposed = false;
     let running = false;
     let acknowledged = new Set<string>();
@@ -45,22 +61,23 @@ export function SeasonalNotice({ onOpen, visible = true }: { visible?: boolean; 
       if (disposed || running || AppState.currentState !== 'active') return;
       running = true;
       try {
-        const { items } = await apiClient.mySeasonal();
+        const { items } = address ? await apiClient.mySeasonal() : await apiClient.seasonal();
         if (disposed) return;
-        const item = items.find((c) => c.status === 'eligible' && !acknowledgedRef.current.has(c.campaign_id));
-        setNotice(item ? { address, item } : null);
+        setRows({ address: address ?? null, items });
       } catch {
-        // 連不上不代表資格有變，也不清掉上一次的通知
+        // 連不上不代表資格或窗口有變，也不清掉上一次的通知
       } finally {
         running = false;
       }
     };
     void (async () => {
-      try {
-        const ids: unknown = JSON.parse((await SecureStore.getItemAsync(storageKeyOf(address))) ?? '[]');
-        if (Array.isArray(ids)) acknowledged = new Set(ids.filter((id): id is string => typeof id === 'string'));
-      } catch {
-        // 本機收據讀不到就當沒讀過：寧可多提醒一次，也不要漏掉一屆
+      if (address) {
+        try {
+          const ids: unknown = JSON.parse((await SecureStore.getItemAsync(storageKeyOf(address))) ?? '[]');
+          if (Array.isArray(ids)) acknowledged = new Set(ids.filter((id): id is string => typeof id === 'string'));
+        } catch {
+          // 本機收據讀不到就當沒讀過：寧可多提醒一次，也不要漏掉一屆
+        }
       }
       if (disposed) return;
       acknowledgedRef.current = acknowledged;
@@ -70,35 +87,60 @@ export function SeasonalNotice({ onOpen, visible = true }: { visible?: boolean; 
     const timer = setInterval(() => void check(), POLL_MS);
     const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') void check(); });
     return () => { disposed = true; clearInterval(timer); subscription.remove(); };
-  }, [address]);
+  }, [address, subscribed.length]);
 
-  // 已關掉的也在本機比一次，避免進行中的刷新把浮層又打開
-  if (!visible || !notice || notice.address !== address || seen.has(notice.item.campaign_id)) return null;
-  const dismiss = () => {
-    const next = new Set(seen).add(notice.item.campaign_id);
-    acknowledgedRef.current = next;
-    setSeen(next);
-    setNotice(null);
-    void SecureStore.setItemAsync(storageKeyOf(address!), JSON.stringify([...next])).catch(() => {});
-  };
-  const name = (() => {
-    const key = `season.name.${notice.item.theme_id}` as TKey;
+  const items = rows && rows.address === (address ?? null) ? rows.items : [];
+  const nameOf = (themeId: string, year: number) => {
+    const key = `season.name.${themeId}` as TKey;
     const s = t(key);
-    return s === key ? notice.item.theme_id : s;
-  })();
+    return `${s === key ? themeId : s} ${year}`;
+  };
+
+  if (!visible) return null;
+
+  // 資格核准優先：那是已經發生的事，提醒只是還沒發生的事
+  const approved = items.find((c) => c.status === 'eligible' && !seen.has(c.campaign_id) && !acknowledgedRef.current.has(c.campaign_id));
+  if (approved && address) {
+    const dismiss = () => {
+      const next = new Set(seen).add(approved.campaign_id);
+      acknowledgedRef.current = next;
+      setSeen(next);
+      void SecureStore.setItemAsync(storageKeyOf(address), JSON.stringify([...next])).catch(() => {});
+    };
+    return (
+      <View style={[styles.card, { bottom: insets.bottom + space.s }]} accessibilityLiveRegion="polite" testID="seasonal-notice">
+        <InlineState
+          kind="success"
+          title={t('season.notice.title')}
+          body={t(approved.mint_enabled ? 'season.notice.claimable' : 'season.notice.notOpen', { name: nameOf(approved.theme_id, approved.year) })}
+        />
+        <View style={styles.actions}>
+          <Button label={t('season.notice.open')} onPress={() => { onOpen(); dismiss(); }} style={styles.button} testID="seasonal-notice-open" />
+          <Button label={t('common.close')} variant="secondary" onPress={dismiss} style={styles.button} testID="seasonal-notice-dismiss" />
+        </View>
+      </View>
+    );
+  }
+
+  const reminder = nextSeasonalReminder(items, { now: new Date(), subscribed: new Set(subscribed), dismissed: new Set(dismissedReminders) });
+  if (!reminder) return null;
   return (
-    <View style={[styles.card, { bottom: insets.bottom + space.s }]} accessibilityLiveRegion="polite" testID="seasonal-notice">
-      <InlineState
-        kind="success"
-        title={t('season.notice.title')}
-        body={t(notice.item.mint_enabled ? 'season.notice.claimable' : 'season.notice.notOpen', { name: `${name} ${notice.item.year}` })}
-      />
+    <View style={[styles.card, { bottom: insets.bottom + space.s }]} accessibilityLiveRegion="polite" testID={`seasonal-reminder-${reminder.phase}`}>
+      <InlineState kind="info" title={t('season.reminder.title')} body={reminderBody(t, reminder, nameOf(reminder.themeId, reminder.year))} />
       <View style={styles.actions}>
-        <Button label={t('season.notice.open')} onPress={() => { onOpen(); dismiss(); }} style={styles.button} testID="seasonal-notice-open" />
-        <Button label={t('common.close')} variant="secondary" onPress={dismiss} style={styles.button} testID="seasonal-notice-dismiss" />
+        <Button label={t('season.notice.open')} onPress={() => { onOpen(); void reminders.dismiss(reminder.campaignId, reminder.phase); }} style={styles.button} testID="seasonal-reminder-see" />
+        <Button label={t('common.close')} variant="secondary" onPress={() => void reminders.dismiss(reminder.campaignId, reminder.phase)} style={styles.button} testID="seasonal-reminder-close" />
       </View>
     </View>
   );
+}
+
+/** 截止時刻一律以**活動時區**顯示：提醒說的是活動的期限，不是裝置目前設定的時區 */
+function reminderBody(t: (k: TKey, p?: Record<string, string | number>) => string, r: SeasonalReminder, name: string): string {
+  const when = r.deadline.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: r.displayTimezone });
+  if (r.phase === 'open') return t('season.reminder.open', { name, when, min: r.minMovingMinutes });
+  if (r.phase === 'grace') return t('season.reminder.grace', { name, when });
+  return t('season.reminder.soon', { name, when, tz: r.displayTimezone });
 }
 
 const styles = StyleSheet.create({

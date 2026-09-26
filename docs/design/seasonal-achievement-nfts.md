@@ -72,7 +72,7 @@
 | PG-SEASON-03 | 原創 SVG 美術、任務／詳情／年度收藏與多語文案 | P1・**WIP**（`components/SeasonalBadge.tsx` 程序繪製五種主題＋上鎖鎖圖示；`components/SeasonalFootprints.tsx` 掛在 Gear 收藏頁，顯示窗口狀態、活動時區＋本地時間、單筆 20 分規則、進度與「看這次運動」；年份篩選（跨年份才出現、新的在前）與收藏頁分類切換（全部／跑鞋／里程碑／節日，預設全部）已做；zh／en 文案齊。個人最佳仍在「運動」分頁，沒有搬進收藏頁，畫面上另寫一行說明。「已收藏／可領取／未解鎖」狀態篩選要等 04 有領取路徑才有意義） |
 | PG-SEASON-04 | seasonal mint-intent、registry proof、receipt 與錢包整合 | P1・TODO；需確認鏈上相容性。**目前 API 刻意不含任何 mintable／achievement 欄位**（`mint_enabled:false`），資料庫 `achievements_kind_ck` 也還沒有 `seasonal`，避免偽裝成 `first_5k` |
 | PG-SEASON-05 | 核准通知、揭曉、社群卡與同意模型 | P1・**WIP**（`components/SeasonalNotice.tsx` 資格核准通知——文案跟著 `mint_enabled`，目前一律說「本屆尚未開放領取」，**沒有領取按鈕**；`pending_review` 不彈通知。`domain/shareImage.ts` 的 `seasonalShareLayout` ＋ 收藏頁分享入口：徽章用與畫面同一份 `SeasonalBadgeArt` 美術，狀態如實（待驗證／已達標／可領取），`chainAsset` 一律 false 所以不掛網路標示；活動窗口（公開）必出現，使用者自己達標的時間預設關閉、勾選後只到月份。落地頁 `web/s/seasonal.html` ＋ `web/og/seasonal-v1.png`，後端 `share_aggregates` 允許 `seasonal`。**揭曉動畫與「可領取」流程仍未做**——沒有 mint 路徑就沒有可揭曉的東西，等 04） |
-| PG-SEASON-06 | 提醒訂閱、推播與年度營運工具 | P2・TODO |
+| PG-SEASON-06 | 提醒訂閱、推播與年度營運工具 | P2・**WIP**（提醒訂閱：`state/seasonalReminderStore.ts` 存在**本機、不分錢包、不上傳**——訂閱的是公開活動，而且沒有推播通道時把「誰在等哪一屆」收到後端只是多存沒用途的資料；未登入也能訂閱。判定在純函式 `domain/seasonalReminder.ts`：`open`（還能出門走一趟）＞ `grace`（只能把窗口內那一筆同步上來）＞ `soon`（開始前 7 天內），已達標／待驗證不提醒，同一屆每階段只提醒一次。提醒與資格核准共用 `SeasonalNotice` 那一個浮層，**核准優先**。年度營運工具：`backend/src/seasonal/check.ts`（`npm run seasonal:check`）驗設定並印出換算回活動時區的實際日期，`scripts/ops/seasonal.sh --remote` 再跟線上 `/v1/seasonal` 對帳；已納入 `scripts/test-all.sh`。**系統推播仍未做**——App 沒有本機排程通知也沒有 push，所以文案一律寫「只會在你打開 App 時提醒」） |
 
 先保住本次參賽的核心錄製與正式驗收，節日系列作 roadmap；只有完成一屆端到端實測後，才能移到 current features。測試至少包含窗口起訖毫秒、跨午夜、DST、改手機時區、20 分門檻邊界、離線寬限、重複匯入、待審後核准、跨帳號、拒簽、重試已鑄造、撤銷以及收藏年份排序。Demo 可展示標示 Prototype 的測試窗口，不能偽造過去節日實際獲得紀錄。
 

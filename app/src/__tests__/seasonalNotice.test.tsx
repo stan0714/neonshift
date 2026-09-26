@@ -11,11 +11,12 @@ import { AppState } from 'react-native';
 
 import { SeasonalNotice } from '@/components/SeasonalNotice';
 import { t, useLocaleStore } from '@/i18n';
+import { useSeasonalReminderStore } from '@/state/seasonalReminderStore';
 import { useWalletStore } from '@/state/walletStore';
 import { ThemeProvider } from '@/theme';
 
-jest.mock('@/services/api/ApiClient', () => ({ apiClient: { mySeasonal: jest.fn() } }));
-const api = jest.requireMock('@/services/api/ApiClient').apiClient as { mySeasonal: jest.Mock };
+jest.mock('@/services/api/ApiClient', () => ({ apiClient: { mySeasonal: jest.fn(), seasonal: jest.fn() } }));
+const api = jest.requireMock('@/services/api/ApiClient').apiClient as { mySeasonal: jest.Mock; seasonal: jest.Mock };
 
 const campaign = (o: Record<string, unknown> = {}) => ({
   campaign_id: 'genesis-stride-2027', theme_id: 'genesis_stride', year: 2027, art_version: 1, rules_version: 1, prototype: false,
@@ -32,6 +33,7 @@ beforeEach(() => {
   Object.defineProperty(AppState, 'currentState', { configurable: true, value: 'active' });
   jest.spyOn(SecureStore, 'getItemAsync').mockResolvedValue(null);
   useWalletStore.setState({ session: { address: 'walletA' } as never });
+  useSeasonalReminderStore.setState({ loaded: true, subscribed: [], dismissed: [] });
 });
 afterEach(async () => { await cleanup(); jest.restoreAllMocks(); });
 
@@ -83,4 +85,52 @@ test('讀不到伺服器不會清掉也不會偽造通知；未登入完全不�
   useWalletStore.setState({ session: null as never });
   await render(<ThemeProvider><SeasonalNotice onOpen={jest.fn()} /></ThemeProvider>);
   expect(api.mySeasonal).not.toHaveBeenCalled();
+});
+
+/**
+ * PG-SEASON-06：同一個浮層也負責訂閱提醒。共用一個位置是刻意的——兩個浮層互相蓋住
+ * 才是真正的問題；資格核准（已經發生的事）永遠優先於提醒（還沒發生的事）。
+ */
+describe('訂閱提醒（PG-SEASON-06）', () => {
+  const open = () => campaign({ status: 'locked', window: { starts_at: '2027-03-16T00:00:00.000Z', ends_at: '2027-03-17T00:00:00.000Z', display_timezone: 'UTC', state: 'open' } });
+
+  beforeEach(() => jest.useFakeTimers({ now: new Date('2027-03-16T06:00:00Z'), doNotFake: ['nextTick', 'setImmediate'] }));
+  afterEach(() => jest.useRealTimers());
+
+  test('沒訂閱 → 不提醒，而且未登入時連請求都不發', async () => {
+    useWalletStore.setState({ session: null as never });
+    await render(<ThemeProvider><SeasonalNotice onOpen={jest.fn()} /></ThemeProvider>);
+    expect(api.mySeasonal).not.toHaveBeenCalled();
+    expect(api.seasonal).not.toHaveBeenCalled();
+  });
+
+  test('未登入但訂閱了 → 查公開目錄並提醒進行中的那一屆', async () => {
+    useWalletStore.setState({ session: null as never });
+    useSeasonalReminderStore.setState({ loaded: true, subscribed: ['genesis-stride-2027'], dismissed: [] });
+    api.seasonal.mockResolvedValue({ items: [open()] });
+    await render(<ThemeProvider><SeasonalNotice onOpen={jest.fn()} /></ThemeProvider>);
+    await waitFor(() => expect(screen.getByTestId('seasonal-reminder-open')).toBeTruthy());
+    expect(api.mySeasonal).not.toHaveBeenCalled();
+    // 文案講的是「還能做什麼」，不是「你已經拿到了」
+    expect(screen.getByText(/is open until/)).toBeTruthy();
+    expect(screen.getByText(/20 minutes/)).toBeTruthy();
+  });
+
+  test('資格核准優先於提醒（已經發生的事先講）', async () => {
+    useSeasonalReminderStore.setState({ loaded: true, subscribed: ['genesis-stride-2027'], dismissed: [] });
+    api.mySeasonal.mockResolvedValue({ items: [campaign({ status: 'eligible' })] });
+    await render(<ThemeProvider><SeasonalNotice onOpen={jest.fn()} /></ThemeProvider>);
+    await waitFor(() => expect(screen.getByTestId('seasonal-notice')).toBeTruthy());
+    expect(screen.queryByTestId('seasonal-reminder-open')).toBeNull();
+  });
+
+  test('關掉提醒會記在本機；同一個階段不再出現', async () => {
+    useSeasonalReminderStore.setState({ loaded: true, subscribed: ['genesis-stride-2027'], dismissed: [] });
+    api.mySeasonal.mockResolvedValue({ items: [open()] });
+    await render(<ThemeProvider><SeasonalNotice onOpen={jest.fn()} /></ThemeProvider>);
+    await waitFor(() => expect(screen.getByTestId('seasonal-reminder-open')).toBeTruthy());
+    await fireEvent.press(screen.getByTestId('seasonal-reminder-close'));
+    await waitFor(() => expect(screen.queryByTestId('seasonal-reminder-open')).toBeNull());
+    expect(useSeasonalReminderStore.getState().dismissed).toEqual(['open:genesis-stride-2027']);
+  });
 });

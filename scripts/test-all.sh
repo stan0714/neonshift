@@ -112,6 +112,19 @@ else
   skip "Node.js 未安裝或 app/ 尚未 npm install"
 fi
 
+section "節日活動設定（PG-SEASON-06）"
+if command -v node >/dev/null && [ -d backend/node_modules ]; then
+  # 設定寫錯（UTC 窗口算錯、expect_local_days 打錯、DST 讓當地日期跑掉）在這裡就要失敗，
+  # 而不是等部署時 API 啟動不起來
+  if (cd backend && npm run -s seasonal:check) >/tmp/ns-seasonal.log 2>&1; then
+    ok "$(tail -1 /tmp/ns-seasonal.log)"
+  else
+    bad "節日活動設定"; tail -20 /tmp/ns-seasonal.log
+  fi
+else
+  skip "Node.js 未安裝或 backend/ 尚未 npm install"
+fi
+
 section "網站社群預覽（OG head）"
 if command -v node >/dev/null; then
   if node tools/og-assets/verify.mjs >/tmp/ns-og.log 2>&1; then

@@ -2028,6 +2028,13 @@ export const en = {
   'season.notice.notOpen': '{name} is earned. Claiming is not open for this edition yet — your eligibility is kept.',
   'season.notice.claimable': '{name} is earned and ready to claim.',
   'season.notice.open': 'Open collection',
+  // PG-SEASON-06 reminder subscription (in-app only, no push)
+  'season.remind': 'Remind me before it starts',
+  'season.remindNote': 'NeonShift only reminds you when you open the app. There is no background push, and this subscription is never uploaded.',
+  'season.reminder.title': 'Seasonal reminder',
+  'season.reminder.soon': '{name} starts {when} ({tz}).',
+  'season.reminder.open': '{name} is open until {when}. One walk or run with {min} minutes of moving time counts.',
+  'season.reminder.grace': '{name} has ended. A qualifying workout from inside the window can still be synced until {when}.',
   'season.name.genesis_stride': 'Genesis Stride',
   'season.name.seeker_horizon': 'Seeker Horizon',
   'season.name.moonlit_steps': 'Moonlit Steps',
