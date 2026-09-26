@@ -3,6 +3,8 @@ import { Alert, Animated, Easing, Linking, Modal, ScrollView, Share, StyleSheet,
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from './Button';
+import { ShareImageBlock } from './ShareImageBlock';
+import { guardianShareLayout, shareUrl } from '@/domain/shareImage';
 import { WildlifeSilhouette } from './WildlifeSilhouette';
 import { ShoeHero } from './ShoeHero';
 import { APP_CONFIG } from '@/config/app';
@@ -24,6 +26,7 @@ function GuardianMilestoneContent({ level, preview = false, autoCheck = false }:
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const request = useRef(0);
   useEffect(() => () => { request.current += 1; }, [level, preview]);
   const ref = GUARDIAN_REFERENCES[level];
@@ -74,6 +77,18 @@ function GuardianMilestoneContent({ level, preview = false, autoCheck = false }:
     <Text variant="caption" tone="muted">{t('guardian.countNote')}</Text>
     <Text variant="caption" tone="muted">{t('guardian.impactNote')}</Text>
     <Button label={t('guardian.invite')} variant="secondary" onPress={() => void share()} testID="guardian-share" />
+    {/* PG-SHARE-06 卡型 E：故事卡只有物種、一句依據與共同進度，不含任何個人數據 */}
+    {ref ? <Button label={t('share.card.image')} variant="secondary" onPress={() => setShareOpen((o) => !o)} accessibilityState={{ expanded: shareOpen }} testID="guardian-share-image" /> : null}
+    {shareOpen && ref ? (
+      <ShareImageBlock
+        layout={guardianShareLayout(
+          { speciesName: title, storyLine: t(`guardian.reference.${ref.qualifier}` as TKey, { n: ref.threshold.toLocaleString() }), progressLabel: total !== null ? t('guardian.count', { n: total.toLocaleString() }) : null, level },
+          { t: (k, p) => t(k as TKey, p), labels: { tagline: t('share.card.tagline'), site: 'neonshift.cc' }, qr: shareUrl(APP_CONFIG.siteUrl, 'guardian', 'guardian') },
+        )}
+        caption={`${t('guardian.shareText', { name: title })}\n${shareUrl(APP_CONFIG.siteUrl, 'guardian', 'guardian')}`}
+        prefix="guardian-share-card"
+      />
+    ) : null}
     {visible && unlocked ? <GuardianScene level={level} preview={preview} total={total!} onClose={() => setVisible(false)} onShare={() => void share()} /> : null}
   </View>;
 }

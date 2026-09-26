@@ -24,8 +24,19 @@ const EMBLEM_LABEL: Record<string, string> = {
   fastest_1k: '1K', fastest_5k: '5K', fastest_10k: '10K', fastest_half: '21K', fastest_marathon: '42K',
   longest_run: 'MAX', event_check_in: 'IN', event_finish: 'FIN',
 };
-const emblemLabel = (c: string) => EMBLEM_LABEL[c] ?? c.replace(/[^a-z0-9]/gi, '').slice(0, 3).toUpperCase();
-const emblemTint = (c: string) => (c.startsWith('fastest') ? color.violet : c.startsWith('event') ? color.cyan : color.mint);
+/**
+ * 徽章代號：成就用 category（`first_5k`…），其餘卡型用前綴（`shoe:3`、`guardian:2`、`event`）。
+ * 跑鞋階名與物種名已在 lines 裡，徽章只放短標，縮圖後仍讀得出來。
+ */
+const emblemLabel = (c: string) => {
+  const [prefix, arg] = c.split(':');
+  if (prefix === 'shoe') return `Lv.${arg ?? '1'}`;
+  if (prefix === 'guardian') return 'WILD';
+  if (c === 'event') return 'EVT';
+  return EMBLEM_LABEL[c] ?? c.replace(/[^a-z0-9]/gi, '').slice(0, 3).toUpperCase();
+};
+const emblemTint = (c: string) =>
+  c.startsWith('fastest') || c.startsWith('guardian') ? color.violet : c.startsWith('event') ? color.cyan : c.startsWith('shoe') ? color.magenta : color.mint;
 
 /** 折行：SVG 沒有自動換行。有空白依詞切，中文等無空白語言依字數切 */
 export function wrapText(s: string, max: number, maxLines = 2): string[] {
@@ -70,17 +81,30 @@ function qrPath(value: string, size: number): { d: string; modules: number } | n
 export const ShareCard = forwardRef<Svg, { layout: ShareImageLayout; width?: number; a11yLabel?: string; testID?: string }>(
   function ShareCard({ layout, width = 340, a11yLabel, testID = 'share-card' }, ref) {
     const tint = layout.emblem ? emblemTint(layout.emblem) : color.mint;
-    const isAchievement = layout.kind === 'achievement';
-    // 主數字（§4.2 一張圖一個主數字）：成就卡的章名比距離長，字級隨長度縮
-    const heroLines = isAchievement ? wrapText(layout.hero.value, 15) : [layout.hero.value];
-    const heroSize = isAchievement ? (layout.hero.value.length <= 12 ? 112 : 88) : 200;
-    let y = isAchievement ? 300 : 260;
+    // 主數字是文字（章名、活動名、物種名）時要折行並縮字級；數字（距離、里程）維持大字
+    const textHero = layout.hero.unit === '';
+    const hasEmblem = layout.emblem !== null;
+    const heroLines = textHero ? wrapText(layout.hero.value, 15) : [layout.hero.value];
+    const heroSize = textHero ? (layout.hero.value.length <= 12 ? 112 : 88) : 200;
+    let y = textHero ? 300 : 260;
     const heroTop = y;
-    y += heroSize * heroLines.length + (isAchievement ? 24 : 0);
-    const emblemY = isAchievement ? y + 190 : 0;
-    if (isAchievement) y += 400;
+    y += heroSize * heroLines.length + (textHero ? 24 : 0);
+    // 徽章與行距一起算：行數多時縮徽章、必要時縮行距，讓最後一行不會壓到分隔線
+    const afterHero = y;
+    const fit = (() => {
+      for (const block of hasEmblem ? [400, 320, 260] : [0]) {
+        for (const gap of [58, 52]) {
+          const top = afterHero + block + 56;
+          if (top + (layout.lines.length - 1) * gap <= 1040) return { block, gap };
+        }
+      }
+      return { block: hasEmblem ? 260 : 0, gap: 52 };
+    })();
+    const emblemR = fit.block >= 400 ? 176 : fit.block >= 320 ? 140 : 112;
+    const emblemY = hasEmblem ? afterHero + fit.block / 2 : 0;
+    y = afterHero + fit.block;
     const lineTop = y + 56;
-    y = lineTop + (layout.lines.length - 1) * 58;
+    y = lineTop + (layout.lines.length - 1) * fit.gap;
     const chipTop = layout.chips.length ? y + 72 : y;
     const chipRows = Math.ceil(layout.chips.length / 4);
     y = chipTop + chipRows * 86;
@@ -115,16 +139,16 @@ export const ShareCard = forwardRef<Svg, { layout: ShareImageLayout; width?: num
           </SvgText>
         ))}
 
-        {isAchievement && layout.emblem ? (
+        {hasEmblem && layout.emblem ? (
           <G testID={`share-card-emblem-${layout.emblem}`}>
-            <Circle cx={W / 2} cy={emblemY} r={176} fill={color.surface} stroke={tint} strokeWidth={4} />
-            <Circle cx={W / 2} cy={emblemY} r={148} fill="none" stroke={tint} strokeOpacity={0.35} strokeWidth={2} strokeDasharray="8 14" />
-            <SvgText x={W / 2} y={emblemY + 34} fontSize={96} fontWeight="700" fill={tint} textAnchor="middle">{emblemLabel(layout.emblem)}</SvgText>
+            <Circle cx={W / 2} cy={emblemY} r={emblemR} fill={color.surface} stroke={tint} strokeWidth={4} />
+            <Circle cx={W / 2} cy={emblemY} r={emblemR - 28} fill="none" stroke={tint} strokeOpacity={0.35} strokeWidth={2} strokeDasharray="8 14" />
+            <SvgText x={W / 2} y={emblemY + emblemR * 0.2} fontSize={Math.round(emblemR * 0.55)} fontWeight="700" fill={tint} textAnchor="middle">{emblemLabel(layout.emblem)}</SvgText>
           </G>
         ) : null}
 
         {layout.lines.map((l, i) => (
-          <SvgText key={`line${i}`} x={PAD} y={lineTop + i * 58} fontSize={40} fill={color.textPrimary} testID={`share-card-line-${i}`}>{l}</SvgText>
+          <SvgText key={`line${i}`} x={PAD} y={lineTop + i * fit.gap} fontSize={fit.gap >= 58 ? 40 : 36} fill={color.textPrimary} testID={`share-card-line-${i}`}>{l}</SvgText>
         ))}
 
         {layout.chips.map((c, i) => {

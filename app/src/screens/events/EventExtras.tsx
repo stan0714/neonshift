@@ -3,7 +3,9 @@ import { useNavigation } from '@react-navigation/native';
 import { useEffect, useState } from 'react';
 import { Pressable, Share, StyleSheet, View } from 'react-native';
 
-import { Chip, InlineState, Surface } from '@/components';
+import { Button, Chip, InlineState, Surface } from '@/components';
+import { ShareImageBlock } from '@/components/ShareImageBlock';
+import { eventShareLayout } from '@/domain/shareImage';
 import { useT, type TKey } from '@/i18n';
 import { ApiError, apiClient, type EventRegistration, type PartnerEventView } from '@/services/api/ApiClient';
 import { useWalletStore } from '@/state/walletStore';
@@ -114,15 +116,48 @@ export function EventProgress({ event, reg }: { event: PartnerEventView; reg: Ev
   );
 }
 
+const inviteUrl = (event: PartnerEventView) => `https://neonshift.cc/e/${event.slug}?source=invite`;
+
 /** 邀請一起參加（review P2-8：與「分享我的完賽」分開）：只含活動名、時間與報名連結，不含任何個人資料 */
 export async function shareInvite(t: T, event: PartnerEventView) {
-  const url = `https://neonshift.cc/e/${event.slug}?source=invite`;
-  const message = t('ev.inviteText', { title: event.title, when: fmtWhen(event.starts_at, event.timezone), url });
+  const message = t('ev.inviteText', { title: event.title, when: fmtWhen(event.starts_at, event.timezone), url: inviteUrl(event) });
   try {
     await Share.share({ message, title: event.title });
   } catch {
     /* 使用者取消 */
   }
+}
+
+/**
+ * 邀請卡（PG-SHARE-06 卡型 C）。圖片預覽只在按下邀請後才產生（QR 要算，不必每次重繪活動頁）。
+ * 圖上只有主辦方公開資訊：活動名、時間與「名額請看活動頁」——名額會變動，寫死在圖裡會過期。
+ * 不含報名資料、報到碼與 NFC tag；連結沿用 `/e/<slug>?source=invite`，不夾帶其他 query。
+ */
+export function EventInvite({ event }: { event: PartnerEventView }) {
+  const { t } = useT();
+  const [open, setOpen] = useState(false);
+  const url = inviteUrl(event);
+  const layout = eventShareLayout(
+    {
+      title: event.title,
+      whenLabel: `${fmtWhen(event.starts_at, event.timezone)} (${event.timezone})`,
+      // 主辦方名稱與地點目前不在公開活動資料裡：不猜、不從時區推地名
+      cityLabel: null,
+      organizer: null,
+    },
+    { t: (k, p) => t(k as TKey, p), labels: { tagline: t('share.card.tagline'), site: 'neonshift.cc' }, qr: url },
+  );
+  return (
+    <Surface style={styles.mt} testID="event-invite-card">
+      <Button label={t('ev.invite')} variant="secondary" onPress={() => setOpen((o) => !o)} accessibilityState={{ expanded: open }} testID="event-invite" />
+      {open ? (
+        <>
+          <ShareImageBlock layout={layout} caption={t('ev.inviteText', { title: event.title, when: fmtWhen(event.starts_at, event.timezone), url })} prefix="event-invite-share" />
+          <Button label={t('share.card.shareTextInstead')} variant="secondary" onPress={() => void shareInvite(t, event)} testID="event-invite-text" />
+        </>
+      ) : null}
+    </Surface>
+  );
 }
 
 /**

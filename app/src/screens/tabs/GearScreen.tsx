@@ -11,6 +11,8 @@ import { formatEditionNo } from "@/components/CollectorPlate";
 import { ShoeHero } from "@/components/ShoeHero";
 import { Milestones } from "@/screens/workouts/Milestones";
 import { SeasonalFootprints } from "@/components/SeasonalFootprints";
+import { ShareImageBlock } from "@/components/ShareImageBlock";
+import { gearShareLayout, shareUrl } from "@/domain/shareImage";
 import { maintenanceView, nextSteps } from "@/domain/maintenance";
 import { freezeActive } from "@/chain/accounts";
 import { shoeSection, type ShoeSection } from "@/domain/collectibles";
@@ -54,6 +56,7 @@ export function GearScreen() {
   /** 點鞋子開詳情面板（2026-09-16 專案負責人指示）；記 kind 而非物件，資料變動時面板跟著更新 */
   const [detailKind, setDetailKind] = useState<ShoeLevel | null>(null);
   const [previewLevel, setPreviewLevel] = useState<ShoeLevel | null>(null);
+  const [gearShareOpen, setGearShareOpen] = useState(false);
   /** PG-LINK-01：外觀（可切換的已取得跑鞋＋棲地背景）與有效等級分開 */
   const ap = useAppearance();
   // 每雙鞋的運動歷程（本機紀錄，依開始時鞋款快照歸組；recorder 變化時重算）
@@ -308,6 +311,38 @@ export function GearScreen() {
           );
         })}
       </ScrollView>
+      {/* PG-SHARE-06 卡型 D：目前這雙鞋的累積里程；已領取紀念 NFT 才算鏈上資產並標示網路 */}
+      {(() => {
+        const inUseShoe = ap.owned.find((s) => s.level === ap.level);
+        const miles = inUseShoe ? mileage[inUseShoe.id] : undefined;
+        if (!inUseShoe || !miles?.count) return null;
+        const claimed = collectibleStatus(d.profile, c.claimed, ap.level) === "claimed";
+        return (
+          <Surface style={styles.mtXs} testID="gear-share-card">
+            <Button label={t("share.card.image")} variant="secondary" onPress={() => setGearShareOpen((o) => !o)} accessibilityState={{ expanded: gearShareOpen }} testID="gear-share-open" />
+            {gearShareOpen ? (
+              <ShareImageBlock
+                layout={gearShareLayout(
+                  {
+                    levelName: stageName(t, ap.level),
+                    level: ap.level,
+                    kmTotal: (miles.distanceMm / 1_000_000).toFixed(1),
+                    nextLabel: null,
+                    claimedOnChain: claimed,
+                  },
+                  {
+                    t: (k, p) => t(k as TKey, p),
+                    labels: { tagline: t("share.card.tagline"), site: "neonshift.cc", notice: APP_CONFIG.cluster === "mainnet-beta" ? t("share.card.net.mainnet") : t("share.card.net.devnet") },
+                    qr: shareUrl(APP_CONFIG.siteUrl, "gear", "levelup"),
+                  },
+                )}
+                caption={t("share.invite.gear", { level: stageName(t, ap.level), km: (miles.distanceMm / 1_000_000).toFixed(1), url: shareUrl(APP_CONFIG.siteUrl, "gear", "levelup") })}
+                prefix="gear-share"
+              />
+            ) : null}
+          </Surface>
+        );
+      })()}
       <Surface style={styles.mtXs} testID="gear-bg-card">
         <View style={styles.rowBetween}>
           <Text variant="bodySmall" tone="secondary" style={styles.flex}>{t("gear.bg.follow")}</Text>

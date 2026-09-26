@@ -7,7 +7,7 @@ import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import { SignInState } from '@/components/SignInState';
 import type { RootParamList } from '@/navigation/types';
 import { ApiError, apiClient, type EventRegistration, type PartnerEventView, type TagState } from '@/services/api/ApiClient';
-import { EventProgress, MyEvents, RulesCard, shareInvite } from './EventExtras';
+import { EventInvite, EventProgress, MyEvents, RulesCard } from './EventExtras';
 
 import { CheckInCode } from './CheckInCode';
 import { EventBadges } from './EventBadges';
@@ -236,7 +236,7 @@ export function EventDetailScreen() {
 
           {event.rules ? <RulesCard event={event} /> : null}
           {registered && reg ? <EventProgress event={event} reg={reg} /> : null}
-          <Button label={t('ev.invite')} variant="secondary" style={styles.card} onPress={() => void shareInvite(t, event)} testID="event-invite" />
+          <EventInvite event={event} />
           {regErr ? <InlineState kind="warning" title={t('ev.regUnknown.title')} body={t('ev.regUnknown.body', { message: regErr.message })} action={{ label: t('common.tryAgain'), onPress: () => void load() }} testID="event-reg-unknown" /> : null}
 
           {outcome ? (

@@ -17,7 +17,7 @@ export const SHARE_RENDERER_VERSION = 1;
 /** 起終點各裁掉的公尺數（§5.2）：出發與結束的位置最敏感 */
 export const SHARE_ROUTE_TRIM_M = 150;
 
-export type ShareImageKind = 'workout' | 'achievement';
+export type ShareImageKind = 'workout' | 'achievement' | 'event' | 'gear' | 'guardian';
 
 /** 路線形狀：已裁去起終點、正規化到 0–1 的單位方框，等比置中。不含座標、時間、距離與比例尺 */
 export type ShareRouteShape = { segments: { x: number; y: number }[][] };
@@ -41,19 +41,25 @@ export type ShareImageLayout = {
   site: string;
   /** QR 內容（DEC-S1：只在 post 尺寸右下角）；不想放時 null */
   qr: string | null;
-  /** 含鏈上資產時必標 DEVNET／測試代幣；無鏈上資產為 null */
+  /** 含鏈上資產時必標所屬網路；無鏈上資產為 null */
   notice: string | null;
+  /**
+   * 這張圖是否描繪鏈上資產（成就收藏、已領取的跑鞋紀念 NFT）。
+   * true 時 notice 必填，否則 `sharePublishable` 直接擋掉——看圖的人要知道是哪個網路。
+   */
+  chainAsset: boolean;
 };
 
 type T = (key: string, params?: Record<string, string | number>) => string;
 
 /**
- * 可發布檢查（§4.2 最後一句）：成就卡是鏈上資產，缺環境標示一律不給出圖。
+ * 可發布檢查（§4.2 最後一句）：描繪鏈上資產的卡缺環境標示一律不給出圖。
+ * 判斷依「這張圖是否畫了鏈上資產」而不是卡型——未領取的跑鞋只是本機里程，不該硬掛網路標示。
  * 出圖前呼叫；測試也用同一個判斷，不另寫一套規則。
  */
 export function sharePublishable(layout: ShareImageLayout): boolean {
   if (!layout.hero.value || !layout.tagline) return false;
-  if (layout.kind === 'achievement' && !layout.notice) return false;
+  if (layout.chainAsset && !layout.notice) return false;
   return true;
 }
 
@@ -119,8 +125,9 @@ export function workoutShareLayout(
     tagline: labels.tagline,
     site: labels.site,
     qr: opts.qr ?? null,
-    // 運動成績卡不含鏈上資產與代幣，不掛 DEVNET；日期只有勾選才出現，且只到月份
+    // 運動成績卡不含鏈上資產與代幣，不掛網路標示；日期只有勾選才出現，且只到月份
     notice: fields.date ? monthOf(w.startedAt) : null,
+    chainAsset: false,
   };
 }
 
@@ -168,6 +175,93 @@ export function achievementShareLayout(
     site: labels.site,
     qr: opts.qr ?? null,
     notice: labels.notice,
+    chainAsset: true,
+  };
+}
+
+/**
+ * 活動邀請卡（卡型 C）。只放主辦方公開資訊：活動名、時間、城市層級地點、主辦方。
+ * 名額會變動，所以圖上不寫剩幾位——落地頁才是即時資訊（§4.3）。
+ * 不含個人報名資料、報到碼、NFC tag 或其他參加者。
+ */
+export function eventShareLayout(
+  e: { title: string; whenLabel: string; cityLabel: string | null; organizer: string | null },
+  opts: { t: T; labels: { tagline: string; site: string }; qr?: string | null },
+): ShareImageLayout {
+  const { t, labels } = opts;
+  const lines = [e.whenLabel];
+  if (e.cityLabel) lines.push(e.cityLabel);
+  if (e.organizer) lines.push(t('share.card.organizer', { name: e.organizer }));
+  lines.push(t('share.card.spotsNote'));
+  return {
+    kind: 'event',
+    label: t('share.card.event'),
+    hero: { value: e.title, unit: '' },
+    lines,
+    chips: [],
+    emblem: 'event',
+    route: null,
+    tagline: labels.tagline,
+    site: labels.site,
+    qr: opts.qr ?? null,
+    notice: null,
+    chainAsset: false,
+  };
+}
+
+/**
+ * 跑鞋里程／升階卡（卡型 D）。主數字是這雙鞋的累積里程。
+ * 只有已在鏈上領取紀念 NFT 才算鏈上資產並帶網路標示；沒領取就只是本機里程，不硬掛 DEVNET。
+ */
+export function gearShareLayout(
+  g: { levelName: string; level: number; kmTotal: string; nextLabel: string | null; claimedOnChain: boolean },
+  opts: { t: T; labels: { tagline: string; site: string; notice?: string | null }; qr?: string | null },
+): ShareImageLayout {
+  const { t, labels } = opts;
+  const lines = [t('share.card.stage', { n: g.level, name: g.levelName })];
+  if (g.nextLabel) lines.push(g.nextLabel);
+  lines.push(t(g.claimedOnChain ? 'share.card.gear.claimed' : 'share.card.gear.unclaimed'));
+  return {
+    kind: 'gear',
+    label: t('share.card.gear'),
+    hero: { value: g.kmTotal, unit: 'km' },
+    lines,
+    chips: [],
+    emblem: `shoe:${g.level}`,
+    route: null,
+    tagline: labels.tagline,
+    site: labels.site,
+    qr: opts.qr ?? null,
+    notice: g.claimedOnChain ? (labels.notice ?? null) : null,
+    chainAsset: g.claimedOnChain,
+  };
+}
+
+/**
+ * Guardian 故事卡（卡型 E）。分享的是故事與共同進度，**不含任何個人數據**。
+ * 也不宣稱已捐款或救援動物——這是學習里程碑（見 guardian.impactNote）。
+ */
+export function guardianShareLayout(
+  g: { speciesName: string; storyLine: string; progressLabel: string | null; level: number },
+  opts: { t: T; labels: { tagline: string; site: string }; qr?: string | null },
+): ShareImageLayout {
+  const { t, labels } = opts;
+  const lines = [g.storyLine];
+  if (g.progressLabel) lines.push(g.progressLabel);
+  lines.push(t('share.card.guardian.note'));
+  return {
+    kind: 'guardian',
+    label: t('share.card.guardian'),
+    hero: { value: g.speciesName, unit: '' },
+    lines,
+    chips: [],
+    emblem: `guardian:${g.level}`,
+    route: null,
+    tagline: labels.tagline,
+    site: labels.site,
+    qr: opts.qr ?? null,
+    notice: null,
+    chainAsset: false,
   };
 }
 
