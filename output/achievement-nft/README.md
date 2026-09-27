@@ -30,3 +30,9 @@
 先重建原六頁簡報，再以含 python-pptx、Pillow 的 Python 執行本目錄 build_deck.py。目前使用 /tmp/neonshift-slides-313/bin/python，字型為 macOS Arial。HTML 需保留 slides 與專案 web/nft 相對位置。
 
 已檢查輸出圖片、文字邊界與 PPTX 頁數；PowerPoint／Keynote 及真機實錄仍待驗收。
+
+## 2026-09-25 年度收藏延伸（設計提案）
+
+新增 [Seasonal Footprints 規格](../../docs/design/seasonal-achievement-nfts.md) 與 [可開啟的 SVG 概念頁](../../docs/design/seasonal-badges-preview.html)：月光足跡、創世步伐、探索者地平線三款原創徽章，以年份、限時條件與取得紀錄強化收藏動機。參賽說明可使用 [pitch 補充](../../docs/store/pitch.md)。
+
+本節為原三頁成就附錄的後續提案；此目錄 PPTX／PDF 尚未加入這三款，概念頁不可稱作已發行資產或正式 Mint 示範。
