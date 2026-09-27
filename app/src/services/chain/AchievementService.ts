@@ -30,6 +30,10 @@ export const achievementService = {
   eventBadgeIntent(eventId: string, kind: 'check_in' | 'finish', publicConsent: boolean) {
     return apiClient.eventBadgeMintIntent(eventId, kind, publicConsent);
   },
+  /** PG-SEASON-04：節日收藏（每玩家每屆一枚；鏈上整個系列共用 category 14，主題／年份在 metadata） */
+  seasonalIntent(campaignId: string, publicConsent: boolean) {
+    return apiClient.seasonalMintIntent(campaignId, publicConsent);
+  },
 
   async mint(wallet: PublicKey, intent: MintIntent, onPhase?: (phase: 'wallet' | 'confirming') => void): Promise<MintOutcome> {
     if (!APP_CONFIG.chainConfigured) throw new ClaimError('NOT_AVAILABLE', 'Onchain program is not configured for this build');

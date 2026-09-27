@@ -5,7 +5,7 @@ mod common;
 
 use {
     anchor_lang::{prelude::Pubkey, solana_program::system_program, InstructionData, ToAccountMetas},
-    attestation_core::{AchievementProof, ACHIEVEMENT_VERSION, CATEGORY_FASTEST_5K, CLASS_DEVICE},
+    attestation_core::{AchievementProof, ACHIEVEMENT_VERSION, CATEGORY_EVENT_CHECK_IN, CATEGORY_EVENT_FINISH, CATEGORY_FASTEST_5K, CATEGORY_FIRST_5K, CATEGORY_LONGEST_RUN, CATEGORY_MAX, CATEGORY_SEASONAL, CLASS_DEVICE},
     common::*,
     neonshift_core::{instruction as ix, mpl_core::MPL_CORE_ID, AchievementArgs, AchievementEligibility, AchievementReceipt, SetEligibilityParams},
     solana_keypair::Keypair,
@@ -43,12 +43,18 @@ impl World {
         self.player.key.pubkey()
     }
     fn args(&self, id: [u8; 32], source_revision: u32, metadata_hash: [u8; 32]) -> AchievementArgs {
+        self.args_cat(id, source_revision, metadata_hash, CATEGORY_FASTEST_5K)
+    }
+    fn args_cat(&self, id: [u8; 32], source_revision: u32, metadata_hash: [u8; 32], category: u8) -> AchievementArgs {
         let now = now(&self.env.svm);
-        AchievementArgs { version: ACHIEVEMENT_VERSION, program_id: neonshift_core::id(), cluster_id: CLUSTER_LOCALNET, wallet: self.wallet(), achievement_id: id, category: CATEGORY_FASTEST_5K, verification_class: CLASS_DEVICE, source_revision, rules_version: 1, metadata_hash, issued_at: now - 5, expiry: now + 600, nonce: [7; 16] }
+        AchievementArgs { version: ACHIEVEMENT_VERSION, program_id: neonshift_core::id(), cluster_id: CLUSTER_LOCALNET, wallet: self.wallet(), achievement_id: id, category, verification_class: CLASS_DEVICE, source_revision, rules_version: 1, metadata_hash, issued_at: now - 5, expiry: now + 600, nonce: [7; 16] }
     }
     fn set_eligibility(&mut self, id: [u8; 32], status: u8, source_revision: u32, metadata_hash: [u8; 32]) -> litesvm::types::TransactionResult {
+        self.set_eligibility_cat(id, status, source_revision, metadata_hash, CATEGORY_FASTEST_5K)
+    }
+    fn set_eligibility_cat(&mut self, id: [u8; 32], status: u8, source_revision: u32, metadata_hash: [u8; 32], category: u8) -> litesvm::types::TransactionResult {
         let wallet = self.wallet();
-        let params = SetEligibilityParams { wallet, achievement_id: id, category: CATEGORY_FASTEST_5K, verification_class: CLASS_DEVICE, status, source_revision, metadata_hash };
+        let params = SetEligibilityParams { wallet, achievement_id: id, category, verification_class: CLASS_DEVICE, status, source_revision, metadata_hash };
         let ixn = anchor_lang::solana_program::instruction::Instruction::new_with_bytes(
             neonshift_core::id(),
             &ix::SetAchievementEligibility { params }.data(),
@@ -180,4 +186,65 @@ fn only_admin_can_set_eligibility() {
     );
     let res = send(&mut w.env.svm, &[ixn], &stranger, &[]);
     assert!(res.is_err());
+}
+
+/// 讀 Metaplex Core asset 的鏈上名稱（與既有測試同一個 offset 解法）
+fn asset_name(svm: &litesvm::LiteSVM, asset: &Pubkey) -> String {
+    let acc = svm.get_account(asset).unwrap();
+    let d = &acc.data;
+    let name_len = u32::from_le_bytes(d[66..70].try_into().unwrap()) as usize;
+    String::from_utf8(d[70..70 + name_len].to_vec()).unwrap()
+}
+
+/// PG-SEASON-04：節日收藏用**整個系列共用的 category 14**，唯一性靠 achievement_id。
+/// 這個測試同時釘住兩件事：14 是合法類別，而且鏈上名稱是系列名（主題與年份在鏈下 metadata）。
+#[test]
+fn seasonal_category_mints_with_series_name() {
+    let mut w = world();
+    let meta = [0x66; 32];
+    // 同一個主題的不同年份＝不同 achievement_id，兩枚都鑄得出來（PDA 以 id 為 seed，不會撞）
+    let id_2027 = [0x71; 32];
+    let id_2028 = [0x72; 32];
+    w.set_eligibility_cat(id_2027, 1, 1, meta, CATEGORY_SEASONAL).unwrap();
+    let (res, asset) = w.claim(w.args_cat(id_2027, 1, meta, CATEGORY_SEASONAL));
+    res.unwrap();
+    let r: AchievementReceipt = read(&w.env.svm, &pda(ACHIEVEMENT_SEED, &w.wallet(), &id_2027));
+    assert_eq!((r.category, r.asset), (CATEGORY_SEASONAL, asset));
+    assert_eq!(asset_name(&w.env.svm, &asset), "NeonShift Seasonal Footprints (Device)");
+
+    w.set_eligibility_cat(id_2028, 1, 1, meta, CATEGORY_SEASONAL).unwrap();
+    let (res2, asset2) = w.claim(w.args_cat(id_2028, 1, meta, CATEGORY_SEASONAL));
+    res2.unwrap();
+    assert_ne!(asset, asset2);
+}
+
+/// 2026-09-27 修正：里程碑與活動留念章原本全部落到 `_ => "Longest Run"`，
+/// 首次 5K 的收藏會被命名成「NeonShift PB · Longest Run」。名稱寫進鏈上改不了，所以要釘住。
+#[test]
+fn milestone_and_event_categories_are_named_correctly() {
+    let mut w = world();
+    let meta = [0x66; 32];
+    for (i, (category, expected)) in [
+        (CATEGORY_FIRST_5K, "NeonShift First · 5K (Device)"),
+        (CATEGORY_LONGEST_RUN, "NeonShift PB · Longest Run (Device)"),
+        (CATEGORY_EVENT_CHECK_IN, "NeonShift Event · Check-In (Device)"),
+        (CATEGORY_EVENT_FINISH, "NeonShift Event · Finish (Device)"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let id = [0x80 + i as u8; 32];
+        w.set_eligibility_cat(id, 1, 1, meta, category).unwrap();
+        let (res, asset) = w.claim(w.args_cat(id, 1, meta, category));
+        res.unwrap();
+        assert_eq!(asset_name(&w.env.svm, &asset), expected, "category {category}");
+    }
+}
+
+/// 上限之外的類別連 registry 都不該寫得進去（否則會鑄出一個沒有定義的系列）
+#[test]
+fn rejects_category_above_max() {
+    let mut w = world();
+    assert!(w.set_eligibility_cat([0x90; 32], 1, 1, [0x66; 32], CATEGORY_MAX + 1).is_err());
+    assert!(w.set_eligibility_cat([0x91; 32], 1, 1, [0x66; 32], 0).is_err());
 }

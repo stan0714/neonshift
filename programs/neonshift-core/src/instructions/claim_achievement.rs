@@ -126,21 +126,41 @@ pub struct ClaimAchievement<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// 鏈上名稱與 metadata URI。
+///
+/// URI 一律是 `{BASE_URI}{achievement_id}.json`——**每一枚都有自己的 metadata**，
+/// 所以主題、年份、規則／美術版本這類會逐屆變動的東西放在鏈下那份 JSON，不需要為它們
+/// 各開一個 category（PG-SEASON-04 的決定；見 attestation_core::CATEGORY_SEASONAL）。
+///
+/// 名稱依系列分前綴：PB 用 `NeonShift PB · …`，其餘系列用自己的名字。
+/// **2026-09-27 修正**：原本只列 1..=5，其餘（含 7..=13 的里程碑與活動留念章）全部落到
+/// `_ => "Longest Run"`，也就是首次 5K 的收藏會被命名成「NeonShift PB · Longest Run」。
+/// 名稱寫進鏈上、之後改不了，所以這是必須修的錯誤標示，不只是文案問題。
+/// 已鑄造的資產保留當時的名稱（鏈上不可改），這裡只影響之後鑄造的。
 pub fn achievement_metadata(category: u8, verification_class: u8, achievement_id: &[u8; 32]) -> (String, String) {
-    let cat = match category {
-        1 => "Fastest 1K",
-        2 => "Fastest 5K",
-        3 => "Fastest 10K",
-        4 => "Fastest Half Marathon",
-        5 => "Fastest Marathon",
-        _ => "Longest Run",
-    };
     let cls = if verification_class == 1 { "Official" } else { "Device" };
+    let name = match category {
+        1 => format!("NeonShift PB · Fastest 1K ({cls})"),
+        2 => format!("NeonShift PB · Fastest 5K ({cls})"),
+        3 => format!("NeonShift PB · Fastest 10K ({cls})"),
+        4 => format!("NeonShift PB · Fastest Half Marathon ({cls})"),
+        5 => format!("NeonShift PB · Fastest Marathon ({cls})"),
+        6 => format!("NeonShift PB · Longest Run ({cls})"),
+        7 => format!("NeonShift First · 5K ({cls})"),
+        8 => format!("NeonShift First · 10K ({cls})"),
+        9 => format!("NeonShift First · Half Marathon ({cls})"),
+        10 => format!("NeonShift First · Marathon ({cls})"),
+        11 => format!("NeonShift First · Race Finish ({cls})"),
+        12 => format!("NeonShift Event · Check-In ({cls})"),
+        13 => format!("NeonShift Event · Finish ({cls})"),
+        // 節日收藏：整個系列同一個名稱，主題與年份在鏈下 metadata（PG-SEASON-04）
+        _ => format!("NeonShift Seasonal Footprints ({cls})"),
+    };
     let mut hex = String::with_capacity(64);
     for b in achievement_id {
         hex.push_str(&format!("{b:02x}"));
     }
-    (format!("NeonShift PB · {cat} ({cls})"), format!("{ACHIEVEMENT_BASE_URI}{hex}.json"))
+    (name, format!("{ACHIEVEMENT_BASE_URI}{hex}.json"))
 }
 
 pub fn handle_claim_achievement(ctx: Context<ClaimAchievement>, args: AchievementArgs) -> Result<()> {

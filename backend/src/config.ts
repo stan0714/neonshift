@@ -47,6 +47,15 @@ export const configSchema = z.object({
   RULES_FILE: z.string().default("rules/v4.json"),
   /** PG-SEASON-01：節日收藏每屆設定；檔案不存在＝沒有任何屆次（不發資格），內容錯誤則啟動失敗 */
   SEASONAL_FILE: z.string().default("seasonal/campaigns.json"),
+  /**
+   * PG-SEASON-04：節日收藏是否開放領取。**預設關**，而且必須手動打開——
+   * 它代表的是「鏈上程式已支援 seasonal 類別（CATEGORY_SEASONAL=14）且已部署到這個 cluster」。
+   * 在程式重新部署之前打開，玩家會拿到一個鏈上必定失敗的交易。
+   */
+  SEASONAL_MINT_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
   /** attestor signer：`http:<url>`（隔離 signer service，配 SIGNER_TOKEN）或 dev 用 `local:<keypair 路徑|base58>` */
   ATTESTOR_SIGNER: z.string().optional(),
   SIGNER_TOKEN: z.string().optional(),

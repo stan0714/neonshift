@@ -3,7 +3,10 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
+import { Alert } from 'react-native';
+
 import { Button, Chip, InlineState } from '@/components';
+import { MintProgress, type MintPhase } from '@/components/MintProgress';
 import { SeasonalBadge, type SeasonalBadgeState } from '@/components/SeasonalBadge';
 import { ShareImageBlock } from '@/components/ShareImageBlock';
 import { APP_CONFIG } from '@/config/app';
@@ -11,6 +14,10 @@ import { seasonalShareLayout, SEASONAL_SHARE_DEFAULT, shareUrl, type SeasonalSha
 import { useT, useLocaleStore, type TKey } from '@/i18n';
 import type { RootParamList } from '@/navigation/types';
 import { apiClient, type MySeasonalItem, type SeasonalCampaignView } from '@/services/api/ApiClient';
+import { achievementService } from '@/services/chain/AchievementService';
+import { ClaimError } from '@/services/chain/StarterShoeService';
+import { recordLocalMint } from '@/services/chain/localMints';
+import { useNftRevealStore } from '@/state/nftRevealStore';
 import { useSeasonalReminderStore } from '@/state/seasonalReminderStore';
 import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
@@ -145,8 +152,11 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
                 {r.status ? (
                   <View style={styles.status} testID={`seasonal-${r.campaign_id}-status-${r.status}`}>
                     {r.status === 'eligible' ? (
-                      // 達標不等於已取得：後端沒有鑄造路徑，這裡就不能出現領取按鈕
-                      <InlineState kind="success" title={t('season.state.eligible')} body={t('season.state.eligibleBody')} />
+                      // 達標不等於已取得：`mint_enabled` 關著時沒有鑄造路徑，這裡就不能出現領取按鈕（PG-SEASON-04）
+                      <>
+                        <InlineState kind="success" title={t('season.state.eligible')} body={t(r.mint_enabled ? 'season.state.claimableBody' : 'season.state.eligibleBody')} />
+                        {r.mint_enabled ? <SeasonalClaim campaignId={r.campaign_id} onClaimed={load} /> : null}
+                      </>
                     ) : r.status === 'pending_review' ? (
                       <InlineState kind="info" title={t('season.state.pending')} body={t('season.state.pendingBody')} />
                     ) : (
@@ -186,6 +196,88 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
           })}
         </View>
       )}
+    </View>
+  );
+}
+
+/**
+ * 領取這一屆（PG-SEASON-04）。與 PB／里程碑／活動章走**同一條**流程：
+ * 逐次公開同意 → mint-intent（registry 已核准才有證明）→ 預覽會公開的內容與費用 → MWA 簽送。
+ *
+ * 只有後端 `mint_enabled` 為 true 才會被掛上來——那個開關代表「鏈上程式已支援 seasonal 類別
+ * 且已部署到這個 cluster」。後端若仍關著，這裡按下去會拿到 409，畫面照實說還沒開放。
+ */
+function SeasonalClaim({ campaignId, onClaimed }: { campaignId: string; onClaimed: () => void | Promise<void> }) {
+  const { t } = useT();
+  const session = useWalletStore((s) => s.session);
+  const [phase, setPhase] = useState<MintPhase | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<{ kind: 'success' | 'info' | 'warning' | 'error'; title: string; body?: string } | null>(null);
+
+  const ask = () => {
+    if (!session) return;
+    Alert.alert(t('pb.consentTitle'), t('pb.consentBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('pb.consentPrivate'), onPress: () => void run(false) },
+      { text: t('pb.consentShare'), onPress: () => void run(true) },
+    ]);
+  };
+
+  const run = async (consent: boolean) => {
+    if (!session) return;
+    setBusy(true);
+    setNotice(null);
+    setPhase('server');
+    try {
+      const intent = await achievementService.seasonalIntent(campaignId, consent);
+      if (intent.status === 'minted') { setNotice({ kind: 'success', title: t('season.claimed'), body: t('season.claimedBody') }); return; }
+      if (intent.status !== 'approved' || !intent.proof) {
+        // 待核准不是失敗：資格已記下，registry 上鏈後才有證明
+        setNotice(intent.status === 'pending_registry' || intent.status === 'approved' ? { kind: 'info', title: t('pb.mintPending'), body: t('pb.pendingBody') } : { kind: 'warning', title: t('pb.revoked'), body: t('ms.revokedBody') });
+        return;
+      }
+      const attrs = ((intent.metadata_preview.attributes as { trait_type: string; value: string }[] | undefined) ?? []).map((a) => `• ${a.trait_type}: ${a.value}`).join('\n');
+      setPhase('approved');
+      const sol = (intent.fee_estimate_lamports / 1e9).toFixed(4);
+      await new Promise<void>((resolve) => {
+        Alert.alert(t('ms.previewTitle'), t('ms.previewBody', { attrs, sol }), [
+          { text: t('common.cancel'), style: 'cancel', onPress: () => resolve() },
+          {
+            text: t('pb.mintNow'),
+            onPress: () => {
+              void (async () => {
+                try {
+                  const r = await achievementService.mint(session.publicKey, intent, setPhase);
+                  if (r.kind === 'minted') recordLocalMint(intent.achievement.achievement_id, { asset: r.asset, signature: r.signature ?? '' });
+                  if (r.kind === 'minted' && !r.alreadyMinted) useNftRevealStore.getState().enqueue({ id: r.asset, title: typeof intent.metadata_preview.name === 'string' ? intent.metadata_preview.name : undefined });
+                  if (r.kind === 'minted') setNotice({ kind: 'success', title: t('season.claimed'), body: t('season.claimedBody') });
+                } catch (e) {
+                  const code = e instanceof ClaimError ? e.code : 'FAILED';
+                  setNotice({ kind: 'error', title: code === 'REJECTED' || code === 'NETWORK_ERROR' || code === 'NOT_AVAILABLE' ? t(`pb.err.${code}` as TKey) : t('pb.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+                } finally {
+                  resolve();
+                }
+              })();
+            },
+          },
+        ]);
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // 後端還沒開放領取（SEASONAL_MINT_NOT_OPEN）就照實說，不說成失敗
+      setNotice(/SEASONAL_MINT_NOT_OPEN/.test(msg) ? { kind: 'info', title: t('season.state.eligible'), body: t('season.state.eligibleBody') } : { kind: 'error', title: t('pb.err.generic', { message: msg }) });
+    } finally {
+      setPhase(null);
+      setBusy(false);
+      await onClaimed();
+    }
+  };
+
+  return (
+    <View style={styles.share} testID={`seasonal-${campaignId}-claim`}>
+      <MintProgress phase={phase} />
+      <Button label={t('season.claim')} onPress={ask} loading={busy} loadingLabel={t('season.claiming')} disabled={busy || !session} disabledReason={!session ? t('common.reasonConnectWallet') : undefined} testID={`seasonal-${campaignId}-claim-btn`} />
+      {notice ? <InlineState kind={notice.kind} title={notice.title} body={notice.body} testID={`seasonal-${campaignId}-claim-${notice.kind}`} /> : null}
     </View>
   );
 }

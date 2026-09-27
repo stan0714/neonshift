@@ -1032,3 +1032,29 @@ WIP（碼完、實機未驗）：
 - **`scripts/test-all.sh` 的 `docker info` 加逾時**（20 秒，優先用 coreutils `timeout`／`gtimeout`，沒有就自己顧一個子行程，bash 3.2 也能跑）。Docker Desktop 的 CLI 偶爾掛住不回（backend process 還活著，但 socket 不回應），沒有逾時的話整份測試會**停在資料庫那一段**而不是按設計 SKIP——2026-09-26 實際遇到一次，卡了十幾分鐘。
 - **`backend/src/player/player.test.ts` 不再依賴網路**：`DELETE /player/data` 會問 `tournaments.activeStakedUntil()`（質押事實在鏈上），而測試設了 `PROGRAM_ID` 又沒注入 `chain`，那一步就打真的 RPC——離線或 RPC 慢時 3 項逾時失敗，失敗原因還跟這支端點無關。改成注入 `StaticChainReader`（與 `tournament.test.ts` 同一個做法）：187 秒 3 項失敗 → 3.5 秒 5 項通過。順便補一項之前沒被涵蓋的案例：**鏈上有進行中的質押時，延後期限是賽事 `ends_at` 而不是一律 30 天**（30 天是上限）。
 - 提交前檢查：9/25 新增的 `expo-sharing`／`expo-clipboard` 經 `expo-modules-autolinking resolve -p android` 確認會被已提交的 `app/android/` 自動連結，`expo-sharing` 自帶的 FileProvider 路徑也涵蓋 App 私有 cache，所以**不需要重跑 prebuild**。分享功能仍必須重新出包才會出現，且實機驗收仍為 TODO（見 [提交追蹤](store/clock-in-submission.md) 2026-09-27 條）。
+
+
+## 2026-09-27 節日收藏鑄造（PG-SEASON-04；待重新部署程式才能開啟）
+
+WIP（碼完，實機與鏈上未驗）：程式 105 案例（attestation-core 17＋neonshift-core 23 單元／82 整合）、backend 277 通過、App 81 suites／587 tests 通過。
+
+**鏈上格式定案（原本待你決定的那一題）：整個系列共用一個 `CATEGORY_SEASONAL = 14`，主題與年份寫在鏈下 metadata。**
+
+依據是讀完 `claim_achievement.rs` 之後的一個事實：唯一性本來就由 32-byte `achievement_id` 提供——它同時是 `AchievementReceipt` PDA、asset PDA 與 metadata URI（`{BASE_URI}{id}.json`）三者的 seed。所以「每玩家每屆一枚」「同一主題不同年份是兩枚」不需要 category 的粒度就成立（LiteSVM 有一個測試專門釘住這件事）。反過來每個主題各給一個 category，每年新增主題都要升級並重新部署程式，而且換不到任何唯一性——對一個逐年成長的系列來說那是錯的軸。代價是鏈上名稱只到系列層級（`NeonShift Seasonal Footprints`），「哪一屆」要看那一枚的 metadata；要把主題寫進鏈上名稱得改 194-byte canonical 訊息格式（連帶 signer、20 組跨語言向量、App 交易組裝），不值得。
+
+- **鏈上**：`CATEGORY_SEASONAL = 14`、`CATEGORY_MAX` 13→14（TS `CATEGORY_CODE` 與向量同步，向量純新增、既有 13 組位元組不動）。`achievement_metadata` 補系列名。**順手修一個錯誤命名**：原本只列 1..=5，7..=13 的里程碑與活動留念章全部落到 `_ => "Longest Run"`，也就是首次 5K 的收藏會被命名成「NeonShift PB · Longest Run」。名稱寫進鏈上改不了，所以這是必須修的錯誤標示；已鑄造的資產保留當時名稱，新測試把四個系列的名稱各釘一個。
+- **後端**：migration 0021（`achievements_kind_ck` 加 `seasonal`）；key＝`seasonal|<campaign_id>`，沿用既有 `(wallet, milestone_key)` 唯一索引就是「每屆一枚」；`achievement_id = sha256("neonshift-seasonal|wallet|campaign_id")`。`buildSeasonalMetadata` 預設只寫公開資訊（主題、年份、窗口、門檻、驗證、美術／規則版本、日期依據），**自己哪天達標要逐次同意**。`ensureSeasonal`／`reconcileSeasonal`／`POST /v1/me/seasonal/:id/intent` 走與 PB／里程碑／活動章**同一條** registry → proof → receipt 路徑，不是另一套鑄造流程。
+- **App**：只在 `mint_enabled && eligible` 才掛出領取（同意 → 預覽會公開的內容與 rent → MWA → 揭曉）；關著時畫面仍是「已達標、尚未開放領取」。
+- **開關**：`SEASONAL_MINT_ENABLED` 預設 false，代表「程式已支援 seasonal 且已部署到**這個 cluster**」，不是活動熱度。後端關著時 intent 回 409 `SEASONAL_MINT_NOT_OPEN` 且**不留下任何成就列**。
+
+### 要真的開放領取，需要你做三件事（順序不能顛倒）
+
+1. **重新部署程式**（`cd programs && anchor build --arch v0`，再用 `scripts/chain/deploy.sh dev` 升級）。舊版的 `CATEGORY_MAX = 13` 會拒絕 category 14。**這是不可逆的鏈上操作，我沒有執行**。
+2. 在 l1／l2 套用 `backend/migrations/0021_seasonal_achievements.sql`（同時還有沒套的 0020）。
+3. 確認 1 完成後，才把 `/etc/neonshift/api.env` 的 `SEASONAL_MINT_ENABLED` 設為 `true`。順序顛倒會讓玩家拿到鏈上必定失敗的交易。
+
+另外：要有任何一屆真的能領，還得把 `backend/seasonal/campaigns.json` 裡某一屆的 `enabled` 打開——目前三屆全部 `false`，那是另一個決定（每屆要先人工核對日期來源）。
+
+尚未做：揭曉動畫沿用既有 Mint 四階段（已接上 `MintProgress`），但節日專屬的徽章翻面動畫沒做；撤銷語意的實機驗證；PG-SEASON-06 的系統推播。
+
+規格：[節日與生態紀念 NFT §5／§6](design/seasonal-achievement-nfts.md)、[SD 2026-09-27 實作註記](sd.md)。

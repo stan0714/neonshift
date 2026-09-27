@@ -2018,6 +2018,12 @@ export const en = {
   'season.viewSource': 'See the workout',
   'season.state.eligible': 'Qualified',
   'season.state.eligibleBody': 'A qualifying session is recorded for this edition. Claiming is not open yet — the seasonal collectible has no mint path in this build, so nothing has been issued to your wallet.',
+  // PG-SEASON-04: used only once mint_enabled is on (the flag means the program supports and ships seasonal)
+  'season.state.claimableBody': 'A qualifying session is recorded for this edition and you can claim it. Claiming mints a collectible on-chain; you pay the network fee and account rent.',
+  'season.claim': 'Claim this edition',
+  'season.claiming': 'Claiming…',
+  'season.claimed': 'Edition minted',
+  'season.claimedBody': 'The collectible is on-chain. Its theme and year live in this asset’s own metadata.',
   'season.state.pending': 'Waiting for review',
   'season.state.pendingBody': 'A session inside the window is still under review. Review decides whether it qualifies; it is not a decision about a collectible.',
   'season.sourceNote': 'Date reference: {fact}',

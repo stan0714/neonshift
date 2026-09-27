@@ -477,6 +477,14 @@ export class ApiClient {
     return this.request('POST', '/me/event-badges/mint-intent', { event_id: eventId, kind, public_consent: publicConsent });
   }
 
+  /**
+   * PG-SEASON-04：節日收藏領取意圖。後端 `mint_enabled` 關著時回 409 SEASONAL_MINT_NOT_OPEN——
+   * 那個開關代表「鏈上程式已支援 seasonal 類別且已部署」，不是活動熱度。
+   */
+  seasonalMintIntent(campaignId: string, publicConsent: boolean): Promise<MintIntent> {
+    return this.request('POST', `/me/seasonal/${encodeURIComponent(campaignId)}/intent`, { public_consent: publicConsent });
+  }
+
   /** XD-03 成就護照（只讀彙整；不含健康數字／路線） */
   passport(): Promise<PassportResponse> {
     return this.request('GET', '/me/passport');

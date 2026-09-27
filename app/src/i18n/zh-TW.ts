@@ -1997,6 +1997,12 @@ export const zhTW: Record<keyof typeof en, string> = {
   'season.viewSource': '看這次運動',
   'season.state.eligible': '已達標',
   'season.state.eligibleBody': '本屆已有一筆符合條件的運動。**尚未開放領取**——這一版沒有節日收藏的鑄造路徑，錢包裡不會出現任何東西。',
+  // PG-SEASON-04：mint_enabled 打開後才會用到這兩句（開關代表鏈上程式已支援並部署）
+  'season.state.claimableBody': '本屆已有一筆符合條件的運動，可以領取。領取會在鏈上鑄造一枚收藏，費用是網路費與帳戶 rent。',
+  'season.claim': '領取這一屆',
+  'season.claiming': '領取中…',
+  'season.claimed': '已鑄造這一屆的收藏',
+  'season.claimedBody': '收藏已在鏈上。主題與年份寫在這一枚自己的 metadata 裡。',
   'season.state.pending': '等待審查',
   'season.state.pendingBody': '窗口內有一筆還在審查。審查決定的是這筆運動是否符合條件，不是收藏品的結果。',
   'season.sourceNote': '日期依據：{fact}',

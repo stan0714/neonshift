@@ -12,7 +12,7 @@
 //! | 57 | 1 | cluster_id |
 //! | 58 | 32 | wallet |
 //! | 90 | 32 | achievement_id（伺服器穩定分配，不由 client 自選） |
-//! | 122 | 1 | category（1..=6 PB；7..=11 首次里程碑，PG-M-02；12..=13 活動留念章，PG-M-04） |
+//! | 122 | 1 | category（1..=6 PB；7..=11 首次里程碑，PG-M-02；12..=13 活動留念章，PG-M-04；14 節日收藏，PG-SEASON-04） |
 //! | 123 | 1 | verification_class（1 organizer／2 device） |
 //! | 124 | 4 | source_revision u32 LE |
 //! | 128 | 2 | rules_version u16 LE |
@@ -71,8 +71,16 @@ pub const CATEGORY_FIRST_FINISH: u8 = 11;
 pub const CATEGORY_EVENT_CHECK_IN: u8 = 12;
 /// 活動完賽章。
 pub const CATEGORY_EVENT_FINISH: u8 = 13;
+/// 節日收藏（Seasonal Footprints，PG-SEASON-04）。
+///
+/// **整個系列只有一個 category**，主題與年份放在鏈下 metadata（`{BASE_URI}{achievement_id}.json`）。
+/// 理由是唯一性本來就由 32-byte `achievement_id` 提供：receipt PDA、asset PDA 與 metadata URI
+/// 三者都以它為 seed，所以「每玩家每屆一枚」不需要 category 的粒度來保證。
+/// 反過來若每個主題各給一個 category，每年新增一個主題就要升級並重新部署程式——
+/// 對一個逐年成長的系列來說那是錯的軸，而且換不到任何唯一性。
+pub const CATEGORY_SEASONAL: u8 = 14;
 /// 有效 category 上限（含）。
-pub const CATEGORY_MAX: u8 = CATEGORY_EVENT_FINISH;
+pub const CATEGORY_MAX: u8 = CATEGORY_SEASONAL;
 /// 驗證等級：主辦方。
 pub const CLASS_ORGANIZER: u8 = 1;
 /// 驗證等級：裝置／GPS。
@@ -269,9 +277,11 @@ mod tests {
         b[0] ^= 1;
         assert_eq!(AchievementProof::decode(&b).unwrap_err(), AchievementError::BadDomain);
         let mut c = base();
-        c.category = 14;
-        assert_eq!(AchievementProof::decode(&c.encode()).unwrap_err(), AchievementError::BadCategory { got: 14 });
+        c.category = CATEGORY_MAX + 1;
+        assert_eq!(AchievementProof::decode(&c.encode()).unwrap_err(), AchievementError::BadCategory { got: CATEGORY_MAX + 1 });
         c.category = CATEGORY_FIRST_FINISH; // 里程碑類別在範圍內
+        assert!(AchievementProof::decode(&c.encode()).is_ok());
+        c.category = CATEGORY_SEASONAL; // 節日收藏（PG-SEASON-04）
         assert!(AchievementProof::decode(&c.encode()).is_ok());
         let mut t = base();
         t.expiry = t.issued_at + 901;

@@ -267,3 +267,39 @@ describe('提醒訂閱（PG-SEASON-06）', () => {
     expect(useSeasonalReminderStore.getState().dismissed).toEqual(['soon:other-2027']);
   });
 });
+
+/**
+ * PG-SEASON-04：領取。畫面上的鐵則是「`mint_enabled` 關著就沒有領取按鈕」——
+ * 達標不等於已取得，而那個開關代表的是鏈上程式支援與部署狀態，不是活動熱度。
+ */
+describe('領取（PG-SEASON-04）', () => {
+  const earned = (over: Partial<MySeasonalItem> = {}) =>
+    campaign({ status: 'eligible', first: { source: { kind: 'workout', id: 'w1', revision: 1 }, started_at: '2027-03-16T08:00:00Z', moving_ms: 1_500_000 }, progress: { best_moving_ms: 1_500_000, required_ms: 1_200_000 }, ...over });
+
+  test('mint_enabled 關著（預設）→ 達標也沒有領取按鈕，文案說尚未開放', async () => {
+    mockMine([earned()]);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('seasonal-genesis-stride-2027-status-eligible')).toBeTruthy());
+    expect(screen.queryByTestId('seasonal-genesis-stride-2027-claim')).toBeNull();
+    expect(screen.getByText(t('season.state.eligibleBody'))).toBeTruthy();
+  });
+
+  test('mint_enabled 開著 → 出現領取按鈕，文案改成可以領取（會付網路費與 rent）', async () => {
+    mockMine([earned({ mint_enabled: true })]);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('seasonal-genesis-stride-2027-claim-btn')).toBeTruthy());
+    expect(screen.getByText(t('season.state.claimableBody'))).toBeTruthy();
+    // 尚未達標的一屆即使開放領取也沒有按鈕
+    mockMine([campaign({ status: 'locked', mint_enabled: true })]);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('seasonal-genesis-stride-2027')).toBeTruthy());
+    expect(screen.queryByTestId('seasonal-genesis-stride-2027-claim-btn')).toBeNull();
+  });
+
+  test('待驗證不給領取（審查決定的是資格，不是收藏品）', async () => {
+    mockMine([campaign({ status: 'pending_review', mint_enabled: true, pending: { source: { kind: 'workout', id: 'w2', revision: 1 }, started_at: '2027-03-16T08:00:00Z', moving_ms: 1_500_000 } })]);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('seasonal-genesis-stride-2027-status-pending_review')).toBeTruthy());
+    expect(screen.queryByTestId('seasonal-genesis-stride-2027-claim-btn')).toBeNull();
+  });
+});
