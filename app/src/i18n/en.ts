@@ -287,7 +287,13 @@ export const en = {
   'home.healthOff.action': 'Review access',
   'home.healthErr.title': 'Health data unavailable',
   'home.healthErr.body': 'Health Connect did not answer. Showing the last synced numbers; nothing was sent anywhere. {error}',
-  'home.chainErr.body': 'Could not read your onchain profile. Your tSKR and progress are safe onchain; showing cached values. {error}',
+  // Style 14: say what happened, whether data is safe, and what to do next. Raw RPC text stays in the Ref.
+  'home.chainErr.rate_limited': 'Cannot read your onchain profile right now: the public devnet node is rate limiting us. Your tSKR and progress are safe onchain; these are cached values. Try again in a few minutes.',
+  'home.chainErr.timeout': 'Cannot read your onchain profile right now: the devnet node stopped responding. Your tSKR and progress are safe onchain; these are cached values. You can try again.',
+  'home.chainErr.server': 'Cannot read your onchain profile right now: the public devnet node is having trouble. Your tSKR and progress are safe onchain; these are cached values. Try again in a few minutes.',
+  'home.chainErr.unreachable': 'Cannot reach devnet right now. Your tSKR and progress are safe onchain; these are cached values. Check your connection and try again.',
+  'home.chainErr.not_configured': 'Onchain features are not enabled in this build, so onchain values will not update.',
+  'home.chainErr.unknown': 'Cannot read your onchain profile right now. Your tSKR and progress are safe onchain; these are cached values. Try again; if it keeps failing, send us the Ref below.',
 
   // ---- clock-in sheet ----
   'clock.done': 'Done',

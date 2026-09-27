@@ -5,13 +5,13 @@
 import { PublicKey } from '@solana/web3.js';
 import { create } from 'zustand';
 
-import { decodeConfig, decodeIncidentFreeze, decodePlayerProfile, fetchAccount, type ChainConfig, type IncidentFreeze, type PlayerProfile } from '@/chain/accounts';
+import { decodeConfig, decodeIncidentFreeze, decodePlayerProfile, type ChainConfig, type IncidentFreeze, type PlayerProfile } from '@/chain/accounts';
 import { claimPda, configPda, freezePda, playerPda } from '@/chain/program';
 import { FEATURES } from '@/config/features';
 import { APP_CONFIG } from '@/config/app';
 import { progress, reduce, taskDateOf, TASK_CODE, WORKOUT_GOAL_MOVING_MS, type TaskStatus, type TaskType } from '@/domain/taskEngine';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
-import { getConnection } from '@/services/chain/ChainClient';
+import { classifyRpcError, fetchAccountsInfo, rpcFailureRef, rpcRead, RpcReadError, type RpcFailureReason } from '@/services/chain/ChainClient';
 import { healthConnect } from '@/services/health/HealthConnectService';
 import { claimSubmitter } from '@/services/chain/ClaimSubmitter';
 import { associatedTokenAddress } from '@/chain/txBuilder';
@@ -31,7 +31,11 @@ type State = {
   /** tSKR 最小單位 */
   balance: bigint | null;
   chainSyncedAt: number | null;
-  chainError: string | null;
+  /**
+   * 鏈上讀取失敗。**只留分類與短 Ref**——原始 RPC payload 不進使用者文案（Style 14）：
+   * 2026-09-27 手機上就出現過一整串 `{"jsonrpc":"2.0","error":{"code":504,…}}` 貼在錯誤卡正文裡。
+   */
+  chainError: { reason: RpcFailureReason; ref: string } | null;
   tasks: Record<TaskType, TaskStatus>;
   /** 維持規則 v2：今日運動任務證據（本機已同步、審核通過、最長的一筆；沒有 → null） */
   workout: WorkoutEvidence | null;
@@ -120,35 +124,47 @@ export const useDashboardStore = create<State>((set, get) => ({
     }
   },
 
+  /**
+   * 讀鏈上狀態。**一次 getMultipleAccounts 讀完所有帳戶**（config／profile／freeze 與今日 receipt），
+   * 不再一個帳戶打一次 getAccountInfo：首頁與 Gear 每次 focus 都會同步，原本 6～7 個請求打在
+   * 限流的公用端點上，最容易換來 429／504。餘額必須等 config 才知道 mint，所以仍是第二個請求。
+   */
   async syncChain(wallet) {
     if (!APP_CONFIG.chainConfigured) {
-      set({ chainError: 'Onchain program not configured in this build' });
+      set({ chainError: { reason: 'not_configured', ref: 'build' } });
       return;
     }
-    const conn = getConnection();
     const { taskDate } = get();
     try {
-      const [config, profile, freeze] = await Promise.all([
-        fetchAccount(conn, configPda(), (d) => decodeConfig(d, PublicKey)),
-        fetchAccount(conn, playerPda(wallet), (d) => decodePlayerProfile(d, PublicKey)),
-        fetchAccount(conn, freezePda(), decodeIncidentFreeze).catch(() => null),
-      ]);
+      const steps = claimPda(wallet, taskDate, TASK_CODE.steps);
+      const workout = claimPda(wallet, taskDate, TASK_CODE.workout);
+      const sleep = FEATURES.sleep ? claimPda(wallet, taskDate, TASK_CODE.sleep) : null;
+      const addresses = [configPda(), playerPda(wallet), freezePda(), steps, workout, ...(sleep ? [sleep] : [])];
+      const [configInfo, profileInfo, freezeInfo, stepsInfo, workoutInfo, sleepInfo] = await fetchAccountsInfo(addresses);
+
+      const config = configInfo ? decodeConfig(new Uint8Array(configInfo.data), PublicKey) : null;
+      const profile = profileInfo ? decodePlayerProfile(new Uint8Array(profileInfo.data), PublicKey) : null;
+      // freeze 解不出來不該讓整次同步失敗（沿用原本的 catch 行為）
+      let freeze: IncidentFreeze | null = null;
+      try {
+        freeze = freezeInfo ? decodeIncidentFreeze(new Uint8Array(freezeInfo.data)) : null;
+      } catch {
+        freeze = null;
+      }
+
       let balance: bigint | null = null;
       if (config) {
-        const bal = await conn.getTokenAccountBalance(associatedTokenAddress(config.mint, wallet), 'confirmed').catch(() => null);
+        // ATA 不存在時 RPC 會回錯誤，那是預期內的「還沒有餘額」，不是連線問題（分類為 unknown → 不重試）
+        const bal = await rpcRead('getTokenAccountBalance', (c) => c.getTokenAccountBalance(associatedTokenAddress(config.mint, wallet), 'confirmed')).catch(() => null);
         balance = bal ? BigInt(bal.value.amount) : 0n;
       }
-      const [stepsReceipt, sleepReceipt, workoutReceipt] = await Promise.all([
-        claimSubmitter.receiptExists(claimPda(wallet, taskDate, TASK_CODE.steps)),
-        FEATURES.sleep ? claimSubmitter.receiptExists(claimPda(wallet, taskDate, TASK_CODE.sleep)) : Promise.resolve(false),
-        claimSubmitter.receiptExists(claimPda(wallet, taskDate, TASK_CODE.workout)),
-      ]);
       set({ config, profile: demoProfile(profile, wallet, config), freeze, balance, chainSyncedAt: Date.now(), chainError: null });
-      if (stepsReceipt) get().dispatch('steps', { kind: 'receipt_exists' });
-      if (sleepReceipt) get().dispatch('sleep', { kind: 'receipt_exists' });
-      if (workoutReceipt) get().dispatch('workout', { kind: 'receipt_exists' });
+      if (stepsInfo) get().dispatch('steps', { kind: 'receipt_exists' });
+      if (sleepInfo) get().dispatch('sleep', { kind: 'receipt_exists' });
+      if (workoutInfo) get().dispatch('workout', { kind: 'receipt_exists' });
     } catch (e) {
-      set({ chainError: e instanceof Error ? e.message : String(e) });
+      const failure = e instanceof RpcReadError ? e.failure : classifyRpcError('syncChain', e);
+      set({ chainError: { reason: failure.reason, ref: rpcFailureRef(failure) } });
     }
   },
 

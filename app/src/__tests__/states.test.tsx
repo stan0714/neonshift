@@ -18,8 +18,16 @@ jest.mock('@/services/health/HealthConnectService', () => ({
   healthConnect: { getPermissions: jest.fn(async () => ({ state: 'denied', granted: [], missing: ['steps'], backgroundGranted: false })), readCachedSummary: jest.fn(async () => null), readStepsForTaskDate: jest.fn(async () => ({ total: 0, dataOrigins: [], stepRateSummary: { bucketMinutes: 1, buckets: [], observedMinutes: 0, maxStepsPerMinute: 0 }, deviceSpn: null })), readSleepForTaskDate: jest.fn(async () => ({ sessions: [] })), cacheSummary: jest.fn(async () => {}) },
 }));
 jest.mock('@/services/chain/ClaimSubmitter', () => ({ claimSubmitter: { receiptExists: jest.fn(async () => false) } }));
-jest.mock('@/services/chain/ChainClient', () => ({ getConnection: () => ({ getTokenAccountBalance: jest.fn() }) }));
-jest.mock('@/chain/accounts', () => ({ ...jest.requireActual('@/chain/accounts'), fetchAccount: jest.fn(async () => { throw new Error('rpc down'); }) }));
+// 實機那筆：公用 devnet 端點對帳號讀取沒有回應，gateway 回 504（2026-09-27）
+const RPC_504 = 'failed to get info about account GuS38ZFpuvvqfpWiKZ1gGWtu8RujynuNZmbVjqik6Axc: Error: 504 : {"jsonrpc":"2.0","error":{"code":504,"message":"Gateway Time-out"}, "id": null}';
+jest.mock('@/services/chain/ChainClient', () => {
+  const actual = jest.requireActual('@/services/chain/ChainClient');
+  return {
+    ...actual,
+    getConnection: () => ({ getTokenAccountBalance: jest.fn() }),
+    fetchAccountsInfo: jest.fn(async () => { throw new actual.RpcReadError({ reason: 'server', label: 'getMultipleAccounts', status: 504, detail: RPC_504 }); }),
+  };
+});
 
 const wallet = new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
 const Wrapper = ({ children }: PropsWithChildren) => (
@@ -59,7 +67,11 @@ describe('Home inline states（Style 14）', () => {
     await fireEvent.press(screen.getByText('Review access'));
     expect(mockNavigate).toHaveBeenCalledWith('Onboarding', { screen: 'HealthAccess' });
     await waitFor(() => expect(screen.getByTestId('state-chain-error')).toBeTruthy());
-    expect(screen.getByText(/safe onchain; showing cached values/)).toBeTruthy();
+    // Style 14：正文是人話，技術細節只到 Ref——**原始 JSON-RPC payload 不得出現在畫面上**
+    expect(screen.getByText(/the public devnet node is having trouble/)).toBeTruthy();
+    expect(screen.getByText(/safe onchain/)).toBeTruthy();
+    expect(screen.getByText('Ref 504 · getMultipleAccounts')).toBeTruthy();
+    expect(screen.queryByText(/jsonrpc|GuS38/)).toBeNull();
     expect(screen.getByText('Retry')).toBeTruthy();
     // PG-U-01：固定「開始運動」入口帶最近模式 → WorkoutStart
     expect(screen.getByText(/Recent: Run/)).toBeTruthy();

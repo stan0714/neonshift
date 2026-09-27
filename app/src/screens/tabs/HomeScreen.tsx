@@ -239,7 +239,14 @@ export function HomeScreen() {
         <InlineState kind="warning" title={t('home.healthErr.title')} body={t('home.healthErr.body', { error: d.health.error })} action={{ label: t('common.tryAgain'), onPress: () => void d.syncHealth(), loading: d.healthSyncing }} testID="state-health-error" />
       ) : null}
       {d.chainError && APP_CONFIG.chainConfigured && session ? (
-        <InlineState kind="warning" title={t('common.devnetBreak')} body={t('home.chainErr.body', { error: d.chainError })} action={{ label: t('common.retry'), onPress: () => void d.syncChain(session.publicKey) }} testID="state-chain-error" />
+        <InlineState
+          kind="warning"
+          title={t('common.devnetBreak')}
+          body={t(`home.chainErr.${d.chainError.reason}` as TKey)}
+          referenceId={d.chainError.ref}
+          action={{ label: t('common.retry'), onPress: () => void d.syncChain(session.publicKey) }}
+          testID="state-chain-error"
+        />
       ) : null}
 
       <Pressable onPress={() => navigation.navigate('Main', { screen: 'Gear' })} style={styles.hero} accessibilityRole="button" accessibilityLabel={t('home.openGear')}>

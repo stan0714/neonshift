@@ -1058,3 +1058,16 @@ WIP（碼完，實機與鏈上未驗）：程式 105 案例（attestation-core 1
 尚未做：揭曉動畫沿用既有 Mint 四階段（已接上 `MintProgress`），但節日專屬的徽章翻面動畫沒做；撤銷語意的實機驗證；PG-SEASON-06 的系統推播。
 
 規格：[節日與生態紀念 NFT §5／§6](design/seasonal-achievement-nfts.md)、[SD 2026-09-27 實作註記](sd.md)。
+
+
+## 2026-09-27 鏈上讀取：批次、退避與人話錯誤（實機 504 的後續）
+
+實機首頁出現「Devnet is taking a break」並把整段 `{"jsonrpc":"2.0","error":{"code":504,…}}` 貼在正文裡。當天對公用端點 `https://api.devnet.solana.com` 量測：`getHealth`／`getVersion`／`getSlot`／`getBalance`（同一個帳號，餘額 1,082,040 lamports）都在 0.3 秒內回 200，但 `getAccountInfo`／`getMultipleAccounts` 連續多次 20–30 秒**完全沒有回應**——帳號、程式與當時的改動都沒有問題，是端點對「回傳帳號資料」的方法不回應，手機端 gateway 把它變成 504。App 端做了三件事：
+
+1. **一次 `getMultipleAccounts` 讀完**（`fetchAccountsInfo`）。原本一次 `syncChain` 要 6～7 個 `getAccountInfo`（config／profile／freeze ＋ 今日各任務 receipt），而 Home 與 Gear 每次 focus 都同步——打在限流端點上最容易換來 429／504。餘額仍是第二個請求（要先有 config 才知道 mint）。7 → 2。
+2. **逾時＋退避重試**（`rpcRead`）。每個 HTTP 請求 15 秒上限（`Connection` 的 `fetch` 包 AbortController）——**沒有上限的話重試沒有意義**，因為觀測到的行為是「不回應」而不是回錯誤。重試 2 次（400／1200 ms ＋抖動），**只對暫時性失敗**：限流（429／`-32005`）、逾時、5xx、連不上；「帳號不存在」這種再試也一樣的結果歸為 `unknown`，不重試。**只包讀取**——交易送出不重試，仍走 `claimSubmitter` 的 pending 判定（SD 5.3）。
+3. **錯誤訊息改人話**。`chainError` 從整段例外字串改成 `{ reason, ref }`；正文依原因分五句（限流／逾時／故障／連不上／未知），技術細節只出現在 `InlineState` 的 `Ref`（例如 `504 · getMultipleAccounts`），**原始 payload 與帳號位址不再進畫面**。狀態碼從 web3.js 固定格式 `Error: <ddd> :` 取，不對整段訊息抓三位數（base58 位址裡也有數字）。
+
+新增 `rpcRead.test.ts`（7 項，含實機那段原文的分類）與 `chainSync.test.ts`（3 項，釘住「只打一次批次讀」與「錯誤不含 payload」）；`states.test.tsx` 的首頁錯誤卡改成驗人話文案＋Ref＋**畫面上不得出現 jsonrpc 字樣**。App 83 suites／597 tests 通過。
+
+未做（要你決定）：換一個有 API key 的 devnet RPC。`EXPO_PUBLIC_*` 是 build-time 內嵌，key 會留在 APK 裡，正規做法是網域／套件名限制的 key 或走自己的後端代理——牽涉金鑰政策，不自行決定。`ClaimSubmitter.receiptExists` 仍是單筆 `getAccountInfo`（它注入自己的 connection 供測試用），只吃到逾時、沒有退避；那在送交易前的檢查上是刻意保守。
