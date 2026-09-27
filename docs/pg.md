@@ -1023,3 +1023,12 @@ WIP（碼完、實機未驗）：
 尚未做：PG-SEASON-04 registry／mint（`achievements_kind_ck` 還沒有 `seasonal`；鏈上 `category` 只到 1..=13，需程式改版與重新部署——格式待決）、PG-SEASON-05 的揭曉動畫與「可領取」流程（等 04）、PG-SEASON-06 的系統推播。
 
 規格：[節日與生態紀念 NFT §4／§6](design/seasonal-achievement-nfts.md)。
+
+
+## 2026-09-27 測試基礎設施修正（讓週末回歸的結果可信）
+
+不是功能，但會直接影響 9/28–9/30「完整端到端與安全回歸」的判讀：
+
+- **`scripts/test-all.sh` 的 `docker info` 加逾時**（20 秒，優先用 coreutils `timeout`／`gtimeout`，沒有就自己顧一個子行程，bash 3.2 也能跑）。Docker Desktop 的 CLI 偶爾掛住不回（backend process 還活著，但 socket 不回應），沒有逾時的話整份測試會**停在資料庫那一段**而不是按設計 SKIP——2026-09-26 實際遇到一次，卡了十幾分鐘。
+- **`backend/src/player/player.test.ts` 不再依賴網路**：`DELETE /player/data` 會問 `tournaments.activeStakedUntil()`（質押事實在鏈上），而測試設了 `PROGRAM_ID` 又沒注入 `chain`，那一步就打真的 RPC——離線或 RPC 慢時 3 項逾時失敗，失敗原因還跟這支端點無關。改成注入 `StaticChainReader`（與 `tournament.test.ts` 同一個做法）：187 秒 3 項失敗 → 3.5 秒 5 項通過。順便補一項之前沒被涵蓋的案例：**鏈上有進行中的質押時，延後期限是賽事 `ends_at` 而不是一律 30 天**（30 天是上限）。
+- 提交前檢查：9/25 新增的 `expo-sharing`／`expo-clipboard` 經 `expo-modules-autolinking resolve -p android` 確認會被已提交的 `app/android/` 自動連結，`expo-sharing` 自帶的 FileProvider 路徑也涵蓋 App 私有 cache，所以**不需要重跑 prebuild**。分享功能仍必須重新出包才會出現，且實機驗收仍為 TODO（見 [提交追蹤](store/clock-in-submission.md) 2026-09-27 條）。

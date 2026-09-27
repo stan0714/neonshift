@@ -223,3 +223,14 @@ README 頂部應提供 APK、影片、Pitch PDF、五分鐘體驗步驟、Devnet
 ## 2026-09-22 文件同步
 
 評審指南補任務路線、Workouts PB／每週回顧、SVG 手動預覽、獎勵動畫、錢包守門與固定外觀。旁白及生成器移除 Activity／切鞋的「下一版才有」描述，畫面仍標示示意與實機待驗收；九頁版需隨六頁生成器一併重建。原始碼存在不等於提交 APK 已驗收。
+
+## 2026-09-27 提交前檢查：新增原生套件不需重新 prebuild
+
+9/25 為社群分享加入的 `expo-sharing`、`expo-clipboard` 是原生套件，本次以靜態檢查確認**不需要重跑 prebuild**、也不需要改 `app/android/`：
+
+- `npx expo-modules-autolinking resolve -p android` 已列出 `expo.modules.sharing.SharingModule` 與 `expo.modules.clipboard.ClipboardModule`，所以已提交的 `app/android/` 在建置時會自動連結。
+- `expo-sharing` 自帶 `${applicationId}.SharingFileProvider`，其 `sharing_provider_paths.xml` 含 `<cache-path path="." />`；分享圖卡寫在 App 私有 cache（`Paths.cache`），路徑在授權範圍內，Manifest 合併後不需另外宣告 provider。
+
+這只證明「建置與檔案授權的前置條件成立」，**不代表分享功能已在實機驗收**：APK-03／04 與 [分享驗收表](../evidence/2026-09-25-share.md) 的實機項目仍為 TODO，且分享功能一定要**重新出包**才會出現（OTA 不會帶入原生模組）。
+
+同時修掉兩個會讓回歸結果失真的問題（見 [PG](../pg.md) 2026-09-27 條）：`scripts/test-all.sh` 的 `docker info` 沒有逾時，Docker CLI 掛住時整份測試會停在資料庫那一段而不是 SKIP；`backend/src/player/player.test.ts` 會打真的 RPC，離線或 RPC 慢就逾時失敗。兩者都與功能無關，但會讓 9/28–9/30 的「完整端到端與安全回歸」看起來有失敗項。

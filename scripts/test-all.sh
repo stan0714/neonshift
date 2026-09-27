@@ -50,8 +50,25 @@ else
   skip "需要 cargo 與 python3"
 fi
 
+# Docker Desktop 的 CLI 偶爾會掛住不回（backend process 還活著，但 socket 不回應）。
+# 沒有逾時的話整份測試會停在下一段，而不是按設計 SKIP——2026-09-26 實際遇到一次，
+# `docker info` 卡了十幾分鐘。有 coreutils 的 timeout／gtimeout 就用，否則自己顧一個。
+with_timeout() {
+  local secs=$1; shift
+  if command -v timeout >/dev/null; then timeout "$secs" "$@"; return $?; fi
+  if command -v gtimeout >/dev/null; then gtimeout "$secs" "$@"; return $?; fi
+  "$@" &
+  local cmd_pid=$!
+  ( sleep "$secs"; kill -9 "$cmd_pid" 2>/dev/null ) >/dev/null 2>&1 &
+  local killer=$!
+  local rc=0
+  wait "$cmd_pid" 2>/dev/null || rc=$?
+  kill -9 "$killer" 2>/dev/null
+  return $rc
+}
+
 section "資料庫 schema"
-if docker info >/dev/null 2>&1; then
+if with_timeout 20 docker info >/dev/null 2>&1; then
   C=neonshift-schema-test
   docker rm -f "$C" >/dev/null 2>&1
   docker run -d --name "$C" -p 127.0.0.1::5432 -e POSTGRES_PASSWORD=test -e POSTGRES_DB=neonshift \
@@ -81,7 +98,7 @@ if docker info >/dev/null 2>&1; then
     bad "migration 套用"
   fi
 else
-  skip "Docker daemon 未執行"
+  skip "Docker daemon 未執行或沒有回應（20 秒內沒回 docker info）"
 fi
 
 section "後端（TypeScript）"
