@@ -155,7 +155,7 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
                       // 達標不等於已取得：`mint_enabled` 關著時沒有鑄造路徑，這裡就不能出現領取按鈕（PG-SEASON-04）
                       <>
                         <InlineState kind="success" title={t('season.state.eligible')} body={t(r.mint_enabled ? 'season.state.claimableBody' : 'season.state.eligibleBody')} />
-                        {r.mint_enabled ? <SeasonalClaim campaignId={r.campaign_id} onClaimed={load} /> : null}
+                        {r.mint_enabled ? <SeasonalClaim campaignId={r.campaign_id} themeId={r.theme_id} year={r.year} onClaimed={load} /> : null}
                       </>
                     ) : r.status === 'pending_review' ? (
                       <InlineState kind="info" title={t('season.state.pending')} body={t('season.state.pendingBody')} />
@@ -207,7 +207,7 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
  * 只有後端 `mint_enabled` 為 true 才會被掛上來——那個開關代表「鏈上程式已支援 seasonal 類別
  * 且已部署到這個 cluster」。後端若仍關著，這裡按下去會拿到 409，畫面照實說還沒開放。
  */
-function SeasonalClaim({ campaignId, onClaimed }: { campaignId: string; onClaimed: () => void | Promise<void> }) {
+function SeasonalClaim({ campaignId, themeId, year, onClaimed }: { campaignId: string; themeId: string; year: number; onClaimed: () => void | Promise<void> }) {
   const { t } = useT();
   const session = useWalletStore((s) => s.session);
   const [phase, setPhase] = useState<MintPhase | null>(null);
@@ -249,7 +249,7 @@ function SeasonalClaim({ campaignId, onClaimed }: { campaignId: string; onClaime
                 try {
                   const r = await achievementService.mint(session.publicKey, intent, setPhase);
                   if (r.kind === 'minted') recordLocalMint(intent.achievement.achievement_id, { asset: r.asset, signature: r.signature ?? '' });
-                  if (r.kind === 'minted' && !r.alreadyMinted) useNftRevealStore.getState().enqueue({ id: r.asset, title: typeof intent.metadata_preview.name === 'string' ? intent.metadata_preview.name : undefined });
+                  if (r.kind === 'minted' && !r.alreadyMinted) useNftRevealStore.getState().enqueue({ id: r.asset, title: typeof intent.metadata_preview.name === 'string' ? intent.metadata_preview.name : undefined, seasonal: { themeId, year } });
                   if (r.kind === 'minted') setNotice({ kind: 'success', title: t('season.claimed'), body: t('season.claimedBody') });
                 } catch (e) {
                   const code = e instanceof ClaimError ? e.code : 'FAILED';

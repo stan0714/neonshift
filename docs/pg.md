@@ -1064,7 +1064,7 @@ WIP（碼完，實機與鏈上未驗）：程式 105 案例（attestation-core 1
 
 另外：要有任何一屆真的能領，還得把 `backend/seasonal/campaigns.json` 裡某一屆的 `enabled` 打開——目前三屆全部 `false`，那是另一個決定（每屆要先人工核對日期來源）。
 
-尚未做：揭曉動畫沿用既有 Mint 四階段（已接上 `MintProgress`），但節日專屬的徽章翻面動畫沒做；撤銷語意的實機驗證；PG-SEASON-06 的系統推播。
+尚未做：撤銷語意的實機驗證；PG-SEASON-06 的系統推播。（節日徽章揭曉已於 2026-09-27 補完，見下。）
 
 規格：[節日與生態紀念 NFT §5／§6](design/seasonal-achievement-nfts.md)、[SD 2026-09-27 實作註記](sd.md)。
 
@@ -1080,3 +1080,30 @@ WIP（碼完，實機與鏈上未驗）：程式 105 案例（attestation-core 1
 新增 `rpcRead.test.ts`（7 項，含實機那段原文的分類）與 `chainSync.test.ts`（3 項，釘住「只打一次批次讀」與「錯誤不含 payload」）；`states.test.tsx` 的首頁錯誤卡改成驗人話文案＋Ref＋**畫面上不得出現 jsonrpc 字樣**。App 83 suites／597 tests 通過。
 
 未做（要你決定）：換一個有 API key 的 devnet RPC。`EXPO_PUBLIC_*` 是 build-time 內嵌，key 會留在 APK 裡，正規做法是網域／套件名限制的 key 或走自己的後端代理——牽涉金鑰政策，不自行決定。`ClaimSubmitter.receiptExists` 仍是單筆 `getAccountInfo`（它注入自己的 connection 供測試用），只吃到逾時、沒有退避；那在送交易前的檢查上是刻意保守。
+
+
+## 2026-09-27 節日章的揭曉畫的是那一屆的徽章（PG-SEASON-04 收尾）
+
+**翻面本身早就有了**：`RewardStage` 的 `mode="nft"` 已經是 2200 ms 的翻卡——背面封印 → `rotateY` →
+單次掃光，而且已經處理 Reduce Motion（直接顯示結果）與背景化（立即完成、不重播）。
+所以這裡沒有另外發明一套節奏，也沒有為節日章加第二種動畫時間（[style §25.2](style.md) 的
+「一般 NFT 翻卡 2.2 秒」照用）。
+
+**缺的是翻過來以後那一面**。原本 `SeasonalClaim` 只把鏈上 metadata 的 `name` 丟進揭曉佇列，
+於是畫面畫的是通用金色 `award` 圖示，標題是整個系列共用的
+「NeonShift Seasonal Footprints (Device)」——剛拿到的人看不出這是哪一屆，也看不到自己
+在收藏頁上熟悉的那枚徽章。這正是 PG-SEASON-04 把主題與年份放在鏈下 metadata 的代價，
+要在 App 端補回來。
+
+- `nftRevealStore` 的 `Reward` 加 `seasonal?: { themeId, year }`——帶的是**主題與年份，不是圖檔位址**，
+  因為節日徽章是程序繪製的（`SeasonalBadge`），揭曉時不連網也畫得出來，翻過來就是收藏頁上同一枚。
+- `NftReveal` 在 `seasonal` 時把正面換成 `SeasonalBadge state="earned"`（148 px），標題改成
+  **本地化屆名＋年份**（`season.name.<theme_id>`，查不到譯名退回 `theme_id`，不顯示 i18n key、不顯示空字串）。
+- 文案三句（`reveal.seasonal{Eyebrow,Title,Body}`，兩份字典同 key）：說的是「每年一屆、每屆一枚，
+  這個年份不會再出現第二枚」，**不談價值也不談稀有度**——它是免費收藏，不是商品。
+
+測試 3 項（`nftReveal.test.tsx`）：節日章顯示徽章與屆名且**畫面上不得出現共用系列名**、
+未知主題退回 `theme_id` 而非 i18n key、非節日獎勵仍走通用獎章（回歸防護）。App 83 suites／600 tests 通過。
+
+要實機看到這段揭曉，仍需先完成上一節那三件事（鏈上程式重新部署 → migration 0021 →
+`SEASONAL_MINT_ENABLED=true`），並把某一屆的 `enabled` 打開；在那之前領取按鈕不會出現。
