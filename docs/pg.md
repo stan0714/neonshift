@@ -530,7 +530,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-E-01 | 合作組織、角色與活動權限模型／migration | SD 11.1、11.3 | BR-26 | 2.0 | WIP | 2026-09-14 完成：migration 0006（18 表、複合 FK、約束、樂觀鎖）、`PartnerStore`（Memory／PG）、`PartnerAuthz`（DB 推導角色、checkpoint 限定、404 防枚舉、近期登入、audit）；auth 新增 `loginAt`；vitest 4＋PG 整合 1 |
 | PG-E-02 | 合作管理介面、活動生命週期與規則版本 | SD 11.1～11.3 | FR-09、BR-27、BR-33 | 3.0 | WIP | 2026-09-14 API 完成：組織（ops）／成員／活動草稿與樂觀鎖／規則版本（只增、hash）／發布與取消／活動角色／稽核；公開活動讀取不含內部資料；vitest 3（端到端）。待：合作方網頁管理介面（目前以 API 操作） |
 | PG-E-03 | App 活動列表／詳情、宣傳連結與報名容量 | SD 11.1、11.2 | FR-09、FR-10、BR-28 | 3.0 | WIP | 2026-09-14 完成：後端報名／取消／隱私／歷史／宣傳彙總（原子容量、規則版本同意、來源統計；vitest 1）；App `EventsScreen`／`EventDetailScreen`（Arena 入口、App Links `/e/<slug>?source=`、Jest 4）。待實機：後端上線後走一次報名 |
-| PG-E-04 | NFC／App Links、QR 備援與可選卡片綁定 | SD 11.4 | FR-11.1、FR-11.3、BR-29 | 2.5 | WIP | 2026-09-14 完成：後端 checkpoints／nfc_tags 登記、停用、補發與參加者查詢（opaque ref、不含憑證）；Manifest App Links（autoVerify）＋NDEF intent-filter＋NFC optional；`web/.well-known/assetlinks.json`（debug 指紋；release 待填）；App `?tag=` → TagBanner（active／revoked／not_yours／unknown／需登入）；vitest 9、Jest 162。待實機：部署 assetlinks 後以 NFC 標籤與 QR 驗證（今日 Seeker 由另一工作階段使用中，未實機驗證） |
+| PG-E-04 | NFC／App Links、QR 備援與可選卡片綁定 | SD 11.4 | FR-11.1、FR-11.3、BR-29 | 2.5 | WIP | 2026-09-14 完成：後端 checkpoints／nfc_tags 登記、停用、補發與參加者查詢（opaque ref、不含憑證）；Manifest App Links（autoVerify）＋NDEF intent-filter＋NFC optional；`web/.well-known/assetlinks.json`（2026-09-27 修正，見下）；App `?tag=` → TagBanner（active／revoked／not_yours／unknown／需登入）；vitest 9、Jest 162。2026-09-27 修正 assetlinks：原本列的 `FA:C6:17:…` 對不上任何一把金鑰（本機 debug keystore 是 `41:2F:13:DE:…`，release 是 `C6:B8:BB:B3:…:4B:04`），第二筆還是字面佔位字串 `<RELEASE_CERT_SHA256 …>`，所以 Android 驗證一直是失敗狀態（`pm get-app-links` 顯示 `neonshift.cc: 1024`）。已改為只列 release 憑證實際指紋（由 apksigner 從 APK 取出，非手抄）；不放 debug 指紋——那等於把網址處理權委派給一把開發機上的金鑰。正式 keystore（Runbook 8.1）產出後要把它的指紋一併加入（此檔支援多筆）。部署後在裝置上 `adb shell pm verify-app-links --re-verify cc.neonshift.app` 再查狀態。待實機：部署 assetlinks 後以 NFC 標籤與 QR 驗證 |
 | PG-E-05 | 現場 staff 報到、challenge 與補登稽核 | SD 11.2～11.4 | FR-10、BR-28、BR-29 | 2.0 | WIP | 2026-09-14 完成：後端報到 challenge（8 碼＋QR payload、120 秒、只存 hash、單次消耗）、staff 報到（代碼／手動補登需近期登入與理由、限授權站點、冪等、稽核）、報到清單、event-history 附報到；App `CheckInCode`（QR＋代碼＋倒數）、`StaffCheckIn`（授權站點、代碼／手動、結果）、EventDetail 入口；vitest 10、Jest 166（修正 RNTL 14 `fireEvent` 需 `await` 的既有測試）。待：相機掃描 QR（目前輸入代碼）、實機驗證 |
 | PG-E-06 | 品項庫存、原子核銷、實體交付及數位徽章 | SD 11.3、11.4 | FR-11、BR-30、BR-33 | 3.5 | WIP | 2026-09-14 完成：migration 0007（claim_code）；品項建立／公開投影／對帳；原子預留（鎖 event→benefit→participant、名單／報到／截止／每人上限／庫存、冪等 key、15 分鐘保留）、數位徽章同交易發放憑證、staff 交付（只交付 reserved、重試 already、逾期 410、取消 409、稽核）、lazy 逾期釋放、活動取消釋放預留（BR-33）、對帳分狀態計數（FR-11.4）、event-history 附核銷；App `Perks`（EventDetail）與 StaffCheckIn「權益交付」模式；vitest 11、Jest 170。待：相機掃描、實機驗證、checkpoint 限定 staff 的交付站點約束 |
 | PG-E-07 | CSV 成績 staging、發布與更正歷史 | SD 11.2、11.5 | FR-12.1、FR-12.2、BR-31 | 3.0 | WIP | 2026-09-14 完成：CSV v1 解析／逐列驗證（表頭、名單、狀態、單位、重複、大小上限）、staging（版本遞增、hash、預覽、錯誤）、publisher 發布（近期登入、無錯誤、更正需原因、previous_revision 鏈、稽核）；vitest csv 3＋端到端 1。待：合作方網頁介面（目前 API）、FR-12.4 webhook（S） |
@@ -904,6 +904,15 @@ WIP（碼完、自動測試通過、**實機與部署未驗收**）：
 | PG-SHARE-08 | 凍結 `ShareRenderSpec`（來源 ID 只留本機）、成就狀態門檻（只有已鑄造能出收藏卡）、A 卡標「個人紀錄／尚未驗證」、獨立分享同意（精確值與月份預設關） | WIP |
 
 新依賴：`expo-sharing`、`expo-clipboard`、`qrcode`（純 JS）。前兩者是原生模組，**必須重新出包**才會生效；`/s/` App Link 也需新 APK 才會驗證網域。
+
+**2026-09-27 部署實測（線上 `neonshift.cc` 尚未更新）**：`/s/*`、`/og/*`、`/licenses/*` 全部不存在，
+Cloudflare Pages 把找不到的路徑一律回**首頁且狀態碼 200**（`/s/zzznotexist` 也是 200），所以
+「連得上」不等於「頁面在」——這次是用 `<title>` 與 `Content-Type` 才驗出來的。線上首頁仍是
+2026-09-20 之前的內容（還有睡眠字樣、沒有 OG head）。影響：App 分享出去的
+`https://neonshift.cc/s/<kind>` 落到首頁，沒有分屆文案、沒有「Open in NeonShift」、
+`/v1/metrics/share` 的匿名計數（PG-SHARE-05）永遠不會被觸發，社群預覽也只會拿到通用首頁卡。
+修法：`npx wrangler pages deploy web --project-name neonshift --branch main`（見 deploy/README）。
+另建議補 `web/404.html`，否則缺檔會繼續假裝成首頁。
 
 延後：PG-SHARE-06（C／D／E 卡型）、07（story 9:16）、09（路線形狀匯出——裁切規則未驗收前開關不露出）。
 
