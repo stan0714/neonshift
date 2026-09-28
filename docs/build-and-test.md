@@ -965,7 +965,7 @@ PKG="cc.neonshift.app"
 
 adb shell pm clear "$PKG"
 for p in health.READ_STEPS health.READ_HEALTH_DATA_IN_BACKGROUND \
-         ACTIVITY_RECOGNITION ACCESS_COARSE_LOCATION; do
+         ACTIVITY_RECOGNITION ACCESS_COARSE_LOCATION POST_NOTIFICATIONS; do
   adb shell pm revoke "$PKG" "android.permission.$p" 2>/dev/null || true
 done
 echo "已重置，可重新測試首次啟動流程"

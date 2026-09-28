@@ -1024,12 +1024,12 @@ WIP（碼完、實機未驗）：
 - **提醒訂閱**（`app/src/state/seasonalReminderStore.ts`）：存在**本機、不分錢包、不上傳**。訂閱的是公開活動不是個人資料，未登入看得到公開目錄就該能訂閱；而且在沒有推播通道的情況下，把「誰在等哪一屆」收到後端只是多存一份沒有用途的資料。取消訂閱會把這一屆的已讀提醒一起清掉，重新訂閱的人收得到。
 - **提醒判定**（純函式 `app/src/domain/seasonalReminder.ts`）：依「最該現在做什麼」排序——`open`（還能出門走一趟）＞ `grace`（只能把窗口內那一筆**同步上來**，寬限放寬的是上傳時間不是運動時間）＞ `soon`（開始前 7 天內）。已達標或待驗證的一屆不提醒（提醒只會讓人以為還沒完成）；同一屆每個階段各提醒一次，關掉 `soon` 之後窗口真的開了還是會再提醒。8 項單元測試。
 - **提醒的出口**：與資格核准共用 `SeasonalNotice` 那一個浮層，**核准優先**（已經發生的事先講）。兩個浮層互相蓋住才是真正的問題。未登入也會提醒（改查公開目錄），但**沒有訂閱任何一屆時完全不發請求**。
-- **文案說實話**：這支 App 沒有推播也沒有本機排程通知（`modules/neonshift-notify` 只負責運動中的前景服務頻道），所以開關旁邊直接寫「NeonShift 只會在你打開 App 時提醒，沒有背景推播、也不會把這個訂閱上傳」。**系統推播是這一項還沒做的部分**，不因為有提醒就宣稱有通知。
+- **文案說實話**（當時）：這支 App 沒有推播也沒有本機排程通知（`modules/neonshift-notify` 只負責運動中的前景服務頻道）。**2026-09-28 已補上本機排程通知，見下方當日條目**，所以開關旁邊直接寫「NeonShift 只會在你打開 App 時提醒，沒有背景推播、也不會把這個訂閱上傳」。**系統推播是這一項還沒做的部分**，不因為有提醒就宣稱有通知。
 - **年度營運工具**：`backend/src/seasonal/check.ts`（`npm run seasonal:check`，可加 `--now`／`--json`）把設定檔驗一次並印成表——重點是印出**換算回活動時區之後真正涵蓋的當地日期**，因為每年加下一屆真正容易錯的是 UTC 窗口算錯一小時或 DST 讓當地日期跑掉。`scripts/ops/seasonal.sh` 包一層，`--remote` 再跟線上 `/v1/seasonal` 對帳（窗口、時區、門檻、寬限、來源核對日與 `mint_enabled` 全比一次），確認部署上去的設定與 repo 同一版。不需要 OPS_TOKEN（公開目錄），不連資料庫。已加進 `scripts/test-all.sh`。
 
 順手修掉一個會誤導測試結果的環境問題：`scripts/env.sh` 原本只用單一 `BREW_PREFIX` 找 node，而 nvm 是 shell function、非登入 shell 讀不到，於是 `scripts/test-all.sh` 與 `scripts/ops/*.sh` 會默默用系統上的舊版 node 跑——舊版 node 的 jest 沙箱沒有 `crypto.getRandomValues`，`Keypair.generate()` 相關套件就會失敗。這台 Mac 同時有 `/opt/homebrew`（openjdk）與 `/usr/local`（node），所以改成逐一試已知位置挑第一個存在的。
 
-尚未做：PG-SEASON-04 registry／mint（`achievements_kind_ck` 還沒有 `seasonal`；鏈上 `category` 只到 1..=13，需程式改版與重新部署——格式待決）、PG-SEASON-05 的揭曉動畫與「可領取」流程（等 04）、PG-SEASON-06 的系統推播。
+尚未做：PG-SEASON-04 registry／mint（`achievements_kind_ck` 還沒有 `seasonal`；鏈上 `category` 只到 1..=13，需程式改版與重新部署——格式待決）、PG-SEASON-05 的揭曉動畫與「可領取」流程（等 04）、PG-SEASON-06 的系統推播。（三項皆已於 2026-09-27／28 完成，見後續條目。）
 
 規格：[節日與生態紀念 NFT §4／§6](design/seasonal-achievement-nfts.md)。
 
@@ -1064,7 +1064,7 @@ WIP（碼完，實機與鏈上未驗）：程式 105 案例（attestation-core 1
 
 另外：要有任何一屆真的能領，還得把 `backend/seasonal/campaigns.json` 裡某一屆的 `enabled` 打開——目前三屆全部 `false`，那是另一個決定（每屆要先人工核對日期來源）。
 
-尚未做：撤銷語意的實機驗證；PG-SEASON-06 的系統推播。（節日徽章揭曉已於 2026-09-27 補完，見下。）
+尚未做：撤銷語意的實機驗證。（節日徽章揭曉已於 2026-09-27 補完、系統通知 2026-09-28 補完，見下。）
 
 規格：[節日與生態紀念 NFT §5／§6](design/seasonal-achievement-nfts.md)、[SD 2026-09-27 實作註記](sd.md)。
 
@@ -1107,3 +1107,75 @@ WIP（碼完，實機與鏈上未驗）：程式 105 案例（attestation-core 1
 
 要實機看到這段揭曉，仍需先完成上一節那三件事（鏈上程式重新部署 → migration 0021 →
 `SEASONAL_MINT_ENABLED=true`），並把某一屆的 `enabled` 打開；在那之前領取按鈕不會出現。
+
+
+## 2026-09-28 節日提醒的本機排程通知（PG-SEASON-06 的「系統推播」）＋ 網站 404 頁
+
+### 為什麼是本機排程，不是遠端推播
+
+PG-SEASON-06 當初把訂閱清單留在裝置上、不上傳，理由寫在 `seasonalReminderStore`：
+訂閱的是**公開活動**，而且沒有推播通道時把「誰在等哪一屆」收到後端只是多存一份沒用途的資料。
+要改走 push 就得推翻那個決定——後端得保存每台裝置的 token 與它訂閱了哪幾屆，
+一個公開活動的訂閱就變成一筆個人資料，還要多一個 FCM 專案與伺服器金鑰。
+
+**而那是不必要的**：每一屆的日期在 `backend/seasonal/campaigns.json` 裡本來就是公開且事先已知的，
+手機拿到公開目錄之後自己就算得出「什麼時候該提醒」。所以這次引入 `expo-notifications`
+（`~57.0.21`）**只用它的本機 API**：channel、權限、`scheduleNotificationAsync` 的 DATE trigger。
+沒有 token、沒有伺服器、什麼都不上傳。
+
+### 做了什麼
+
+- **排程計畫是純函式**（`domain/seasonalNotificationPlan.ts`）：訂閱的一屆排三個時刻，
+  與畫面上那三個階段語意一致——`soon`（開始前 7 天，還有時間安排一次 20 分鐘健走）、
+  `open`（窗口開啟）、`grace`（窗口結束，只剩把那一筆**同步上來**）。
+  只排未來的時刻；已達標／待驗證的一屆完全不排（在節日當天被叫去「快走」只會讓人以為漏了什麼）；
+  `grace_days` 為 0 時沒有補同步期限，那一則不排；上限 12 則，砍掉的是最遠的那些。
+- **差異同步**（`services/notifications/seasonalNotifications.ts`）：不是「全部取消再全部重排」——
+  那會在每次前景切換與每 5 分鐘無謂地重建鬧鐘。比對存在通知自己 `data` 裡的
+  `fireAt` 與 `locale`：**換語言會重排**，讓還沒響的通知跟著換語言。id 固定為
+  `seasonal:<phase>:<campaign_id>`，所以重複同步不會排出第二份，取消時也不會誤殺其他通知。
+- **不靜默要求權限**：開畫面只「查詢」權限狀態，真正的要求發生在使用者打開某一屆的提醒開關時
+  （Android 13 的系統詢問在沒有任何 channel 時不會出現，所以先建 channel 再要求）。
+  被拒絕時**不假裝會通知**：開關旁邊的文案換成「系統通知目前是關閉的，所以只會在你打開 App 時提醒」。
+- **兩個出口都留著**：排程通知負責「不必打開 App」，`SeasonalNotice` 浮層負責「打開 App 當下」——
+  後者仍有存在意義，因為權限可能被關掉，也可能使用者訂閱時那一屆已經開始了。
+- **通知內容不含個人資料**：`data` 只有活動代號、階段、時刻、語言（通知內容會留在系統的通知紀錄裡）。
+  測試直接斷言序列化結果不含 wallet／base58 位址。
+
+### 原生層：手動維護的 android/ 要自己補 plugin 的產出
+
+`expo-notifications` 經 `expo-modules-autolinking resolve -p android` 確認會被已提交的 `app/android/`
+自動連結，**不需要重跑 prebuild**；模組自己的 manifest 已宣告 `POST_NOTIFICATIONS` 與
+`RECEIVE_BOOT_COMPLETED`（後者用來在重開機後重建排程，正是我們要的）。
+
+但 config plugin 不會執行，所以照它的產出手工補上：`drawable-{mdpi..xxxhdpi}/notification_icon.png`
+（24dp 基準 ×{1,1.5,2,3,4} = 24／36／48／72／96 px，由既有的 Android 單色圖示壓成全白＋透明）、
+`colors.xml` 的 `notification_icon_color`、AndroidManifest 的四個 meta-data。
+`app.json` 也同步宣告同一組設定，之後若真的跑 prebuild 結果會一致。
+
+**一個要知道的代價**：`expo-notifications` 固定依賴 `firebase-messaging`，所以它會進 APK。
+本專案**沒有套用 google-services 外掛也沒有 `google-services.json`**，沒有設定檔它不會初始化、
+不會有推播連線；但 APK 會變大一些，而且 manifest 裡會多一個 FCM 的 service（由模組宣告）。
+
+### 順手做的重複整理
+
+同一句提醒現在有兩個出口，文案再各寫一份遲早漂移，而提醒說的是期限這種「說錯就害人白跑一趟」的事。
+抽出 `domain/seasonalCopy.ts`（`seasonalThemeName`／`seasonalEditionName`／`seasonalReminderBody`），
+`SeasonalNotice`、排程通知與 `NftReveal` 共用同一份；屆名查不到譯名一律退回 `theme_id`，
+不顯示 i18n key、不顯示空字串。
+
+### 網站 404 頁
+
+`web/404.html`（中英雙語）。這件事的意義不只是美觀：在此之前 Cloudflare Pages 把找不到的路徑
+**一律回首頁＋HTTP 200**，所以「網站停在 9/20、`/s/*` 與 `/og/*` 根本沒部署」看起來像一切正常，
+兩個星期沒被發現。404 頁刻意**不放 OG／Twitter 標籤**（它不是可分享的頁面）並標 `noindex`；
+顯示的路徑用 `textContent` 寫入，所以網址裡的任何內容都不會被當成標記執行。
+如果部署後缺檔仍然回首頁，那就是 Pages 專案開了 SPA fallback，要在儀表板關掉。
+
+測試：`seasonalNotifications.test.ts` 16 項（排程計畫 8、差異同步 8，含「沒權限不偷偷要求」、
+「重複同步不排第二份」、「換語言會重排」、「不誤殺別人的通知」、「模組不存在或丟例外不炸掉」）。
+App 84 suites／616 tests 通過，typecheck 乾淨。
+
+**要實機生效必須重新出包**（原生模組）。文件同步：設計文件 §5 與 PG-SEASON-06 格、
+隱私政策第 5 節新增通知權限揭露（生效日改 2026-09-28）、`build-and-test.md` 冷啟動重置腳本
+加 `POST_NOTIFICATIONS`、`app.json` 權限與 plugin。

@@ -18,6 +18,7 @@ import { achievementService } from '@/services/chain/AchievementService';
 import { ClaimError } from '@/services/chain/StarterShoeService';
 import { recordLocalMint } from '@/services/chain/localMints';
 import { useNftRevealStore } from '@/state/nftRevealStore';
+import { requestSeasonalNotificationPermission, seasonalNotificationPermission, type SeasonalPermission } from '@/services/notifications/seasonalNotifications';
 import { useSeasonalReminderStore } from '@/state/seasonalReminderStore';
 import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
@@ -55,6 +56,18 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
   // PG-SEASON-06：訂閱清單存在本機（裝置層、不分錢包、不上傳）
   const reminders = useSeasonalReminderStore();
   useEffect(() => { void reminders.load(); }, [reminders.load]);
+  /**
+   * 通知權限（PG-SEASON-06）。開畫面時只「查詢」不要求——靜默彈系統詢問是騷擾，
+   * 而且使用者還沒表示想被提醒。真正的要求在打開開關的那一刻。
+   */
+  const [notifyPermission, setNotifyPermission] = useState<SeasonalPermission | null>(null);
+  useEffect(() => { void seasonalNotificationPermission().then(setNotifyPermission); }, []);
+  const onToggleRemind = async (campaignId: string) => {
+    const turningOn = !reminders.subscribed.includes(campaignId);
+    // 先問權限再記訂閱：被拒絕也照樣記下訂閱（App 內浮層仍會提醒），只是文案改成說實話
+    if (turningOn) setNotifyPermission(await requestSeasonalNotificationPermission());
+    await reminders.toggle(campaignId);
+  };
   /** 年份篩選（設計 §5「不把每年卡片全部塞到首頁」）；'all' 代表不篩 */
   const [year, setYear] = useState<number | 'all'>('all');
 
@@ -132,13 +145,13 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
                 <Text variant="caption" tone="secondary" style={styles.rule}>
                   {t('season.rule', { min: r.rules.min_moving_minutes, days: r.rules.grace_days })}
                 </Text>
-                {/* PG-SEASON-06：只有 App 內提醒，沒有推播——開關旁邊直接講清楚 */}
+                {/* PG-SEASON-06：本機排程通知（沒有遠端推播、訂閱不上傳）——開關旁邊直接講清楚 */}
                 {r.window.state !== 'closed' ? (
                   <View style={styles.remindRow}>
                     <Text variant="bodySmall" tone="secondary" style={styles.flex}>{t('season.remind')}</Text>
                     <Switch
                       value={reminders.subscribed.includes(r.campaign_id)}
-                      onValueChange={() => void reminders.toggle(r.campaign_id)}
+                      onValueChange={() => void onToggleRemind(r.campaign_id)}
                       trackColor={{ true: color.mint, false: color.borderSubtle }}
                       thumbColor={color.textPrimary}
                       accessibilityLabel={t('season.remind')}
@@ -147,7 +160,9 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
                   </View>
                 ) : null}
                 {r.window.state !== 'closed' && reminders.subscribed.includes(r.campaign_id) ? (
-                  <Text variant="caption" tone="muted" testID={`seasonal-${r.campaign_id}-remind-note`}>{t('season.remindNote')}</Text>
+                  /* 系統通知被關掉時就不能說「會提醒你」——只有 'denied' 換文案；
+                     'unavailable' 只會在沒有這個原生模組的開發環境出現（JS 與原生是同一包出去的） */
+                  <Text variant="caption" tone="muted" testID={`seasonal-${r.campaign_id}-remind-note`}>{t(notifyPermission === 'denied' ? 'season.remindDenied' : 'season.remindNote')}</Text>
                 ) : null}
                 {r.status ? (
                   <View style={styles.status} testID={`seasonal-${r.campaign_id}-status-${r.status}`}>

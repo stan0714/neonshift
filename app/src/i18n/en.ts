@@ -2045,7 +2045,10 @@ export const en = {
   'season.notice.open': 'Open collection',
   // PG-SEASON-06 reminder subscription (in-app only, no push)
   'season.remind': 'Remind me before it starts',
-  'season.remindNote': 'NeonShift only reminds you when you open the app. There is no background push, and this subscription is never uploaded.',
+  'season.remindNote': 'You get one reminder 7 days before it opens, one when the window opens, and one when it closes. Your phone schedules these itself — the subscription is never uploaded and there is no remote push.',
+  'season.remindDenied': 'Notifications are off, so reminders only appear when you open the app. Turn on notifications for NeonShift in system settings to receive them.',
+  'season.notify.channel': 'Seasonal reminders',
+  'season.notify.channelDesc': 'One reminder before a subscribed edition opens and before its window closes.',
   'season.reminder.title': 'Seasonal reminder',
   'season.reminder.soon': '{name} starts {when} ({tz}).',
   'season.reminder.open': '{name} is open until {when}. One walk or run with {min} minutes of moving time counts.',

@@ -4,7 +4,7 @@
     "version": "0.1.0",
     "android": {
       "package": "cc.neonshift.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#050711",
         "monochromeImage": "./assets/android-icon-monochrome.png",
@@ -25,7 +25,8 @@
         "android.permission.health.READ_EXERCISE",
         "android.permission.health.READ_DISTANCE",
         "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
-        "android.permission.health.READ_TOTAL_CALORIES_BURNED"
+        "android.permission.health.READ_TOTAL_CALORIES_BURNED",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "predictiveBackGestureEnabled": false
     },
@@ -63,7 +64,14 @@
           "isAndroidBackgroundLocationEnabled": false
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#30EBC8"
+        }
+      ]
     ],
     "platforms": [
       "android"

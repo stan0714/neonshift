@@ -4,7 +4,10 @@ import { AppState, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, InlineState } from '@/components';
+import { seasonalEditionName, seasonalReminderBody } from '@/domain/seasonalCopy';
+import { seasonalNotificationPlan } from '@/domain/seasonalNotificationPlan';
 import { nextSeasonalReminder, type SeasonalReminder } from '@/domain/seasonalReminder';
+import { syncSeasonalNotifications } from '@/services/notifications/seasonalNotifications';
 import { useT, type TKey } from '@/i18n';
 import { apiClient, type MySeasonalItem, type SeasonalCampaignView } from '@/services/api/ApiClient';
 import { useSeasonalReminderStore } from '@/state/seasonalReminderStore';
@@ -27,8 +30,10 @@ import { color, radius, space } from '@/theme';
  *
  * ── PG-SEASON-06：同一個浮層也負責「訂閱的一屆要開始／進行中／還能補同步」的提醒 ──
  * 兩種浮層互相蓋住才是真正的問題，所以共用這一個位置，**資格核准優先**（那是已經發生的事，
- * 提醒只是還沒發生的事）。提醒完全是 App 內的：這支 App 沒有推播也沒有本機排程通知，
- * 所以文案只說「打開 App 時提醒」，訂閱清單也只存在這台裝置上（見 seasonalReminderStore）。
+ * 提醒只是還沒發生的事）。這個浮層負責的是「打開 App 當下」該看到的提醒；
+ * 不必打開 App 的那一半由本機排程通知負責（`services/notifications/seasonalNotifications.ts`，
+ * 這支元件每次拿到活動資料時順手對齊排程）。仍然沒有遠端推播，訂閱清單只存在這台裝置上
+ * （見 seasonalReminderStore）。
  * 未登入也會提醒——公開目錄看得到的活動就該能被提醒，但**沒有訂閱任何一屆時完全不發請求**。
  */
 const POLL_MS = 5 * 60 * 1000;
@@ -64,6 +69,10 @@ export function SeasonalNotice({ onOpen, visible = true }: { visible?: boolean; 
         const { items } = address ? await apiClient.mySeasonal() : await apiClient.seasonal();
         if (disposed) return;
         setRows({ address: address ?? null, items });
+        // PG-SEASON-06：同一份資料順手把本機排程通知對齊（沒有權限時 service 直接跳過）。
+        // 放在這裡是因為這支元件本來就會在回到前景與每 5 分鐘各拿一次活動資料，
+        // 不必為排程另外發請求；排程算法是純函式，不需要畫面。
+        void syncSeasonalNotifications(seasonalNotificationPlan(items, { now: new Date(), subscribed: new Set(subscribed) }));
       } catch {
         // 連不上不代表資格或窗口有變，也不清掉上一次的通知
       } finally {
@@ -90,11 +99,7 @@ export function SeasonalNotice({ onOpen, visible = true }: { visible?: boolean; 
   }, [address, subscribed.length]);
 
   const items = rows && rows.address === (address ?? null) ? rows.items : [];
-  const nameOf = (themeId: string, year: number) => {
-    const key = `season.name.${themeId}` as TKey;
-    const s = t(key);
-    return `${s === key ? themeId : s} ${year}`;
-  };
+  const nameOf = (themeId: string, year: number) => seasonalEditionName(t, themeId, year);
 
   if (!visible) return null;
 
@@ -126,21 +131,13 @@ export function SeasonalNotice({ onOpen, visible = true }: { visible?: boolean; 
   if (!reminder) return null;
   return (
     <View style={[styles.card, { bottom: insets.bottom + space.s }]} accessibilityLiveRegion="polite" testID={`seasonal-reminder-${reminder.phase}`}>
-      <InlineState kind="info" title={t('season.reminder.title')} body={reminderBody(t, reminder, nameOf(reminder.themeId, reminder.year))} />
+      <InlineState kind="info" title={t('season.reminder.title')} body={seasonalReminderBody(t, reminder, nameOf(reminder.themeId, reminder.year))} />
       <View style={styles.actions}>
         <Button label={t('season.notice.open')} onPress={() => { onOpen(); void reminders.dismiss(reminder.campaignId, reminder.phase); }} style={styles.button} testID="seasonal-reminder-see" />
         <Button label={t('common.close')} variant="secondary" onPress={() => void reminders.dismiss(reminder.campaignId, reminder.phase)} style={styles.button} testID="seasonal-reminder-close" />
       </View>
     </View>
   );
-}
-
-/** 截止時刻一律以**活動時區**顯示：提醒說的是活動的期限，不是裝置目前設定的時區 */
-function reminderBody(t: (k: TKey, p?: Record<string, string | number>) => string, r: SeasonalReminder, name: string): string {
-  const when = r.deadline.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: r.displayTimezone });
-  if (r.phase === 'open') return t('season.reminder.open', { name, when, min: r.minMovingMinutes });
-  if (r.phase === 'grace') return t('season.reminder.grace', { name, when });
-  return t('season.reminder.soon', { name, when, tz: r.displayTimezone });
 }
 
 const styles = StyleSheet.create({

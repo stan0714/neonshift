@@ -1224,3 +1224,23 @@ Indoor 不啟用 GPS 推算距離，僅接可信裝置／已標記來源；缺�
 
 **未完成／待決**：正式價格與收款錢包（負責人決策）；主網小額實測（需負責人核准金額與收款地址）；devnet 試跑用 `scripts/chain/skr-test-mint.sh`；SKR-07 自動測試已覆蓋（backend 11、app 12），真機證據待補。
 
+
+## 2026-09-28 實作註記：節日提醒的本機排程通知（PG-SEASON-06）
+
+- **只有本機排程，沒有遠端推播。** `expo-notifications ~57.0.21` 只用 channel／權限／
+  `scheduleNotificationAsync`（DATE trigger）。訂閱清單依原設計仍只存在裝置上、不上傳：
+  走 push 需要後端保存裝置 token 與訂閱關係，會把一個公開活動的訂閱變成個人資料，
+  而每一屆的日期本來就公開且事先已知，排程在手機上算得出來。
+- 排程時刻＝訂閱的一屆的「開始前 7 天／窗口開啟／窗口結束」三則；只排未來，已達標或待驗證不排；
+  id 固定為 `seasonal:<phase>:<campaign_id>`，同步採差異運算（比對 `fireAt` 與 `locale`，
+  換語言會重排未來的通知），不會排出第二份也不會誤殺其他通知。
+- 權限只由使用者打開提醒開關時要求（Android 13 需先有 channel 才會出現系統詢問）；
+  被拒絕時 UI 改說「只會在你打開 App 時提醒」，不假裝會通知。
+- 通知 `data` 只放活動代號、階段、時刻、語言——通知內容會留在系統通知紀錄裡，不放任何個人資料。
+- 原生層：autolinking 會處理模組本身（不需重跑 prebuild），但本專案手動維護 `android/`，
+  所以 config plugin 的產出（`drawable-*/notification_icon.png`、`notification_icon_color`、
+  四個 meta-data）是手工補上並與 `app.json` 同步宣告。`POST_NOTIFICATIONS` 由模組 manifest 宣告，
+  `app.json` 也明列。
+- 代價：`expo-notifications` 固定依賴 `firebase-messaging`，會進 APK；本專案沒有 google-services
+  設定檔，不會初始化、不會有推播連線。
+- 隱私政策第 5 節已補通知權限揭露（生效日 2026-09-28）。

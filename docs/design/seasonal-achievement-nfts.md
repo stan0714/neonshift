@@ -50,7 +50,7 @@
 5. 私人取得紀錄顯示「由這次運動取得」，連回自己的 Activity。日期與時間屬私人詳情；分享預設只有徽章、年份、活動名與真實 Mint 狀態，不帶路線、錢包或精確時間。
 6. 過期未參加顯示「本屆已結束」，可看下一屆；已完成但待核准者仍可查進度，不以活動結束覆蓋其資格。
 
-收藏頁增加「里程碑／個人最佳／節日」分類、年份篩選與「已收藏／可領取／未解鎖」，不把每年卡片全部塞到首頁。活動提醒由使用者訂閱；未做系統推播前只標 App 內提醒。
+收藏頁增加「里程碑／個人最佳／節日」分類、年份篩選與「已收藏／可領取／未解鎖」，不把每年卡片全部塞到首頁。活動提醒由使用者訂閱；提醒有兩個出口——本機排程通知（開始前 7 天、窗口開啟、窗口結束各一次）與打開 App 時的浮層。排程在手機上算、訂閱不上傳，**沒有遠端推播**。
 
 ## 5. 判定、同步與鑄造契約
 
@@ -74,7 +74,7 @@
 | PG-SEASON-03 | 原創 SVG 美術、任務／詳情／年度收藏與多語文案 | P1・**WIP**（`components/SeasonalBadge.tsx` 程序繪製五種主題＋上鎖鎖圖示；`components/SeasonalFootprints.tsx` 掛在 Gear 收藏頁，顯示窗口狀態、活動時區＋本地時間、單筆 20 分規則、進度與「看這次運動」；年份篩選（跨年份才出現、新的在前）與收藏頁分類切換（全部／跑鞋／里程碑／節日，預設全部）已做；zh／en 文案齊。個人最佳仍在「運動」分頁，沒有搬進收藏頁，畫面上另寫一行說明。「已收藏／可領取／未解鎖」狀態篩選要等 04 有領取路徑才有意義） |
 | PG-SEASON-04 | seasonal mint-intent、registry proof、receipt 與錢包整合 | P1・**WIP（碼完，待重新部署程式才能開啟）**。鏈上格式定案：**整個系列共用一個 `CATEGORY_SEASONAL = 14`**，主題與年份寫在鏈下 metadata。理由是唯一性本來就由 32-byte `achievement_id` 提供（receipt PDA、asset PDA 與 metadata URI 三者都以它為 seed），所以「每玩家每屆一枚」不需要 category 的粒度；反過來每個主題各給一個 category，每年新增主題就要升級並重新部署程式，而且換不到任何唯一性。實作：`CATEGORY_MAX` 13→14、`achievement_metadata` 加系列名、migration 0021 的 `achievements_kind_ck` 加 `seasonal`、`ensureSeasonal`／`reconcileSeasonal`／`POST /v1/me/seasonal/:id/intent`、App 領取（同意 → 預覽費用 → MWA → 揭曉）。**由 `SEASONAL_MINT_ENABLED` 控制，預設關**——它代表「程式已支援並已部署到這個 cluster」，在重新部署前打開會讓玩家拿到鏈上必定失敗的交易 |
 | PG-SEASON-05 | 核准通知、揭曉、社群卡與同意模型 | P1・**WIP**（`components/SeasonalNotice.tsx` 資格核准通知——文案跟著 `mint_enabled`，目前一律說「本屆尚未開放領取」，**沒有領取按鈕**；`pending_review` 不彈通知。`domain/shareImage.ts` 的 `seasonalShareLayout` ＋ 收藏頁分享入口：徽章用與畫面同一份 `SeasonalBadgeArt` 美術，狀態如實（待驗證／已達標／可領取），`chainAsset` 一律 false 所以不掛網路標示；活動窗口（公開）必出現，使用者自己達標的時間預設關閉、勾選後只到月份。落地頁 `web/s/seasonal.html` ＋ `web/og/seasonal-v1.png`，後端 `share_aggregates` 允許 `seasonal`。**揭曉動畫與「可領取」流程仍未做**——沒有 mint 路徑就沒有可揭曉的東西，等 04） |
-| PG-SEASON-06 | 提醒訂閱、推播與年度營運工具 | P2・**WIP**（提醒訂閱：`state/seasonalReminderStore.ts` 存在**本機、不分錢包、不上傳**——訂閱的是公開活動，而且沒有推播通道時把「誰在等哪一屆」收到後端只是多存沒用途的資料；未登入也能訂閱。判定在純函式 `domain/seasonalReminder.ts`：`open`（還能出門走一趟）＞ `grace`（只能把窗口內那一筆同步上來）＞ `soon`（開始前 7 天內），已達標／待驗證不提醒，同一屆每階段只提醒一次。提醒與資格核准共用 `SeasonalNotice` 那一個浮層，**核准優先**。年度營運工具：`backend/src/seasonal/check.ts`（`npm run seasonal:check`）驗設定並印出換算回活動時區的實際日期，`scripts/ops/seasonal.sh --remote` 再跟線上 `/v1/seasonal` 對帳；已納入 `scripts/test-all.sh`。**系統推播仍未做**——App 沒有本機排程通知也沒有 push，所以文案一律寫「只會在你打開 App 時提醒」） |
+| PG-SEASON-06 | 提醒訂閱、推播與年度營運工具 | P2・**WIP**（提醒訂閱：`state/seasonalReminderStore.ts` 存在**本機、不分錢包、不上傳**——訂閱的是公開活動，而且沒有推播通道時把「誰在等哪一屆」收到後端只是多存沒用途的資料；未登入也能訂閱。判定在純函式 `domain/seasonalReminder.ts`：`open`（還能出門走一趟）＞ `grace`（只能把窗口內那一筆同步上來）＞ `soon`（開始前 7 天內），已達標／待驗證不提醒，同一屆每階段只提醒一次。提醒與資格核准共用 `SeasonalNotice` 那一個浮層，**核准優先**。年度營運工具：`backend/src/seasonal/check.ts`（`npm run seasonal:check`）驗設定並印出換算回活動時區的實際日期，`scripts/ops/seasonal.sh --remote` 再跟線上 `/v1/seasonal` 對帳；已納入 `scripts/test-all.sh`。**2026-09-28 補上本機排程通知**：`expo-notifications` 只用本機 API（channel／權限／`scheduleNotificationAsync` 的 DATE trigger），訂閱的一屆在開始前 7 天、窗口開啟、窗口結束各發一次。**仍然沒有遠端推播**：走 push 就得把「誰在等哪一屆」與裝置 token 收到後端，那會把一個公開活動的訂閱變成個人資料；每一屆的日期本來就公開且事先已知，手機自己算得出來。權限只在使用者打開開關時要求，被拒絕時文案改說「只會在你打開 App 時提醒」而不是假裝會通知） |
 
 先保住本次參賽的核心錄製與正式驗收，節日系列作 roadmap；只有完成一屆端到端實測後，才能移到 current features。測試至少包含窗口起訖毫秒、跨午夜、DST、改手機時區、20 分門檻邊界、離線寬限、重複匯入、待審後核准、跨帳號、拒簽、重試已鑄造、撤銷以及收藏年份排序。Demo 可展示標示 Prototype 的測試窗口，不能偽造過去節日實際獲得紀錄。
 

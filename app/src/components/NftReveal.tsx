@@ -15,7 +15,8 @@ import { useCollectibleStore } from '@/state/collectibleStore';
 import { COLLECTIBLES, collectibleName } from '@/domain/collectibles';
 import { useNftRevealStore } from '@/state/nftRevealStore';
 import { useLevelRevealStore } from '@/state/levelRevealStore';
-import { useT, type TKey } from '@/i18n';
+import { seasonalThemeName } from '@/domain/seasonalCopy';
+import { useT } from '@/i18n';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { Text } from '@/theme';
 export function NftReveal() {
@@ -35,10 +36,7 @@ export function NftReveal() {
   // 不用鏈上 metadata 的 name（那是整個系列共用的 "NeonShift Seasonal Footprints"，
   // 對剛拿到的人來說看不出是哪一屆）。查不到譯名就退回 theme_id，不顯示空字串。
   const seasonal = reward.seasonal;
-  const seasonalNameKey = seasonal ? (`season.name.${seasonal.themeId}` as TKey) : null;
-  const seasonalName = seasonal && seasonalNameKey
-    ? (t(seasonalNameKey) === seasonalNameKey ? seasonal.themeId : t(seasonalNameKey))
-    : null;
+  const seasonalName = seasonal ? seasonalThemeName(t, seasonal.themeId) : null;
   const shoeLevel = item?.shoeLevel && item.shoeLevel > 1 ? item.shoeLevel : null;
   const edition: EditionState = editionRow ? editionRow : editionLoading || editionRow === undefined ? 'loading' : 'unavailable';
   const title = seasonal ? `${seasonalName} · ${seasonal.year}` : item ? collectibleName(t, item) : reward.title ?? t('reveal.nftTitle');

@@ -2022,9 +2022,12 @@ export const zhTW: Record<keyof typeof en, string> = {
   'season.notice.notOpen': '{name} 已達標。本屆尚未開放領取，達標紀錄會留著。',
   'season.notice.claimable': '{name} 已達標，可以領取了。',
   'season.notice.open': '看收藏',
-  // PG-SEASON-06 提醒訂閱（只有 App 內提醒，沒有推播）
+  // PG-SEASON-06 提醒訂閱（本機排程通知＋App 內浮層；沒有遠端推播，訂閱不上傳）
   'season.remind': '開始前提醒我',
-  'season.remindNote': 'NeonShift 只會在你打開 App 時提醒，沒有背景推播、也不會把這個訂閱上傳。',
+  'season.remindNote': '會在開始前 7 天、窗口開啟與窗口結束時各提醒一次。提醒由這台手機自己排程，訂閱不會上傳，也沒有遠端推播。',
+  'season.remindDenied': '系統通知目前是關閉的，所以只會在你打開 App 時提醒。要收到通知，請到系統設定開啟 NeonShift 的通知。',
+  'season.notify.channel': '節日提醒',
+  'season.notify.channelDesc': '訂閱的節日章開始前與窗口結束前各提醒一次。',
   'season.reminder.title': '節日提醒',
   'season.reminder.soon': '{name} 在 {when} 開始（{tz}）。',
   'season.reminder.open': '{name} 進行中，{when} 結束。單次健走或跑步移動 {min} 分鐘就算。',
