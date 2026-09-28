@@ -9,7 +9,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import { walletService } from '@/services/wallet/WalletService';
 
-import { buildTransaction, getConnection } from './ChainClient';
+import { buildTransaction, getConnection, rpcRead } from './ChainClient';
 
 export type PendingTx = { signature: string; blockhash: string; lastValidBlockHeight: number; receipt: string; taskDate: number; taskType: number; wallet: string };
 
@@ -40,8 +40,19 @@ export class ClaimSubmitter {
     private readonly send: (tx: Parameters<typeof walletService.signAndSendTransaction>[0], opts?: { minContextSlot?: number }) => Promise<string> = (tx, opts) => walletService.signAndSendTransaction(tx, opts),
   ) {}
 
+  /**
+   * receipt 是否已存在——**這是「這筆到底有沒有上鏈」的判準**，不只是一個查詢。
+   *
+   * 三個呼叫點裡有兩個在 `resolvePending` 的逾時分支，而這個讀取一旦丟例外，
+   * 整個判定就會以例外收場：pending 紀錄還在（不會遺失），但使用者看到的是錯誤而不是結論，
+   * 明明只要 400 ms 後重試一次就會有答案。所以這裡走 `rpcRead` 的退避（只對限流／逾時／
+   * 5xx／連不上重試，「帳號不存在」不重試）。讀取重試沒有冪等問題；**送出交易仍然不重試**。
+   *
+   * 同一分支後面的 `getSignatureStatus`／`getBlockHeight` 刻意保留 `.catch(() => null)`：
+   * 它們失敗時會落到「仍在有效期內、保留 pending、稍後再查」，那是安全的結論。
+   */
   async receiptExists(receipt: PublicKey): Promise<boolean> {
-    return (await this.conn().getAccountInfo(receipt, 'confirmed')) !== null;
+    return (await rpcRead('getAccountInfo(receipt)', (c) => c.getAccountInfo(receipt, 'confirmed'), () => this.conn())) !== null;
   }
 
   /** 送出並確認；逾時交給 `resolvePending` 判定 */

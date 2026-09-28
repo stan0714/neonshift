@@ -18,6 +18,15 @@ import { ThemeProvider } from '@/theme';
 jest.mock('@/services/api/ApiClient', () => ({ apiClient: { mySeasonal: jest.fn(), seasonal: jest.fn() } }));
 const api = jest.requireMock('@/services/api/ApiClient').apiClient as { mySeasonal: jest.Mock; seasonal: jest.Mock };
 
+jest.mock('@/services/notifications/seasonalNotifications', () => ({
+  syncSeasonalNotifications: jest.fn().mockResolvedValue({ scheduled: [], cancelled: [], kept: [] }),
+  cancelAllSeasonalNotifications: jest.fn().mockResolvedValue([]),
+}));
+const notify = jest.requireMock('@/services/notifications/seasonalNotifications') as {
+  syncSeasonalNotifications: jest.Mock;
+  cancelAllSeasonalNotifications: jest.Mock;
+};
+
 const campaign = (o: Record<string, unknown> = {}) => ({
   campaign_id: 'genesis-stride-2027', theme_id: 'genesis_stride', year: 2027, art_version: 1, rules_version: 1, prototype: false,
   window: { starts_at: '2027-03-16T00:00:00.000Z', ends_at: '2027-03-17T00:00:00.000Z', display_timezone: 'UTC', state: 'open' },
@@ -133,4 +142,30 @@ describe('訂閱提醒（PG-SEASON-06）', () => {
     await waitFor(() => expect(screen.queryByTestId('seasonal-reminder-open')).toBeNull());
     expect(useSeasonalReminderStore.getState().dismissed).toEqual(['open:genesis-stride-2027']);
   });
+});
+
+
+/**
+ * PG-SEASON-06 的本機排程通知由這支元件負責對齊（它本來就會定期拿活動資料）。
+ * 這裡釘住兩件容易漏的事：關掉最後一屆時**要把已排的通知清掉**，
+ * 否則「關了開關還是被通知」；以及有訂閱時排程計畫要跟著活動資料走。
+ */
+test('未登入且關掉最後一屆訂閱時，清掉已排的通知（否則關了開關還是會被通知）', async () => {
+  useWalletStore.setState({ session: null as never });
+  useSeasonalReminderStore.setState({ loaded: true, subscribed: [], dismissed: [] });
+  await render(<ThemeProvider><SeasonalNotice onOpen={jest.fn()} /></ThemeProvider>);
+  await waitFor(() => expect(notify.cancelAllSeasonalNotifications).toHaveBeenCalled());
+  // 沒有要查的東西時仍然不發請求
+  expect(api.seasonal).not.toHaveBeenCalled();
+  expect(api.mySeasonal).not.toHaveBeenCalled();
+  expect(notify.syncSeasonalNotifications).not.toHaveBeenCalled();
+});
+
+test('有訂閱時以拿到的活動資料對齊排程', async () => {
+  useWalletStore.setState({ session: null as never });
+  useSeasonalReminderStore.setState({ loaded: true, subscribed: ['genesis-stride-2027'], dismissed: [] });
+  api.seasonal.mockResolvedValue({ items: [campaign({ status: undefined })] });
+  await render(<ThemeProvider><SeasonalNotice onOpen={jest.fn()} /></ThemeProvider>);
+  await waitFor(() => expect(notify.syncSeasonalNotifications).toHaveBeenCalled());
+  expect(notify.cancelAllSeasonalNotifications).not.toHaveBeenCalled();
 });

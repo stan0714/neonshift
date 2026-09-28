@@ -7,7 +7,7 @@ import { Button, InlineState } from '@/components';
 import { seasonalEditionName, seasonalReminderBody } from '@/domain/seasonalCopy';
 import { seasonalNotificationPlan } from '@/domain/seasonalNotificationPlan';
 import { nextSeasonalReminder, type SeasonalReminder } from '@/domain/seasonalReminder';
-import { syncSeasonalNotifications } from '@/services/notifications/seasonalNotifications';
+import { cancelAllSeasonalNotifications, syncSeasonalNotifications } from '@/services/notifications/seasonalNotifications';
 import { useT, type TKey } from '@/i18n';
 import { apiClient, type MySeasonalItem, type SeasonalCampaignView } from '@/services/api/ApiClient';
 import { useSeasonalReminderStore } from '@/state/seasonalReminderStore';
@@ -57,8 +57,10 @@ export function SeasonalNotice({ onOpen, visible = true }: { visible?: boolean; 
   useEffect(() => {
     setRows(null);
     acknowledgedRef.current = new Set();
-    // 沒登入又沒訂閱任何一屆：沒有要查的東西，不發請求
-    if (!address && subscribed.length === 0) return;
+    // 沒登入又沒訂閱任何一屆：沒有要查的東西，不發請求。
+    // 但**已排的通知要清掉**：使用者剛把最後一屆的提醒關掉時就是走到這裡，
+    // 留著排程等於「關掉開關還是會被通知」。登入時走下面的路徑，空的計畫同樣會取消。
+    if (!address && subscribed.length === 0) { void cancelAllSeasonalNotifications(); return; }
     let disposed = false;
     let running = false;
     let acknowledged = new Set<string>();

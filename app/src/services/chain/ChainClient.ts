@@ -65,11 +65,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * 讀取用的退避重試。**只包讀，不包送交易**——重送交易要走 claimSubmitter 的 pending 流程，
  * 不能靠這裡重試（SD 5.3：逾時先查目標帳戶，不盲目重送）。
  */
-export async function rpcRead<T>(label: string, run: (conn: Connection) => Promise<T>): Promise<T> {
+export async function rpcRead<T>(label: string, run: (conn: Connection) => Promise<T>, conn: () => Connection = getConnection): Promise<T> {
   let last: RpcFailure | null = null;
   for (let attempt = 0; attempt <= RPC_RETRY_DELAYS_MS.length; attempt++) {
     try {
-      return await run(getConnection());
+      return await run(conn());
     } catch (e) {
       last = classifyRpcError(label, e);
       if (!retryable(last.reason) || attempt === RPC_RETRY_DELAYS_MS.length) break;

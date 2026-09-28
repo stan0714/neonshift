@@ -3,7 +3,9 @@ import * as SecureStore from 'expo-secure-store';
 
 import { ClaimSubmitter } from '@/services/chain/ClaimSubmitter';
 
+// 只替換要避開真連線的那兩個；`rpcRead` 用真的實作，這樣 receiptExists 的退避重試是被真正執行的
 jest.mock('@/services/chain/ChainClient', () => ({
+  ...jest.requireActual('@/services/chain/ChainClient'),
   buildTransaction: jest.fn(async () => ({ tx: { __tx: true }, blockhash: 'BH', lastValidBlockHeight: 100, minContextSlot: 4200 })),
   getConnection: jest.fn(),
 }));
@@ -81,5 +83,43 @@ describe('PG-A-10 交易冪等（SD 5.3）', () => {
     (c as { getAccountInfo: jest.Mock }).getAccountInfo = jest.fn(async () => (n++ === 0 ? null : {}));
     const s = new ClaimSubmitter(() => c as never, async () => 'SIG');
     expect(await s.submit(player, [], receipt, { taskDate: 1, taskType: 1 })).toEqual({ kind: 'already_claimed' });
+  });
+});
+
+
+/**
+ * receipt 查詢是「這筆到底有沒有上鏈」的判準，所以一次暫時性 RPC 失敗不該讓判定以例外收場。
+ * 這兩項用真的 `rpcRead`（見檔頭的 mock），所以退避是真的跑過的。
+ */
+describe('receipt 查詢的退避重試', () => {
+  test('暫時性失敗（504）重試後成功 → 仍判為 already_claimed，不送交易', async () => {
+    let calls = 0;
+    const c = {
+      getAccountInfo: jest.fn(async () => {
+        calls += 1;
+        if (calls === 1) throw new Error('failed to get info about account X: Error: 504 : {"jsonrpc":"2.0"}');
+        return {};
+      }),
+      confirmTransaction: jest.fn(),
+      getSignatureStatus: jest.fn(),
+      getBlockHeight: jest.fn(),
+    };
+    const send = jest.fn();
+    const s = new ClaimSubmitter(() => c as never, send);
+    expect(await s.submit(player, [], receipt, { taskDate: 1, taskType: 1 })).toEqual({ kind: 'already_claimed' });
+    expect(calls).toBe(2);
+    expect(send).not.toHaveBeenCalled();
+  }, 10_000);
+
+  test('「帳號不存在」這類非暫時性錯誤不重試（再試也是一樣的結果）', async () => {
+    const c = {
+      getAccountInfo: jest.fn(async () => { throw new Error('could not find account'); }),
+      confirmTransaction: jest.fn(),
+      getSignatureStatus: jest.fn(),
+      getBlockHeight: jest.fn(),
+    };
+    const s = new ClaimSubmitter(() => c as never, jest.fn());
+    await expect(s.submit(player, [], receipt, { taskDate: 1, taskType: 1 })).rejects.toThrow();
+    expect(c.getAccountInfo).toHaveBeenCalledTimes(1);
   });
 });
