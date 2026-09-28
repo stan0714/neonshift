@@ -1148,10 +1148,15 @@ PG-SEASON-06 當初把訂閱清單留在裝置上、不上傳，理由寫在 `se
 自動連結，**不需要重跑 prebuild**；模組自己的 manifest 已宣告 `POST_NOTIFICATIONS` 與
 `RECEIVE_BOOT_COMPLETED`（後者用來在重開機後重建排程，正是我們要的）。
 
-但 config plugin 不會執行，所以照它的產出手工補上：`drawable-{mdpi..xxxhdpi}/notification_icon.png`
-（24dp 基準 ×{1,1.5,2,3,4} = 24／36／48／72／96 px，由既有的 Android 單色圖示壓成全白＋透明）、
-`colors.xml` 的 `notification_icon_color`、AndroidManifest 的四個 meta-data。
-`app.json` 也同步宣告同一組設定，之後若真的跑 prebuild 結果會一致。
+但 config plugin 不會執行，所以照它的產出手工補上 `colors.xml` 的 `notification_icon_color`
+與 AndroidManifest 的四個 meta-data。
+
+**圖示沿用既有的 `@drawable/notification_icon`**——`a1331e7` 早就為運動中的前景服務畫了一張
+單色脈衝向量圖（而且已在 Seeker 實機驗過狀態列圖示），`expo-location` 也是按這個名字取圖，
+一個單色小圖示兩邊共用剛好。這裡踩過一次坑值得記下：我原本照 plugin 的做法生成了
+`drawable-{mdpi..xxxhdpi}/notification_icon.png`，但**密度限定的 PNG 會在每個密度桶蓋掉那張
+無密度的向量圖**，等於把已驗收的運動通知圖示換成縮小的啟動圖示——是個回歸，已移除。
+同理 `app.json` 的 plugin 只宣告 `color` 不宣告 `icon`：宣告了的話日後跑 prebuild 會再生成那些 PNG。
 
 **一個要知道的代價**：`expo-notifications` 固定依賴 `firebase-messaging`，所以它會進 APK。
 本專案**沒有套用 google-services 外掛也沒有 `google-services.json`**，沒有設定檔它不會初始化、

@@ -1238,8 +1238,10 @@ Indoor 不啟用 GPS 推算距離，僅接可信裝置／已標記來源；缺�
   被拒絕時 UI 改說「只會在你打開 App 時提醒」，不假裝會通知。
 - 通知 `data` 只放活動代號、階段、時刻、語言——通知內容會留在系統通知紀錄裡，不放任何個人資料。
 - 原生層：autolinking 會處理模組本身（不需重跑 prebuild），但本專案手動維護 `android/`，
-  所以 config plugin 的產出（`drawable-*/notification_icon.png`、`notification_icon_color`、
-  四個 meta-data）是手工補上並與 `app.json` 同步宣告。`POST_NOTIFICATIONS` 由模組 manifest 宣告，
+  所以 config plugin 的產出（`notification_icon_color`、四個 meta-data）是手工補上的。
+  小圖示**沿用既有的 `@drawable/notification_icon`**（運動中前景服務用的單色脈衝向量圖，
+  `expo-location` 也按這個名字取圖）；因此 plugin 只宣告 `color` 不宣告 `icon`——宣告了會生成
+  密度限定的 PNG，在每個密度桶蓋掉那張向量圖。`POST_NOTIFICATIONS` 由模組 manifest 宣告，
   `app.json` 也明列。
 - 代價：`expo-notifications` 固定依賴 `firebase-messaging`，會進 APK；本專案沒有 google-services
   設定檔，不會初始化、不會有推播連線。
