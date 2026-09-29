@@ -144,7 +144,8 @@ export type SeasonalCampaignView = {
   campaign_id: string; theme_id: string; year: number; art_version: number; rules_version: number; prototype: boolean;
   window: { starts_at: string; ends_at: string; display_timezone: string; state: SeasonalWindowState };
   rules: { min_moving_minutes: number; grace_days: number; single_session: boolean; gps_counts: boolean };
-  source: { fact: string; url: string; checked_on: string };
+  /** `fact` 分語言：它會原樣顯示在節日卡上，後端不知道使用者的語言，所以兩種都給、由 App 挑 */
+  source: { fact: Record<string, string>; url: string; checked_on: string };
   mint_enabled: boolean;
 };
 export type MySeasonalItem = SeasonalCampaignView & { status: SeasonalStatus; first: SeasonalSource | null; pending: SeasonalSource | null; progress: { best_moving_ms: number; required_ms: number }; reason: string | null };

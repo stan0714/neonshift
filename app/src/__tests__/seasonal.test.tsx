@@ -33,7 +33,7 @@ const campaign = (o: Partial<MySeasonalItem> = {}): MySeasonalItem => ({
   prototype: false,
   window: { starts_at: '2027-03-16T00:00:00.000Z', ends_at: '2027-03-17T00:00:00.000Z', display_timezone: 'UTC', state: 'open' },
   rules: { min_moving_minutes: 20, grace_days: 7, single_session: true, gps_counts: true },
-  source: { fact: 'Mainnet Beta 2020-03-16', url: 'https://example.com', checked_on: '2026-09-25' },
+  source: { fact: { 'zh-TW': '中文依據', en: 'english reference' }, url: 'https://example.com', checked_on: '2026-09-25' },
   mint_enabled: false,
   status: 'locked',
   first: null,

@@ -150,7 +150,7 @@ export function buildEventBadgeMetadata(b: EventBadgeResolution, achievementId: 
  * 不含 Activity ID、起終點、GPS 與錢包。
  */
 export function buildSeasonalMetadata(
-  c: { campaignId: string; themeId: string; year: number; artVersion: number; rulesVersion: number; startsAt: Date; endsAt: Date; displayTimezone: string; minMovingMs: number; source: { fact: string; url: string } },
+  c: { campaignId: string; themeId: string; year: number; artVersion: number; rulesVersion: number; startsAt: Date; endsAt: Date; displayTimezone: string; minMovingMs: number; source: { fact: Record<"zh-TW" | "en", string>; url: string } },
   first: { startedAt: Date } | null,
   achievementId: string,
   publicConsent: boolean,
@@ -169,10 +169,12 @@ export function buildSeasonalMetadata(
     { trait_type: "Rules", value: `v${c.rulesVersion}` },
   ];
   if (publicConsent && first) attrs.push({ trait_type: "Earned", value: first.startedAt.toISOString().slice(0, 10) });
+  // 鏈上 metadata 固定用英文的 fact：整段 description 是英文，而 metadata 鑄造後不可更改，
+  // 也沒有「之後換語言」這回事。App 畫面上那份才依使用者語言挑（見 SeasonalFootprints）。
   return {
     name: `NeonShift · ${theme} ${c.year}`,
     symbol: "NSSF",
-    description: `Seasonal Footprints ${c.year}: one walk or run with ${Math.round(c.minMovingMs / 60_000)} minutes of moving time inside the published window, recorded on the runner's device and verified by NeonShift rules. Walking counts. Date reference: ${c.source.fact}.${publicConsent ? " Earned date shared by the runner." : " Earned date kept private by the runner."}`,
+    description: `Seasonal Footprints ${c.year}: one walk or run with ${Math.round(c.minMovingMs / 60_000)} minutes of moving time inside the published window, recorded on the runner's device and verified by NeonShift rules. Walking counts. Date reference: ${c.source.fact.en}.${publicConsent ? " Earned date shared by the runner." : " Earned date kept private by the runner."}`,
     image: `${IMAGE_BASE}seasonal/${c.themeId}-${c.year}.svg`,
     external_url: `https://neonshift.cc/nft/achievements/${achievementId}`,
     attributes: attrs,

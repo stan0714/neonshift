@@ -39,3 +39,17 @@ export function seasonalReminderBody(t: Translate, r: SeasonalReminderCopyInput,
   if (r.phase === 'grace') return t('season.reminder.grace', { name, when });
   return t('season.reminder.soon', { name, when, tz: r.displayTimezone });
 }
+
+/**
+ * 日期依據（`source.fact`）依語言挑一句。
+ *
+ * 這是後端設定檔給的資料、不是 i18n 字典——後端不知道使用者的語言，所以兩種語言都給。
+ * 2026-09-29 實機發現英文介面底下印著整段中文，就是因為這個欄位原本是單一字串。
+ * 找不到當下語言時退回英文，再退回任何一個有值的——**寧可顯示另一種語言，也不要空白**，
+ * 因為這一行的用途是「讓人可以自己去查日期依據」。
+ */
+export function seasonalSourceFact(fact: Record<string, string> | string | null | undefined, locale: string): string {
+  if (typeof fact === 'string') return fact; // 舊版後端還沒換成分語言物件時的相容路徑
+  if (!fact) return '';
+  return fact[locale] ?? fact[locale.split('-')[0] ?? ''] ?? fact.en ?? Object.values(fact)[0] ?? '';
+}

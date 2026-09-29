@@ -1371,3 +1371,37 @@ seasonal() { return this.request('GET', '/seasonal'); }   // ← 少了 { auth: 
 窗口、規則與提醒訂閱照樣可用，比整段顯示錯誤好得多。
 
 App 85 suites／631 tests 通過。versionCode 6。
+
+
+## 2026-09-29 英文介面印出中文：`source.fact` 沒有分語言
+
+實機截圖顯示英文介面的節日卡底下是：
+
+> **Date reference:** 使用者提供的畫面列 2026-09-25 中秋；正式排程前需逐年以權威曆法核對…
+
+兩個問題疊在一起：
+
+**一、`source.fact` 是單一字串。** 它由後端設定檔提供、在畫面上原樣顯示，而後端不知道
+使用者的語言、前端也無從翻譯，所以三屆的中文 fact 在英文介面下照樣印出來。
+改成 `{ "zh-TW": …, "en": … }` 兩語必填（缺一邊由 `seasonal:check` 擋下，不是上線後才發現），
+App 依當下語言挑（`seasonalSourceFact`，找不到退回英文、再退回任一有值的——
+**寧可顯示另一種語言也不要空白**，這一行的用途是讓人可以自己去查依據）。
+
+**二、那句話根本是工程備註。** 「正式排程前需逐年以權威曆法核對，不可當成每年固定日期」
+是寫給我們自己的提醒，不該出現在使用者畫面上。新增 `source.internal_note`：schema 收，
+但**不進 `SeasonalCampaign` 型別，所以連被回給前端的機會都沒有**。三屆的 fact 全部改寫成
+使用者看得懂的日期依據。
+
+**順帶擋掉一個會永久留存的錯誤**：`buildSeasonalMetadata` 把 `source.fact` 嵌進 NFT metadata 的
+英文 description，而 metadata 鑄造後不可更改。照原樣上線的話，那段中文工程備註會被永久寫進
+NFT。現在鏈上固定取 `fact.en`。
+
+### 同時修正一個我自己犯的錯
+
+`seasonal.test.ts` 有一項守門測試「設定檔進倉庫不等於活動上線」，斷言所有 `enabled` 都是
+`false`。我 9/29 為了 B-2 驗收把測試窗口與 `enabled: true` **提交進版控**，正好撞上它——
+那個測試是對的。測試窗口只該存在於工作區與伺服器上。已還原並在
+`scripts/ops/seasonal-test-window.mjs` 寫上正確流程：改工作區 → check → 部署 → 測 →
+`git checkout` → 再部署還原。
+
+App 85 suites／636 tests、後端 277 tests 通過。

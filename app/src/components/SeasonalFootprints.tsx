@@ -10,6 +10,7 @@ import { MintProgress, type MintPhase } from '@/components/MintProgress';
 import { SeasonalBadge, type SeasonalBadgeState } from '@/components/SeasonalBadge';
 import { ShareImageBlock } from '@/components/ShareImageBlock';
 import { APP_CONFIG } from '@/config/app';
+import { seasonalSourceFact } from '@/domain/seasonalCopy';
 import { seasonalShareLayout, SEASONAL_SHARE_DEFAULT, shareUrl, type SeasonalShareFields } from '@/domain/shareImage';
 import { useT, useLocaleStore, type TKey } from '@/i18n';
 import type { RootParamList } from '@/navigation/types';
@@ -218,7 +219,7 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
                 {r.window.state === 'open' && r.status !== 'eligible' ? (
                   <Button label={t('season.start')} variant="secondary" style={styles.cta} onPress={() => navigation.navigate('WorkoutStart')} testID={`seasonal-${r.campaign_id}-start`} />
                 ) : null}
-                <Text variant="caption" tone="muted" style={styles.source}>{t('season.sourceNote', { fact: r.source.fact })}</Text>
+                <Text variant="caption" tone="muted" style={styles.source}>{t('season.sourceNote', { fact: seasonalSourceFact(r.source.fact, locale) })}</Text>
               </View>
             );
           })}

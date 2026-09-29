@@ -10,7 +10,10 @@
 //
 // 輸出貼進 backend/seasonal/campaigns.json 的某一屆（建議用 prototype: true 那一屆），
 // 把 enabled 改成 true，然後 `cd backend && npm run seasonal:check` 再部署。
-// **測完要記得改回去**：留著一個假窗口在設定檔裡，下次沒人記得它為什麼在那裡。
+// **不要把這個變更提交進版控。** backend 有一項守門測試「設定檔進倉庫不等於活動上線」，
+// 斷言所有 enabled 都是 false——2026-09-29 我提交了測試窗口，正好撞上它（測試是對的）。
+// 正確流程：改工作區 → seasonal:check → 部署（rsync 送的是工作區）→ 測 →
+// `git checkout backend/seasonal/campaigns.json` → 再部署一次還原。
 const LEAD_MS = 7 * 24 * 60 * 60 * 1000; // 與 app/src/domain/seasonalReminder.ts 的 SEASONAL_REMINDER_LEAD_MS 一致
 
 const mode = process.argv[2] ?? 'grace';

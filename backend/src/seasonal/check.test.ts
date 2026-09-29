@@ -26,7 +26,7 @@ const file = (over: Record<string, unknown> = {}) => ({
       expect_local_days: ["2026-09-25"],
       min_moving_ms: 1_200_000,
       grace_ms: 604_800_000,
-      source: { fact: "x", url: "https://example.com/a", checked_on: "2026-09-25" },
+      source: { fact: { "zh-TW": "依據", en: "reference" }, url: "https://example.com/a", checked_on: "2026-09-25" },
       ...over,
     },
   ],

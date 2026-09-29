@@ -18,7 +18,10 @@
       "min_moving_ms": 1200000,
       "grace_ms": 604800000,
       "source": {
-        "fact": "Solana 官方回顧提到 2020-03-16 Mainnet Beta 啟動",
+        "fact": {
+          "zh-TW": "Solana 官方回顧記載 Mainnet Beta 於 2020-03-16 啟動。",
+          "en": "Solana's own retrospective records Mainnet Beta going live on 2020-03-16."
+        },
         "url": "https://solana.com/ar/news/may-newsletter",
         "checked_on": "2026-09-25"
       }
@@ -39,7 +42,10 @@
       "min_moving_ms": 1200000,
       "grace_ms": 604800000,
       "source": {
-        "fact": "Solana Mobile 公告 Seeker 於 2025-08-04 開始出貨（紀念日，不等於個人收到手機日期）",
+        "fact": {
+          "zh-TW": "Solana Mobile 公告 Seeker 自 2025-08-04 開始出貨。這是紀念日，不等於你收到手機的日期。",
+          "en": "Solana Mobile announced that Seeker started shipping on 2025-08-04. This marks the announcement, not the day your own device arrived."
+        },
         "url": "https://solanamobile.com/blog/solana-seeker-to-start-shipping-august-4-2025",
         "checked_on": "2026-09-25"
       }
@@ -50,20 +56,24 @@
       "year": 2026,
       "art_version": 1,
       "rules_version": 1,
-      "enabled": true,
+      "enabled": false,
       "prototype": true,
-      "starts_at": "2026-09-29T11:15:58.000Z",
-      "ends_at": "2026-09-29T12:35:58.000Z",
+      "starts_at": "2026-09-24T16:00:00.000Z",
+      "ends_at": "2026-09-25T16:00:00.000Z",
       "display_timezone": "Asia/Taipei",
       "expect_local_days": [
-        "2026-09-29"
+        "2026-09-25"
       ],
       "min_moving_ms": 1200000,
       "grace_ms": 604800000,
       "source": {
-        "fact": "使用者提供的畫面列 2026-09-25 中秋；正式排程前需逐年以權威曆法核對，不可當成每年固定日期",
+        "fact": {
+          "zh-TW": "中秋節依農曆而定，每年的西曆日期都不同；本屆採用 2026-09-25，依中央氣象署的天文資料。",
+          "en": "Mid-Autumn Festival follows the lunar calendar, so its Gregorian date differs every year. This edition uses 2026-09-25, per the Central Weather Administration almanac."
+        },
         "url": "https://www.cwa.gov.tw/V8/C/K/astronomy_day.html",
-        "checked_on": "2026-09-25"
+        "checked_on": "2026-09-25",
+        "internal_note": "示範屆：窗口會被測試改動。正式排程前必須逐年以權威曆法重新核對，不可當成每年固定日期。"
       }
     }
   ]

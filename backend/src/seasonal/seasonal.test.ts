@@ -21,7 +21,7 @@ const campaign = (o: Partial<SeasonalCampaign> = {}): SeasonalCampaign => ({
   displayTimezone: "UTC",
   minMovingMs: 1_200_000,
   graceMs: 7 * DAY,
-  source: { fact: "f", url: "https://example.com", checkedOn: "2026-09-25" },
+  source: { fact: { "zh-TW": "依據（中文）", en: "reference (english)" }, url: "https://example.com", checkedOn: "2026-09-25" },
   ...o,
 });
 
@@ -164,7 +164,7 @@ describe("設定檔驗證", () => {
     expect_local_days: ["2026-09-25"],
     min_moving_ms: 1_200_000,
     grace_ms: 604_800_000,
-    source: { fact: "中秋", url: "https://example.com/moon", checked_on: "2026-09-25" },
+    source: { fact: { "zh-TW": "中秋", en: "Mid-Autumn" }, url: "https://example.com/moon", checked_on: "2026-09-25" },
   };
   const file = (c: Record<string, unknown>) => ({ version: 1 as const, campaigns: [{ ...base, ...c }] });
 
@@ -189,7 +189,7 @@ describe("設定檔驗證", () => {
     expect(() => parseCampaigns({ version: 1, campaigns: [base, base] })).toThrow(/duplicate campaign_id/);
     expect(() => parseCampaigns(file({ display_timezone: "Mars/Olympus" }))).toThrow(SeasonalConfigError);
     // 缺來源 URL／核對日期不得發布
-    expect(() => parseCampaigns(file({ source: { fact: "x", checked_on: "2026-09-25" } }))).toThrow(SeasonalConfigError);
+    expect(() => parseCampaigns(file({ source: { fact: { "zh-TW": "依據", en: "reference" }, checked_on: "2026-09-25" } }))).toThrow(SeasonalConfigError);
   });
 
   it("倉庫裡的設定檔本身合法（含 UTC 與 Asia/Taipei 兩種窗口）", () => {

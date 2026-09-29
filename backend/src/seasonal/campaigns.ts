@@ -11,7 +11,25 @@
 import { readFileSync } from "node:fs";
 import { z } from "zod";
 
-const sourceSchema = z.object({ fact: z.string().min(1), url: z.string().url(), checked_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict();
+/**
+ * 日期依據。
+ *
+ * `fact` 是**分語言**的：它會原樣顯示在 App 的節日卡上，而 App 支援繁中與英文。
+ * 2026-09-29 實機發現英文介面底下印著整段中文——因為這個欄位原本是單一字串，
+ * 後端不知道使用者的語言，前端也無從翻譯。改成物件之後由前端依當下語言挑，
+ * 兩種語言都必填（缺一邊就會在 `seasonal:check` 擋下，而不是上線後才被看見）。
+ *
+ * `internal_note` 是**給我們自己看的**（例如「這個日期每年要重新核對」），
+ * **永遠不會出現在 API 回應裡**——那種話寫給使用者看只會造成困惑。
+ */
+const sourceSchema = z
+  .object({
+    fact: z.object({ "zh-TW": z.string().min(1), en: z.string().min(1) }).strict(),
+    url: z.string().url(),
+    checked_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    internal_note: z.string().min(1).optional(),
+  })
+  .strict();
 
 const campaignSchema = z
   .object({
@@ -48,7 +66,7 @@ export type SeasonalCampaign = {
   displayTimezone: string;
   minMovingMs: number;
   graceMs: number;
-  source: { fact: string; url: string; checkedOn: string };
+  source: { fact: Record<"zh-TW" | "en", string>; url: string; checkedOn: string };
 };
 
 /** 以宣告的時區把瞬間格式成當地日期；用來驗證 UTC 窗口真的落在打算紀念的那一天 */
@@ -100,6 +118,7 @@ export function parseCampaigns(raw: unknown): SeasonalCampaign[] {
       displayTimezone: c.display_timezone,
       minMovingMs: c.min_moving_ms,
       graceMs: c.grace_ms,
+      // internal_note 刻意不帶進來：它連進入這個型別的機會都沒有，就不可能不小心被回給前端
       source: { fact: c.source.fact, url: c.source.url, checkedOn: c.source.checked_on },
     });
   }

@@ -4,6 +4,7 @@
  * 這裡刻意不測「通知真的在那一天響了」——那要實機等到那一天。能自動驗的是
  * 「該排哪些、不該排哪些、重複同步不會排出第二份、狀況改變時會取消」。
  */
+import { seasonalSourceFact } from '@/domain/seasonalCopy';
 import {
   SEASONAL_NOTIFICATION_PREFIX,
   parseSeasonalNotificationId,
@@ -184,5 +185,36 @@ describe('差異同步', () => {
     const f = fakeApi({ getAllScheduledNotificationsAsync: async () => { throw new Error('boom'); } });
     const r = await syncSeasonalNotifications([], { api: f.api, locale: 'en', t });
     expect(r.skipped).toBe('error');
+  });
+});
+
+/**
+ * 2026-09-29 實機：英文介面的節日卡底下印著整段中文——`source.fact` 是後端設定檔給的
+ * 單一字串，後端不知道使用者的語言，前端也無從翻譯。改成分語言物件後由 App 挑。
+ */
+describe('日期依據依語言挑（source.fact）', () => {
+  const fact = { 'zh-TW': '中文依據', en: 'english reference' };
+
+  test('挑當下語言', () => {
+    expect(seasonalSourceFact(fact, 'en')).toBe('english reference');
+    expect(seasonalSourceFact(fact, 'zh-TW')).toBe('中文依據');
+  });
+
+  test('只有語系前綴也要能對上（zh-Hant → zh 找不到才退回）', () => {
+    expect(seasonalSourceFact({ zh: '中文', en: 'english' }, 'zh-TW')).toBe('中文');
+  });
+
+  test('找不到當下語言就退回英文——寧可顯示另一種語言也不要空白', () => {
+    expect(seasonalSourceFact(fact, 'ja')).toBe('english reference');
+    expect(seasonalSourceFact({ 'zh-TW': '只有中文' }, 'en')).toBe('只有中文');
+  });
+
+  test('舊版後端仍給字串時照樣顯示（相容路徑）', () => {
+    expect(seasonalSourceFact('legacy string', 'en')).toBe('legacy string');
+  });
+
+  test('沒有值時回空字串，不丟例外、不顯示 undefined', () => {
+    expect(seasonalSourceFact(null, 'en')).toBe('');
+    expect(seasonalSourceFact({}, 'en')).toBe('');
   });
 });
