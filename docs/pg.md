@@ -1457,3 +1457,46 @@ Your time: Sep 29, 7:15 PM – Sep 29, 8:35 PM
 以及 `open` 那一則必須講出 20 分鐘門檻，否則提醒等於沒說要做什麼。
 
 App 85 suites／645 tests 通過。
+
+
+## 2026-09-29 鏈上程式升級完成（閘門②已開）
+
+**這是不可逆操作，由負責人明確指名後執行。**
+
+| 項目 | 值 |
+|---|---|
+| Program Id | `6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA`（devnet） |
+| 升級交易 | `3n9ADFSzwcd4Z7ufN5ooiz7aaXvQTMfUm8RW7QqiidFVbNSNijXd6EkxYYt78eLRRtPvVJHS87vLe12BLq7ndddU` · **Finalized** |
+| Last Deployed In Slot | 501254860 → **505562678** |
+| upgrade authority | `2nyBJ5LCqGzRatLVk9SihNKkRw1f3ibf5cWWbAb1Gdz1`（未變，仍為 admin） |
+| 目的 | `CATEGORY_MAX` 13 → 14，鏈上開始接受 `CATEGORY_SEASONAL` |
+
+### 升級前逐項驗過的四件事
+
+1. **新 `.so` 651,568 bytes < 鏈上已配置 660,824** → 不需要 `solana program extend`（配置不夠時升級會失敗並卡在半途）。
+2. **admin 仍是 upgrade authority**，餘額 5.40 SOL（升級只花手續費，資料帳戶 rent 已存在）。
+3. **備份已存在**：升級前先 `solana program dump` 成
+   `programs/target/deploy/neonshift_core.PREV-20260929.so`（660,824 bytes），
+   必要時可用同一把 admin 金鑰回寫。`programs/target` 在 gitignore 裡。
+4. **LiteSVM 測試對著即將上鏈的那份 `.so` 跑過一次**（`cargo test -p neonshift-core`，全過）。
+   不可逆的操作值得多花這幾分鐘。
+
+### 升級後的驗證
+
+`solana program dump` 回來與本地 `.so` **逐位元組相同**（前 651,568 bytes 完全一致，
+其餘 9,256 bytes 全為 0，是配置空間的填充）。也就是說**鏈上跑的就是測過的那份**，
+不是「看起來應該一樣」。
+
+### 一個非阻塞的失敗
+
+`anchor deploy` 在程式升級成功之後，寫 **IDL metadata 帳戶**時失敗
+（`Failed to initialize IDL`）。不影響運作：App、後端與 `tools/chain-admin` 全都讀本地的
+`idl/neonshift_core.json`（三份已由 `build.sh` 同步更新），**沒有任何程式碼讀鏈上 IDL**。
+它只影響第三方瀏覽器／工具自動解析指令的便利性，之後可單獨補
+（`anchor idl init/upgrade`），不需要再動程式本身。
+
+### 還沒做的最後一步
+
+`SEASONAL_MINT_ENABLED` 仍是 `false`。依原訂順序，那是**確認升級完成之後**才能開的第三步
+（順序顛倒會讓玩家拿到鏈上必定失敗的交易）。現在順序上的前提已經成立，但開啟它等於對外
+開放領取，是另一個決定。migration 0021 已於 9/29 套用，所以三件事只剩這一件。
