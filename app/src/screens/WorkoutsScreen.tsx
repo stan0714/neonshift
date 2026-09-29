@@ -8,6 +8,7 @@ import { formatDuration, formatKcal, formatKm, formatPace, qualityKind, modeLabe
 import { useT, type TKey } from '@/i18n';
 import { localTimeZone, matchesMode, weeklyReview, type ModeFilter } from '@/domain/review';
 import { ApiError, apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
+import { apiErrorText } from '@/services/api/errorText';
 import { importFromHealthConnect, previewHealthConnect, type ImportPreview } from '@/services/workouts/importer';
 import type { SessionMeta } from '@/services/workouts/LocalWorkoutStore';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
@@ -111,7 +112,9 @@ export function WorkoutsScreen() {
       else setNotice({ kind: 'success', title: t('wo.imported', { n: r.imported, count: r.imported }) });
       if (r.kind === 'ok') await load();
     } catch (e) {
-      setNotice({ kind: 'warning', title: t('wo.err', { message: e instanceof Error ? e.message : String(e) }) });
+      // 不把原始例外訊息塞進文案：apiErrorText 會把網路類錯誤轉成看得懂的句子，
+      // 其餘沿用後端 message（那是 errorText.ts 裡刻意的取捨）
+      setNotice({ kind: 'warning', title: t('wo.err', { message: apiErrorText(t, e) }) });
     } finally {
       setImporting(false);
     }

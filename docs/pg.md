@@ -1405,3 +1405,33 @@ NFT。現在鏈上固定取 `fact.en`。
 `git checkout` → 再部署還原。
 
 App 85 suites／636 tests、後端 277 tests 通過。
+
+
+## 2026-09-29 語言與錯誤文案的全面盤點
+
+你在實機看到的「英文介面印出中文」屬於一類問題：**伺服器或例外給的字串直接進使用者文案**。
+既然已經踩到兩次（504 的 RPC payload、健康資料的原生例外）加這一次，就把同類掃完。
+
+### 掃描結果：英文介面沒有其他中文外漏
+
+- `en.ts` 的值裡只有一筆中文：`profile.language.zh-TW` = 「繁體中文」——**那是對的**，
+  語言名稱本來就該用該語言顯示。
+- 元件裡的中文字串字面值，扣掉型別定義裡的單行註解後只剩 `WorkoutCues.ts` 的語音提示，
+  而那支從頭到尾都依 `locale` 分支（距離、配速、時間、自動暫停都有兩語），沒有問題。
+- 分享管線也一致：`SHARE_KINDS` 六個與 `web/s/` 的六頁完全對應；`finish` 是 **source** 不是 kind，
+  走 `/s/workout?source=finish`，所以不會指到不存在的頁面。`shareLandingTarget` 是
+  `Record<ShareKind, …>`，少對應一個 kind 會編譯失敗。
+
+### 修掉兩個還在把技術字串塞進句子的地方
+
+- **`ProfileScreen` 的刪除資料**：原本是 `` `${e.code}: ${e.message}` ``，畫面會出現
+  「VALIDATION: body/wallet must be string 沒有刪除任何資料。」改成正文走 `apiErrorText`、
+  錯誤碼與 request id 合併成參考碼（`VALIDATION · req-9`）。這個畫面本來就接了 `referenceId`，
+  只是沒用對。刪除資料是評審一定會點的隱私功能，不該在那裡露出 schema 錯誤。
+- **`WorkoutsScreen` 的匯入失敗**：原本直接塞 `e.message`，改走 `apiErrorText`。
+
+`apiErrorText` 對非網路錯誤仍沿用後端 message——那是 2026-09-22 實機後的刻意取捨
+（原本顯示 `aborted Nothing changed.` 更難懂），這次不動它；要改成逐碼本地化是另一個工作包，
+凍結前一天不適合動那麼大。
+
+App 85 suites／637 tests 通過。

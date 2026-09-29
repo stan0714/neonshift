@@ -14,6 +14,7 @@ import { useAppearanceStore } from '@/state/appearanceStore';
 import { stageName } from '@/domain/collectibles';
 import { APP_CONFIG } from '@/config/app';
 import { ApiError, apiClient } from '@/services/api/ApiClient';
+import { apiErrorText } from '@/services/api/errorText';
 import { healthConnect, type HealthPermissionSummary } from '@/services/health/HealthConnectService';
 import { activityRecognition } from '@/services/permissions/ActivityRecognition';
 import { useDashboardStore } from '@/state/dashboardStore';
@@ -135,7 +136,10 @@ export function ProfileScreen() {
               }
               setBackend(false);
             } catch (e) {
-              setDeletion({ state: 'error', message: e instanceof ApiError ? `${e.code}: ${e.message}` : String(e), ...(e instanceof ApiError && e.requestId ? { referenceId: e.requestId } : {}) });
+              // 技術細節進 Ref、人話進正文（同 home.chainErr／home.healthErr 的做法）：
+              // 原本是 `${e.code}: ${e.message}`，畫面上會出現「VALIDATION: body/wallet must be string 沒有刪除任何資料。」
+              // 錯誤碼對支援很有用，但它屬於可回報的參考碼，不屬於句子。
+              setDeletion({ state: 'error', message: apiErrorText(t, e), ...(e instanceof ApiError ? { referenceId: e.requestId ? `${e.code} · ${e.requestId}` : e.code } : {}) });
             }
           },
         },

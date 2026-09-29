@@ -4,7 +4,8 @@ import type { PropsWithChildren } from 'react';
 import { Alert } from 'react-native';
 
 import { ProfileScreen } from '@/screens/tabs/ProfileScreen';
-import { apiClient } from '@/services/api/ApiClient';
+import { ApiError, apiClient } from '@/services/api/ApiClient';
+import { t } from '@/i18n';
 import { useWalletStore } from '@/state/walletStore';
 import { ThemeProvider } from '@/theme';
 
@@ -122,4 +123,24 @@ test('已連錢包時 Profile 仍有唯讀預覽入口，且說明它不會建�
   expect(screen.getByText(/saves nothing and creates no wallet, NFT or health data/i)).toBeTruthy();
   await fireEvent.press(entry);
   expect(mockNavigate).toHaveBeenCalledWith('DemoPreview');
+});
+
+/**
+ * 刪除資料失敗時，畫面上不該出現 `VALIDATION: body/x must be string` 這種東西。
+ * 錯誤碼對支援有用，但它屬於可回報的參考碼，不屬於句子——同 home.chainErr／home.healthErr。
+ */
+test('刪除資料失敗：正文是人話，錯誤碼只出現在參考碼', async () => {
+  const api = jest.requireMock('@/services/api/ApiClient').apiClient as { deleteData: jest.Mock };
+  api.deleteData.mockRejectedValueOnce(new ApiError(422, 'VALIDATION', 'body/wallet must be string', undefined, undefined, 'req-9'));
+  jest.spyOn(Alert, 'alert').mockImplementation((_t, _b, buttons) => {
+    const ok = (buttons ?? []).find((x) => x.style === 'destructive') ?? (buttons ?? [])[1];
+    void ok?.onPress?.();
+  });
+  await render(<ProfileScreen />, { wrapper: Wrapper });
+  await fireEvent.press(await screen.findByText(t('profile.deleteData')));
+  const card = await screen.findByTestId('deletion-error');
+  expect(card).toBeTruthy();
+  // 錯誤碼不得出現在正文裡（它在 referenceId）
+  expect(screen.queryByText(/VALIDATION: /)).toBeNull();
+  expect(screen.getByText(/VALIDATION · req-9/)).toBeTruthy();
 });
