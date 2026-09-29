@@ -156,7 +156,7 @@ ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:no
 
 ## 8. 2026-09-22 參賽版重剪：納入 SKR 段（v4，優先於 §2 六段配置）
 
-依[參賽開發計畫 §6](competition-development-plan.md#6-發布驗收與證據包) 的 170 秒配置重排；SKR Go 決策（9/23）前先按本表準備素材，No-go 時改用末段替代稿，不保留完成宣稱。旁白共約 265 個英文單字，估 2:35–2:45 純朗讀，操作證據留 25–35 秒；成片仍以 2:50 為目標、3:00 硬上限。
+依[參賽開發計畫 §6](competition-development-plan.md#6-發布驗收與證據包) 的 170 秒配置重排；SKR Go 決策已於 **2026-09-29 由主辦方回覆確定為 Go**（devnet＋tSKR 可參加 SKR 獎），所以 D 段不再是條件性素材，而是**領獎條件的一部分**——主辦方的用語是「integration logic is sound and **clearly presented**」，也就是這一段沒講清楚整合邏輯就等於沒整合。替代稿不再需要。旁白共約 265 個英文單字，估 2:35–2:45 純朗讀，操作證據留 25–35 秒；成片仍以 2:50 為目標、3:00 硬上限。
 
 | 段 | 時間 | 秒 | 內容 | 來源 §2 段 |
 |---|---|---:|---|---|

@@ -24,7 +24,10 @@ FAQ 允許 AI 輔助，但作品須有權提交；一人只能參與一件提交
 - app/src/config/app.ts 預設 devnet、名稱 tSKR，清楚宣告無金錢價值。
 - 現有每日任務、Arena、reward vault 使用測試代幣；不能只改名稱或 mint 就稱為官方 SKR 整合。
 - 已有 MWA、任務驗證、成就資格、NFT mint-intent、receipt 防重複、收藏外觀與路線快照，可重用為產品基礎。
-- docs/pg.md 的 DEC-02 仍待決議。主辦方是否接受純 devnet 替代 token 展示、最低主網證據要求仍未明示。
+- **2026-09-29 主辦方回覆，DEC-02 結案**：devnet＋tSKR 可參加評審與 SKR 獎，條件是整合邏輯健全且清楚呈現；提交期限前不需要主網。
+  **但得獎後**上架到 dApp Store 的版本必須在主網，且 App 與 SKR 整合都要在主網運作才能領 USDC。
+  因此 SKR-07 的驗收拆成兩段：**提交階段＝devnet 完整流程＋自動測試**；**得獎後＝主網官方 mint 小額實測**
+  （涉及真實金額與收款地址，由負責人核准後執行）。
 
 官方 SKR mint：SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3。正式實作前再次核對官方資訊與鏈上 mint owner／decimals；不按 symbol 認幣、不從第三方範例硬編小數位。.skr 網域、Seeker 錢包登入或普通 NFT 鑄造本身不等於 SKR token 整合。
 

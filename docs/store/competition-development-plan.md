@@ -49,8 +49,8 @@
 | COMP-07 | 可查作者、技術與新開發 | 可重建、保留歷史、標依賴及 AI 輔助；排除 secrets | 乾淨環境 build 紀錄、licenses、release tag | WIP：README 段落、licenses 證據與公開頁、clean-build 腳本已備；專案 LICENSE 與 release tag 待負責人 |
 | COMP-08 | 非機密提交、素材權利 | 檢查動物圖、字型與商標授權；WWF notice 草稿不等於授權 | 素材來源清單、移除無依據聯名／保育成果宣稱 | WIP：`docs/legal/asset-sources.md` 已備；WWF 通知寄出與回覆待負責人 |
 | COMP-09 | 提交後固定隊員／最終表單不可任意改 | 最終核對名單、代表、四連結再提交 | 提交收件／表單副本 | TODO |
-| COMP-10 | 得獎後上架及入圍驗證 | 預先準備 publisher、隱私政策、release signing、商店素材；全員配合驗證 | 以實際公告日起算 30 天內公開 listing，不只送審 | TODO |
-| COMP-11 | SKR 獎實質整合 | 官方 mint 的可用功能與交易證據；確認 devnet 替代展示政策 | 主辦回覆＋SKR 實機證據包 | TODO；DEC-02 OPEN |
+| COMP-10 | 得獎後上架及入圍驗證 | 預先準備 publisher、隱私政策、release signing、商店素材；全員配合驗證。**2026-09-29 主辦方明示：上架版本必須在 Mainnet** | 以實際公告日起算 30 天內公開 listing，不只送審；**且 App 與 SKR 整合都在主網運作**（領 USDC 的前置） | TODO；主網工作包見 PG 2026-09-29 |
+| COMP-11 | SKR 獎實質整合 | **devnet 替代展示政策已於 2026-09-29 由主辦方確認可接受**（tSKR 可）。提交階段的條件改為「整合邏輯健全且**清楚呈現**」→ 影片 D 段與 pitch 必須講清楚整合邏輯；主網官方 mint 交易證據改列得獎後 | 主辦回覆（已取得）＋devnet SKR 實機證據包＋影片 D 段 | TODO；DEC-02 CLOSED |
 
 主賽四項各 25% 的評分映射：任務／Activity 對應持續使用；錢包恢復與任務可理解性對應 UX；成就限定外觀與行動資料連動對應創新；實機操作與證據對應展示。這些是改善方向，不能保證分數或得獎。
 

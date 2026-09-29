@@ -257,11 +257,12 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | 編號 | 關聯項目 | 決策內容 | 決策人 | 到期日 | 狀態 |
 |---|---|---|---|---|---|
 | DEC-01 | 全部 | 團隊人數、角色與至少 5 FTE 的容量安排（BRD Q-01） | 專案負責人 | 2026-09-10 | OPEN |
-| DEC-02 | PG-I-08、PG-D-02 | SKR integration track 是否接受 tSKR（BRD Q-08） | 專案負責人 | 2026-09-10 | OPEN |
+| DEC-02 | PG-I-08、PG-D-02 | SKR integration track 是否接受 tSKR（BRD Q-08） | **主辦方**（非專案負責人） | 2026-09-10 | **CLOSED 2026-09-29**：主辦方回覆 devnet＋tSKR 可參加評審與 SKR 獎，條件是「整合邏輯健全且清楚呈現」；但**得獎後要領 USDC，App 與 SKR 整合都必須在主網運作**。詳見當日條目 |
 | DEC-03 | PG-D-06、SD 6.2 | 改以遊戲／獎勵解耦、全站已撥款預算、現金與代幣庫存分帳評估（economics/stepn-risk-review.md）；比例／結算週期／切換方案待決。降低輸家退款不是總消耗來源 | 專案負責人 | 2026-09-21 | OPEN |
 | DEC-04 | PG-V-01、PG-V-02 | 睡眠停用後所有玩家被鎖 Lv4（步數 700 < Lv5 900）。2026-09-20 提案規則 v2（docs/economics/maintenance-v2.md，模擬 `simulate-v2.mjs`）：**建議 B**＝第二任務改「運動 session」+100、日上限 200、門檻不變 → Lv5＝每日步數＋每週 2～3 次運動（可留一天休息），只走步數最高 Lv4；A（運動 +50）Lv5 需每週 4 次運動；C（Lv5 改 700／7）不運動也能 Lv5。採用後需鏈上 TASK_WORKOUT=3／後端 claim 驗證／App 任務卡（估 3.0 人天） | 專案負責人 | 2026-09-22 | **DECIDED 2026-09-20：採 B**（運動 +100、上限 200、門檻不變；session ≥ 1 km 且移動 ≥ 10 分、只認 App 內 GPS 記錄）；實作見 PG-V-06 |
 
-DEC-02 若判定必須整合主網官方 SKR，PG-I-08 的 tSKR 路線、SA 5.4 與鏈上金庫設計都必須重估；不得在現有四週估算內直接替換。
+~~DEC-02 若判定必須整合主網官方 SKR，PG-I-08 的 tSKR 路線、SA 5.4 與鏈上金庫設計都必須重估；不得在現有四週估算內直接替換。~~
+（2026-09-29 已不適用：主辦方明示提交階段不需要主網。主網改為**得獎後**的前置，工作包見當日條目。）
 
 ### 8.2 Review 發現與補充完成條件（2026-09-14）
 
@@ -876,7 +877,7 @@ WIP：運動前預覽／選擇、開始頁鞋款一致、本機不可改寫快�
 | SKR-06 | Genesis Mint 邊框在收藏卡／詳情選用、換帳戶隔離、重裝恢復 | WIP | 權限以伺服器為準、`useGenesisFrame` 按錢包；Gear 里程碑卡與 Gallery 本人頁「首次」卡套邊框（他人頁不顯示付費外觀）；真機驗收待 |
 | SKR-07 | 付款對抗測試、真機成功及失敗證據；官方 SKR 小額測試前完成審查 | WIP | 自動測試 backend 11／app 12 通過；真機（devnet TEST mint 或主網小額）待負責人決定價格／收款人後執行 |
 
-DEC-02 仍 OPEN（devnet 替代展示是否被主辦方接受）；本實作以主網官方 mint 為正式路徑、devnet TEST mint 只供試跑並在 App 標示。
+DEC-02 已於 2026-09-29 由主辦方回覆結案（devnet＋tSKR 可參加評審與 SKR 獎）；本實作仍以主網官方 mint 為**得獎後**的正式路徑、devnet TEST mint 供提交階段展示並在 App 標示。
 
 
 ## 2026-09-25 社群分享規劃（新增開發內容）
@@ -1232,3 +1233,47 @@ pending 紀錄還在（不會遺失），但使用者看到的是錯誤而不是
 
 計畫裡也標了兩件目前無解的事：`806867e` 之後的兩個修正不在受測 APK 裡（B-2／A-8 的部分判準要等重新出包）、
 RPC 端點仍是公用 devnet（偶發的慢來自端點本身，換有 key 的端點牽涉金鑰政策，是負責人的決定）。
+
+
+## 2026-09-29 主辦方回覆：devnet 可評審，主網改為得獎後的前置（DEC-02 結案）
+
+### 原文（主辦方電子郵件，未改寫）
+
+> 1. Regarding Devnet: Yes, a fully functional app demonstrating real wallet signing and onchain
+>    transactions on Devnet is eligible for judging. You do not need to move to Mainnet by the
+>    submission deadline.
+> 2. SKR Integration Prize: A demonstration on Devnet with your test token (tSKR) is acceptable
+>    for the prize, provided the integration logic is sound and clearly presented.
+> 3. Post-award publication: The version published on the Solana dApp Store must be on Mainnet,
+>    as this is the requirement for public availability. So both the above would have to be working
+>    and implemented on main net to receive the USDC prize.
+
+### 這改變了什麼
+
+**解除的壓力**：提交期限前不必上主網。原本 `DEC-02` 的風險敘述是「若必須整合主網官方 SKR，
+PG-I-08 的 tSKR 路線、SA 5.4 與鏈上金庫設計都必須重估」——那個情境不會發生了。
+devnet＋tSKR 的現行實作就是可提交、可參加 SKR 獎的形態。
+
+**新增的條件，而且不輕**：
+1. SKR 獎的門檻從「有沒有整合」變成「整合邏輯健全且**清楚呈現**」。主辦方特別寫了
+   *clearly presented*，所以影片 D 段（1:35–2:20）與 pitch 不再是可選素材——那一段沒把
+   整合邏輯講清楚，就等於沒整合。`demo-video.md` §8 的 Go／No-go 已改為確定 Go，替代稿作廢。
+2. **得獎後要領 USDC，App 與 SKR 整合都必須在主網運作。** 這不是把設定從 devnet 換成
+   mainnet-beta 就好，下面列出真正的工作包。
+
+### 得獎後的主網工作包（**不在本次衝刺內**，先列出來以免臨時才發現）
+
+| # | 內容 | 真正的難處 |
+|---|---|---|
+| MN-1 | 鏈上程式部署到 mainnet-beta | 新的 program keypair、部署 SOL、`cluster_id` 與 config／金庫重新初始化。已鑄造的 devnet 資產不會跟著過去，收藏要重新開始或明確說明 |
+| MN-2 | 獎勵代幣 | 目前是 tSKR 測試代幣、`TSKR_TOTAL_SUPPLY=1000000` 是 BRD 8.5 的**假設**。主網要發真的代幣＝真的價值，**這條直接撞上 `DEC-03` 與 `PG-EC-02`～`05`**（打卡獎勵拆分、期間預算、對帳與準備金、反作弊）——那四項現在是 P0／TODO，主網之前必須完成，不是可選 |
+| MN-3 | SKR 官方付款 | mint 已知（`SKRbvo6Gf7Gon…`），但**價格與收款錢包仍待你決定**（sd.md 已列為未決）；SKR-07 的主網小額實測涉及真實金額，要你核准後才執行 |
+| MN-4 | RPC | 主網公用端點的限流比 devnet 更嚴。`EXPO_PUBLIC_*` 是 build-time 內嵌，帶 key 的端點會把 key 留在 APK 裡——**這個問題在主網不能再繞過**，要嘛用網域／套件名限制的 key，要嘛走自己的後端代理 |
+| MN-5 | 金鑰與簽章 | 正式 keystore（`APK-01`；換了要同步更新 `assetlinks.json` 並重新部署）、`~/.config/neonshift/main/` 的 admin／attestor、主機上的 signer service |
+| MN-6 | 揭露與文案 | App 內所有「devnet／tSKR／無金錢價值」的標示要改成主網語意；隱私政策與商店素材同步 |
+
+**排序判斷**：MN-2 是關鍵路徑，因為它依賴 `PG-EC-02`～`05`；其餘五項都是設定與金鑰層面，
+可以並行。所以「得獎後 30 天內公開 listing」（`COMP-10`）真正的風險不在上架流程，而在經濟設計——
+那是得獎後第一件要動的事，不是最後一件。
+
+**本次衝刺不動主網**：主辦方明示不需要，而且 M3 功能凍結是 09-30。現在改設定只會讓提交版變不穩。
