@@ -236,7 +236,14 @@ export function HomeScreen() {
         <InlineState kind="warning" title={t('home.healthOff.title')} body={t(FEATURES.sleep ? 'home.healthOff.body' : 'home.healthOff.bodySteps')} action={{ label: t('home.healthOff.action'), onPress: () => navigation.navigate('Onboarding', { screen: 'HealthAccess' }) }} testID="state-health-off" />
       ) : null}
       {d.health?.error && permissions?.state === 'granted' ? (
-        <InlineState kind="warning" title={t('home.healthErr.title')} body={t('home.healthErr.body', { error: d.health.error })} action={{ label: t('common.tryAgain'), onPress: () => void d.syncHealth(), loading: d.healthSyncing }} testID="state-health-error" />
+        <InlineState
+          kind="warning"
+          title={t('home.healthErr.title')}
+          body={t(`home.healthErr.${d.health.error.reason}` as TKey)}
+          referenceId={d.health.error.ref}
+          action={{ label: t('common.tryAgain'), onPress: () => void d.syncHealth(), loading: d.healthSyncing }}
+          testID="state-health-error"
+        />
       ) : null}
       {d.chainError && APP_CONFIG.chainConfigured && session ? (
         <InlineState

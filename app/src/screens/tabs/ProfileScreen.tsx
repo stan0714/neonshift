@@ -155,6 +155,17 @@ export function ProfileScreen() {
         <Button label={t('guide.entry')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('GameGuide')} testID="profile-game-guide" />
       </Section>
 
+      {/*
+        唯讀預覽的入口（APK-05）。原本只掛在登入前的 LandingScreen 上，所以一旦連了錢包
+        就再也回不去——而評審指南寫的正是「沒有合格 Health Connect 紀錄就用公開預覽」。
+        沒有這個入口，那句話對已登入的評審是死路。放在 Profile 而不是首頁：
+        首頁的健康資料警示該指向「檢查權限」（真正的修法），預覽是替代路徑，不是修法。
+      */}
+      <Section title={t('demo.title')}>
+        <Text variant="bodySmall" tone="secondary">{t('profile.previewBody')}</Text>
+        <Button label={t('profile.previewOpen')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('DemoPreview')} testID="profile-demo-preview" />
+      </Section>
+
       <Section title={t('profile.wallet')}>
         <Row icon="credit-card" label={wallet.session ? shortAddress(wallet.session.address, 6) : t('common.notConnected')} detail={wallet.session?.label ?? `Solana ${APP_CONFIG.cluster}`} />
         <Row icon="server" label={t('profile.backendSession')} detail={backend === null ? '…' : backend ? t('profile.signedIn') : t('profile.signedOut')} />

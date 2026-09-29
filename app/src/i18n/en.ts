@@ -89,6 +89,8 @@ export const en = {
   // ---- demo preview ----
   'demo.title': 'Read-only preview',
   'demo.body': 'Browse how missions, gear and the weekend arena work. Nothing here is saved, and no wallet, NFT or health data is created.',
+  'profile.previewBody': 'If this device has no Health Connect records — or you just want to see how the app works first — the read-only preview walks through missions, gear and the arena. It saves nothing and creates no wallet, NFT or health data.',
+  'profile.previewOpen': 'Open read-only preview',
   'demo.totalXp': '{n} total XP',
   'demo.unlockedStart': 'Starter shoe · free with your profile',
   'demo.taskDays': '{n} task days with both daily missions',
@@ -286,7 +288,10 @@ export const en = {
   'home.healthOff.body': 'Missions need Steps and Sleep from Health Connect. Nothing is read until you allow it; cached numbers stay on this phone.',
   'home.healthOff.action': 'Review access',
   'home.healthErr.title': 'Health data unavailable',
-  'home.healthErr.body': 'Health Connect did not answer. Showing the last synced numbers; nothing was sent anywhere. {error}',
+  'home.healthErr.permission': 'Health Connect access is turned off. Showing your last synced numbers; nothing was sent. Allow it again in permissions and this recovers.',
+  'home.healthErr.unavailable': 'Health Connect is not usable on this device (not installed, disabled, or too old). Showing your last synced numbers; nothing was sent.',
+  'home.healthErr.timeout': 'Health Connect did not answer in time. Showing your last synced numbers; nothing was sent. Trying again shortly usually works.',
+  'home.healthErr.unknown': 'Health Connect could not be read this time. Showing your last synced numbers; nothing was sent.',
   // Style 14: say what happened, whether data is safe, and what to do next. Raw RPC text stays in the Ref.
   'home.chainErr.rate_limited': 'Cannot read your onchain profile right now: the public devnet node is rate limiting us. Your tSKR and progress are safe onchain; these are cached values. Try again in a few minutes.',
   'home.chainErr.timeout': 'Cannot read your onchain profile right now: the devnet node stopped responding. Your tSKR and progress are safe onchain; these are cached values. You can try again.',

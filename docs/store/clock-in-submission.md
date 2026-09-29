@@ -86,7 +86,7 @@ scripts/app/build.sh demo release
 | APK-02 | 確認 demo 的 API、Program ID、Mint、Indexer、金庫與 RPC | TODO | 待指派 | 09/27 | 記錄環境與端到端交易 |
 | APK-03 | 關閉 Metro、拔除 USB 後可獨立啟動與操作 | TODO | 待指派 | 09/27 | APK 版本＋裝置＋錄影 |
 | APK-04 | 全新安裝、全新錢包完成連線、簽名、交易與結果更新 | TODO | 待指派 | 09/27 | 交易簽章＋操作紀錄 |
-| APK-05 | 無健康資料評審的體驗方式已決定、寫入指南並實測 | TODO | 待指派 | 09/23 | 若需開發另列 PG，不默認已具備 |
+| APK-05 | 無健康資料評審的體驗方式已決定、寫入指南並實測 | TODO（機制已補、**實測待做**） | 待指派 | 09/23 | 2026-09-29：唯讀預覽原本只掛在登入前的 LandingScreen，連了錢包就回不去——指南那句「用公開預覽」對已登入的評審是死路。已在 Profile 補入口（`profile-demo-preview`）並在指南寫出確切路徑 Profile → Read-only preview。預覽本身不建立錢包／NFT／健康資料，文案明說。**仍需實機請一位沒有 Health Connect 紀錄的人試走**（DEMO-07 同一件事） |
 | APK-06 | 權限拒絕、簽章取消、餘額不足、網路錯誤可理解且可恢復 | TODO | 待指派 | 10/02 | 測試紀錄 |
 | APK-07 | 重複打卡不重複發獎；UTC 換日行為正確 | TODO | 待指派 | 10/02 | 對應帳號與任務日 |
 | APK-08 | Seeker 實機驗收；一般 Android／模擬器相容性與限制有記錄 | TODO | 待指派 | 10/02 | 型號、OS、錢包與 APK 版本 |

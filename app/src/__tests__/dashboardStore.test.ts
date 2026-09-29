@@ -38,7 +38,10 @@ describe('PG-A-12／A-19 dashboardStore', () => {
     await useDashboardStore.getState().syncHealth();
     const s = useDashboardStore.getState();
     expect(s.health?.steps?.total).toBe(1_000);
-    expect(s.health?.error).toBe('offline');
+    // 2026-09-29：error 從原始字串改成分類（原始訊息不再進使用者文案，但要保留供診斷）
+    expect(s.health?.error?.reason).toBe('unknown');
+    expect(s.health?.error?.detail).toBe('offline');
+    expect(s.health?.error?.ref).toBe('offline · healthRead');
   });
 
   test('快取：同任務日且較新才採用；換日不採用', async () => {

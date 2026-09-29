@@ -88,6 +88,8 @@ export const zhTW: Record<keyof typeof en, string> = {
 
   'demo.title': '唯讀預覽',
   'demo.body': '瀏覽任務、裝備與週末競技場的運作方式。這裡不會儲存任何東西，也不會建立錢包、NFT 或健康資料。',
+  'profile.previewBody': '這台裝置沒有 Health Connect 紀錄，或你只想先看功能長什麼樣時，用唯讀預覽瀏覽任務、裝備與競技場。預覽不會儲存任何東西，也不會建立錢包、NFT 或健康資料。',
+  'profile.previewOpen': '開啟唯讀預覽',
   'demo.totalXp': '累積 {n} XP',
   'demo.unlockedStart': '初階跑鞋 · 隨個人檔案免費贈送',
   'demo.taskDays': '每天完成兩項任務約 {n} 天',
@@ -277,7 +279,10 @@ export const zhTW: Record<keyof typeof en, string> = {
   'home.healthOff.body': '任務需要 Health Connect 的步數與睡眠。在你允許前不會讀取任何資料；快取數值只留在手機上。',
   'home.healthOff.action': '檢查權限',
   'home.healthErr.title': '無法取得健康資料',
-  'home.healthErr.body': 'Health Connect 沒有回應。顯示上次同步的數值；沒有任何資料被送出。{error}',
+  'home.healthErr.permission': 'Health Connect 的存取權限被關閉了。顯示的是上次同步的數值；沒有任何資料被送出。到權限設定重新允許就會恢復。',
+  'home.healthErr.unavailable': '這台裝置上的 Health Connect 無法使用（沒安裝、已停用或版本太舊）。顯示的是上次同步的數值；沒有任何資料被送出。',
+  'home.healthErr.timeout': 'Health Connect 這次沒有在時限內回應。顯示的是上次同步的數值；沒有任何資料被送出。稍後再試一次通常就好了。',
+  'home.healthErr.unknown': 'Health Connect 這次讀取失敗。顯示的是上次同步的數值；沒有任何資料被送出。',
   // Style 14：說「發生什麼、資料是否安全、下一步」。原始 RPC 訊息只留在 Ref，不貼進正文
   'home.chainErr.rate_limited': '目前讀不到你的鏈上檔案：devnet 的公用節點正在限流。你的 tSKR 與進度都安全存在鏈上，畫面顯示的是快取值。過幾分鐘再試一次。',
   'home.chainErr.timeout': '目前讀不到你的鏈上檔案：devnet 節點太久沒有回應。你的 tSKR 與進度都安全存在鏈上，畫面顯示的是快取值。可以再試一次。',

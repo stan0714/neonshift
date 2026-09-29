@@ -9,6 +9,7 @@ import { decodeConfig, decodeIncidentFreeze, decodePlayerProfile, type ChainConf
 import { claimPda, configPda, freezePda, playerPda } from '@/chain/program';
 import { FEATURES } from '@/config/features';
 import { APP_CONFIG } from '@/config/app';
+import { classifyHealthError, type HealthFailure } from '@/domain/healthFailure';
 import { progress, reduce, taskDateOf, TASK_CODE, WORKOUT_GOAL_MOVING_MS, type TaskStatus, type TaskType } from '@/domain/taskEngine';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { classifyRpcError, fetchAccountsInfo, rpcFailureRef, rpcRead, RpcReadError, type RpcFailureReason } from '@/services/chain/ChainClient';
@@ -18,7 +19,7 @@ import { associatedTokenAddress } from '@/chain/txBuilder';
 
 import type { SleepResult, StepsResult } from '../../modules/neonshift-health';
 
-export type HealthSnapshot = { taskDate: number; steps: StepsResult | null; sleep: SleepResult | null; syncedAt: number; error: string | null; source: 'foreground' | 'background' | 'cache' };
+export type HealthSnapshot = { taskDate: number; steps: StepsResult | null; sleep: SleepResult | null; syncedAt: number; error: HealthFailure | null; source: 'foreground' | 'background' | 'cache' };
 
 type State = {
   taskDate: number;
@@ -118,7 +119,7 @@ export const useDashboardStore = create<State>((set, get) => ({
       void healthConnect.cacheSummary({ taskDate, steps, sleep: sleep ?? { sessions: [] }, syncedAt, source: 'foreground' });
     } catch (e) {
       const prev = get().health;
-      set({ health: { taskDate, steps: prev?.steps ?? null, sleep: FEATURES.sleep ? prev?.sleep ?? null : null, syncedAt: prev?.syncedAt ?? 0, error: e instanceof Error ? e.message : String(e), source: prev?.source ?? 'cache' } });
+      set({ health: { taskDate, steps: prev?.steps ?? null, sleep: FEATURES.sleep ? prev?.sleep ?? null : null, syncedAt: prev?.syncedAt ?? 0, error: classifyHealthError(e), source: prev?.source ?? 'cache' } });
     } finally {
       set({ healthSyncing: false });
     }

@@ -108,3 +108,18 @@ describe('PG-A-21 Profile', () => {
     expect(apiClient.signOut).toHaveBeenCalled();
   });
 });
+
+/**
+ * APK-05：評審指南寫的是「沒有合格 Health Connect 紀錄就用公開預覽」，但唯讀預覽原本
+ * 只掛在登入前的 LandingScreen 上——連了錢包就再也回不去，那句話對已登入的評審是死路。
+ * 這一項釘住「已連錢包時，Profile 仍找得到預覽入口」。
+ */
+test('已連錢包時 Profile 仍有唯讀預覽入口，且說明它不會建立任何資料', async () => {
+  await render(<ProfileScreen />, { wrapper: Wrapper });
+  const entry = await screen.findByTestId('profile-demo-preview');
+  expect(entry).toBeTruthy();
+  // 文案必須講清楚預覽不留下東西——否則評審會以為自己在操作真的帳號
+  expect(screen.getByText(/saves nothing and creates no wallet, NFT or health data/i)).toBeTruthy();
+  await fireEvent.press(entry);
+  expect(mockNavigate).toHaveBeenCalledWith('DemoPreview');
+});

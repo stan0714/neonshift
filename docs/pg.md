@@ -1304,3 +1304,40 @@ B-3b（SKR devnet，需先在 api.env 開 `SKR_ENABLED`）、B-4（活動雙角�
 **還缺一個決定才能測 B-2**（節日提醒與本機排程通知）：三屆 `enabled` 全 false，
 目前沒有可訂閱的屆別、提醒開關不會出現。打開哪一屆要先人工核對該屆的日期依據，
 那是負責人的決定。
+
+
+## 2026-09-29 兩個現在就能修的缺口（評審路徑可達性、健康資料錯誤文案）
+
+閘門①開了之後盤點「還能實作什麼」：TODO 清單裡剩下的要嘛是實機驗收（卡閘門②③），
+要嘛是 `PG-EC-02`～`05`／`PG-XD-04`～`06` 這種需要合約改版的大項目——凍結前一天開一個做不完的
+大項目比不開更糟。所以挑了兩個確定做得完、而且都是既有缺口的：
+
+### 一、沒有健康資料的評審找不到唯讀預覽（`APK-05`）
+
+評審指南寫的是「沒有合格 Health Connect 紀錄就用公開預覽」，但 `DemoPreview` **只掛在登入前的
+`LandingScreen`** 上。評審會連錢包（這是 Solana 黑客松，指南也叫他們連），連了之後就再也回不去——
+那句話對已登入的評審是死路。這正是 `APK-05` 備註警告的「不默認已具備」。
+
+已在 Profile 補入口（`profile-demo-preview`），並在指南寫出確切路徑
+**Profile → Read-only preview**。放 Profile 而不是首頁：首頁的健康資料警示該指向「檢查權限」
+（那是真正的修法），預覽是替代路徑而不是修法，兩者混在一張卡上會讓人以為預覽能解決權限問題。
+文案明說預覽不儲存任何東西、不建立錢包／NFT／健康資料——否則評審會以為自己在操作真的帳號。
+
+仍待實機：請一位**沒有** Health Connect 紀錄的人試走（`DEMO-07` 是同一件事）。
+
+### 二、`home.healthErr.body` 把原生例外插進使用者文案
+
+這是 9/27 修的 504 那張卡的**同一個錯誤重演**：
+`'Health Connect 沒有回應。…{error}'`，而 `{error}` 是 `e.message`——Health Connect SDK／Kotlin
+丟出來的字串。而且那句話本身就說錯了：**只有一種失敗是「沒有回應」**，權限被撤、
+Health Connect 沒安裝或版本太舊都不是。
+
+新增 `domain/healthFailure.ts`：判成 `permission｜unavailable｜timeout｜unknown` 四種
+（先看 Expo `CodedException` 的 `code`——那個穩定；再退回訊息比對——那個會隨 SDK 版本變），
+原始訊息只留在 `detail` 供診斷，畫面上只出現一行 Ref（`InlineState` 的 `referenceId`）。
+四種原因各一句文案，每句都講「發生什麼、資料是否安全、下一步」；四句都明說
+「顯示的是上次同步的數值；沒有任何資料被送出」。
+
+測試 7 項，含「原始訊息不進 ref」「有 code 時用 code」「空訊息也要有 ref」。
+`dashboardStore.test.ts` 的斷言從比對原始字串改成比對分類，**並確認 `detail` 仍保留原文**——
+不進文案不等於可以弄丟。App 85 suites／628 tests 通過。

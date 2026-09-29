@@ -8,7 +8,7 @@ NeonShift connects daily movement, Solana devnet clock-ins, conservation-inspire
 
 **Current scope:** event App/API code exists, but a complete device-tested event flow is still pending. Staff currently enters a code; NFC opens an event and is not proof of attendance. Shoe finishes are deterministic cosmetic App appearances, not randomized NFT traits. tSKR is a valueless devnet test token, not official SKR. No real partner event or donation is claimed.
 
-If your device has no qualifying Health Connect records, use the public previews and event browsing path; do not expect fabricated health data to unlock a real claim. Published fixtures, test funding instructions and support hours will be listed below before submission. No seed phrase or private key is required by the team.
+If your device has no qualifying Health Connect records, open **Profile → Read-only preview** (the same preview is on the first screen before you connect a wallet) and browse events; do not expect fabricated health data to unlock a real claim. Published fixtures, test funding instructions and support hours will be listed below before submission. No seed phrase or private key is required by the team.
 
 ## 1. 交付連結
 
