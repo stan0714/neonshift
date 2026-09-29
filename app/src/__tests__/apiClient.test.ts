@@ -295,3 +295,49 @@ describe('2026-09-19 review：refresh 區分憑證失效與暫時失敗；請求
     expect((err as ApiError).message).toMatch(/user left screen/);
   });
 });
+
+/**
+ * 2026-09-29 實機事故的回歸測試。
+ *
+ * 收藏頁顯示「could not load seasonal windows」，而**伺服器日誌裡一筆請求都沒有**——
+ * 因為 `requestRaw` 在 `auth !== false` 時會先取 access token，取不到就丟 `NO_SESSION`
+ * 且不發請求。`seasonal()` 的註解寫著「未登入也能看」卻漏了 `auth: false`，
+ * 所以那個公開端點對未登入的人永遠失敗。`eventResults()`（後端「公開成績榜」，沒掛
+ * requireAuth）同一個毛病。
+ *
+ * 為什麼之前沒抓到：元件測試都是 mock `apiClient.seasonal` 本身，完全繞過 `request`，
+ * 所以 auth 選項錯了也看不出來。這一組刻意測到 fetch 層。
+ */
+describe('公開端點在未登入時仍然會送出請求（不得先丟 NO_SESSION）', () => {
+  beforeEach(async () => {
+    await SecureStore.deleteItemAsync('neonshift.api.tokens.v1');
+  });
+
+  test('seasonal()：有送出請求，且不帶 authorization', async () => {
+    const { f, calls } = fakeFetch((c) =>
+      c.url.endsWith('/seasonal') ? { status: 200, body: { items: [] } } : { status: 404 },
+    );
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    await expect(api.seasonal()).resolves.toEqual({ items: [] });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe('https://api-dev.neonshift.cc/v1/seasonal');
+    expect((calls[0]!.init.headers as Record<string, string>).authorization).toBeUndefined();
+  });
+
+  test('eventResults()：同上（後端那條路由沒掛 requireAuth）', async () => {
+    const { f, calls } = fakeFetch((c) =>
+      c.url.includes('/events/spring/results') ? { status: 200, body: { results: [], non_finishers: [] } } : { status: 404 },
+    );
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    await api.eventResults('spring');
+    expect(calls).toHaveLength(1);
+    expect((calls[0]!.init.headers as Record<string, string>).authorization).toBeUndefined();
+  });
+
+  test('對照組：需要登入的端點未登入時仍應丟 NO_SESSION 且不發請求', async () => {
+    const { f, calls } = fakeFetch(() => ({ status: 200, body: {} }));
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    await expect(api.mySeasonal()).rejects.toMatchObject({ code: 'NO_SESSION' });
+    expect(calls).toHaveLength(0);
+  });
+});

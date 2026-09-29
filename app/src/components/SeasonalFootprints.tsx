@@ -13,7 +13,7 @@ import { APP_CONFIG } from '@/config/app';
 import { seasonalShareLayout, SEASONAL_SHARE_DEFAULT, shareUrl, type SeasonalShareFields } from '@/domain/shareImage';
 import { useT, useLocaleStore, type TKey } from '@/i18n';
 import type { RootParamList } from '@/navigation/types';
-import { apiClient, type MySeasonalItem, type SeasonalCampaignView } from '@/services/api/ApiClient';
+import { apiClient, ApiError, type MySeasonalItem, type SeasonalCampaignView } from '@/services/api/ApiClient';
 import { achievementService } from '@/services/chain/AchievementService';
 import { ClaimError } from '@/services/chain/StarterShoeService';
 import { recordLocalMint } from '@/services/chain/localMints';
@@ -77,7 +77,20 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
       const r = session ? await apiClient.mySeasonal() : await apiClient.seasonal();
       setRows(r.items);
       setFailed(false);
-    } catch {
+    } catch (e) {
+      // 錢包連著但後端 session 已經沒了（過期／撤銷）：那不是「活動讀不到」，
+      // 而是「個人資格讀不到」。公開目錄本來就不需要登入，退回去拿它——
+      // 窗口、規則與提醒訂閱照樣可用，只是少了個人狀態，比整段顯示錯誤好得多。
+      if (session && e instanceof ApiError && e.code === 'NO_SESSION') {
+        try {
+          const pub = await apiClient.seasonal();
+          setRows(pub.items);
+          setFailed(false);
+          return;
+        } catch {
+          // 公開目錄也拿不到：那才是真的讀取失敗，往下走
+        }
+      }
       setRows((prev) => prev ?? []);
       setFailed(true);
     }

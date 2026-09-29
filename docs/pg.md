@@ -1341,3 +1341,33 @@ Health Connect 沒安裝或版本太舊都不是。
 測試 7 項，含「原始訊息不進 ref」「有 code 時用 code」「空訊息也要有 ref」。
 `dashboardStore.test.ts` 的斷言從比對原始字串改成比對分類，**並確認 `detail` 仍保留原文**——
 不進文案不等於可以弄丟。App 85 suites／628 tests 通過。
+
+
+## 2026-09-29 實機事故：公開端點少了 `auth: false`，未登入永遠讀不到
+
+實機收藏頁顯示「could not load seasonal windows, pull to refresh」。診斷的關鍵是
+**伺服器日誌裡一筆請求都沒有**——`/v1/seasonal` 我用 curl 驗過是 200，l1／l2 的
+access log 在那段時間只有我自己那筆與 healthz。請求根本沒送出。
+
+原因在 `ApiClient.requestRaw`：`auth !== false` 時會先 `ensureAccessToken`，
+**取不到就直接丟 `ApiError(401, 'NO_SESSION')`，不發請求**。而
+
+```ts
+/** 公開目錄（未登入也能看「即將開始／進行中」） */
+seasonal() { return this.request('GET', '/seasonal'); }   // ← 少了 { auth: false }
+```
+
+註解明寫「未登入也能看」，實際上未登入一定失敗。對照 `events()`／`event()` 都正確帶了。
+掃過同類寫法後發現**第二個實例**：`eventResults()`，後端那條路由註解是「公開成績榜」
+且沒掛 `requireAuth`，所以未登入看成績榜也會拿到 `NO_SESSION`。兩個都修了。
+
+**為什麼自動測試沒抓到**：元件測試一律 mock `apiClient.seasonal` 本身，完全繞過 `request`，
+所以 auth 選項錯了也看不出來。補的三項測試刻意打到 fetch 層（`apiClient.test.ts`）：
+公開端點要**真的送出請求且不帶 authorization**，並加一個對照組確認需要登入的端點
+仍然丟 `NO_SESSION` 且不發請求——否則這個修法可能變成「把所有端點都改成不需登入」。
+
+順帶補一個相鄰的降級：`SeasonalFootprints` 在「錢包連著但後端 session 已失效」時
+退回公開目錄。那種情況不是「活動讀不到」而是「個人資格讀不到」，公開目錄本來就不需要登入，
+窗口、規則與提醒訂閱照樣可用，比整段顯示錯誤好得多。
+
+App 85 suites／631 tests 通過。versionCode 6。

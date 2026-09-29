@@ -452,9 +452,15 @@ export class ApiClient {
     return this.request('GET', '/me/skr/entitlements');
   }
 
-  /** 公開目錄（未登入也能看「即將開始／進行中」） */
+  /**
+   * 公開目錄（未登入也能看「即將開始／進行中」）。
+   *
+   * `auth: false` 是必要的，不是最佳化：`requestRaw` 在 `auth !== false` 時會先取 access token，
+   * **取不到就直接丟 `NO_SESSION`、連請求都不發**。少了它的話這個「公開」端點對未登入的人
+   * 永遠失敗（2026-09-29 實機就是這樣：收藏頁顯示讀取失敗，而伺服器日誌裡一筆請求都沒有）。
+   */
   seasonal(): Promise<{ items: SeasonalCampaignView[] }> {
-    return this.request('GET', '/seasonal');
+    return this.request('GET', '/seasonal', undefined, { auth: false });
   }
 
   mySeasonal(): Promise<{ items: MySeasonalItem[]; notes: string[] }> {
@@ -510,7 +516,9 @@ export class ApiClient {
   // PG-E-08：成績榜、個人成績冊、公開同意
   eventResults(idOrSlug: string, q: { discipline?: string; division?: string } = {}): Promise<EventResults> {
     const qs = Object.entries(q).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v!)}`).join('&');
-    return this.request('GET', `/events/${encodeURIComponent(idOrSlug)}/results${qs ? `?${qs}` : ''}`);
+    // 後端這條路由沒有掛 requireAuth（「公開成績榜」），所以這裡必須 auth: false——
+    // 同 seasonal() 的理由：否則未登入看成績榜會拿到 NO_SESSION 且請求不會送出。
+    return this.request('GET', `/events/${encodeURIComponent(idOrSlug)}/results${qs ? `?${qs}` : ''}`, undefined, { auth: false });
   }
 
   myEventHistory(): Promise<{ items: { event: { event_id: string; slug: string; title: string; state: string; starts_at: string | null; ends_at: string | null } | null; registration: EventRegistration; check_ins: { checkpoint_id: string; confirmed_at: string; method: string }[]; redemptions: Redemption[]; results: MyResult[] }[] }> {
