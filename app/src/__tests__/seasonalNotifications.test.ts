@@ -4,7 +4,9 @@
  * 這裡刻意不測「通知真的在那一天響了」——那要實機等到那一天。能自動驗的是
  * 「該排哪些、不該排哪些、重複同步不會排出第二份、狀況改變時會取消」。
  */
-import { seasonalSourceFact } from '@/domain/seasonalCopy';
+import { seasonalEditionName, seasonalReminderBody, seasonalSourceFact } from '@/domain/seasonalCopy';
+// 真實字典的 t；本檔上半部另有一個刻意的假 t（回傳 key|params）用於差異同步測試
+import { t as realT, useLocaleStore } from '@/i18n';
 import {
   SEASONAL_NOTIFICATION_PREFIX,
   parseSeasonalNotificationId,
@@ -216,5 +218,59 @@ describe('日期依據依語言挑（source.fact）', () => {
   test('沒有值時回空字串，不丟例外、不顯示 undefined', () => {
     expect(seasonalSourceFact(null, 'en')).toBe('');
     expect(seasonalSourceFact({}, 'en')).toBe('');
+  });
+});
+
+/**
+ * 通知真正組出來的句子（用**真實字典**）。
+ *
+ * 上面那組差異同步的測試傳的是假的 `t`（回傳 `key|params`），所以少一個插值參數、
+ * 用錯 key 都驗不出來——`translate` 對缺少的參數是把 `{when}` 原樣留著，
+ * 那會直接出現在系統通知上。這一組補掉那個缺口。
+ */
+describe('通知文案（真實字典）', () => {
+  const planned = (phase: 'soon' | 'open' | 'grace') => ({
+    id: seasonalNotificationId('moon-2026', phase),
+    campaignId: 'moon-2026',
+    themeId: 'moonlit_steps',
+    year: 2026,
+    phase,
+    fireAt: new Date('2026-03-01T00:00:00Z'),
+    // 03-10 16:00Z ＝ Asia/Taipei 03-11 00:00，用來驗「以活動時區顯示」
+    deadline: new Date('2026-03-10T16:00:00.000Z'),
+    minMovingMinutes: 20,
+    displayTimezone: 'Asia/Taipei',
+  });
+
+  for (const locale of ['en', 'zh-TW'] as const) {
+    for (const phase of ['soon', 'open', 'grace'] as const) {
+      test(`${locale} · ${phase}：句子完整、含屆名與年份、不留插值佔位`, () => {
+        useLocaleStore.setState({ setting: locale, locale });
+        const p = planned(phase);
+        const name = seasonalEditionName(realT, p.themeId, p.year);
+        const body = seasonalReminderBody(realT, p, name);
+        expect(body).toContain('Moonlit Steps');
+        expect(body).toContain('2026');
+        // 缺參數時 translate 會把 {when} 原樣留著——通知上出現那個就是壞的
+        expect(body).not.toMatch(/\{[a-z]+\}/i);
+        // 不得直接吐出 i18n key
+        expect(body).not.toMatch(/season\.reminder\./);
+        expect(body.length).toBeGreaterThan(10);
+      });
+    }
+  }
+
+  test('截止時刻以活動時區顯示，不是裝置時區', () => {
+    useLocaleStore.setState({ setting: 'en', locale: 'en' });
+    const p = planned('open');
+    const body = seasonalReminderBody(realT, p, 'Moonlit Steps 2026');
+    // 2026-03-10T16:00Z 在 Asia/Taipei 是 3/11 00:00；若誤用 UTC 會顯示 3/10
+    expect(body).toMatch(/Mar 11/);
+    expect(body).not.toMatch(/Mar 10/);
+  });
+
+  test('open 那則要講清楚門檻（20 分鐘），否則提醒等於沒說要做什麼', () => {
+    useLocaleStore.setState({ setting: 'en', locale: 'en' });
+    expect(seasonalReminderBody(realT, planned('open'), 'Moonlit Steps 2026')).toContain('20');
   });
 });

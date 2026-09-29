@@ -153,7 +153,12 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
                     <Text variant="caption" tone="secondary" numeric testID={`seasonal-${r.campaign_id}-window`}>
                       {w.inZone} ({r.window.display_timezone})
                     </Text>
-                    <Text variant="caption" tone="muted" numeric>{t('season.localTime', { range: w.local })}</Text>
+                    {/*
+                      裝置時區與活動時區相同時，這一行會跟上面一模一樣——顯示兩次同樣的時間
+                      只是雜訊，還會讓人以為兩者有差別。只有真的不同才顯示（那時它才有用：
+                      活動在 Asia/Taipei，而你人在別的時區）。
+                    */}
+                    {w.local !== w.inZone ? <Text variant="caption" tone="muted" numeric>{t('season.localTime', { range: w.local })}</Text> : null}
                   </View>
                 </View>
                 <Text variant="caption" tone="secondary" style={styles.rule}>
