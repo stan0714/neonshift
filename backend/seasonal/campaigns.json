@@ -52,8 +52,8 @@
       "rules_version": 1,
       "enabled": true,
       "prototype": true,
-      "starts_at": "2026-09-29T06:47:55.000Z",
-      "ends_at": "2026-09-29T09:17:55.000Z",
+      "starts_at": "2026-09-29T11:15:58.000Z",
+      "ends_at": "2026-09-29T12:35:58.000Z",
       "display_timezone": "Asia/Taipei",
       "expect_local_days": [
         "2026-09-29"
