@@ -1277,3 +1277,30 @@ devnet＋tSKR 的現行實作就是可提交、可參加 SKR 獎的形態。
 那是得獎後第一件要動的事，不是最後一件。
 
 **本次衝刺不動主網**：主辦方明示不需要，而且 M3 功能凍結是 09-30。現在改設定只會讓提交版變不穩。
+
+
+## 2026-09-29 後端部署（測試計畫閘門①已開）
+
+l1 與 l2 依 `deploy/l1/deploy.sh`（l2 以 `DEPLOY_HOST` 指定）部署完成，02:18–02:19 UTC。
+實際套用 **0020_share_metrics** 與 **0021_seasonal_achievements**；`0019_skr_orders` 早已套過
+（`schema_migrations` 已有紀錄，腳本正確跳過）。l2 的 migration 也跳過——兩台共用外部 DB，
+這是預期行為，不是漏做。
+
+`https://api.neonshift.cc/v1/seasonal` 從 **404 變 200**，回 `{"items":[]}`——正確，
+因為三屆 `enabled` 全是 `false`。`POST /v1/metrics/share` 回 **202**，證明 0020 的表真的可寫。
+兩台的 `healthz`／`readyz`（含 `db: ok`）都通過。
+
+**部署前先確認過的風險，記下來供下次參考**：
+- `0021` 是 `DROP CONSTRAINT IF EXISTS` 後重建兩個 CHECK，看起來有破壞性，但新約束是舊的**嚴格超集**
+  （只把 `'seasonal'` 加進允許清單），既有資料不可能違反。
+- 真正的風險是「`schema_migrations` 若為空，腳本會從 0001 重跑，而 0001～0003 非冪等」。
+  無法事前查（DB 查詢被工具政策擋下），但確認過這是**失敗即安全**：每個 migration 包在
+  `BEGIN…COMMIT` 且 `ON_ERROR_STOP`，失敗會回滾並在 `systemctl restart` **之前** `exit 1`，
+  所以最壞情況是「新程式碼在磁碟上、舊程序仍在跑、DB 未變」。實際執行時該表本來就存在。
+
+**解鎖的測試**：B-1（節日足跡讀取，那個「讀取失敗」警示應該消失）、B-3（分享計數）、
+B-3b（SKR devnet，需先在 api.env 開 `SKR_ENABLED`）、B-4（活動雙角色）。
+
+**還缺一個決定才能測 B-2**（節日提醒與本機排程通知）：三屆 `enabled` 全 false，
+目前沒有可訂閱的屆別、提醒開關不會出現。打開哪一屆要先人工核對該屆的日期依據，
+那是負責人的決定。
