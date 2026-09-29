@@ -180,7 +180,20 @@ ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:no
 
 **拍攝門檻**：資格必須來自真實 ≥5 km 跑步並經 registry 核准（不得 DEMO 覆寫）；錢包用 Seeker Wallet（Phantom 26.6 有已知不回覆問題，見 judges-guide）；付款交易簽章、訂單 id、receipt 需登錄證據包；「確認中」等待可剪短並標 `Wait time shortened`。不得把 devnet 測試付款剪成主網成功。
 
-### SKR No-go 替代稿（D 段改 20 秒，餘 25 秒回填 B／C 操作證據）
+### ~~SKR No-go 替代稿~~（**2026-09-29 作廢，不要用**）
+
+主辦方已明示 devnet＋tSKR 可參加 SKR 獎，條件是整合邏輯「clearly presented」。
+這份替代稿只有 20 秒，而且把伺服器訂單、簽署內容、鏈上確認與權限恢復那幾句**整段砍掉**——
+砍掉的正好是主辦方要看的東西，用它會自己削弱領獎條件。
+
+**要錄的是上面的 D 段主稿，搭配 devnet 標示**：全段持續顯示
+`TEST SKR · devnet · not official SKR`，旁白那句改成 "paid with a test token on devnet"，
+確認框顯示 `… · Solana devnet · recipient …`。整合邏輯照主稿完整講完，
+只把「用的是測試代幣、在 devnet」說清楚——那是誠實，不是缺陷。
+
+以下保留僅為歷史紀錄：
+
+#### （已作廢）SKR No-go 替代稿（D 段改 20 秒，餘 25 秒回填 B／C 操作證據）
 
 > NeonShift is designed to give SKR one honest job: cosmetic unlocks for verified achievements, paid from your own wallet, never affecting XP or records. This build ships the flow on devnet with a test token; official SKR payments are not yet enabled.
 
