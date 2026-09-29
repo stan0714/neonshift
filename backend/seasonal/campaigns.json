@@ -12,7 +12,9 @@
       "starts_at": "2027-03-16T00:00:00.000Z",
       "ends_at": "2027-03-17T00:00:00.000Z",
       "display_timezone": "UTC",
-      "expect_local_days": ["2027-03-16"],
+      "expect_local_days": [
+        "2027-03-16"
+      ],
       "min_moving_ms": 1200000,
       "grace_ms": 604800000,
       "source": {
@@ -31,7 +33,9 @@
       "starts_at": "2027-08-04T00:00:00.000Z",
       "ends_at": "2027-08-05T00:00:00.000Z",
       "display_timezone": "UTC",
-      "expect_local_days": ["2027-08-04"],
+      "expect_local_days": [
+        "2027-08-04"
+      ],
       "min_moving_ms": 1200000,
       "grace_ms": 604800000,
       "source": {
@@ -46,12 +50,14 @@
       "year": 2026,
       "art_version": 1,
       "rules_version": 1,
-      "enabled": false,
+      "enabled": true,
       "prototype": true,
-      "starts_at": "2026-09-24T16:00:00.000Z",
-      "ends_at": "2026-09-25T16:00:00.000Z",
+      "starts_at": "2026-09-29T06:47:55.000Z",
+      "ends_at": "2026-09-29T09:17:55.000Z",
       "display_timezone": "Asia/Taipei",
-      "expect_local_days": ["2026-09-25"],
+      "expect_local_days": [
+        "2026-09-29"
+      ],
       "min_moving_ms": 1200000,
       "grace_ms": 604800000,
       "source": {
