@@ -14,6 +14,13 @@
 
 建議：開啟錢包前持久化訂單及 payment_attempt；一旦進入結果不明，UI 與 service 都只允許查詢。recover 查無交易不代表安全重付，需等待原交易有效期失效及再次核查，或使用鏈上具訂單去重的付款機制。保留已取得的 signature，不讓首個 confirm 網路錯誤丟掉它。驗收應模擬廣播成功、回覆遺失、App 重啟與再次點付款。
 
+處理（2026-09-30，commit 見 pg.md）：已修。開錢包前持久化 `payment_attempt`（訂單 id、blockhash、lastValidBlockHeight）；
+之後只要該筆嘗試未結清，`purchase()` 一律先 recover，不建新交易，UI 也不再顯示付款與取消。
+允許再付的門檻定為「原交易已過 lastValidBlockHeight **且** 失效後再查一次仍查無」——
+單靠 recover 查無交易不算證明，因為 RPC 可能只是還沒看到。查不到區塊高度時一律擋住。
+錢包回報 REJECTED 例外：那是確定的否定答案（沒簽名、沒廣播），清掉嘗試，否則按一次取消就得等有效期過。
+signature 在錢包一回傳就持久化，confirm 的網路錯誤不會把它弄丟。App skr.test 13 → 22 tests。
+
 ### R2 / P1：SKR 目錄換帳號時可能沿用舊帳號內容
 
 位置：`app/src/components/GenesisFrameCard.tsx:24`、`app/src/state/skrStore.ts:72`。

@@ -12,10 +12,18 @@ import { WalletError, walletService } from '@/services/wallet/WalletService';
 import { paymentInstructions, associatedTokenAddress } from '@/services/skr/spl';
 
 export type SkrPayPhase = 'creating_order' | 'checking_balance' | 'opening_wallet' | 'sending' | 'confirming' | 'done';
-export type SkrPayErrorCode = 'INSUFFICIENT_SKR' | 'INSUFFICIENT_SOL' | 'MINT_MISMATCH' | 'REJECTED' | 'WALLET_NO_REPLY' | 'NOT_ELIGIBLE' | 'ALREADY_OWNED' | 'ORDER_EXPIRED' | 'NETWORK_ERROR' | 'SESSION_EXPIRED' | 'DISABLED' | 'UNKNOWN';
+export type SkrPayErrorCode = 'INSUFFICIENT_SKR' | 'INSUFFICIENT_SOL' | 'MINT_MISMATCH' | 'REJECTED' | 'WALLET_NO_REPLY' | 'NOT_ELIGIBLE' | 'ALREADY_OWNED' | 'ORDER_EXPIRED' | 'NETWORK_ERROR' | 'SESSION_EXPIRED' | 'DISABLED' | 'RESULT_UNKNOWN' | 'UNKNOWN';
 export class SkrPayError extends Error {
+  /** 已送出但還沒確認完成的 signature——不能因為 confirm 的網路錯誤就把它弄丟（R1） */
+  signature?: string;
   constructor(public readonly code: SkrPayErrorCode, message: string, public readonly order?: SkrOrderView, public readonly cause?: unknown) { super(message); this.name = 'SkrPayError'; }
 }
+/**
+ * R1：開錢包**之前**就記下的付款嘗試。它存在代表「錢包已經拿到一筆可廣播的交易」——
+ * 不論 App 有沒有收到回覆，鏈上都可能已經扣款。所以它一旦存在，就只准查、不准再付。
+ */
+export type SkrPaymentAttempt = { orderId: string; network: SkrNetwork; blockhash: string; lastValidBlockHeight: number; at: number; signature: string | null };
+
 export type SkrPayOutcome = { kind: 'fulfilled'; order: SkrOrderView; signature: string } | { kind: 'confirming'; order: SkrOrderView; signature: string } | { kind: 'needs_review'; order: SkrOrderView; signature: string };
 
 /** 主網固定 'solana:mainnet'（MWA chain id）；devnet 試跑走 'solana:devnet' */
@@ -79,7 +87,31 @@ function mapApiError(e: unknown, order?: SkrOrderView): SkrPayError {
   return new SkrPayError('UNKNOWN', e instanceof Error ? e.message : String(e), order, e);
 }
 
-export type SkrDeps = { connection?: (network: SkrNetwork) => Connection; balances?: typeof readBalances; sendTx?: (chain: `solana:${string}`, tx: Transaction, opts: { minContextSlot: number }) => Promise<string>; sleep?: (ms: number) => Promise<void> };
+export type SkrDeps = {
+  connection?: (network: SkrNetwork) => Connection;
+  balances?: typeof readBalances;
+  sendTx?: (chain: `solana:${string}`, tx: Transaction, opts: { minContextSlot: number }) => Promise<string>;
+  sleep?: (ms: number) => Promise<void>;
+  /** 開錢包前持久化付款嘗試（R1）。這個 await 失敗就不該開錢包——沒記下來就等於沒有保護 */
+  onAttempt?: (attempt: SkrPaymentAttempt) => Promise<void> | void;
+  /** 錢包一回傳 signature 就先存，之後 confirm 再怎麼失敗都不會弄丟它（R1） */
+  onSignature?: (orderId: string, signature: string) => Promise<void> | void;
+};
+
+/**
+ * 原交易是否還可能落地。Solana 只在 blockhash 有效期內接受交易，超過 lastValidBlockHeight
+ * 之後它永遠不會上鏈——這是唯一能**證明**「沒付成功」的條件。
+ * 「查不到交易」不算證明：RPC 可能只是還沒看到。查不到區塊高度時回 true（擋住付款），
+ * 因為這裡寧可讓使用者多等一會，也不要冒重複扣款的風險。
+ */
+export async function attemptCanStillLand(attempt: SkrPaymentAttempt, deps: SkrDeps = {}): Promise<boolean> {
+  try {
+    const height = await (deps.connection ?? skrConnection)(attempt.network).getBlockHeight('confirmed');
+    return height <= attempt.lastValidBlockHeight;
+  } catch {
+    return true;
+  }
+}
 
 export const skrService = {
   catalog(): Promise<SkrCatalog> { return apiClient.skrCatalog(); },
@@ -88,12 +120,18 @@ export const skrService = {
    * 購買：建單（冪等）→ 餘額預檢 → 組交易 → 主網 MWA 簽送 → 伺服器確認（最多輪詢 CONFIRM_ATTEMPTS 次）。
    * 送出後任何失敗都不重送交易；signature 立刻交給伺服器記錄（confirming），之後可 recover。
    */
-  async purchase(wallet: PublicKey, sku: string, onPhase: (p: SkrPayPhase) => void = () => {}, deps: SkrDeps = {}): Promise<SkrPayOutcome> {
+  async purchase(wallet: PublicKey, sku: string, onPhase: (p: SkrPayPhase) => void = () => {}, deps: SkrDeps = {}, attempt: SkrPaymentAttempt | null = null): Promise<SkrPayOutcome> {
     onPhase('creating_order');
     let order: SkrOrderView;
     try { order = (await apiClient.skrCreateOrder(sku)).order; } catch (e) { throw mapApiError(e); }
     if (order.status === 'confirming' && order.signature) return this.confirmUntil(order, order.signature, onPhase, deps); // 上次送出後遺失回覆：先查，不重付
     if (order.status !== 'awaiting_payment') throw new SkrPayError(order.status === 'expired' ? 'ORDER_EXPIRED' : 'UNKNOWN', `order is ${order.status}`, order);
+    // R1：伺服器說 awaiting_payment 不等於沒付過。錢包廣播成功但回覆遺失時，伺服器根本
+    // 不知道有這筆交易——訂單就會停在 awaiting_payment。本機的 attempt 是唯一知情的一方。
+    if (attempt && attempt.orderId === order.order_id) {
+      const settled = await this.settleAttempt(order, attempt, onPhase, deps);
+      if (settled) return settled;
+    }
     if (Date.parse(order.expires_at) <= Date.now()) throw new SkrPayError('ORDER_EXPIRED', 'order expired', order);
     assertOrderTrusted(order);
     onPhase('checking_balance');
@@ -105,6 +143,9 @@ export const skrService = {
     const { context, value: { blockhash, lastValidBlockHeight } } = await conn.getLatestBlockhashAndContext('confirmed');
     const tx = new Transaction({ feePayer: wallet, blockhash, lastValidBlockHeight });
     tx.add(...paymentInstructions({ payer: wallet, mint: new PublicKey(order.mint), recipient: new PublicKey(order.recipient), recipientTokenAccount: new PublicKey(order.recipient_token_account), amount, decimals: order.decimals, reference: new PublicKey(order.reference) }));
+    // 先記下嘗試，再開錢包。順序不能反：一旦錢包開了就可能廣播，而沒記下來的廣播
+    // 就是 R1 的缺口本身。這裡的 await 失敗會直接讓購買失敗，不會帶著沒有保護的狀態往下走。
+    await deps.onAttempt?.({ orderId: order.order_id, network: order.network, blockhash, lastValidBlockHeight, at: Date.now(), signature: null });
     onPhase('opening_wallet');
     let signature: string;
     try {
@@ -112,8 +153,40 @@ export const skrService = {
     } catch (e) {
       throw mapApiError(e, order);
     }
+    await deps.onSignature?.(order.order_id, signature); // confirm 還沒開始就先存起來
     onPhase('sending');
     return this.confirmUntil(order, signature, onPhase, deps);
+  },
+
+  /**
+   * R1：本機有未結清的付款嘗試時走這裡。三種結局——
+   * - 回 outcome：已經查到結果（成功／需人工／確認中），一律不再付。
+   * - 回 null：**已證明**那筆交易不可能落地，可以安全再付一次。
+   * - throw RESULT_UNKNOWN：結果不明，連錢包都不開。
+   *
+   * 「證明」的門檻刻意訂得高：先查一次，再等到 blockhash 有效期失效，**再查一次**。
+   * 只有 recover 查不到而且原交易已不可能上鏈，才算證明。單靠 recover 查無交易是不夠的，
+   * 因為 RPC 可能只是還沒看到，而那正好是這個 bug 最容易發生的時間窗。
+   */
+  async settleAttempt(order: SkrOrderView, attempt: SkrPaymentAttempt, onPhase: (p: SkrPayPhase) => void, deps: SkrDeps = {}): Promise<SkrPayOutcome | null> {
+    onPhase('confirming');
+    const first = await this.recoverOutcome(order, attempt);
+    if (first) return first;
+    if (await attemptCanStillLand(attempt, deps)) throw new SkrPayError('RESULT_UNKNOWN', 'an earlier payment attempt for this order may still land onchain', order);
+    const second = await this.recoverOutcome(order, attempt);
+    if (second) return second;
+    return null;
+  },
+
+  /** recover 一次並翻譯成 outcome；仍是 awaiting_payment（伺服器查無付款）→ null */
+  async recoverOutcome(order: SkrOrderView, attempt: SkrPaymentAttempt): Promise<SkrPayOutcome | null> {
+    const r = await this.recover(order.order_id);
+    const o = r.order;
+    const sig = o.signature ?? attempt.signature ?? '';
+    if (o.status === 'fulfilled') return { kind: 'fulfilled', order: o, signature: sig };
+    if (o.status === 'needs_review') return { kind: 'needs_review', order: o, signature: sig };
+    if (o.status === 'confirming' && sig) return { kind: 'confirming', order: o, signature: sig };
+    return null;
   },
 
   /** 向伺服器確認；RPC 尚未看到 → 退避重試；仍未見 → 回 confirming（保留給 recover），不視為失敗、不重付 */
@@ -123,7 +196,7 @@ export const skrService = {
     let last: SkrOrderView = order;
     for (let i = 0; i < CONFIRM_ATTEMPTS; i++) {
       let r: { order: SkrOrderView; found: boolean; verify: string | null };
-      try { r = await apiClient.skrConfirm(order.order_id, signature); } catch (e) { throw mapApiError(e, last); }
+      try { r = await apiClient.skrConfirm(order.order_id, signature); } catch (e) { const err = mapApiError(e, last); err.signature = signature; throw err; }
       last = r.order;
       if (r.order.status === 'fulfilled') { onPhase('done'); return { kind: 'fulfilled', order: r.order, signature }; }
       if (r.order.status === 'needs_review') return { kind: 'needs_review', order: r.order, signature };

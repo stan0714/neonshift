@@ -3,6 +3,7 @@
  * 履約、needs_review、逾期、既有 confirming 訂單不重付）、pending 持久化與復原、Genesis 卡片各狀態與邊框套用。
  */
 import { PublicKey, Transaction } from '@solana/web3.js';
+import * as SecureStore from 'expo-secure-store';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { PropsWithChildren } from 'react';
 import { Alert } from 'react-native';
@@ -12,9 +13,9 @@ import { OFFICIAL_SKR_MINT } from '@/config/app';
 import type { SkrCatalog, SkrOrderView } from '@/services/api/ApiClient';
 import { ApiError } from '@/services/api/ApiClient';
 import { associatedTokenAddress, paymentInstructions, transferCheckedInstruction, TOKEN_PROGRAM_ID } from '@/services/skr/spl';
-import { skrService, SkrPayError, assertCatalogTrusted, solNeeded, ATA_RENT_LAMPORTS, FEE_LAMPORTS } from '@/services/skr/SkrService';
+import { skrService, SkrPayError, assertCatalogTrusted, solNeeded, ATA_RENT_LAMPORTS, FEE_LAMPORTS, type SkrPaymentAttempt } from '@/services/skr/SkrService';
 import { WalletError } from '@/services/wallet/WalletService';
-import { genesisFrameActive, ownsGenesisFrame, pendingOrderFor, useSkrStore } from '@/state/skrStore';
+import { genesisFrameActive, openAttemptFor, ownsGenesisFrame, pendingOrderFor, useSkrStore } from '@/state/skrStore';
 import { useWalletStore } from '@/state/walletStore';
 import { ThemeProvider } from '@/theme';
 
@@ -32,6 +33,12 @@ const catalog = (over: Record<string, unknown> = {}, sku: Record<string, unknown
 const balancesOk = async () => ({ skr: 3_000_000n, sol: 10_000_000, payerAtaExists: true, recipientAtaExists: true });
 const conn = () => ({ getLatestBlockhashAndContext: async () => ({ context: { slot: 42 }, value: { blockhash: '4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi', lastValidBlockHeight: 100 } }) }) as never;
 const noSleep = async () => {};
+/** 交易有效期到 lastValidBlockHeight=100；height 決定「原交易是否還可能落地」 */
+const connAt = (height: number, opts: { throws?: boolean } = {}) => () => ({
+  getLatestBlockhashAndContext: async () => ({ context: { slot: 42 }, value: { blockhash: '4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi', lastValidBlockHeight: 100 } }),
+  getBlockHeight: async () => { if (opts.throws) throw new Error('rpc unavailable'); return height; },
+}) as never;
+const attemptFor = (over: Partial<SkrPaymentAttempt> = {}): SkrPaymentAttempt => ({ orderId: order().order_id, network: 'mainnet-beta', blockhash: 'bh', lastValidBlockHeight: 100, at: Date.now(), signature: null, ...over });
 
 describe('SPL 指令（不依賴 spl-token）', () => {
   test('transferChecked：data = [12, amount u64 LE, decimals]；keys 順序；reference 附為唯讀非簽名', () => {
@@ -117,6 +124,82 @@ describe('購買狀態機', () => {
   });
 });
 
+/**
+ * R1（implementation-review-2026-09-29）：錢包廣播成功但回覆遺失時，伺服器仍停在 awaiting_payment，
+ * 舊版會直接建第二筆交易 —— 相同 order／reference 只幫助查找，SPL 轉帳本身不會據此去重，
+ * 所以再批准一次就是再轉一次帳。本機的 payment_attempt 是唯一知情的一方。
+ */
+describe('R1：結果不明時不得重付', () => {
+  beforeEach(() => { jest.clearAllMocks(); });
+  const onPhase = () => {};
+
+  test('廣播後回覆遺失 → 第二次購買連錢包都不開（舊版會再轉一次帳）', async () => {
+    api.skrCreateOrder.mockResolvedValue({ order: order(), created: true });
+    const saved: SkrPaymentAttempt[] = [];
+    await expect(skrService.purchase(wallet, 'genesis_mint_frame', onPhase, {
+      balances: balancesOk, connection: connAt(50), onAttempt: (a) => { saved.push(a); },
+      sendTx: async () => { throw new WalletError('WALLET_NO_REPLY', 'no reply'); },
+    })).rejects.toMatchObject({ code: 'WALLET_NO_REPLY' });
+    // 關鍵：attempt 在開錢包**之前**就寫下了，所以「沒收到回覆」也留得住證據
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ orderId: order().order_id, lastValidBlockHeight: 100 });
+
+    // 第二次：伺服器仍回 awaiting_payment（它根本不知道有那筆交易），recover 也查不到
+    api.skrRecover.mockResolvedValue({ order: order({ status: 'awaiting_payment' }), found: false, verify: null });
+    const sendTx = jest.fn();
+    await expect(skrService.purchase(wallet, 'genesis_mint_frame', onPhase, { balances: balancesOk, connection: connAt(50), sendTx }, saved[0])).rejects.toMatchObject({ code: 'RESULT_UNKNOWN' });
+    expect(sendTx).not.toHaveBeenCalled();
+  });
+
+  test('查得到結果就照結果走：已履約 → fulfilled，不再開錢包', async () => {
+    api.skrCreateOrder.mockResolvedValue({ order: order(), created: true });
+    api.skrRecover.mockResolvedValue({ order: order({ status: 'fulfilled', signature: 'sigPaid' }), found: true, verify: null });
+    const sendTx = jest.fn();
+    const r = await skrService.purchase(wallet, 'genesis_mint_frame', onPhase, { balances: balancesOk, connection: connAt(50), sendTx }, attemptFor());
+    expect(r).toMatchObject({ kind: 'fulfilled', signature: 'sigPaid' });
+    expect(sendTx).not.toHaveBeenCalled();
+  });
+
+  test('需人工處理也不重付（needs_review）', async () => {
+    api.skrCreateOrder.mockResolvedValue({ order: order(), created: true });
+    api.skrRecover.mockResolvedValue({ order: order({ status: 'needs_review', signature: 'sigLate' }), found: true, verify: 'late' });
+    const sendTx = jest.fn();
+    const r = await skrService.purchase(wallet, 'genesis_mint_frame', onPhase, { balances: balancesOk, connection: connAt(50), sendTx }, attemptFor());
+    expect(r.kind).toBe('needs_review');
+    expect(sendTx).not.toHaveBeenCalled();
+  });
+
+  test('只有「原交易已不可能落地」＋失效後再查一次仍查無 → 才允許再付', async () => {
+    api.skrCreateOrder.mockResolvedValue({ order: order(), created: true });
+    api.skrRecover.mockResolvedValue({ order: order({ status: 'awaiting_payment' }), found: false, verify: null });
+    const sendTx = jest.fn(async () => 'sigNew');
+    api.skrConfirm.mockResolvedValue({ order: order({ status: 'fulfilled', signature: 'sigNew' }), found: true, verify: null });
+    const r = await skrService.purchase(wallet, 'genesis_mint_frame', onPhase, { balances: balancesOk, connection: connAt(101), sendTx, sleep: noSleep }, attemptFor());
+    expect(r.kind).toBe('fulfilled');
+    expect(sendTx).toHaveBeenCalledTimes(1);
+    // 失效前查一次、失效後再查一次：單靠一次「查無交易」不足以證明沒付成功
+    expect(api.skrRecover).toHaveBeenCalledTimes(2);
+  });
+
+  test('查不到區塊高度 → 擋住付款（寧可多等，也不要冒重複扣款）', async () => {
+    api.skrCreateOrder.mockResolvedValue({ order: order(), created: true });
+    api.skrRecover.mockResolvedValue({ order: order({ status: 'awaiting_payment' }), found: false, verify: null });
+    const sendTx = jest.fn();
+    await expect(skrService.purchase(wallet, 'genesis_mint_frame', onPhase, { balances: balancesOk, connection: connAt(50, { throws: true }), sendTx }, attemptFor())).rejects.toMatchObject({ code: 'RESULT_UNKNOWN' });
+    expect(sendTx).not.toHaveBeenCalled();
+  });
+
+  test('confirm 的網路錯誤不得弄丟 signature（不然那筆付款就沒人記得了）', async () => {
+    api.skrCreateOrder.mockResolvedValue({ order: order(), created: true });
+    api.skrConfirm.mockRejectedValueOnce(new ApiError(0, 'NETWORK_ERROR', 'offline'));
+    const seen: string[] = [];
+    await expect(skrService.purchase(wallet, 'genesis_mint_frame', onPhase, {
+      balances: balancesOk, connection: connAt(50), sleep: noSleep, sendTx: async () => 'sigLost', onSignature: (_o, sig) => { seen.push(sig); },
+    })).rejects.toMatchObject({ code: 'NETWORK_ERROR', signature: 'sigLost' });
+    expect(seen).toEqual(['sigLost']); // 錢包一回傳就存了，不等 confirm
+  });
+});
+
 describe('skrStore 與 Genesis 卡片', () => {
   const Wrapper = ({ children }: PropsWithChildren) => <ThemeProvider>{children}</ThemeProvider>;
   const online = jest.requireMock('@/hooks/useOnline').useOnline as jest.Mock;
@@ -173,12 +256,54 @@ describe('skrStore 與 Genesis 卡片', () => {
     expect(genesisFrameActive(useSkrStore.getState(), PublicKey.unique().toBase58())).toBe(false); // 換帳戶不共用
   });
 
+  test('R1：本機有未結清的付款嘗試 → 卡片只給「查看狀態」，付款與取消都不出現', async () => {
+    const k = `mainnet-beta:${wallet.toBase58()}`;
+    const open = order({ status: 'awaiting_payment' });
+    useSkrStore.setState({ persisted: { pending: { [k]: { orderId: open.order_id, signature: null, sku: 'genesis_mint_frame', attempt: attemptFor() } }, entitlements: {}, useGenesisFrame: {} } } as never);
+    api.skrCatalog.mockResolvedValue(catalog({}, { open_order: open }));
+    await render(<GenesisFrameCard />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('genesis-frame-attempt')).toBeTruthy());
+    // 原本這裡有「Pay now」——文案寫著不要重付，按鈕卻還在。那是建議，不是保護。
+    expect(screen.queryByTestId('genesis-frame-pay')).toBeNull();
+    expect(screen.queryByTestId('genesis-frame-cancel')).toBeNull(); // 取消一筆可能已在鏈上的付款同樣會誤導人
+    expect(screen.getByTestId('genesis-frame-recover')).toBeTruthy();
+    // refreshCatalog 每次掛載都跑，不能把 attempt 洗掉（洗掉等於保護當場失效）
+    expect(openAttemptFor(useSkrStore.getState(), wallet.toBase58())).toMatchObject({ orderId: open.order_id });
+  });
+
+  test('R1：attempt 撐得過 App 重啟——保護不能只活在記憶體裡', async () => {
+    const k = `mainnet-beta:${wallet.toBase58()}`;
+    await SecureStore.setItemAsync('neonshift.skr.v1', JSON.stringify({ pending: { [k]: { orderId: order().order_id, signature: null, sku: 'genesis_mint_frame', attempt: attemptFor() } }, entitlements: {}, useGenesisFrame: {} }));
+    useSkrStore.setState({ loaded: false, persisted: { pending: {}, entitlements: {}, useGenesisFrame: {} }, catalog: null, catalogWallet: null } as never);
+    await useSkrStore.getState().load();
+    expect(openAttemptFor(useSkrStore.getState(), wallet.toBase58())).toMatchObject({ orderId: order().order_id });
+  });
+
+  test('R1：錢包明確回報取消 → 清掉 attempt；沒有回覆 → 留著', async () => {
+    const k = `mainnet-beta:${wallet.toBase58()}`;
+    const seed = () => useSkrStore.setState({ persisted: { pending: { [k]: { orderId: order().order_id, signature: null, sku: 'genesis_mint_frame', attempt: attemptFor() } }, entitlements: {}, useGenesisFrame: {} }, catalog: catalog(), catalogWallet: wallet.toBase58() } as never);
+    api.skrCatalog.mockResolvedValue(catalog());
+    // REJECTED 是錢包給的**確定否定答案**（沒簽名、沒廣播），與「沒有回覆」性質不同；
+    // 不清掉的話，使用者按一次取消就要等交易有效期過才能再付。
+    seed();
+    const rejected = jest.spyOn(skrService, 'purchase').mockRejectedValue(new SkrPayError('REJECTED', 'cancelled', order()));
+    await useSkrStore.getState().purchase(wallet, 'genesis_mint_frame');
+    expect(openAttemptFor(useSkrStore.getState(), wallet.toBase58())).toBeNull();
+    rejected.mockRestore();
+
+    seed();
+    const noReply = jest.spyOn(skrService, 'purchase').mockRejectedValue(new SkrPayError('WALLET_NO_REPLY', 'no reply', order()));
+    await useSkrStore.getState().purchase(wallet, 'genesis_mint_frame');
+    expect(openAttemptFor(useSkrStore.getState(), wallet.toBase58())).not.toBeNull();
+    noReply.mockRestore();
+  });
+
   test('伺服器有未終結訂單 → 寫入本機 pending，顯示查看狀態／取消；recover 履約後清 pending 並顯示成功', async () => {
     const open = order({ status: 'confirming', signature: 'sigX' });
     api.skrCatalog.mockResolvedValueOnce(catalog({}, { open_order: open }));
     await render(<GenesisFrameCard />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('genesis-frame-order-confirming')).toBeTruthy());
-    expect(pendingOrderFor(useSkrStore.getState(), wallet.toBase58())).toEqual({ orderId: open.order_id, signature: 'sigX', sku: 'genesis_mint_frame' });
+    expect(pendingOrderFor(useSkrStore.getState(), wallet.toBase58())).toMatchObject({ orderId: open.order_id, signature: 'sigX', sku: 'genesis_mint_frame' });
     expect(screen.queryByTestId('genesis-frame-cancel')).toBeNull(); // confirming 不可取消
     api.skrRecover.mockResolvedValueOnce({ order: order({ status: 'fulfilled', signature: 'sigX' }), found: true, verify: null });
     api.skrCatalog.mockResolvedValueOnce(catalog({ entitlements: [{ cosmetic_id: 'skr_genesis_mint_frame_v1', order_id: open.order_id, status: 'active', granted_at: '2026-09-22T00:00:00Z' }] }, { owned: true }));

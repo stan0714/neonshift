@@ -6,7 +6,7 @@ import { useT, type TKey } from '@/i18n';
 import type { SkrSkuView } from '@/services/api/ApiClient';
 import { skrService } from '@/services/skr/SkrService';
 import { useOnline } from '@/hooks/useOnline';
-import { genesisFrameActive, ownsGenesisFrame, pendingOrderFor, useSkrStore } from '@/state/skrStore';
+import { genesisFrameActive, openAttemptFor, ownsGenesisFrame, pendingOrderFor, useSkrStore } from '@/state/skrStore';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
 
@@ -29,6 +29,9 @@ export function GenesisFrameCard({ reloadKey = 0 }: { reloadKey?: number | strin
   const owned = ownsGenesisFrame(st, wallet);
   const active = genesisFrameActive(st, wallet);
   const pending = pendingOrderFor(st, wallet);
+  // R1：本機記得對這張訂單開過錢包 → 結果不明，只給「查看狀態」。
+  // 文案早就寫著「do not pay again」，但按鈕還在——那是建議，不是保護。
+  const attempt = owned ? null : openAttemptFor(st, wallet);
   const open = sku.open_order;
   const isTest = cat.network !== 'mainnet-beta';
   const busy = st.phase !== null;
@@ -71,15 +74,15 @@ export function GenesisFrameCard({ reloadKey = 0 }: { reloadKey?: number | strin
           <Text variant="caption" tone="secondary" style={styles.mtXs}>{t(`skr.orderHint.${open.status}` as TKey, { amount: open.amount_display })}</Text>
           <View style={styles.actions}>
             {open.status !== 'needs_review' ? <Button label={t('skr.checkStatus')} variant="secondary" onPress={() => void st.recover(wallet, open.order_id)} loading={busy} disabled={busy} testID="genesis-frame-recover" /> : null}
-            {open.status === 'awaiting_payment' ? <Button label={t('skr.payNow')} onPress={buy} disabled={busy || !online} testID="genesis-frame-pay" /> : null}
-            {open.status === 'awaiting_payment' ? <Button label={t('common.cancel')} variant="secondary" onPress={() => void st.cancel(wallet, open.order_id)} disabled={busy} testID="genesis-frame-cancel" /> : null}
+            {open.status === 'awaiting_payment' && !attempt ? <Button label={t('skr.payNow')} onPress={buy} disabled={busy || !online} testID="genesis-frame-pay" /> : null}
+            {open.status === 'awaiting_payment' && !attempt ? <Button label={t('common.cancel')} variant="secondary" onPress={() => void st.cancel(wallet, open.order_id)} disabled={busy} testID="genesis-frame-cancel" /> : null}
           </View>
         </View>
       ) : sku.eligibility === 'eligible' ? (
         <View style={styles.mt} testID="genesis-frame-buy">
           <Text variant="heading2" numeric>{t('skr.price', { amount: sku.price_display })}</Text>
           <Text variant="caption" tone="muted">{t('skr.priceHint', { recipient: shortAddress(cat.recipient, 6) })}</Text>
-          <Button label={busy && st.phase ? t(`skr.phase.${st.phase}` as TKey) : t('skr.buy')} onPress={buy} loading={busy} disabled={busy || !online} style={styles.mt} testID="genesis-frame-buy-btn" />
+          <Button label={busy && st.phase ? t(`skr.phase.${st.phase}` as TKey) : t('skr.buy')} onPress={buy} loading={busy} disabled={busy || !online || !!attempt} style={styles.mt} testID="genesis-frame-buy-btn" />
           {/* 建單就要連伺服器：離線時按下去必定在第一步失敗，不如先說清楚 */}
           {!online ? <Text variant="caption" tone="muted" style={styles.mtXs} testID="genesis-frame-offline">{t('skr.offline')}</Text> : null}
         </View>
@@ -95,6 +98,16 @@ export function GenesisFrameCard({ reloadKey = 0 }: { reloadKey?: number | strin
           <Text variant="caption" tone="secondary">{t('skr.pendingLocal')}</Text>
           <Button label={t('skr.checkStatus')} variant="secondary" onPress={() => void st.recover(wallet, pending.orderId)} loading={busy} disabled={busy} style={styles.mtXs} testID="genesis-frame-recover-local" />
         </View>
+      ) : null}
+
+      {attempt ? (
+        <InlineState
+          kind="warning"
+          title={t('skr.attempt.title')}
+          body={t('skr.attempt.body')}
+          action={{ label: t('skr.checkStatus'), onPress: () => void st.recover(wallet, attempt.orderId) }}
+          testID="genesis-frame-attempt"
+        />
       ) : null}
 
       {outcome?.kind === 'fulfilled' ? <InlineState kind="success" title={t('skr.done')} body={t('skr.doneBody')} testID="genesis-frame-success" /> : null}

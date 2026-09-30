@@ -8,14 +8,18 @@ import type { PublicKey } from '@solana/web3.js';
 import { create } from 'zustand';
 
 import type { SkrCatalog, SkrEntitlementView, SkrNetwork, SkrOrderView } from '@/services/api/ApiClient';
-import { skrService, SkrPayError, type SkrPayOutcome, type SkrPayPhase } from '@/services/skr/SkrService';
+import { skrService, SkrPayError, type SkrPaymentAttempt, type SkrPayOutcome, type SkrPayPhase } from '@/services/skr/SkrService';
 
 export const GENESIS_FRAME_COSMETIC = 'skr_genesis_mint_frame_v1';
 const KEY = 'neonshift.skr.v1';
 
 type Persisted = {
-  /** `${network}:${wallet}` → 尚未終結的訂單（用來 recover） */
-  pending: Record<string, { orderId: string; signature: string | null; sku: string }>;
+  /**
+   * `${network}:${wallet}` → 尚未終結的訂單（用來 recover）。
+   * `attempt`（R1）在開錢包**之前**寫入：它存在就代表可能已經付過，之後只准查、不准再付。
+   * 這是整個保護唯一的知情來源——伺服器在回覆遺失時根本不知道有這筆交易。
+   */
+  pending: Record<string, { orderId: string; signature: string | null; sku: string; attempt?: SkrPaymentAttempt | null }>;
   /** `${network}:${wallet}` → 最後讀到的 active cosmetic ids */
   entitlements: Record<string, string[]>;
   /** `${wallet}` → 是否在收藏卡套用 Genesis 邊框（權限仍以伺服器為準） */
@@ -77,7 +81,10 @@ export const useSkrStore = create<State>((set, get) => ({
         // 伺服器仍有未終結訂單 → 記到本機 pending；已終結 → 清掉
         const open = catalog.skus.map((s) => s.open_order).find((o): o is SkrOrderView => !!o && (o.status === 'awaiting_payment' || o.status === 'confirming' || o.status === 'needs_review'));
         const pending = { ...next.pending };
-        if (open) pending[k] = { orderId: open.order_id, signature: open.signature, sku: open.sku };
+        // attempt 要留著：refreshCatalog 每次卡片掛載都跑，直接覆寫等於保護當場失效（R1）。
+        // 伺服器的 open_order 不知道有沒有付過——知情的只有本機這筆 attempt。
+        const keptAttempt = open && pending[k]?.attempt?.orderId === open.order_id ? pending[k]!.attempt : null;
+        if (open) pending[k] = { orderId: open.order_id, signature: open.signature ?? pending[k]?.signature ?? null, sku: open.sku, attempt: keptAttempt };
         else delete pending[k];
         next.pending = pending;
       }
@@ -91,24 +98,42 @@ export const useSkrStore = create<State>((set, get) => ({
   async purchase(wallet, sku) {
     const cat = get().catalog;
     if (!cat || !cat.enabled) return null;
+    // attempt 存在 SecureStore，冷啟動後第一次購買必須先讀回來，否則保護等於不存在
+    await get().load();
     set({ phase: 'creating_order', error: null, outcome: null });
     const k = scope(cat.network, wallet.toBase58());
+    const writePending = async (rec: Persisted['pending'][string]) => {
+      const next: Persisted = { ...get().persisted, pending: { ...get().persisted.pending, [k]: rec } };
+      set({ persisted: next });
+      await persist(next);
+    };
+    const prior = get().persisted.pending[k]?.attempt ?? null;
     try {
-      const outcome = await skrService.purchase(wallet, sku, (phase) => set({ phase }), {});
+      const outcome = await skrService.purchase(wallet, sku, (phase) => set({ phase }), {
+        onAttempt: async (attempt) => { await writePending({ orderId: attempt.orderId, signature: null, sku, attempt }); },
+        onSignature: async (orderId, signature) => {
+          const cur = get().persisted.pending[k];
+          await writePending({ orderId, signature, sku, attempt: cur?.attempt ? { ...cur.attempt, signature } : null });
+        },
+      }, prior);
       const next: Persisted = { ...get().persisted, pending: { ...get().persisted.pending } };
+      // 只有 fulfilled 才算結清；confirming／needs_review 仍要留著 attempt，不然下一次又能付
       if (outcome.kind === 'fulfilled') delete next.pending[k];
-      else next.pending[k] = { orderId: outcome.order.order_id, signature: outcome.signature, sku };
+      else next.pending[k] = { orderId: outcome.order.order_id, signature: outcome.signature, sku, attempt: next.pending[k]?.attempt ?? null };
       set({ outcome, phase: null, persisted: next });
       await persist(next);
       await get().refreshCatalog(wallet.toBase58());
       return outcome;
     } catch (e) {
       const err = e instanceof SkrPayError ? e : new SkrPayError('UNKNOWN', e instanceof Error ? e.message : String(e));
-      // 訂單已建立但錢包沒回覆／取消：留 pending 以便 recover（可能已付）；未送出前的錯誤不留
-      if (err.order && (err.code === 'WALLET_NO_REPLY' || err.code === 'NETWORK_ERROR' || err.code === 'UNKNOWN')) {
-        const next: Persisted = { ...get().persisted, pending: { ...get().persisted.pending, [k]: { orderId: err.order.order_id, signature: err.order.signature, sku } } };
-        set({ persisted: next });
-        await persist(next);
+      const cur = get().persisted.pending[k];
+      if (err.code === 'REJECTED') {
+        // 錢包明確回報「使用者拒絕」——這是**確定的否定答案**，沒有簽名也沒有廣播，
+        // 與「沒有回覆」性質不同。不清掉的話按一次取消就要等有效期過才能再付。
+        if (cur) await writePending({ ...cur, attempt: null });
+      } else if (err.order && (err.code === 'WALLET_NO_REPLY' || err.code === 'NETWORK_ERROR' || err.code === 'RESULT_UNKNOWN' || err.code === 'UNKNOWN')) {
+        // signature 優先用錯誤帶回來的（confirm 的網路錯誤不該把它弄丟）
+        await writePending({ orderId: err.order.order_id, signature: err.signature ?? cur?.signature ?? err.order.signature, sku, attempt: cur?.attempt ?? null });
       }
       set({ error: err, phase: null });
       return null;
@@ -175,4 +200,12 @@ export function pendingOrderFor(state: Pick<State, 'catalog' | 'catalogWallet' |
   const cat = state.catalogWallet === wallet ? state.catalog : null;
   const network: SkrNetwork = cat?.enabled ? cat.network : 'mainnet-beta';
   return state.persisted.pending[scope(network, wallet)] ?? null;
+}
+
+/**
+ * R1：這個錢包目前有沒有未結清的付款嘗試。有的話 UI 只提供「查看狀態」，
+ * 不提供付款也不提供取消——取消一筆可能已經在鏈上的付款同樣會誤導人。
+ */
+export function openAttemptFor(state: Pick<State, 'catalog' | 'catalogWallet' | 'persisted'>, wallet: string | null): SkrPaymentAttempt | null {
+  return pendingOrderFor(state, wallet)?.attempt ?? null;
 }
