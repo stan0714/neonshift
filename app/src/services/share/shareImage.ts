@@ -31,6 +31,8 @@ const RENDER_TIMEOUT_MS = 10_000;
 
 /** 正在交付中的檔案：清理時絕不刪這些（§9.1「不刪正在交付的檔案」） */
 const active = new Set<string>();
+/** R3：出圖工作序號——只有最後一次出圖能交付（svg 節點是畫面上共用的） */
+let jobSeq = 0;
 
 const expiryOf = (name: string): number => {
   const m = /^neonshift-share-[a-z]+-(\d+)-[0-9a-f]+\.png$/.exec(name);
@@ -105,25 +107,43 @@ export async function shareLayout(opts: {
 }): Promise<ShareOutcome> {
   // 缺必要的網路標示一律不匯出：寧可不分享，也不讓人以為是主網資產或官方 SKR（§4.2）
   if (!sharePublishable(opts.layout)) return { ok: false, reason: 'unpublishable' };
-  if (opts.spec && opts.stillValid && !opts.stillValid(opts.spec)) return { ok: false, reason: 'stale' };
+  /**
+   * R3：一次出圖是一個 job，從這裡到交付都必須是**同一份工作、同一個帳號**。
+   * 舊版只在第一個 await 之前驗一次，之後等待能力查詢與 SVG 產圖的期間（實機上是好幾秒）
+   * 刪掉來源或換帳號，圖照樣寫出來、面板照樣打開。
+   *
+   * job 序號另外擋一種情況：svg 是畫面上**共用**的那個節點，前一次的 toDataURL
+   * 可能在使用者改了版面之後才回來——那張圖已經不是他當初預覽的內容。
+   */
+  const job = ++jobSeq;
+  const stillOurs = () => job === jobSeq && (!opts.spec || !opts.stillValid || opts.stillValid(opts.spec));
+  if (!stillOurs()) return { ok: false, reason: 'stale' };
   if (!opts.svg) return { ok: false, reason: 'render_failed' };
   cleanupShareCache();
+  let file: File | null = null;
   let uri: string | null = null;
+  let handedOff = false;
   try {
     if (!(await Sharing.isAvailableAsync())) return { ok: false, reason: 'no_target' };
+    if (!stillOurs()) return { ok: false, reason: 'stale' };
     const b64 = await toPngBase64(opts.svg, opts.format ?? 'post');
-    const file = new File(Paths.cache, nameFor(opts.layout.kind, Date.now()));
+    if (!stillOurs()) return { ok: false, reason: 'stale' }; // 產圖後、寫檔前：連檔案都不要產生
+    file = new File(Paths.cache, nameFor(opts.layout.kind, Date.now()));
     file.create({ overwrite: true });
     file.write(b64, { encoding: 'base64' });
     uri = file.uri;
     active.add(uri);
+    if (!stillOurs()) return { ok: false, reason: 'stale' }; // 交付前最後一道；檔案在 finally 刪掉
+    handedOff = true;
     await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: opts.dialogTitle });
     return { ok: true, withImage: true };
   } catch {
     return { ok: false, reason: 'render_failed' };
   } finally {
-    // 交付結束就不再保護，但**不刪**：接收 App 可能還在讀，交給 TTL 清理
+    // 交付結束就不再保護，但**不刪**：接收 App 可能還在讀，交給 TTL 清理。
+    // 沒交付出去的就不一樣——沒有人可能在讀它，而它是一張不該存在的圖，直接刪。
     if (uri) active.delete(uri);
+    if (file && !handedOff) { try { file.delete(); } catch { /* 已不存在 */ } }
   }
 }
 

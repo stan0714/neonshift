@@ -9,7 +9,7 @@ import * as Sharing from 'expo-sharing';
 import { File } from 'expo-file-system';
 
 import { ShareCard, wrapText } from '@/components/ShareCard';
-import { achievementShareLayout, ACHIEVEMENT_SHARE_DEFAULT, SHARE_IMAGE, SHARE_RENDERER_VERSION, SHARE_STORY_SAFE_PX, workoutShareLayout, type ShareImageLayout, type ShareRenderSpec } from '@/domain/shareImage';
+import { achievementShareLayout, ACHIEVEMENT_SHARE_DEFAULT, SHARE_IMAGE, SHARE_RENDERER_VERSION, SHARE_STORY_SAFE_PX, workoutShareLayout, type ShareImageLayout, type ShareRenderSpec , workoutShareStillValid } from '@/domain/shareImage';
 import { SHARE_CARD_DEFAULT } from '@/domain/review';
 import { cleanupShareCache, copyCaption, SHARE_CACHE_MAX_FILES, SHARE_CACHE_TTL_MS, shareLayout } from '@/services/share/shareImage';
 import { Directory, Paths } from 'expo-file-system';
@@ -116,6 +116,50 @@ describe('出圖與分享', () => {
   const spec: ShareRenderSpec = { kind: 'workout', source: { id: 's1', revision: 2 }, owner: 'wallet-a', rendererVersion: SHARE_RENDERER_VERSION, locale: 'en', format: 'post' };
   const cacheFiles = () => (new Directory(Paths.cache).list() as { name: string; uri: string }[]).filter((f) => f.name?.startsWith('neonshift-share-'));
 
+  /**
+   * R3（implementation-review-2026-09-29）：舊版只在第一個 await **之前**驗一次 stillValid。
+   * 等待分享能力查詢與 SVG 產圖的期間（實機上好幾秒）刪掉來源或換帳號，
+   * 圖照樣寫出來、面板照樣打開。現在每個 await 之後都重驗。
+   */
+  test('R3：SVG 產圖期間來源失效 → stale、不開面板，連檔案都不產生', async () => {
+    let valid = true;
+    const svg = { toDataURL: (cb: (s: string) => void) => { valid = false; cb('QUJD'); } } as unknown as Svg;
+    const before = cacheFiles().length;
+    const r = await shareLayout({ svg, layout: mkWorkout(), dialogTitle: 'x', spec, stillValid: () => valid });
+    expect(r).toEqual({ ok: false, reason: 'stale' });
+    expect(Sharing.shareAsync).not.toHaveBeenCalled();
+    expect(cacheFiles().length).toBeLessThanOrEqual(before);
+  });
+
+  test('R3：等待分享能力查詢期間換帳號 → stale', async () => {
+    let valid = true;
+    (Sharing.isAvailableAsync as jest.Mock).mockImplementationOnce(async () => { valid = false; return true; });
+    const r = await shareLayout({ svg: fakeSvg('QUJD'), layout: mkWorkout(), dialogTitle: 'x', spec, stillValid: () => valid });
+    expect(r).toEqual({ ok: false, reason: 'stale' });
+    expect(Sharing.shareAsync).not.toHaveBeenCalled();
+  });
+
+  test('R3：寫檔後、交付前失效 → 不開面板，且刪掉那張沒交付出去的圖', async () => {
+    const before = cacheFiles().length;
+    // 檔案寫出來的那一刻才失效：沒交付的圖不能留給 TTL，因為不會有人在讀它
+    const r = await shareLayout({ svg: fakeSvg('QUJD'), layout: mkWorkout(), dialogTitle: 'x', spec, stillValid: () => cacheFiles().length <= before });
+    expect(r).toEqual({ ok: false, reason: 'stale' });
+    expect(Sharing.shareAsync).not.toHaveBeenCalled();
+    expect(cacheFiles().length).toBeLessThanOrEqual(before);
+  });
+
+  test('R3：同一個 SVG 節點被第二次出圖接手 → 第一次不得交付（那張已不是使用者預覽的內容）', async () => {
+    let rendered = 0;
+    const slowSvg = { toDataURL: (cb: (s: string) => void) => { rendered++; setTimeout(() => cb('QUJD'), 0); } } as unknown as Svg;
+    const first = shareLayout({ svg: slowSvg, layout: mkWorkout(), dialogTitle: 'x', spec });
+    const second = await shareLayout({ svg: fakeSvg('WFla'), layout: mkWorkout(), dialogTitle: 'x', spec });
+    expect(second).toEqual({ ok: true, withImage: true });
+    expect(await first).toEqual({ ok: false, reason: 'stale' });
+    expect(Sharing.shareAsync).toHaveBeenCalledTimes(1);
+    expect(rendered).toBe(0); // 第一次在能力查詢之後那道檢查點就被擋下，連圖都不必產
+  });
+
+
   test('成功：寫進 cache、以 image/png 分享；分享返回後不立刻刪檔（接收 App 可能還在讀）', async () => {
     const r = await shareLayout({ svg: fakeSvg('QUJD'), layout: mkWorkout(), dialogTitle: 'Share card' });
     expect(r).toEqual({ ok: true, withImage: true });
@@ -193,5 +237,34 @@ describe('出圖與分享', () => {
 
   test('文案可複製（Android 上 IG 只取圖）', async () => {
     expect(await copyCaption('caption')).toBe(true);
+  });
+});
+
+/**
+ * R3 呼叫端：摘要頁原本只檢查「紀錄還在」（`!!store.readMeta(id)`），
+ * 而 spec.revision 用的是 rulesVersion——品質規則的版本，紀錄被編輯它不會變。
+ * 兩個加起來等於：出圖期間把紀錄改掉，送出去的還是舊圖，而且系統認為一切正常。
+ */
+describe('R3：運動分享圖什麼時候就不該再送出去', () => {
+  const spec: ShareRenderSpec = { kind: 'workout', source: { id: 's1', revision: 1000 }, owner: 'wallet-a', rendererVersion: SHARE_RENDERER_VERSION, locale: 'en', format: 'post' };
+  const meta = { owner: 'wallet-a', updatedAt: 1000, deletedAt: null };
+
+  test('內容沒變、帳號沒換 → 可以送', () => {
+    expect(workoutShareStillValid(spec, meta, 'wallet-a')).toBe(true);
+  });
+  test('紀錄被刪除（tombstone）或整筆不見 → 不送', () => {
+    expect(workoutShareStillValid(spec, { ...meta, deletedAt: 123 }, 'wallet-a')).toBe(false);
+    expect(workoutShareStillValid(spec, null, 'wallet-a')).toBe(false);
+  });
+  test('出圖期間紀錄被編輯 → 不送（這是 rulesVersion 抓不到的那一種）', () => {
+    expect(workoutShareStillValid(spec, { ...meta, updatedAt: 2000 }, 'wallet-a')).toBe(false);
+  });
+  test('換帳號 → 不送；紀錄歸屬被改 → 不送', () => {
+    expect(workoutShareStillValid(spec, meta, 'wallet-b')).toBe(false);
+    expect(workoutShareStillValid(spec, { ...meta, owner: 'wallet-b' }, 'wallet-a')).toBe(false);
+  });
+  test('訪客紀錄（沒綁帳號）不因換帳號失效——它本來就不屬於任何帳號', () => {
+    const guest: ShareRenderSpec = { ...spec, owner: null };
+    expect(workoutShareStillValid(guest, { owner: null, updatedAt: 1000, deletedAt: null }, 'wallet-b')).toBe(true);
   });
 });

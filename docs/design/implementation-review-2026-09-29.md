@@ -45,6 +45,14 @@ stillValid 只在第一個 await 前執行。等待 sharing capability 或 SVG r
 
 建議：把 owner、source revision、欄位及 SVG 輸出凍結成同一個 job；產圖後、寫檔前與交付前驗證仍為相同工作與帳號。失效回 stale、不開面板；來源已刪除時清掉尚未交付的 PNG。revision 不應用 quality rulesVersion 代替內容版本。
 
+處理（2026-09-30，commit 見 pg.md）：已修。`shareLayout` 把一次出圖視為一個 job：
+能力查詢後、產圖後（寫檔前）、交付前各重驗一次；job 序號另擋「前一次出圖在使用者改了版面之後才回來」
+（svg 是畫面上共用的節點）。沒交付出去的 PNG 在 finally 直接刪除，不留給 TTL——
+沒有人可能在讀它。已交付的仍不刪（§6.1 硬性要求不變）。
+呼叫端抽出 `workoutShareStillValid(spec, meta, currentAddress)`：檢查存在、tombstone、
+歸屬、換帳號與內容版本；`spec.source.revision` 改用 meta.updatedAt，不再用 rulesVersion
+（品質規則的版本，紀錄被編輯它不會變）。App shareCard.test 17 → 26 tests。
+
 ### R4 / P2：節日 NFT 的核准通知導向沒有領取入口的頁面
 
 位置：`app/src/navigation/RootNavigator.tsx:109`；後端 `backend/src/pb/achievements.ts:301` 會產生 kind=seasonal。

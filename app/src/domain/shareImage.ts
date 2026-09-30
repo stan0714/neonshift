@@ -488,3 +488,23 @@ export type ShareRenderSpec = {
   locale: string;
   format: ShareFormat;
 };
+
+/**
+ * R3：一張已經預覽過的運動分享圖，什麼情況下就不該再送出去。
+ * 出圖要好幾秒，這段期間紀錄可能被編輯、被刪除，或使用者換了帳號——
+ * 任何一種都代表這張圖已經不是他按下分享時看到的那一張。
+ *
+ * `revision` 用紀錄的 updatedAt（內容版本），不是 rulesVersion：後者是品質規則的版本，
+ * 紀錄被編輯過它不會變，拿來判斷「還是同一份內容嗎」等於沒判斷。
+ */
+export function workoutShareStillValid(
+  spec: ShareRenderSpec,
+  meta: { owner?: string | null; updatedAt?: number; deletedAt?: number | null } | null,
+  currentAddress: string | null,
+): boolean {
+  if (!meta || meta.deletedAt) return false;
+  if ((meta.owner ?? null) !== spec.owner) return false; // 歸屬改變（首次歸屬確認）
+  // 訪客紀錄（owner null）沒綁帳號，換帳號不影響；已綁定的就必須還在同一個帳號
+  if (spec.owner !== null && currentAddress !== spec.owner) return false;
+  return (meta.updatedAt ?? 0) === (spec.source?.revision ?? 0);
+}

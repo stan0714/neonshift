@@ -17,7 +17,7 @@ import { useWeightKg } from '@/state/bodyStore';
 import { stageName } from '@/domain/collectibles';
 import { useLocaleStore, useT, type TKey } from '@/i18n';
 import { compareSameCategory, SHARE_CARD_DEFAULT, shareCard, type ShareCardFields, type ShareCardInput } from '@/domain/review';
-import { SHARE_RENDERER_VERSION, shareUrl, workoutShareLayout, type ShareRenderSpec, type WorkoutShareStatus } from '@/domain/shareImage';
+import { SHARE_RENDERER_VERSION, shareUrl, workoutShareLayout, workoutShareStillValid, type ShareRenderSpec, type WorkoutShareStatus } from '@/domain/shareImage';
 import { ShareCard } from '@/components/ShareCard';
 import { copyCaption, shareLayout, shareTextInstead } from '@/services/share/shareImage';
 import { APP_CONFIG } from '@/config/app';
@@ -115,8 +115,10 @@ export function WorkoutSummaryScreen() {
       })
     : null;
   const shareCaption = shareInput ? t('share.invite.workout', { km: (shareInput.distanceMm / 1_000_000).toFixed(2), url: shareLink }) : '';
-  // 凍結這次預覽的輸入；來源 ID 只留在本機，不進圖檔、QR 或連結（§4.6）
-  const shareSpec: ShareRenderSpec = { kind: 'workout', source: { id: params.sessionId, revision: meta?.summary?.rulesVersion ?? 0 }, owner: meta?.owner ?? useWalletStore.getState().session?.address ?? null, rendererVersion: SHARE_RENDERER_VERSION, locale, format: 'post' };
+  // 凍結這次預覽的輸入；來源 ID 只留在本機，不進圖檔、QR 或連結（§4.6）。
+  // R3：revision 用 updatedAt（內容版本），不用 rulesVersion——後者是品質規則的版本，
+  // 紀錄被編輯過它不會變，拿來判斷「還是同一份內容嗎」等於沒判斷。
+  const shareSpec: ShareRenderSpec = { kind: 'workout', source: { id: params.sessionId, revision: meta?.updatedAt ?? 0 }, owner: meta?.owner ?? null, rendererVersion: SHARE_RENDERER_VERSION, locale, format: 'post' };
   const onShareImage = async () => {
     if (!shareImageLayout || sharePhase === 'rendering' || sharePhase === 'handing_off') return;
     setShareErr(null);
@@ -124,7 +126,14 @@ export function WorkoutSummaryScreen() {
     setSharePhase('rendering');
     try {
       setSharePhase('handing_off');
-      const r = await shareLayout({ svg: svgRef.current, layout: shareImageLayout, dialogTitle: t('share.card.title'), spec: shareSpec, stillValid: (sp) => !!store.readMeta(sp.source?.id ?? '') });
+      const r = await shareLayout({
+        svg: svgRef.current,
+        layout: shareImageLayout,
+        dialogTitle: t('share.card.title'),
+        spec: shareSpec,
+        // R3：光看「紀錄還在」不夠——出圖期間可能被編輯、被刪除或換了帳號
+        stillValid: (sp) => workoutShareStillValid(sp, store.readMeta(sp.source?.id ?? ''), useWalletStore.getState().session?.address ?? null),
+      });
       setSharePhase(r.ok ? 'returned' : 'preview');
       if (!r.ok) setShareErr(r.reason);
     } finally {
