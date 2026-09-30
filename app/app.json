@@ -4,7 +4,7 @@
     "version": "0.1.0",
     "android": {
       "package": "cc.neonshift.app",
-      "versionCode": 7,
+      "versionCode": 8,
       "adaptiveIcon": {
         "backgroundColor": "#050711",
         "monochromeImage": "./assets/android-icon-monochrome.png",
