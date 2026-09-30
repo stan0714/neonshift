@@ -1533,3 +1533,39 @@ App 85 suites／645 tests 通過。
 R1 現況（供 10/1 SKR 判斷）：`purchase()` **只擋了一半**——它在 `order.status === 'confirming' && signature`
 時會轉去查詢而不重付，但 review 講的情境是「錢包已廣播、伺服器沒收到 signature」，那時訂單仍是
 `awaiting_payment`，守衛不會觸發。要真正擋住得在開錢包前持久化 payment_attempt，屬於 R1 本身的工作。
+
+
+## 2026-09-30 實機主線第一個阻礙：「立即同步」按了沒有任何反應
+
+實機狀況：首頁顯示 `Run · 5.80 km · 36:35 · Saved on this phone · not synced yet`，
+到「我的運動」按 **Sync now** 完全沒有反應，而伺服器端**一筆請求都沒有**。
+
+### 兩件事疊在一起
+
+**一、後端 session 已失效。** 錢包在本機還連著（首頁看得到位址、`ob.owner` 有值），
+但沒有有效的後端 token。判斷依據不是猜的：畫面上那句
+「Sign in to merge workouts from your account」是 `actv.remoteSignin`，
+它**只在 `remoteErr.code === 'NO_SESSION'` 時**才會出現。這同時解釋了遠端歷史刷不出來、
+同步立刻失敗、以及 9/29 那次節日讀取失敗——`ob.owner` 有值只代表錢包連著，不代表後端還認得你。
+
+**二、失敗被靜默吞掉（真正的 bug）。** `ActivityScreen` 的按鈕是
+
+```tsx
+onPress={() => void workoutOutbox.run(ob.owner!, { manual: true })}
+```
+
+**回傳值直接丟掉**——成功不講送出幾筆，失敗不講原因。同一個 App 裡
+`WorkoutsScreen.syncLocal` 與 `ProfileScreen` 都會顯示結果，只有這裡漏了。
+使用者看到的就是「按了沒反應」，完全無從判斷該做什麼。
+
+改成與 ProfileScreen 同一套處理：成功說送出幾筆，失敗說原因（`sync.err.<code>`，
+`NO_SESSION` 就會明說要重新登入）。補兩項測試釘住「成功要說、失敗更要說」。
+
+App 86 suites／654 tests 通過。
+
+### 這一類 bug 的共同點
+
+這是這幾天第五個同型問題：**失敗發生了，但畫面不說**（504 貼原始 payload、健康資料貼原生例外、
+公開端點少 `auth: false` 連請求都不發、刪除資料把錯誤碼塞進句子、這次是整個吞掉）。
+共同教訓是自動測試抓不到——因為測試都在斷言「成功路徑」，而失敗路徑的 UI 沒有人看。
+所以這幾次補的測試一律是**斷言畫面上「必須出現什麼」或「不得出現什麼」**，不是只斷言不崩潰。

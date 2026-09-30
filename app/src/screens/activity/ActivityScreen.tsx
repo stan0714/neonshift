@@ -45,6 +45,12 @@ export function ActivityScreen() {
   const [filter, setFilter] = useState<ActivityFilter>({ mode: 'all', source: 'all', status: 'all', day: null });
   const [remote, setRemote] = useState<{ key: string; items: WorkoutSummary[] } | null>(null);
   const [remoteErr, setRemoteErr] = useState<{ code: string; message: string } | null>(null);
+  /**
+   * 「立即同步」的結果。2026-09-30 實機：按下去**完全沒有反應**——原本是
+   * `onPress={() => void workoutOutbox.run(...)}`，回傳值直接丟掉，所以失敗（例如後端
+   * session 已失效）時畫面什麼都不說。同一個 App 的 WorkoutsScreen／ProfileScreen 都會顯示結果。
+   */
+  const [syncNote, setSyncNote] = useState<{ kind: 'success' | 'warning'; title: string; body?: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
   const requestVersion = useRef(0);
@@ -121,6 +127,19 @@ export function ActivityScreen() {
   const clearFilters = () => setFilter({ mode: 'all', source: 'all', status: 'all', day: null });
   const activeFilters = (filter.day ? 1 : 0) + (filter.mode !== 'all' ? 1 : 0) + (filter.source !== 'all' ? 1 : 0) + (filter.status !== 'all' ? 1 : 0);
   // 升版前／未連錢包錄的紀錄沒有 owner：需本人確認歸屬後才進佇列（Style 23.14）
+  /** 與 ProfileScreen 同一套結果處理：成功講送出幾筆，失敗講原因——尤其 NO_SESSION 要說「請重新登入」 */
+  const runSync = async () => {
+    if (!ob.owner) return;
+    setSyncNote(null);
+    const r = await workoutOutbox.run(ob.owner, { manual: true });
+    if (!r.stoppedAt) setSyncNote({ kind: 'success', title: t('sync.done', { n: r.sent }) });
+    else setSyncNote({
+      kind: 'warning',
+      title: t('sync.stopped', { n: r.sent }),
+      body: t(`sync.err.${r.stoppedAt.outcome.ok ? 'UNKNOWN' : r.stoppedAt.outcome.code}` as TKey, { message: r.stoppedAt.outcome.ok ? '' : r.stoppedAt.outcome.message }),
+    });
+  };
+
   const assignGuest = () => {
     if (!ob.owner) return;
     Alert.alert(t('sync.assign.title', { n: ob.unassigned.length }), t('sync.assign.body'), [
@@ -225,10 +244,11 @@ export function ActivityScreen() {
       </View>
       {ob.owner && (pending > 0 || ob.unassigned.length > 0) ? (
         <View style={styles.syncBtns}>
-          {pending > 0 ? <Button label={t('sum.syncNow')} variant="secondary" onPress={() => void workoutOutbox.run(ob.owner!, { manual: true })} loading={ob.summary.running} loadingLabel={t('sum.syncing')} testID="activity-sync-now" /> : null}
+          {pending > 0 ? <Button label={t('sum.syncNow')} variant="secondary" onPress={() => void runSync()} loading={ob.summary.running} loadingLabel={t('sum.syncing')} testID="activity-sync-now" /> : null}
           {ob.unassigned.length > 0 ? <Button label={t('sync.assign.btn', { n: ob.unassigned.length })} variant="secondary" onPress={assignGuest} testID="activity-sync-assign" /> : null}
         </View>
       ) : null}
+      {syncNote ? <InlineState kind={syncNote.kind} title={syncNote.title} body={syncNote.body} testID="activity-sync-note" /> : null}
       {remoteErr && ob.owner ? (
         <Text variant="caption" tone="muted" testID={`activity-remote-${remoteErr.code === 'NO_SESSION' ? 'signin' : 'offline'}`}>
           {t(remoteErr.code === 'NO_SESSION' ? 'actv.remoteSignin' : 'actv.remoteOffline')}

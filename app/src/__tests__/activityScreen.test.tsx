@@ -230,3 +230,35 @@ test('較舊請求晚回來，不覆蓋新月份紀錄', async () => {
   expect(screen.getByTestId('activity-item-oct')).toBeTruthy();
   expect(screen.queryByTestId('activity-item-sep')).toBeNull();
 });
+
+/**
+ * 2026-09-30 實機：按「立即同步」**完全沒有反應**。
+ * 原因是 `onPress={() => void workoutOutbox.run(...)}` 把回傳值丟掉，所以失敗
+ * （當時是後端 session 失效）時畫面什麼都不說。同一個 App 的 WorkoutsScreen 與
+ * ProfileScreen 都會顯示結果——只有這裡漏了。
+ */
+describe('立即同步要說出結果', () => {
+  beforeEach(() => {
+    useWalletStore.setState({ session: { address: owner, publicKey: new PublicKey(owner) } } as never);
+  });
+
+  test('失敗（後端 session 失效）要顯示原因，不能靜默', async () => {
+    jest.spyOn(workoutOutbox, 'run').mockResolvedValue({
+      sent: 0,
+      stoppedAt: { sessionId: 's1', outcome: { ok: false, code: 'NO_SESSION', message: 'Sign in required' } },
+    } as never);
+    await seedLocal();
+    await render(<ActivityScreen />, { wrapper: Wrapper });
+    const btn = await screen.findByTestId('activity-sync-now');
+    await act(async () => { await fireEvent.press(btn); });
+    expect(await screen.findByTestId('activity-sync-note')).toBeTruthy();
+  });
+
+  test('成功要說送出幾筆', async () => {
+    jest.spyOn(workoutOutbox, 'run').mockResolvedValue({ sent: 2, stoppedAt: null } as never);
+    await seedLocal();
+    await render(<ActivityScreen />, { wrapper: Wrapper });
+    await act(async () => { await fireEvent.press(await screen.findByTestId('activity-sync-now')); });
+    expect(await screen.findByTestId('activity-sync-note')).toBeTruthy();
+  });
+});
