@@ -16,7 +16,7 @@ import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
 import { ShareCard } from '@/components/ShareCard';
 import { achievementShareLayout, ACHIEVEMENT_SHARE_DEFAULT, SHARE_RENDERER_VERSION, shareUrl, type AchievementShareFields, type ShareImageLayout, type ShareRenderSpec } from '@/domain/shareImage';
-import { copyCaption, shareLayout, shareTextInstead } from '@/services/share/shareImage';
+import { copyCaption, shareLayout, shareTextInstead, type ShareFailReason } from '@/services/share/shareImage';
 import { APP_CONFIG } from '@/config/app';
 import type Svg from 'react-native-svg';
 
@@ -59,7 +59,7 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
   const [shareFields, setShareFields] = useState<AchievementShareFields>(ACHIEVEMENT_SHARE_DEFAULT);
   // preview → rendering → handing_off → returned／error；一次只做一件事，連點不會產生兩張圖（§6.1）
   const [sharePhase, setSharePhase] = useState<'preview' | 'rendering' | 'handing_off' | 'returned'>('preview');
-  const [shareErr, setShareErr] = useState<'render_failed' | 'no_target' | 'unpublishable' | 'stale' | null>(null);
+  const [shareErr, setShareErr] = useState<ShareFailReason | null>(null);
   const [shareNote, setShareNote] = useState<string | null>(null);
   const networkLabel = APP_CONFIG.cluster === 'mainnet-beta' ? t('share.card.net.mainnet') : t('share.card.net.devnet');
   const shareLink = shareUrl(APP_CONFIG.siteUrl, 'achievement', 'mint');
@@ -255,12 +255,12 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
             <View style={styles.shareErr} testID={`ms-share-error-${shareErr}`}>
               <InlineState
                 kind={shareErr === 'unpublishable' ? 'warning' : 'error'}
-                title={t(shareErr === 'no_target' ? 'share.card.noTargetTitle' : shareErr === 'unpublishable' ? 'share.card.blockedTitle' : 'share.card.failedTitle')}
-                body={t(shareErr === 'no_target' ? 'share.card.noTargetBody' : shareErr === 'unpublishable' ? 'share.card.blockedBody' : 'share.card.failedBody')}
+                title={t(shareErr === 'no_target' ? 'share.card.noTargetTitle' : shareErr === 'unpublishable' ? 'share.card.blockedTitle' : shareErr === 'cache_full' ? 'share.card.busyTitle' : 'share.card.failedTitle')}
+                body={t(shareErr === 'no_target' ? 'share.card.noTargetBody' : shareErr === 'unpublishable' ? 'share.card.blockedBody' : shareErr === 'cache_full' ? 'share.card.busyBody' : 'share.card.failedBody')}
               />
               {shareErr !== 'unpublishable' ? (
                 <>
-                  {shareErr === 'render_failed' ? <Button label={t('share.card.retry')} variant="secondary" onPress={() => void sendShare()} testID="ms-share-retry" /> : null}
+                  {shareErr === 'render_failed' || shareErr === 'cache_full' ? <Button label={t('share.card.retry')} variant="secondary" onPress={() => void sendShare()} testID="ms-share-retry" /> : null}
                   <Button label={t('share.card.shareTextInstead')} variant="secondary" onPress={() => void shareTextInstead(captionOf(share))} testID="ms-share-text" />
                 </>
               ) : null}

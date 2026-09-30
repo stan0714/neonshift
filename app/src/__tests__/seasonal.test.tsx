@@ -2,7 +2,7 @@
  * PG-SEASON-03（設計 §4）：節日章的畫面只呈現「活動與資格狀態」。
  * 最重要的是——達標不得出現領取按鈕，也不能說 NFT 已到手（後端 mint_enabled: false）。
  */
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import type { PropsWithChildren } from 'react';
 
@@ -301,5 +301,59 @@ describe('領取（PG-SEASON-04）', () => {
     await render(<SeasonalFootprints />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('seasonal-genesis-stride-2027-status-pending_review')).toBeTruthy());
     expect(screen.queryByTestId('seasonal-genesis-stride-2027-claim-btn')).toBeNull();
+  });
+});
+
+/**
+ * R5（implementation-review-2026-09-29）：session 改變會重抓，但沒先清空個人 rows，
+ * 也沒有忽略過時請求。A 的資格會留在 B 的畫面上，A 的慢回應還能蓋掉 B。
+ * 就算 mint 最後被後端擋下，使用者已經先看到了假資格。
+ */
+describe('R5：節日收藏不得殘留跨帳號資料', () => {
+  const ELIGIBLE = 'seasonal-genesis-stride-2027-status-eligible';
+  const asWallet = (address: string | null) =>
+    useWalletStore.setState(address ? ({ status: 'connected', session: { address } } as never) : ({ status: 'disconnected', session: null } as never));
+
+  test('換錢包 → A 的資格立刻從畫面消失，不必等 B 回來', async () => {
+    const spy = mockMine([campaign({ status: 'eligible' })]);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId(ELIGIBLE)).toBeTruthy());
+    spy.mockImplementation(() => new Promise(() => {})); // B 的請求還沒回來
+    await act(async () => { asWallet('wallet-b'); });
+    expect(screen.queryByTestId(ELIGIBLE)).toBeNull();
+    // 公開目錄（窗口、規則、提醒）與帳號無關，照樣留著——不必整段消失
+    expect(screen.getByTestId('seasonal-genesis-stride-2027')).toBeTruthy();
+  });
+
+  test('登出 → 個人狀態消失（公開目錄還在）', async () => {
+    const spy = mockMine([campaign({ status: 'eligible' })]);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId(ELIGIBLE)).toBeTruthy());
+    jest.spyOn(apiClient, 'seasonal').mockResolvedValue({ items: [{ ...campaign(), status: undefined } as never] });
+    await act(async () => { asWallet(null); });
+    expect(screen.queryByTestId(ELIGIBLE)).toBeNull();
+    expect(spy).toHaveBeenCalledTimes(1); // 登出後不再問個人資格
+  });
+
+  test('B 載入失敗 → 退回公開目錄，不保留 A 的資格', async () => {
+    const spy = mockMine([campaign({ status: 'eligible' })]);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId(ELIGIBLE)).toBeTruthy());
+    spy.mockRejectedValue(new Error('offline'));
+    await act(async () => { asWallet('wallet-b'); });
+    await waitFor(() => expect(screen.getByTestId('seasonal-failed')).toBeTruthy());
+    expect(screen.queryByTestId(ELIGIBLE)).toBeNull();
+  });
+
+  test('A 的慢回應不得蓋掉 B 的資料', async () => {
+    let resolveA: ((v: unknown) => void) | undefined;
+    jest.spyOn(apiClient, 'mySeasonal')
+      .mockImplementationOnce(() => new Promise((r) => { resolveA = r as (v: unknown) => void; }))
+      .mockResolvedValue({ items: [campaign({ status: 'locked' })], notes: [] } as never);
+    await render(<SeasonalFootprints />, { wrapper: Wrapper });
+    await act(async () => { asWallet('wallet-b'); });
+    await waitFor(() => expect(screen.getByTestId('seasonal-genesis-stride-2027-status-locked')).toBeTruthy());
+    await act(async () => { resolveA!({ items: [campaign({ status: 'eligible' })], notes: [] }); });
+    expect(screen.queryByTestId(ELIGIBLE)).toBeNull();
   });
 });

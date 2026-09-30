@@ -1944,6 +1944,8 @@ export const zhTW: Record<keyof typeof en, string> = {
   'share.card.copied': '文案與連結已複製',
   'share.card.rendering': '正在產生圖片…',
   'share.card.returned': '已返回分享頁。NeonShift 無法得知對方是否已發布。',
+  'share.card.busyTitle': '上一張卡片還在傳送',
+  'share.card.busyBody': '你上一次分享的圖可能還在複製到對方 App。現在刪掉它會讓對方拿到壞掉的圖，所以這一張先按住——幾分鐘後再試一次。',
   'share.card.failedTitle': '圖片沒有產生',
   'share.card.failedBody': '這次沒有分享出去。可以再試一次、改成分享文字，或複製文案稍後自己附圖。',
   'share.card.noTargetTitle': '沒有可以接收圖片的 App',

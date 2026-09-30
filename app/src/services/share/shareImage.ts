@@ -18,15 +18,23 @@ import { SHARE_IMAGE, sharePublishable, type ShareFormat, type ShareImageLayout,
  * 2. **失敗不自動彈第二個面板**。回傳原因讓畫面給「重試／改分享文字／複製文案」，
  *    使用者自己選；使用者取消分享不是錯誤。
  */
-export type ShareOutcome =
-  | { ok: true; withImage: true }
-  | { ok: false; reason: 'unpublishable' | 'no_target' | 'render_failed' | 'stale' };
+export type ShareFailReason = 'unpublishable' | 'no_target' | 'render_failed' | 'stale' | 'cache_full';
+export type ShareOutcome = { ok: true; withImage: true } | { ok: false; reason: ShareFailReason };
 
 const PREFIX = 'neonshift-share-';
 /** 暫存期限：本專案建議值，待實機確認慢速接收端讀得完（§6.1） */
 export const SHARE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-/** 數量上限：避免長期累積；超量時連未到期的最舊檔一起清 */
+/** 數量上限：避免長期累積；超量時清掉最舊的**可淘汰**檔（保護期內的不算） */
 export const SHARE_CACHE_MAX_FILES = 8;
+/**
+ * R6：交付後的保護期。`Sharing.shareAsync` 返回只代表面板關了，**不代表接收 App 讀完了**——
+ * 它可能還在背景複製。舊版一返回就把檔案從保護名單移除，接著下一次分享的數量上限
+ * 就能把它刪掉：連續快速分享或接收端慢讀時，使用者拿到的是一張壞掉的圖。
+ *
+ * 用檔名裡的建立時間判定，不是記憶體狀態——這樣 App 重啟後保護仍然成立
+ * （我們重啟不代表接收端讀完了）。
+ */
+export const SHARE_DELIVERY_PROTECT_MS = 5 * 60 * 1000;
 const RENDER_TIMEOUT_MS = 10_000;
 
 /** 正在交付中的檔案：清理時絕不刪這些（§9.1「不刪正在交付的檔案」） */
@@ -38,6 +46,8 @@ const expiryOf = (name: string): number => {
   const m = /^neonshift-share-[a-z]+-(\d+)-[0-9a-f]+\.png$/.exec(name);
   return m ? Number(m[1]) : 0;
 };
+/** 檔名記的是到期時間；建立時間＝到期 − TTL（R6 保護期用） */
+const createdOf = (name: string): number => expiryOf(name) - SHARE_CACHE_TTL_MS;
 
 /** 檔名不含使用者資料：kind ＋ 到期時間 ＋ 隨機值（§6.1） */
 const nameFor = (kind: string, now: number) => `${PREFIX}${kind}-${now + SHARE_CACHE_TTL_MS}-${Math.floor(Math.random() * 0xfffffff).toString(16)}.png`;
@@ -49,22 +59,43 @@ const nameFor = (kind: string, now: number) => `${PREFIX}${kind}-${now + SHARE_C
 export function cleanupShareCache(now = Date.now()): number {
   let removed = 0;
   try {
-    const files = new Directory(Paths.cache)
-      .list()
-      .filter((e): e is File => e instanceof File && e.name.startsWith(PREFIX))
-      .map((f) => ({ f, expiry: expiryOf(f.name) }))
-      .filter((x) => !active.has(x.f.uri));
-    for (const x of files.filter((y) => y.expiry <= now)) {
+    const files = listShareFiles();
+    for (const x of files.filter((y) => y.expiry <= now && !isBusy(y, now))) {
       try { x.f.delete(); removed++; } catch { /* 已不存在 */ }
     }
-    const rest = files.filter((y) => y.expiry > now).sort((a, b) => a.expiry - b.expiry);
-    for (const x of rest.slice(0, Math.max(0, rest.length - SHARE_CACHE_MAX_FILES))) {
+    // 數量上限只能吃**可淘汰**的檔：保護期內的已交付檔寧可超量也不刪（R6）
+    const rest = files.filter((y) => y.expiry > now);
+    const evictable = rest.filter((y) => !isBusy(y, now)).sort((a, b) => a.expiry - b.expiry);
+    for (const x of evictable.slice(0, Math.max(0, rest.length - SHARE_CACHE_MAX_FILES))) {
       try { x.f.delete(); removed++; } catch { /* 已不存在 */ }
     }
   } catch {
     // 快取目錄讀不到不影響分享本身
   }
   return removed;
+}
+
+type ShareFile = { f: File; expiry: number; created: number };
+function listShareFiles(): ShareFile[] {
+  return new Directory(Paths.cache)
+    .list()
+    .filter((e): e is File => e instanceof File && e.name.startsWith(PREFIX))
+    .map((f) => ({ f, expiry: expiryOf(f.name), created: createdOf(f.name) }));
+}
+/** 產圖中，或還在交付保護期內——兩者都不准刪 */
+const isBusy = (x: ShareFile, now: number) => active.has(x.f.uri) || now - x.created < SHARE_DELIVERY_PROTECT_MS;
+
+/**
+ * R6：保護期內的檔案已經佔滿上限時，**拒絕新的產圖**而不是刪掉可能還在被讀的圖。
+ * 使用者等幾分鐘再分享就好；拿到壞圖是修不回來的。
+ */
+export function shareCacheFull(now = Date.now()): boolean {
+  try {
+    const files = listShareFiles().filter((x) => x.expiry > now);
+    return files.length >= SHARE_CACHE_MAX_FILES && files.every((x) => isBusy(x, now));
+  } catch {
+    return false; // 讀不到目錄就不要擋住分享
+  }
 }
 
 function toPngBase64(svg: Svg, format: ShareFormat): Promise<string> {
@@ -120,6 +151,7 @@ export async function shareLayout(opts: {
   if (!stillOurs()) return { ok: false, reason: 'stale' };
   if (!opts.svg) return { ok: false, reason: 'render_failed' };
   cleanupShareCache();
+  if (shareCacheFull()) return { ok: false, reason: 'cache_full' };
   let file: File | null = null;
   let uri: string | null = null;
   let handedOff = false;

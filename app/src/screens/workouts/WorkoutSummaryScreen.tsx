@@ -19,7 +19,7 @@ import { useLocaleStore, useT, type TKey } from '@/i18n';
 import { compareSameCategory, SHARE_CARD_DEFAULT, shareCard, type ShareCardFields, type ShareCardInput } from '@/domain/review';
 import { SHARE_RENDERER_VERSION, shareUrl, workoutShareLayout, workoutShareStillValid, type ShareRenderSpec, type WorkoutShareStatus } from '@/domain/shareImage';
 import { ShareCard } from '@/components/ShareCard';
-import { copyCaption, shareLayout, shareTextInstead } from '@/services/share/shareImage';
+import { copyCaption, shareLayout, shareTextInstead, type ShareFailReason } from '@/services/share/shareImage';
 import { APP_CONFIG } from '@/config/app';
 import type Svg from 'react-native-svg';
 import { apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
@@ -100,7 +100,7 @@ export function WorkoutSummaryScreen() {
   const svgRef = useRef<Svg>(null);
   const locale = useLocaleStore((st) => st.locale);
   const [sharePhase, setSharePhase] = useState<'preview' | 'rendering' | 'handing_off' | 'returned'>('preview');
-  const [shareErr, setShareErr] = useState<'render_failed' | 'no_target' | 'unpublishable' | 'stale' | null>(null);
+  const [shareErr, setShareErr] = useState<ShareFailReason | null>(null);
   const [shareNote, setShareNote] = useState<string | null>(null);
   const shareLink = shareUrl(APP_CONFIG.siteUrl, 'workout', 'summary');
   // 尚未同步或待審一律標「尚未驗證／待審查」；同步成功也只寫「裝置記錄」，不宣稱官方認證（§4.5）
@@ -385,12 +385,12 @@ export function WorkoutSummaryScreen() {
           <View style={styles.shareErr} testID={`share-card-error-${shareErr}`}>
             <InlineState
               kind={shareErr === 'unpublishable' ? 'warning' : 'error'}
-              title={t(shareErr === 'no_target' ? 'share.card.noTargetTitle' : shareErr === 'unpublishable' ? 'share.card.blockedTitle' : 'share.card.failedTitle')}
-              body={t(shareErr === 'no_target' ? 'share.card.noTargetBody' : shareErr === 'unpublishable' ? 'share.card.blockedBody' : 'share.card.failedBody')}
+              title={t(shareErr === 'no_target' ? 'share.card.noTargetTitle' : shareErr === 'unpublishable' ? 'share.card.blockedTitle' : shareErr === 'cache_full' ? 'share.card.busyTitle' : 'share.card.failedTitle')}
+              body={t(shareErr === 'no_target' ? 'share.card.noTargetBody' : shareErr === 'unpublishable' ? 'share.card.blockedBody' : shareErr === 'cache_full' ? 'share.card.busyBody' : 'share.card.failedBody')}
             />
             {shareErr !== 'unpublishable' ? (
               <>
-                {shareErr === 'render_failed' ? <Button label={t('share.card.retry')} variant="secondary" onPress={() => void onShareImage()} testID="share-card-retry" /> : null}
+                {shareErr === 'render_failed' || shareErr === 'cache_full' ? <Button label={t('share.card.retry')} variant="secondary" onPress={() => void onShareImage()} testID="share-card-retry" /> : null}
                 <Button label={t('share.card.shareTextInstead')} variant="secondary" onPress={() => void shareTextInstead(shareCaption)} testID="share-card-text" />
               </>
             ) : null}

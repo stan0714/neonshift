@@ -1965,6 +1965,8 @@ export const en = {
   'share.card.copied': 'Caption and link copied',
   'share.card.rendering': 'Creating the image…',
   'share.card.returned': 'Back from the share sheet. NeonShift cannot tell whether the post went out.',
+  'share.card.busyTitle': 'Still sending the last card',
+  'share.card.busyBody': 'Your previous share may still be copying to the other app. Deleting it now could leave them with a broken image, so this one is on hold — try again in a few minutes.',
   'share.card.failedTitle': 'Image was not created',
   'share.card.failedBody': 'Nothing was shared. You can try again, share the text instead, or copy the caption and attach the image yourself later.',
   'share.card.noTargetTitle': 'No app can receive the image',

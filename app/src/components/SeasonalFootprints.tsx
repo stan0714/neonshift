@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
@@ -37,6 +37,13 @@ type Row = SeasonalCampaignView & Partial<Pick<MySeasonalItem, 'status' | 'first
 
 const badgeState = (r: Row): SeasonalBadgeState => (r.status === 'eligible' ? 'earned' : r.status === 'pending_review' ? 'pending' : 'locked');
 
+/**
+ * R5：去掉個人欄位，只留公開目錄。換帳號的空檔、載入失敗退回公開目錄、A 的慢回應——
+ * 任何一種都不能讓 B 看到 A 的資格、取得紀錄或可領取狀態。
+ * 公開目錄（窗口、規則、提醒訂閱）與帳號無關，照樣顯示，不必整段消失。
+ */
+const publicOnly = (r: Row): Row => ({ ...r, status: undefined, first: undefined, pending: undefined, progress: undefined });
+
 /** 活動時區的日期範圍，加上一行使用者本地時間；不採可隨裝置改的當下時區做判定 */
 const windowLabel = (r: Row, locale: string) => {
   const start = new Date(r.window.starts_at);
@@ -53,7 +60,11 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
   const navigation = useNavigation<NativeStackNavigationProp<RootParamList>>();
   const session = useWalletStore((s) => s.session);
   const [rows, setRows] = useState<Row[] | null>(null);
+  /** rows 裡的個人欄位屬於哪個錢包（null＝只有公開目錄）。R5：不相符就不顯示個人資料 */
+  const [rowsOwner, setRowsOwner] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  /** R5：每次載入遞增；回應對不上就丟掉——A 的慢回應不得蓋掉 B */
+  const gen = useRef(0);
   // PG-SEASON-06：訂閱清單存在本機（裝置層、不分錢包、不上傳）
   const reminders = useSeasonalReminderStore();
   useEffect(() => { void reminders.load(); }, [reminders.load]);
@@ -73,37 +84,55 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
   const [year, setYear] = useState<number | 'all'>('all');
 
   const load = useCallback(async () => {
+    const address = session?.address ?? null;
+    const mine = ++gen.current;
+    const current = () => gen.current === mine;
     try {
       // 登入後才問個人資格；未登入只拿公開目錄，不因為沒登入就整段消失
-      const r = session ? await apiClient.mySeasonal() : await apiClient.seasonal();
+      const r = address ? await apiClient.mySeasonal() : await apiClient.seasonal();
+      if (!current()) return;
       setRows(r.items);
+      setRowsOwner(address);
       setFailed(false);
     } catch (e) {
+      if (!current()) return;
       // 錢包連著但後端 session 已經沒了（過期／撤銷）：那不是「活動讀不到」，
       // 而是「個人資格讀不到」。公開目錄本來就不需要登入，退回去拿它——
       // 窗口、規則與提醒訂閱照樣可用，只是少了個人狀態，比整段顯示錯誤好得多。
-      if (session && e instanceof ApiError && e.code === 'NO_SESSION') {
+      if (address && e instanceof ApiError && e.code === 'NO_SESSION') {
         try {
           const pub = await apiClient.seasonal();
+          if (!current()) return;
           setRows(pub.items);
+          setRowsOwner(null); // 公開目錄沒有個人資料
           setFailed(false);
           return;
         } catch {
           // 公開目錄也拿不到：那才是真的讀取失敗，往下走
         }
+        if (!current()) return;
       }
+      // 讀不到就退回公開目錄——但**不保留**上一次的個人資料（可能是別的帳號的）
       setRows((prev) => prev ?? []);
+      setRowsOwner(null);
       setFailed(true);
     }
   }, [session]);
   useEffect(() => { void load(); }, [load, reloadKey]);
+  // 上一個帳號的讀取錯誤不是這個帳號的事
+  useEffect(() => { setFailed(false); }, [session?.address]);
   // 待審轉核准是伺服器端非同步發生的：回到這個分頁就重抓
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   if (rows === null) return null;
+  // R5：個人欄位只有在確定屬於**目前這個帳號**時才顯示。這一層是渲染時判定，
+  // 不是「重抓時記得清掉」——後者只要有一條路徑忘了清，A 的資格就會出現在 B 的畫面上。
+  const address = session?.address ?? null;
+  const owned = address !== null && rowsOwner === address;
+  const data: Row[] = owned ? rows : rows.map(publicOnly);
   // 年份新的在前，同年依窗口開始排——每年一屆，時間順序才讀得懂（設計 §7「收藏年份排序」）
-  const years = [...new Set(rows.map((r) => r.year))].sort((a, b) => b - a);
-  const shown = rows
+  const years = [...new Set(data.map((r) => r.year))].sort((a, b) => b - a);
+  const shown = data
     .filter((r) => year === 'all' || r.year === year)
     .sort((a, b) => b.year - a.year || Date.parse(a.window.starts_at) - Date.parse(b.window.starts_at));
   return (
@@ -131,7 +160,7 @@ export function SeasonalFootprints({ reloadKey = 0 }: { reloadKey?: number | str
           ))}
         </View>
       ) : null}
-      {rows.length === 0 ? (
+      {data.length === 0 ? (
         <Text variant="bodySmall" tone="muted" testID="seasonal-empty">{t('season.none')}</Text>
       ) : (
         <View style={styles.list}>

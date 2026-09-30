@@ -6,7 +6,7 @@ import { Button } from './Button';
 import { InlineState } from './InlineState';
 import { ShareCard } from './ShareCard';
 import { SHARE_FORMATS, type ShareFormat, type ShareImageLayout, type ShareRenderSpec } from '@/domain/shareImage';
-import { copyCaption, shareLayout, shareTextInstead } from '@/services/share/shareImage';
+import { copyCaption, shareLayout, shareTextInstead, type ShareFailReason } from '@/services/share/shareImage';
 import { useT } from '@/i18n';
 import { color, radius, space, Text } from '@/theme';
 
@@ -37,7 +37,7 @@ export function ShareImageBlock({
   const { t } = useT();
   const svgRef = useRef<Svg>(null);
   const [phase, setPhase] = useState<'preview' | 'rendering' | 'handing_off' | 'returned'>('preview');
-  const [err, setErr] = useState<'render_failed' | 'no_target' | 'unpublishable' | 'stale' | null>(null);
+  const [err, setErr] = useState<ShareFailReason | null>(null);
   const [note, setNote] = useState<string | null>(null);
   /** PG-SHARE-07：輸出尺寸。story 是同一塊內容置中在 9:16 畫布上，所以預覽不必換一張 */
   const [format, setFormat] = useState<ShareFormat>('post');
@@ -90,12 +90,12 @@ export function ShareImageBlock({
         <View style={styles.err} testID={`${prefix}-error-${err}`}>
           <InlineState
             kind={err === 'unpublishable' ? 'warning' : 'error'}
-            title={t(err === 'no_target' ? 'share.card.noTargetTitle' : err === 'unpublishable' ? 'share.card.blockedTitle' : 'share.card.failedTitle')}
-            body={t(err === 'no_target' ? 'share.card.noTargetBody' : err === 'unpublishable' ? 'share.card.blockedBody' : 'share.card.failedBody')}
+            title={t(err === 'no_target' ? 'share.card.noTargetTitle' : err === 'unpublishable' ? 'share.card.blockedTitle' : err === 'cache_full' ? 'share.card.busyTitle' : 'share.card.failedTitle')}
+            body={t(err === 'no_target' ? 'share.card.noTargetBody' : err === 'unpublishable' ? 'share.card.blockedBody' : err === 'cache_full' ? 'share.card.busyBody' : 'share.card.failedBody')}
           />
           {err !== 'unpublishable' ? (
             <>
-              {err === 'render_failed' ? <Button label={t('share.card.retry')} variant="secondary" onPress={() => void send()} testID={`${prefix}-retry`} /> : null}
+              {err === 'render_failed' || err === 'cache_full' ? <Button label={t('share.card.retry')} variant="secondary" onPress={() => void send()} testID={`${prefix}-retry`} /> : null}
               <Button label={t('share.card.shareTextInstead')} variant="secondary" onPress={() => void shareTextInstead(caption)} testID={`${prefix}-text`} />
             </>
           ) : null}

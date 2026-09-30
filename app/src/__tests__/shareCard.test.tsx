@@ -11,7 +11,7 @@ import { File } from 'expo-file-system';
 import { ShareCard, wrapText } from '@/components/ShareCard';
 import { achievementShareLayout, ACHIEVEMENT_SHARE_DEFAULT, SHARE_IMAGE, SHARE_RENDERER_VERSION, SHARE_STORY_SAFE_PX, workoutShareLayout, type ShareImageLayout, type ShareRenderSpec , workoutShareStillValid } from '@/domain/shareImage';
 import { SHARE_CARD_DEFAULT } from '@/domain/review';
-import { cleanupShareCache, copyCaption, SHARE_CACHE_MAX_FILES, SHARE_CACHE_TTL_MS, shareLayout } from '@/services/share/shareImage';
+import { cleanupShareCache, copyCaption, SHARE_CACHE_MAX_FILES, SHARE_CACHE_TTL_MS, SHARE_DELIVERY_PROTECT_MS, shareLayout } from '@/services/share/shareImage';
 import { Directory, Paths } from 'expo-file-system';
 import * as FS from 'expo-file-system';
 import { t, useLocaleStore } from '@/i18n';
@@ -196,12 +196,47 @@ describe('出圖與分享', () => {
     expect(new File(uri).exists).toBe(false);
   });
 
-  test('清理：超過數量上限時連未到期的最舊檔一起清', async () => {
-    for (let i = 0; i < SHARE_CACHE_MAX_FILES + 3; i++) {
-      await shareLayout({ svg: fakeSvg('QUJD'), layout: mkWorkout(), dialogTitle: 'x' });
+  const wipeCache = () => { for (const f of cacheFiles()) { try { new File(f.uri).delete(); } catch { /* 已不存在 */ } } };
+  /** 直接造一個「建立於 ageMs 之前」的暫存檔（檔名記的是到期時間＝建立＋TTL） */
+  const agedFile = (ageMs: number) => {
+    const created = Date.now() - ageMs;
+    const f = new File(Paths.cache, `neonshift-share-workout-${created + SHARE_CACHE_TTL_MS}-${Math.floor(Math.random() * 0xfffffff).toString(16)}.png`);
+    f.create({ overwrite: true });
+    f.write('QUJD', { encoding: 'base64' });
+    return f;
+  };
+
+  /**
+   * R6（implementation-review-2026-09-29）：`shareAsync` 返回只代表面板關了，
+   * 不代表接收 App 讀完了——它可能還在背景複製。舊版一返回就解除保護，
+   * 下一次分享的數量上限就能把它刪掉：連續快速分享時，對方拿到的是一張壞掉的圖。
+   */
+  test('R6：保護期內的已交付檔不會被數量上限刪掉，而是拒絕新的產圖', async () => {
+    wipeCache();
+    for (let i = 0; i < SHARE_CACHE_MAX_FILES; i++) {
+      expect(await shareLayout({ svg: fakeSvg('QUJD'), layout: mkWorkout(), dialogTitle: 'x' })).toEqual({ ok: true, withImage: true });
     }
-    cleanupShareCache();
-    expect(cacheFiles().length).toBeLessThanOrEqual(SHARE_CACHE_MAX_FILES);
+    expect(cacheFiles().length).toBe(SHARE_CACHE_MAX_FILES);
+    expect(cleanupShareCache()).toBe(0); // 一個都不能刪
+    // 滿了就說滿了。使用者等幾分鐘再分享就好；對方拿到壞圖是修不回來的。
+    expect(await shareLayout({ svg: fakeSvg('QUJD'), layout: mkWorkout(), dialogTitle: 'x' })).toEqual({ ok: false, reason: 'cache_full' });
+    expect(cacheFiles().length).toBe(SHARE_CACHE_MAX_FILES);
+  });
+
+  test('R6：保護期過了之後，上限才淘汰最舊的（仍未到 TTL 也一樣）', async () => {
+    wipeCache();
+    const old = Array.from({ length: SHARE_CACHE_MAX_FILES + 3 }, () => agedFile(SHARE_DELIVERY_PROTECT_MS + 60_000));
+    expect(cacheFiles().length).toBe(SHARE_CACHE_MAX_FILES + 3);
+    expect(cleanupShareCache()).toBe(3);
+    expect(cacheFiles().length).toBe(SHARE_CACHE_MAX_FILES);
+    // 淘汰的是最舊的那幾個
+    expect(old.filter((f) => f.exists).length).toBe(SHARE_CACHE_MAX_FILES);
+  });
+
+  test('R6：保護期過了就不再擋新的產圖', async () => {
+    wipeCache();
+    for (let i = 0; i < SHARE_CACHE_MAX_FILES; i++) agedFile(SHARE_DELIVERY_PROTECT_MS + 60_000);
+    expect(await shareLayout({ svg: fakeSvg('QUJD'), layout: mkWorkout(), dialogTitle: 'x' })).toEqual({ ok: true, withImage: true });
   });
 
   test('出圖失敗 → 回報原因，不自己彈第二個分享面板', async () => {
