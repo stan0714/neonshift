@@ -1,5 +1,6 @@
 import { ShoePreview } from '@/components/ShoePreview';
 import { Feather } from "@expo/vector-icons";
+import type { RouteProp } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
@@ -18,6 +19,7 @@ import { freezeActive } from "@/chain/accounts";
 import { shoeSection, type ShoeSection } from "@/domain/collectibles";
 import type { PlayerProfile } from "@/chain/accounts";
 import { APP_CONFIG } from "@/config/app";
+import type { GearCategory, TabParamList } from "@/navigation/types";
 import { FEATURES } from "@/config/features";
 import { SHOE_PROGRESSION, type ShoeLevel } from "@/config/shoeProgression";
 import {
@@ -48,7 +50,9 @@ const STROKE = 6;
  * 下段 My collection（Claimed／Claimable／Locked）。升級免費、自動發生在打卡交易內（2026-09-14 定案），
  * 這裡沒有升級 CTA；領取成就 NFT 免費，只付 devnet rent。
  */
-export function GearScreen() {
+/** `route` 由分頁 navigator 傳入；宣告成 optional 讓測試可以單獨渲染這個畫面
+    （用 useRoute 的話，沒有 navigation context 就會丟「Couldn't find a route object」） */
+export function GearScreen({ route }: { route?: RouteProp<TabParamList, "Gear"> }) {
   const { t, locale } = useT();
   const session = useWalletStore((s) => s.session);
   const d = useDashboardStore();
@@ -62,7 +66,13 @@ export function GearScreen() {
    * 預設 all——這一頁本來就同時顯示四塊，改成預設只顯示一塊會讓現有使用者找不到東西；
    * 分類是用來收斂那條很長的捲軸，不是用來藏內容。個人最佳仍在「運動」分頁，這裡不搬也不複製。
    */
-  const [cat, setCat] = useState<"all" | "shoes" | "milestones" | "seasonal">("all");
+  /**
+   * 收藏分類。R4：核准通知可直接帶 `category` 進來（里程碑／節日的領取入口都在這一頁），
+   * 使用者不必落地後再自己找一次分類。之後手動切換照舊。
+   */
+  const routeCategory = route?.params?.category;
+  const [cat, setCat] = useState<GearCategory>(routeCategory ?? "all");
+  useEffect(() => { if (routeCategory) setCat(routeCategory); }, [routeCategory]);
   /** PG-LINK-01：外觀（可切換的已取得跑鞋＋棲地背景）與有效等級分開 */
   const ap = useAppearance();
   // 每雙鞋的運動歷程（本機紀錄，依開始時鞋款快照歸組；recorder 變化時重算）

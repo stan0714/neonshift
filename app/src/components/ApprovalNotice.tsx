@@ -8,7 +8,12 @@ import { apiClient, type AchievementView } from '@/services/api/ApiClient';
 import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space } from '@/theme';
 
-export function ApprovalNotice({ onOpen, visible = true }: { visible?: boolean; onOpen: (item: AchievementView) => void }) {
+/**
+ * R4（2026-09-29 review）：「查看」的**標已讀交給呼叫端**——導航成功才標。
+ * 原本是 `onOpen(item); dismiss();`，導航失敗（例如 navRef 還沒 ready）時通知照樣消失，
+ * 那枚核准就再也不會提醒第二次。
+ */
+export function ApprovalNotice({ onOpen, visible = true }: { visible?: boolean; onOpen: (item: AchievementView, markRead: () => void) => void }) {
   const { t } = useT();
   const address = useWalletStore(s => s.session?.address);
   const insets = useSafeAreaInsets();
@@ -60,7 +65,7 @@ export function ApprovalNotice({ onOpen, visible = true }: { visible?: boolean; 
   return <View style={[styles.card, { bottom: insets.bottom + space.s }]} accessibilityLiveRegion="polite" testID="approval-notice">
     <InlineState kind="success" title={t('mint.flow.notice')} body={t('mint.flow.notice.body')} />
     <View style={styles.actions}>
-      <Button label={t('mint.flow.open')} onPress={() => { onOpen(notice.item); dismiss(); }} style={styles.button} testID="approval-open" />
+      <Button label={t('mint.flow.open')} onPress={() => onOpen(notice.item, dismiss)} style={styles.button} testID="approval-open" />
       <Button label={t('common.close')} variant="secondary" onPress={dismiss} style={styles.button} testID="approval-dismiss" />
     </View>
   </View>;

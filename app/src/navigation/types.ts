@@ -1,11 +1,15 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
+/** 收藏頁的分類（GearScreen 的分段控制） */
+export type GearCategory = 'all' | 'shoes' | 'milestones' | 'seasonal';
+
 /** 底部四分頁（Style 2.2 / SD 5.2） */
 export type TabParamList = {
   Home: undefined;
   /** 我的運動（PG-LINK-06；2026-09-20 改為分頁）；root 的 Activity（帶 month）保留給深連結／月份跳轉 */
   ActivityTab: undefined;
-  Gear: undefined;
+  /** R4：核准通知可直接落在對應的收藏分類（里程碑／節日），不必自己再點一次 */
+  Gear: { category?: GearCategory } | undefined;
   Arena: undefined;
   Profile: undefined;
 };

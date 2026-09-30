@@ -1500,3 +1500,36 @@ App 85 suites／645 tests 通過。
 `SEASONAL_MINT_ENABLED` 仍是 `false`。依原訂順序，那是**確認升級完成之後**才能開的第三步
 （順序顛倒會讓玩家拿到鏈上必定失敗的交易）。現在順序上的前提已經成立，但開啟它等於對外
 開放領取，是另一個決定。migration 0021 已於 9/29 套用，所以三件事只剩這一件。
+
+
+## 2026-09-30 R4：核准通知導到沒有領取入口的頁面（比 review 描述的更嚴重）
+
+[9/29 review](design/implementation-review-2026-09-29.md) 的 R4 說 seasonal 會被導到 Workouts。
+實際對照「領取 UI 掛在哪個畫面」之後，**`milestone` 也是錯的**：
+
+| kind | 領取 UI 實際位置 | 修正前導向 | |
+|---|---|---|---|
+| `pb` | `PersonalBests`（WorkoutsScreen） | Workouts | ✅ |
+| `milestone` | `Milestones`（**GearScreen** 收藏區） | Workouts | ❌ |
+| `seasonal` | `SeasonalFootprints`（**GearScreen**） | Workouts | ❌ |
+| `event` | `EventDetail` | EventDetail | ✅ |
+
+`milestone` 就是「首次 5K／10K」——**跑完一趟最常見的核准**，也正是 10/1 實機主線要驗的那一段。
+核准通知跳出來、點下去，落在一個沒有領取按鈕的畫面上。
+
+修法：
+- 去向抽成純函式 `navigation/approvalTarget.ts`，用 `Record<AchievementKind, …>` 宣告，
+  **之後後端多一種 kind 而這裡沒決定去哪會直接編譯失敗**。R4 會發生的原因之一，就是
+  `AchievementView['kind']` 裡根本沒有 `'seasonal'`（後端早就會產生），於是它靜悄悄落進 `else`。已補上型別。
+- 收藏頁接受 `category` 參數，核准通知直接落在對應分類（里程碑／節日），不必自己再點一次。
+  用 navigator 傳入的 `route` prop 而不是 `useRoute`——後者在沒有 navigation context 時會丟
+  「Couldn't find a route object」，那會讓既有的 Gear 測試無法單獨渲染這個畫面（實際踩到了）。
+- **導航成功才標已讀**。原本是 `onOpen(item); dismiss();`，導航沒成功（例如 navRef 還沒 ready）
+  通知照樣消失，那枚核准就再也不會提醒第二次。現在 `onOpen(item, markRead)` 由呼叫端決定。
+
+測試：`approvalTarget.test.ts` 6 項（四種 kind 各自的去向、event 缺 id 退到列表、未知 kind 不亂猜）；
+`approvalNotice.test.tsx` 補一項「呼叫端沒標已讀時通知要留著」。App 86 suites／652 tests 通過。
+
+R1 現況（供 10/1 SKR 判斷）：`purchase()` **只擋了一半**——它在 `order.status === 'confirming' && signature`
+時會轉去查詢而不重付，但 review 講的情境是「錢包已廣播、伺服器沒收到 signature」，那時訂單仍是
+`awaiting_payment`，守衛不會觸發。要真正擋住得在開錢包前持久化 payment_attempt，屬於 R1 本身的工作。

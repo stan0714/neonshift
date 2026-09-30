@@ -1,4 +1,5 @@
 import { ApprovalNotice } from '@/components/ApprovalNotice';
+import { approvalTarget } from '@/navigation/approvalTarget';
 import { SeasonalNotice } from '@/components/SeasonalNotice';
 import { useEffect, useState } from 'react';
 import { CommonActions, useNavigation, useRoute, StackActions, type RouteProp } from '@react-navigation/native';
@@ -106,11 +107,18 @@ export function RootNavigator() {
         <Stack.Screen name="StaffCheckIn" component={StaffCheckInScreen} options={{ headerShown: true, title: t('staff.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         {__DEV__ ? <Stack.Screen name="DevHealth" component={HealthDiagnosticsScreen} options={{ headerShown: true, title: 'Health Connect (dev)', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} /> : null}
       </Stack.Navigator>
-      <ApprovalNotice visible={approvalVisible} onOpen={item => {
-        if (!navRef.isReady()) return;
-        const eventId = item.kind === 'event' ? item.milestone_key?.split('|')[1] : undefined;
-        if (eventId) navRef.dispatch(StackActions.push('EventDetail', { idOrSlug: eventId }));
-        else navRef.dispatch(StackActions.push('Workouts'));
+      {/*
+        R4：依 kind 導到**真的有領取入口**的頁面。修正前 event 以外一律推 Workouts，
+        但里程碑（首次 5K／10K）與節日章的領取都在 Gear 的收藏區——跑完一趟最常見的
+        那種核准，點下去會落在沒有按鈕的畫面上。去向由 `approvalTarget` 決定（純函式、可測）。
+      */}
+      <ApprovalNotice visible={approvalVisible} onOpen={(item, markRead) => {
+        if (!navRef.isReady()) return; // 導航還沒準備好就不標已讀，通知留著下次再點
+        const target = approvalTarget(item);
+        if (target.screen === 'Main') navRef.dispatch(StackActions.push('Main', { screen: target.tab, params: { category: target.category } }));
+        else if (target.screen === 'EventDetail') navRef.dispatch(StackActions.push('EventDetail', { idOrSlug: target.idOrSlug }));
+        else navRef.dispatch(StackActions.push(target.screen));
+        markRead();
       }} />
       {/* PG-SEASON-05：節日資格核准通知。沒有領取按鈕——核准的是資格，不是 NFT */}
       <SeasonalNotice visible={approvalVisible} onOpen={() => {

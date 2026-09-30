@@ -19,13 +19,27 @@ afterEach(async () => { await cleanup(); jest.restoreAllMocks(); });
 
 test('approved notification opens the matching achievement, persists dismissal, and does not mint', async () => {
   api.myAchievements.mockResolvedValue({ items: [approved] });
-  const open = jest.fn();
+  // R4：onOpen 現在收 (item, markRead)——導航成功才由呼叫端標已讀
+  const open = jest.fn((_item, markRead: () => void) => markRead());
   await render(<ThemeProvider><ApprovalNotice onOpen={open} /></ThemeProvider>);
   await waitFor(() => expect(screen.getByTestId('approval-notice')).toBeTruthy());
   await fireEvent.press(screen.getByTestId('approval-open'));
-  expect(open).toHaveBeenCalledWith(approved);
+  expect(open.mock.calls[0]![0]).toEqual(approved);
   expect(SecureStore.setItemAsync).toHaveBeenCalledWith('approval-notices-v1.walletA', '["approval1"]');
   expect(screen.queryByTestId('approval-notice')).toBeNull();
+});
+
+/**
+ * R4：導航失敗時不能標已讀——原本是 `onOpen(item); dismiss();`，
+ * 只要導航沒成功（例如 navRef 還沒 ready），那枚核准就再也不會提醒第二次。
+ */
+test('呼叫端沒有標已讀時，通知要留著（下次還會提醒）', async () => {
+  api.myAchievements.mockResolvedValue({ items: [approved] });
+  await render(<ThemeProvider><ApprovalNotice onOpen={jest.fn()} /></ThemeProvider>);
+  await waitFor(() => expect(screen.getByTestId('approval-notice')).toBeTruthy());
+  await fireEvent.press(screen.getByTestId('approval-open'));
+  expect(screen.getByTestId('approval-notice')).toBeTruthy();
+  expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
 });
 
 test('pending and already minted achievements do not trigger approval notifications', async () => {
