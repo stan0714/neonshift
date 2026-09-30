@@ -34,6 +34,11 @@ type State = {
   catalog: SkrCatalog | null;
   /** 目錄屬於哪個錢包（目錄是「目前登入錢包」的資料，換帳戶時不得沿用） */
   catalogWallet: string | null;
+  /**
+   * R2：每次 refreshCatalog 遞增。回應回來時對不上就整包丟掉——
+   * A 的請求晚於 B 回來會覆蓋 B 的目錄，而「先發的先回」在網路上從來不成立。
+   */
+  catalogGeneration: number;
   catalogError: string | null;
   phase: SkrPayPhase | null;
   error: SkrPayError | null;
@@ -54,6 +59,7 @@ export const useSkrStore = create<State>((set, get) => ({
   persisted: EMPTY,
   catalog: null,
   catalogWallet: null,
+  catalogGeneration: 0,
   catalogError: null,
   phase: null,
   error: null,
@@ -72,8 +78,16 @@ export const useSkrStore = create<State>((set, get) => ({
 
   async refreshCatalog(wallet) {
     await get().load();
+    // R2：換帳戶時先把上一個帳號的展示狀態清乾淨。價格、資格、未完成訂單、
+    // 成功訊息、錯誤——這些全是「那個帳號」的事實，留在畫面上就是在對 B 說 A 的事。
+    if (get().catalogWallet !== null && get().catalogWallet !== wallet) {
+      set({ catalog: null, catalogWallet: null, catalogError: null, phase: null, error: null, outcome: null });
+    }
+    const gen = get().catalogGeneration + 1;
+    set({ catalogGeneration: gen });
     try {
       const catalog = await skrService.catalog();
+      if (get().catalogGeneration !== gen) return; // 已經有更新的請求出發：這包是舊的，丟掉
       const next: Persisted = { ...get().persisted };
       if (catalog.enabled) {
         const k = scope(catalog.network, wallet);
@@ -91,6 +105,7 @@ export const useSkrStore = create<State>((set, get) => ({
       set({ catalog, catalogWallet: wallet, catalogError: null, persisted: next });
       await persist(next);
     } catch (e) {
+      if (get().catalogGeneration !== gen) return; // 舊請求的錯誤不該蓋掉新帳號的畫面
       set({ catalogError: e instanceof Error ? e.message : String(e) });
     }
   },
@@ -98,6 +113,9 @@ export const useSkrStore = create<State>((set, get) => ({
   async purchase(wallet, sku) {
     const cat = get().catalog;
     if (!cat || !cat.enabled) return null;
+    // R2：目錄必須屬於要付款的這個錢包。價格、資格、收款人都來自目錄——
+    // 拿 A 的目錄替 B 付款，是在用別人的資格買東西。
+    if (get().catalogWallet !== wallet.toBase58()) return null;
     // attempt 存在 SecureStore，冷啟動後第一次購買必須先讀回來，否則保護等於不存在
     await get().load();
     set({ phase: 'creating_order', error: null, outcome: null });

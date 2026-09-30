@@ -4,7 +4,7 @@
  */
 import { PublicKey, Transaction } from '@solana/web3.js';
 import * as SecureStore from 'expo-secure-store';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { PropsWithChildren } from 'react';
 import { Alert } from 'react-native';
 
@@ -254,6 +254,73 @@ describe('skrStore 與 Genesis 卡片', () => {
     await fireEvent(screen.getByTestId('genesis-frame-toggle'), 'valueChange', false);
     await waitFor(() => expect(genesisFrameActive(useSkrStore.getState(), wallet.toBase58())).toBe(false));
     expect(genesisFrameActive(useSkrStore.getState(), PublicKey.unique().toBase58())).toBe(false); // 換帳戶不共用
+  });
+
+  /**
+   * R2（implementation-review-2026-09-29）：目錄是「某一個錢包」的資料——價格、資格、
+   * 未完成訂單、成功訊息都綁在那個帳號上。舊版沒有 generation／session 檢查，
+   * A 的內容會留在 B 的畫面上，A 的晚回請求甚至能覆蓋 B 的目錄。
+   */
+  const other = PublicKey.unique();
+  const asWallet = (k: PublicKey) => useWalletStore.setState({ status: 'connected', session: { address: k.toBase58(), publicKey: k, walletUriBase: '', label: 'Seeker Wallet' }, error: null } as never);
+
+  test('R2：A 的請求晚於 B 回來，不得覆蓋 B 的目錄（先發的先回從來不成立）', async () => {
+    let resolveA: ((v: unknown) => void) | undefined;
+    const catA = catalog({ entitlements: [{ cosmetic_id: 'skr_genesis_mint_frame_v1', order_id: 'oA', status: 'active', granted_at: '2026-09-22T00:00:00Z' }] }, { owned: true });
+    const catB = catalog({}, { eligibility: 'not_achieved', achievement_id: null });
+    api.skrCatalog.mockImplementationOnce(() => new Promise((r) => { resolveA = r; }));
+    api.skrCatalog.mockImplementationOnce(async () => catB);
+    const pA = useSkrStore.getState().refreshCatalog(wallet.toBase58());
+    const pB = useSkrStore.getState().refreshCatalog(other.toBase58());
+    await pB;
+    resolveA!(catA);
+    await pA;
+    expect(useSkrStore.getState().catalogWallet).toBe(other.toBase58());
+    // A 那包整個丟掉：連 entitlements 快取都不能寫進去，否則 B 會「擁有」A 買的東西
+    expect(ownsGenesisFrame(useSkrStore.getState(), other.toBase58())).toBe(false);
+  });
+
+  test('R2：換帳號時清掉上一個帳號的成功訊息與錯誤', async () => {
+    api.skrCatalog.mockResolvedValue(catalog());
+    useSkrStore.setState({ catalog: catalog(), catalogWallet: wallet.toBase58(), outcome: { kind: 'fulfilled', order: order({ status: 'fulfilled' }), signature: 'sigA' }, error: new SkrPayError('NETWORK_ERROR', 'boom') } as never);
+    await useSkrStore.getState().refreshCatalog(other.toBase58());
+    expect(useSkrStore.getState().outcome).toBeNull();
+    expect(useSkrStore.getState().error).toBeNull();
+    expect(useSkrStore.getState().catalogWallet).toBe(other.toBase58());
+  });
+
+  test('R2：卡片不顯示不屬於目前錢包的目錄（顯示載入，不是 A 的價格與資格）', async () => {
+    useSkrStore.setState({ catalog: catalog(), catalogWallet: wallet.toBase58() } as never);
+    asWallet(other);
+    api.skrCatalog.mockImplementation(() => new Promise(() => {})); // B 的目錄還沒回來
+    await render(<GenesisFrameCard />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('genesis-frame-loading')).toBeTruthy());
+    expect(screen.queryByTestId('genesis-frame-buy')).toBeNull();
+    expect(screen.queryByText('2.5 SKR')).toBeNull();
+    asWallet(wallet);
+  });
+
+  test('R2：確認框開著時換了帳號 → 不付款（確認框是非同步的）', async () => {
+    api.skrCatalog.mockResolvedValue(catalog());
+    await render(<GenesisFrameCard />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('genesis-frame-buy')).toBeTruthy());
+    let pay: (() => void) | undefined;
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => { pay = buttons?.[1]?.onPress as () => void; });
+    await fireEvent.press(screen.getByTestId('genesis-frame-buy-btn'));
+    asWallet(other); // 使用者在確認框開著的時候換了帳號
+    // pay!() 同步回傳，建單在 microtask 才發生——不等一拍就斷言等於什麼都沒測到
+    await act(async () => { pay!(); });
+    expect(api.skrCreateOrder).not.toHaveBeenCalled();
+    alert.mockRestore();
+    asWallet(wallet);
+  });
+
+  test('R2：目錄屬於別的錢包時 purchase 直接拒絕（拿 A 的資格替 B 買東西）', async () => {
+    useSkrStore.setState({ catalog: catalog(), catalogWallet: wallet.toBase58() } as never);
+    const spy = jest.spyOn(skrService, 'purchase');
+    expect(await useSkrStore.getState().purchase(other, 'genesis_mint_frame')).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   test('R1：本機有未結清的付款嘗試 → 卡片只給「查看狀態」，付款與取消都不出現', async () => {

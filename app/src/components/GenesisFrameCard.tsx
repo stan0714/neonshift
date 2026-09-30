@@ -22,8 +22,22 @@ export function GenesisFrameCard({ reloadKey = 0 }: { reloadKey?: number | strin
   const wallet = session?.address ?? null;
   const online = useOnline(); // hooks 一律在提早 return 之前
   useEffect(() => { if (wallet) void st.refreshCatalog(wallet); }, [wallet, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!session || !wallet || !st.catalog || !st.catalog.enabled) return null;
-  const cat = st.catalog;
+  if (!session || !wallet) return null;
+  /**
+   * R2：目錄是「某一個錢包」的資料——價格、資格、未完成訂單、收款人全綁在那個帳號上。
+   * 直接用 st.catalog 會在換帳號的空檔把 A 的內容顯示給 B。catalogWallet 對不上就當作還沒載入。
+   */
+  const cat = st.catalogWallet === wallet && st.catalog?.enabled ? st.catalog : null;
+  if (!cat) {
+    // 伺服器明確回「未開放」→ 整張卡不顯示（原行為）；其餘情況是還沒對上這個錢包 → 顯示載入。
+    if (st.catalogWallet === wallet && st.catalog && !st.catalog.enabled) return null;
+    return (
+      <View style={styles.card} testID="genesis-frame-loading">
+        <Text variant="title">{t('skr.title')}</Text>
+        <Text variant="caption" tone="muted" style={styles.mtXs}>{t('common.loading')}</Text>
+      </View>
+    );
+  }
   const sku: SkrSkuView | undefined = cat.skus.find((s) => s.sku === 'genesis_mint_frame');
   if (!sku) return null;
   const owned = ownsGenesisFrame(st, wallet);
@@ -42,7 +56,16 @@ export function GenesisFrameCard({ reloadKey = 0 }: { reloadKey?: number | strin
       t('skr.confirmBody', { amount: sku.price_display, network: isTest ? t('skr.networkTest') : t('skr.networkMainnet'), recipient: shortAddress(cat.recipient, 6) }),
       [
         { text: t('common.cancel'), style: 'cancel' },
-        { text: t('skr.pay', { amount: sku.price_display }), onPress: () => void st.purchase(session.publicKey, sku.sku) },
+        {
+          text: t('skr.pay', { amount: sku.price_display }),
+          // R2：確認框是非同步的——從按下「購買」到在這裡按確認之間可能換過帳號。
+          // 用**現在的** session 核對，不用 render 當下捕捉到的那個。
+          onPress: () => {
+            const current = useWalletStore.getState().session;
+            if (!current || current.address !== wallet) return;
+            void st.purchase(current.publicKey, sku.sku);
+          },
+        },
       ],
     );
   };

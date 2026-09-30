@@ -29,6 +29,12 @@ refreshCatalog 回應沒有 generation/session 檢查；Card 雖有 wallet，卻
 
 建議：請求按帳號＋網路＋generation 隔離；切換時清掉 phase/outcome/error 的展示；catalogWallet 不符就先顯示載入，付款前再次核對目前 session。測試 A 請求晚於 B 回來與換帳號時舊確認視窗仍開著。
 
+處理（2026-09-30，commit 見 pg.md）：已修。`refreshCatalog` 加 generation：換帳號先清 catalog／phase／outcome／error，
+回應與當前 generation 對不上就整包丟掉（含 entitlements 快取，否則 B 會「擁有」A 買的東西）。
+卡片改用 `catalogWallet === wallet` 才渲染，對不上顯示載入而非上一個帳號的價格與資格。
+`purchase()` 拒絕目錄不屬於該錢包的請求；確認框的 onPress 以**當下**的 session 核對，不用 render 時捕捉的那個。
+App skr.test 22 → 27 tests。
+
 ### R3 / P1：產圖中的來源失效／換帳號不會阻止分享
 
 位置：`app/src/services/share/shareImage.ts:108`、`app/src/screens/workouts/WorkoutSummaryScreen.tsx:127`。
