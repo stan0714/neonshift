@@ -1622,3 +1622,28 @@ App 86 suites／654 tests 通過。
 畫面先說明問題、使用者仍可選擇照樣前進。
 
 App 88 suites／667 tests 通過。
+
+## 2026-09-30｜熱量估算：體重設了卻永遠讀不到（實機）
+
+負責人跑完 3.89 km，摘要頁 `Active kcal` 是「—」，底下還寫著「Want a calorie estimate?
+Add your weight in Profile」——**但體重早就設過了**。
+
+原因不在估算模型，在載入時機。`bodyStore.weightKg` 要等 `load()` 從 SecureStore 讀回來才有值，
+而 `load()` 全專案只有一個呼叫點：Profile 的 `BodyWeightCard`。也就是說——
+
+> 冷啟動之後，只要沒有先進過 Profile，運動畫面讀到的體重永遠是 `null`。
+
+值一直好好地存在 SecureStore 裡，只是沒有人去讀它。
+
+修法是**把載入綁在讀取上**，而不是再補一次 `load()`：新增 `useWeightKg()`，消費端一律用它，
+`load()` 收斂成單一呼叫點（`BodyWeightCard` 也改用同一條路徑）。下一個要用體重的畫面
+不可能再忘記，因為拿值的唯一方式就會順便載入。
+
+順帶：hook 另外回傳 `loaded`，摘要頁的「請去設定體重」提示改成 `weightLoaded && weightKg === null`
+才顯示——否則每次進畫面都會先閃一下那句話，而它正是這次誤導負責人的那句。
+
+測試補在真正出事的情境上：**記憶體沒有、SecureStore 有**（冷啟動且沒進過 Profile）。
+先確認拿掉 hook 裡的載入該測試會紅，再確認修完變綠。原本的測試抓不到這個 bug，
+因為它們都直接 `useBody.setState()` 灌值，跳過了載入這一段。
+
+App 88 suites／668 tests 通過。

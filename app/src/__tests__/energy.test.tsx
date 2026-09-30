@@ -1,10 +1,11 @@
 /** PG-R-11 熱量估算：MET 分級、分段優先、暫停不計、體重範圍、無體重回 null；BodyWeightCard 存／清除（只存手機）；bodyStore 持久化。 */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Text } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 import { BodyWeightCard } from '@/components/BodyWeightCard';
 import { ENERGY_MODEL_VERSION, estimateEnergy, metFor } from '@/domain/energy';
-import { useBody } from '@/state/bodyStore';
+import { useBody, useWeightKg } from '@/state/bodyStore';
 import { ThemeProvider } from '@/theme';
 
 beforeEach(() => { useBody.setState({ loaded: false, weightKg: null, updatedAt: null }); });
@@ -57,4 +58,20 @@ test('BodyWeightCard：儲存 → 顯示已儲存並寫入 SecureStore（只存�
   await fireEvent.press(screen.getByTestId('body-weight-clear'));
   await waitFor(() => expect(useBody.getState().weightKg).toBeNull());
   expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('neonshift.body.v1');
+});
+
+/**
+ * 2026-09-30 實機：使用者在 Profile 設過體重，跑完步看摘要 kcal 仍是「—」，還被叫去設定體重。
+ * 原因是 weightKg 要等 load() 從 SecureStore 讀回來，而 load() 只有 Profile 的 BodyWeightCard 會叫——
+ * 冷啟動後沒進過 Profile，運動畫面讀到的永遠是 null。所以這裡測的是「記憶體沒有、SecureStore 有」。
+ */
+test('冷啟動沒去過 Profile：useWeightKg 自己把體重載回來（不是只有 Profile 才有值）', async () => {
+  await SecureStore.setItemAsync('neonshift.body.v1', JSON.stringify({ weightKg: 70, updatedAt: 1 }));
+  useBody.setState({ loaded: false, weightKg: null, updatedAt: null });
+  function Probe() {
+    const { weightKg, loaded } = useWeightKg();
+    return <Text testID="probe">{loaded ? String(weightKg) : 'loading'}</Text>;
+  }
+  render(<ThemeProvider><Probe /></ThemeProvider>);
+  await waitFor(() => expect(screen.getByTestId('probe').props.children).toBe('70'));
 });

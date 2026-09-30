@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { useEffect } from 'react';
 import { create } from 'zustand';
 
 /**
@@ -32,3 +33,19 @@ export const useBody = create<State>((set, get) => ({
     } catch { /* 下次設定再存 */ }
   },
 }));
+
+/**
+ * 讀體重（熱量估算用）。**消費端一律用這支**，不要直接 `useBody((b) => b.weightKg)`：
+ * weightKg 要等 load() 從 SecureStore 讀回來才有值，而 load() 原本只有 Profile 的
+ * BodyWeightCard 會呼叫——冷啟動後直接看運動紀錄，體重明明設過卻顯示「—」＋
+ * 「請到 Profile 設定體重」（2026-09-30 實機回報）。把載入綁在讀取上，下一個
+ * 消費端就不可能再忘記。
+ *
+ * `loaded` 讓畫面能分辨「還沒讀完」與「真的沒設」——否則每次進畫面都會先閃一下提示。
+ */
+export function useWeightKg(): { weightKg: number | null; loaded: boolean } {
+  const weightKg = useBody((b) => b.weightKg);
+  const loaded = useBody((b) => b.loaded);
+  useEffect(() => { void useBody.getState().load(); }, []);
+  return { weightKg, loaded };
+}

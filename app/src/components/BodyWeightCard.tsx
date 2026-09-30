@@ -3,7 +3,7 @@ import { StyleSheet, TextInput, View } from 'react-native';
 
 import { Button, Surface } from '@/components';
 import { useT } from '@/i18n';
-import { useBody, WEIGHT_RANGE } from '@/state/bodyStore';
+import { useBody, useWeightKg, WEIGHT_RANGE } from '@/state/bodyStore';
 import { color, radius, space, Text } from '@/theme';
 
 /**
@@ -15,7 +15,7 @@ export function BodyWeightCard({ testID = 'body-weight' }: { testID?: string }) 
   const body = useBody();
   const [text, setText] = useState('');
   const [invalid, setInvalid] = useState(false);
-  useEffect(() => { void useBody.getState().load(); }, []);
+  useWeightKg(); // 載入走與其他消費端同一條路徑（load() 只有這一個呼叫點）
   useEffect(() => { setText(body.weightKg === null ? '' : String(body.weightKg)); }, [body.weightKg]);
   const save = async () => {
     const n = Number(text.replace(',', '.').trim());

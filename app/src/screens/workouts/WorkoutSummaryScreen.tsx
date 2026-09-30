@@ -13,7 +13,7 @@ import type { Lap, RawPoint } from '@/domain/gps/engine';
 import { GPS_QUALITY } from '@/domain/gps/thresholds';
 import { estimateEnergy } from '@/domain/energy';
 import { formatDuration, formatKm, formatPace, modeLabel } from '@/domain/workouts';
-import { useBody } from '@/state/bodyStore';
+import { useWeightKg } from '@/state/bodyStore';
 import { stageName } from '@/domain/collectibles';
 import { useLocaleStore, useT, type TKey } from '@/i18n';
 import { compareSameCategory, SHARE_CARD_DEFAULT, shareCard, type ShareCardFields, type ShareCardInput } from '@/domain/review';
@@ -138,7 +138,7 @@ export function WorkoutSummaryScreen() {
   if (!meta || !s) return <Screen testID="workout-summary-screen"><InlineState kind="error" title={t('common.somethingInterrupted')} /></Screen>;
   const isWalk = meta.sport === 'walk';
   // PG-R-11：App 內記錄沒有裝置熱量；有體重（只存手機）才顯示估算，否則 — 並提示到 Profile 填
-  const weightKg = useBody((b) => b.weightKg);
+  const { weightKg, loaded: weightLoaded } = useWeightKg();
   const energy = estimateEnergy({ sport: meta.sport, weightKg, movingMs: s.movingMs, distanceMm: s.distanceMm, segments: s.splits.filter((l) => !l.isPartial).map((l) => ({ distanceMm: l.distanceMm, durationMs: l.durationMs })) });
   // PG-LINK-02：「立即同步」是一次授權，走同一條由舊到新的佇列；較早紀錄卡住時本筆回 BLOCKED_EARLIER
   const syncNow = async () => {
@@ -213,7 +213,7 @@ export function WorkoutSummaryScreen() {
         {/* PG-LINK-01：當時跑鞋（開始時快照；未綁定玩家／舊紀錄＝未指定） */}
         <Stat label={t('sum.shoe')} value={meta.shoeSnapshot ? `Lv.${meta.shoeSnapshot.level} · ${stageName(t, meta.shoeSnapshot.level)}` : t('sum.shoeUnknown')} testID="sum-shoe" />
       </View>
-      {!energy && weightKg === null ? (
+      {!energy && weightLoaded && weightKg === null ? (
         <Pressable onPress={() => navigation.navigate('Main', { screen: 'Profile' })} accessibilityRole="link" style={styles.kcalHint} testID="sum-kcal-hint">
           <Text variant="caption" tone="secondary">{t('sum.kcalHint')} </Text>
           <Text variant="caption" tone="cyan">{t('sum.kcalHintLink')}</Text>

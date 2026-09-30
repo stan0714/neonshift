@@ -8,7 +8,7 @@ import { itemFromRemote, type ActivityItem } from '@/domain/activity';
 import { stageName } from '@/domain/collectibles';
 import { estimateEnergy } from '@/domain/energy';
 import { formatDuration, formatKcal, formatKm, formatPace, modeLabel, qualityKind, reviewReasonsText } from '@/domain/workouts';
-import { useBody } from '@/state/bodyStore';
+import { useWeightKg } from '@/state/bodyStore';
 import { useT, type TKey } from '@/i18n';
 import type { RootParamList } from '@/navigation/types';
 import { ApiError, apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
@@ -29,7 +29,7 @@ export function ActivityDetailScreen() {
     catch (e) { setErr(e instanceof ApiError ? { code: e.code, message: e.message } : { code: 'UNKNOWN', message: String(e) }); }
   }, [params.serverId]);
   useEffect(() => { void load(); }, [load]);
-  const weightKg = useBody((b) => b.weightKg); // PG-R-11（hook 須在 early return 之前）
+  const { weightKg } = useWeightKg(); // PG-R-11（hook 須在 early return 之前）
   if (err) {
     return (
       <Screen testID="activity-detail-screen">
