@@ -1569,3 +1569,56 @@ App 86 suites／654 tests 通過。
 公開端點少 `auth: false` 連請求都不發、刪除資料把錯誤碼塞進句子、這次是整個吞掉）。
 共同教訓是自動測試抓不到——因為測試都在斷言「成功路徑」，而失敗路徑的 UI 沒有人看。
 所以這幾次補的測試一律是**斷言畫面上「必須出現什麼」或「不得出現什麼」**，不是只斷言不崩潰。
+
+
+## 2026-09-30 錢包過期與「第一次」判定（實機主線帶出來的兩件事）
+
+### 一、後端 session 過期沒有任何出口
+
+實機狀況：錢包連著、首頁照常顯示位址，但同步、成就、節日全部在**送出之前**就被擋下，
+而畫面上沒有任何地方說要重新連結。使用者的原話是「點擊 sync now 沒有任何動作」。
+
+問題在於**沒有人知道 session 沒了**：各畫面只能從自己那支請求的錯誤去猜，
+`ApiClient` 才是唯一知道 token 還在不在的地方。所以改成由它通知：
+
+- `onBackendSessionLost`／`onBackendSessionOk` 兩個訊號，分別在「沒有 token」「refresh 確定失效」
+  與「需要登入的請求成功」時發出。
+- `state/backendSessionStore.ts` 保存 `unknown｜active｜expired`。
+- `components/SessionNotice.tsx`：**只在錢包連著時**出現（沒連錢包時「請登入」是理所當然的），
+  一鍵重新連結**只做 SIWS、不重走新手流程**，而且**蓋過**核准通知與節日提醒——
+  session 沒了的時候那兩個點下去都不會成功。
+
+一個設計上的細節值得記下來：`check()` **不能**把已知的 `expired` 升回 `active`。
+`hasSession()` 只回答「本機有沒有 token」，而今天實機就是「token 在、但伺服器不認」。
+解除 `expired` 只有兩條路——重新登入成功，或某支需要登入的請求真的成功。
+（第一版寫錯成可以升回去，是測試把它抓出來的。）
+
+### 二、「第一次」判定：斷線重連被迫重走四步
+
+`WalletConnectScreen` 原本連上就無條件 `navigate('HealthAccess')`，後面每頁也各自寫死下一頁。
+於是斷線重連的人權限早就給了、起始鞋也早就有了，還是要再走一次。
+
+`domain/onboardingStep.ts` 依**實際狀態**決定，而且把兩種依據分開——這是關鍵：
+
+- **權限是裝置層的**：換錢包不會讓權限消失 → 看本機 flags。
+- **起始鞋是錢包層的**：同一支手機換錢包就是新玩家 → 看**鏈上 profile**，
+  不是本機的 `shoeMinted`（那個 flag 不分錢包，會把新錢包誤判成已領過）。
+
+`profileExists` 查不到時回 `StarterShoe` 而不是 `Main`：那一頁自己會再查一次、已存在也不會送交易；
+反過來誤判成「已經有了」就會讓真正的新使用者永遠拿不到起始鞋。
+
+順帶修掉 `StarterShoeService.quote()`：原本不看帳戶存不存在，照樣算出 rent＋手續費顯示給使用者，
+但按下去 `claim()` 走 `alreadyClaimed` 分支、**一毛都不會花**。對重連的評審來說，
+那等於系統要他為已經擁有的東西再付一次錢。
+
+### 過程中自己踩的兩個坑
+
+- **無窮迴圈**：effect 依賴 `useOnboardingStore()` 整個 store，而 `load()` 內部 `set()` 會改變
+  物件識別 → effect 重跑 → 再 load()。症狀是 jest worker 被 OOM 殺掉。改成只取 `load` action。
+- **同步 throw 逃出 `.catch`**：`accountExists(playerPda(pk)).catch(...)` 裡，`playerPda()` 是同步
+  throw，參數求值時 `.catch` 還沒接上，整個 effect 會死掉、使用者卡在錢包頁。改成整段 try／catch。
+
+「Continue as …」按鈕也共用同一套判定，不能是 no-op——它存在的情境是「錢包連上但後端登入未完成」，
+畫面先說明問題、使用者仍可選擇照樣前進。
+
+App 88 suites／667 tests 通過。

@@ -153,5 +153,7 @@ test('wallet connected with incomplete app sign-in explains the issue before con
   expect(screen.getByTestId('wallet-login-incomplete')).toBeTruthy();
   expect(mockNavigate).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByText(/Continue as/));
-  expect(mockNavigate).toHaveBeenCalledWith('Onboarding', { screen: 'HealthAccess' });
+  // 2026-09-30：去哪一步改由實際狀態決定（權限 flags＋鏈上 profile），所以是非同步的。
+  // 這裡仍是全新狀態，答案照舊是 HealthAccess——改的是「怎麼決定」，不是「決定成什麼」。
+  await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('Onboarding', { screen: 'HealthAccess' }));
 });

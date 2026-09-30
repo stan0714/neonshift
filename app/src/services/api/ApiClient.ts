@@ -32,6 +32,37 @@ export class ApiError extends Error {
 type Tokens = { accessToken: string; refreshToken: string; accessExpiresAt: number; wallet: string };
 const STORE_KEY = 'neonshift.api.tokens.v1';
 
+/**
+ * 後端 session 失效的通知（2026-09-30）。
+ *
+ * 實機踩到的問題：錢包在本機還連著、首頁照樣顯示位址，但後端 token 已經沒了，
+ * 於是每一個需要登入的動作都在**送出之前**就丟 `NO_SESSION`——使用者看到的是
+ * 「按了沒反應」，而且沒有任何地方告訴他該重新連結。各畫面各自猜測是行不通的：
+ * 只有這裡知道 token 到底還在不在。
+ *
+ * `missing`＝本機沒有 token；`invalid`＝refresh 確定失效（憑證已被清掉）。
+ * 兩者對使用者是同一件事（要重新連結），但分開讓診斷看得出是哪一種。
+ */
+export type BackendSessionLostReason = 'missing' | 'invalid';
+const sessionLostListeners = new Set<(reason: BackendSessionLostReason) => void>();
+export function onBackendSessionLost(fn: (reason: BackendSessionLostReason) => void): () => void {
+  sessionLostListeners.add(fn);
+  return () => { sessionLostListeners.delete(fn); };
+}
+const emitSessionLost = (reason: BackendSessionLostReason) => {
+  for (const fn of sessionLostListeners) { try { fn(reason); } catch { /* 監聽者自己的錯不該影響請求 */ } }
+};
+
+/** 相對的訊號：一支需要登入的請求成功了，代表 session 現在是好的 */
+const sessionOkListeners = new Set<() => void>();
+export function onBackendSessionOk(fn: () => void): () => void {
+  sessionOkListeners.add(fn);
+  return () => { sessionOkListeners.delete(fn); };
+}
+const emitSessionOk = () => {
+  for (const fn of sessionOkListeners) { try { fn(); } catch { /* 同上 */ } }
+};
+
 /** 登入 verify 的網路錯誤重試間隔（ms）；已簽訊息可重用到 nonce 到期前 `SIGNIN_REUSE_MARGIN_MS` */
 export const SIGNIN_VERIFY_RETRY_MS = [1_500, 3_000] as const;
 export const SIGNIN_REUSE_MARGIN_MS = 15_000;
@@ -576,7 +607,7 @@ export class ApiClient {
     if (body !== undefined) headers['content-type'] = 'application/json';
     if (opts.auth !== false) {
       const t = await this.ensureAccessToken(opts);
-      if (!t) throw new ApiError(401, 'NO_SESSION', 'Sign in required');
+      if (!t) { emitSessionLost('missing'); throw new ApiError(401, 'NO_SESSION', 'Sign in required'); }
       headers.authorization = `Bearer ${t.accessToken}`;
     }
     let res: Response;
@@ -593,13 +624,15 @@ export class ApiClient {
     }
     const text = await res.text();
     const parsed: unknown = text ? safeJson(text) : null;
-    if (res.ok) return { status: res.status, body: parsed };
+    // 需要登入的請求成功 → session 確定是好的（在別處重新登入時，浮層要跟著消失）
+    if (res.ok) { if (opts.auth !== false) emitSessionOk(); return { status: res.status, body: parsed }; }
     const err = (parsed as { error?: { code?: string; message?: string; rules_version?: number; request_id?: string } } | null)?.error;
     // access 過期／撤銷：refresh 一次後重試
     if (res.status === 401 && opts.auth !== false && !retried && (err?.code === 'UNAUTHORIZED' || err?.code === 'SESSION_REVOKED')) {
       const r = await this.refresh(opts);
       if (r.kind === 'ok') return this.requestRaw(method, path, body, opts, true);
       if (r.kind === 'transient') throw r.error; // 離線／伺服器錯誤：不是登入問題
+      emitSessionLost('invalid');
       throw new ApiError(401, 'NO_SESSION', 'Sign in required'); // 憑證確實失效
     }
     throw new ApiError(res.status, err?.code ?? `HTTP_${res.status}`, err?.message ?? `HTTP ${res.status}`, err?.rules_version, parsed, err?.request_id);
@@ -648,6 +681,7 @@ export class ApiClient {
         const credentialInvalid = (res.status === 401 || res.status === 403) && (err?.code === undefined || REFRESH_INVALID_CODES.has(err.code));
         if (credentialInvalid) {
           await writeTokens(null);
+          emitSessionLost('invalid');
           return { kind: 'invalid' };
         }
         // 429／5xx／其他：暫時失敗，token 保留

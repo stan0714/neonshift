@@ -17,6 +17,8 @@ export type ClaimQuote = {
   network: string;
   /** lamports：rent + 交易費 */
   estimatedFeeLamports: number;
+  /** 這個錢包已經有 profile：不是第一次，不需要付費也不會送交易 */
+  alreadyClaimed?: boolean;
 };
 
 export type ClaimResult = { signature: string | null; profile: string; alreadyClaimed: boolean };
@@ -38,13 +40,24 @@ export const STARTER_SHOE_NAME = 'NeonShift Starter Shoe · Lv.1';
 const FALLBACK_FEE_LAMPORTS = 5_000 + 1_370_000; // 簽章費 + 約 69 bytes 帳戶 rent（devnet 基準）
 
 export const starterShoeService = {
+  /**
+   * 報價。**已經有 profile 就不是「第一次」**——回 `alreadyClaimed: true` 且不報價。
+   *
+   * 2026-09-30 實機發現：斷開錢包再連回來會重走整條新手流程，而這一頁照樣算出
+   * 「rent＋手續費」顯示給使用者看；但實際按下去 `claim()` 走的是 `alreadyClaimed` 分支，
+   * **一毛都不會花、交易也不會送**。對一個重連的評審來說，那等於系統要他為已經擁有的
+   * 東西再付一次錢——那是會讓人不敢按下去的錯。
+   */
   async quote(wallet: PublicKey | null): Promise<ClaimQuote> {
     const network = `Solana ${APP_CONFIG.cluster === 'devnet' ? 'Devnet' : APP_CONFIG.cluster}`;
     if (!wallet || !APP_CONFIG.chainConfigured) return { shoeName: STARTER_SHOE_NAME, network, estimatedFeeLamports: FALLBACK_FEE_LAMPORTS };
     try {
+      if (await accountExists(playerPda(wallet))) return { shoeName: STARTER_SHOE_NAME, network, estimatedFeeLamports: 0, alreadyClaimed: true };
       const fee = await estimateFeeLamports(wallet, [initPlayerInstruction(wallet)], PLAYER_PROFILE_SPACE);
       return { shoeName: STARTER_SHOE_NAME, network, estimatedFeeLamports: fee };
     } catch {
+      // 查不到帳戶狀態時**不宣稱已擁有**：寧可照常報價（按下去仍會被 claim 的 accountExists 擋住），
+      // 也不要因為一次讀取失敗就讓真正的新使用者拿不到起始鞋。
       return { shoeName: STARTER_SHOE_NAME, network, estimatedFeeLamports: FALLBACK_FEE_LAMPORTS };
     }
   },

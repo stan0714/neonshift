@@ -1,5 +1,7 @@
 import { ApprovalNotice } from '@/components/ApprovalNotice';
 import { approvalTarget } from '@/navigation/approvalTarget';
+import { SessionNotice } from '@/components/SessionNotice';
+import { useBackendSessionStore } from '@/state/backendSessionStore';
 import { SeasonalNotice } from '@/components/SeasonalNotice';
 import { useEffect, useState } from 'react';
 import { CommonActions, useNavigation, useRoute, StackActions, type RouteProp } from '@react-navigation/native';
@@ -61,6 +63,7 @@ export function RootNavigator() {
   const [approvalVisible, setApprovalVisible] = useState(false);
   const updateApprovalVisibility = () => setApprovalVisible(['Main', 'Home', 'ActivityTab', 'Gear', 'Arena', 'Profile', 'Workouts', 'Events', 'EventDetail', 'Gallery', 'Activity'].includes(navRef.getCurrentRoute()?.name ?? ''));
   const { t } = useT();
+  const sessionExpired = useBackendSessionStore((st) => st.state) === 'expired';
   return (
     <NavigationContainer ref={navRef} onReady={updateApprovalVisibility} onStateChange={updateApprovalVisibility} theme={navigationTheme} linking={linking}>
       <Stack.Navigator
@@ -112,7 +115,12 @@ export function RootNavigator() {
         但里程碑（首次 5K／10K）與節日章的領取都在 Gear 的收藏區——跑完一趟最常見的
         那種核准，點下去會落在沒有按鈕的畫面上。去向由 `approvalTarget` 決定（純函式、可測）。
       */}
-      <ApprovalNotice visible={approvalVisible} onOpen={(item, markRead) => {
+      {/*
+        session 失效時只顯示這一個：核准通知與節日提醒點下去都不會成功（每個請求都會在
+        送出前被擋下），先解決登入才有意義。
+      */}
+      <SessionNotice visible={approvalVisible} />
+      <ApprovalNotice visible={approvalVisible && !sessionExpired} onOpen={(item, markRead) => {
         if (!navRef.isReady()) return; // 導航還沒準備好就不標已讀，通知留著下次再點
         const target = approvalTarget(item);
         if (target.screen === 'Main') navRef.dispatch(StackActions.push('Main', { screen: target.tab, params: { category: target.category } }));
@@ -121,7 +129,7 @@ export function RootNavigator() {
         markRead();
       }} />
       {/* PG-SEASON-05：節日資格核准通知。沒有領取按鈕——核准的是資格，不是 NFT */}
-      <SeasonalNotice visible={approvalVisible} onOpen={() => {
+      <SeasonalNotice visible={approvalVisible && !sessionExpired} onOpen={() => {
         if (!navRef.isReady()) return;
         navRef.dispatch(CommonActions.navigate({ name: 'Main', params: { screen: 'Gear' } }));
       }} />
