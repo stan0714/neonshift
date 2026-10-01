@@ -1856,3 +1856,18 @@ devnet 有效期只有約 35 秒，而 MWA 流程本身要花掉大半：錢包�
 Seed Vault 生物辨識。要測 happy path 必須**先設定預設錢包**（省掉選擇器），並且
 不要在錢包畫面上停留閱讀。mainnet 約 60 秒會寬鬆得多，但這仍是真實的 UX 壓力，
 正式版若要穩，應考慮 durable nonce。
+
+## 2026-10-01｜SKR 付款實機主線走通（devnet）
+
+versionCode 11、真實錢包簽章、devnet 真實交易。證據：`docs/evidence/2026-10-01-skr-devnet-payment.md`。
+
+簽章 `5wqCxqKX…S7cEnF`，slot 506215245，err None。
+`7YX4Fwx8…` 付款人 10 → 7.5、收款人 0 → 2.5。
+指令是 `transferChecked`（decimals 由鏈上核對）＋ 收款 ATA 的 idempotent 建立。
+畫面顯示 OWNED、金色邊框、Payment confirmed——建單 → 預檢 → 簽送 → 查驗 → 權限整條走完。
+
+順帶確認了後端 `SKR_MINT` 是 `7YX4Fwx8…`（另一個候選 `8JgVMChv…` 完全沒動）。
+先前讀不到後端設定（Production Reads 被擋），當時的做法是兩個候選都補發測試代幣，
+讓哪一個是設定值都付得出來——這次證明補發的那個才是對的。
+
+第一次嘗試失敗的原因與修正另記於前一則（blockhash 30 秒窗口、R1 死結）。
