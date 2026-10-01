@@ -206,6 +206,21 @@ export const skrService = {
     return { kind: 'confirming', order: last, signature };
   },
 
+  /**
+   * 這筆付款嘗試是否**已經不可能成立**——「查看狀態」用來解除封鎖（R1 的出口）。
+   *
+   * 2026-10-01 實機找到的死結：守門同時放在 UI（停用付款鍵）與 service（settleAttempt），
+   * 但 settleAttempt 只在按下付款時才跑。付款鍵停用 → 永遠跑不到 → 嘗試永遠不會清掉。
+   * 卡片上寫著「原交易不可能成立後付款會重新開放」，程式卻沒有任何路徑做這件事。
+   *
+   * 判定條件與 settleAttempt 相同：查不到付款、原交易已過有效期、失效後再查一次仍查無。
+   */
+  async attemptIsDead(order: SkrOrderView, attempt: SkrPaymentAttempt, deps: SkrDeps = {}): Promise<boolean> {
+    if (await this.recoverOutcome(order, attempt)) return false; // 查到結果就不是「死的」
+    if (await attemptCanStillLand(attempt, deps)) return false;
+    return (await this.recoverOutcome(order, attempt)) === null;
+  },
+
   /** 重開 App／遺失回覆：伺服器以記錄的 signature 或 reference 反查 */
   async recover(orderId: string): Promise<{ order: SkrOrderView; found: boolean }> {
     try { const r = await apiClient.skrRecover(orderId); return { order: r.order, found: r.found }; } catch (e) { throw mapApiError(e); }

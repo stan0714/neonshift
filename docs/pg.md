@@ -1807,3 +1807,52 @@ A 的慢回應還能蓋掉 B。就算 mint 最後被後端擋下，使用者已�
 保護期過後才淘汰最舊的、保護期過後不再擋新的產圖。
 
 App 88 suites／697 tests。R1～R6 全部處理完畢。
+
+## 2026-10-01｜實機：SKR happy path 的 blockhash 過期，以及 R1 自己造出來的死結
+
+### 現場
+
+Genesis Mint 卡片正常（`TEST SKR · DEVNET`、2.5 SKR、資格通過），按下付款後錢包回：
+「Blockhash expired because too much time passed between transaction creation and signing」。
+鏈上收款與付款餘額完全不動——交易從未廣播。
+
+logcat 的時間軸：
+
+| 時間 | 事件 |
+|---|---|
+| 15:32:12.7 | 送出 `solana-wallet:` intent → 錢包**選擇器** |
+| 15:32:15.9 | 選定錢包（選擇器 3.1 s） |
+| 15:32:34.0 | 按核准 → Seed Vault（錢包畫面 17.8 s） |
+| 15:32:44.7 | Seed Vault 驗證完成（10.5 s） |
+
+開錢包到簽名約 32 秒。量測當下的 devnet：**4.32 blocks/秒**，所以 150 blocks 的有效期
+只有 **約 35 秒**——不是常說的 60–90 秒（那是 mainnet 約 2.5 blocks/秒的數字）。
+加上建單／查餘額／取 blockhash 的數秒，剛好越線。錢包的訊息是對的，App 沒有錯。
+
+RPC 節點沒有落後（margin 148/150），所以不是拿到舊 blockhash。
+
+### R1 的死結（這才是要修的）
+
+畫面接著顯示「Payment result unknown」、付款鍵停用——R1 如設計運作。
+但同一個保護被放在**兩個地方**：UI 停用付款鍵，service 的 `settleAttempt` 判斷能否放行。
+而 `settleAttempt` **只在按下付款時才跑**。付款鍵停用 → 永遠跑不到 → 嘗試永遠不會清掉。
+
+卡片上寫著「原交易不可能成立後，付款會自動重新開放」。**程式沒有任何路徑做這件事。**
+唯一的出口是等訂單 TTL（15 分鐘）過期，`recover` 才會因為終止狀態而清掉 pending——
+既慢，也不是文案承諾的行為。
+
+修法：新增 `skrService.attemptIsDead()`（判定條件與 `settleAttempt` 相同：查不到付款、
+已過有效期、失效後再查一次仍查無），由 `store.recover()` 在訂單仍開著時呼叫並清掉死掉的嘗試。
+「查看狀態」因此成為真正的出口。文案同步改成實話：是**按查看狀態**才重新開放，不是自動。
+
+教訓：把同一條規則實作兩次，就會有一次忘記。UI 那一層如果要停用入口，就必須
+確認還有別的路徑能走到解除封鎖的邏輯——否則保護會變成牢籠。
+
+App 88 suites／700 tests。
+
+### 實機操作上的結論（非程式問題）
+
+devnet 有效期只有約 35 秒，而 MWA 流程本身要花掉大半：錢包選擇器、錢包確認畫面、
+Seed Vault 生物辨識。要測 happy path 必須**先設定預設錢包**（省掉選擇器），並且
+不要在錢包畫面上停留閱讀。mainnet 約 60 秒會寬鬆得多，但這仍是真實的 UX 壓力，
+正式版若要穩，應考慮 durable nonce。

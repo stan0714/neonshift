@@ -189,6 +189,15 @@ describe('R1：結果不明時不得重付', () => {
     expect(sendTx).not.toHaveBeenCalled();
   });
 
+  test('attemptIsDead：查到付款→否；還在有效期→否；失效且兩次都查無→是', async () => {
+    const o = order({ status: 'awaiting_payment' });
+    api.skrRecover.mockResolvedValue({ order: order({ status: 'fulfilled', signature: 'sigPaid' }), found: true, verify: null });
+    expect(await skrService.attemptIsDead(o, attemptFor(), { connection: connAt(101) })).toBe(false);
+    api.skrRecover.mockResolvedValue({ order: o, found: false, verify: null });
+    expect(await skrService.attemptIsDead(o, attemptFor(), { connection: connAt(50) })).toBe(false);
+    expect(await skrService.attemptIsDead(o, attemptFor(), { connection: connAt(101) })).toBe(true);
+  });
+
   test('confirm 的網路錯誤不得弄丟 signature（不然那筆付款就沒人記得了）', async () => {
     api.skrCreateOrder.mockResolvedValue({ order: order(), created: true });
     api.skrConfirm.mockRejectedValueOnce(new ApiError(0, 'NETWORK_ERROR', 'offline'));
@@ -336,6 +345,36 @@ describe('skrStore 與 Genesis 卡片', () => {
     expect(screen.getByTestId('genesis-frame-recover')).toBeTruthy();
     // refreshCatalog 每次掛載都跑，不能把 attempt 洗掉（洗掉等於保護當場失效）
     expect(openAttemptFor(useSkrStore.getState(), wallet.toBase58())).toMatchObject({ orderId: open.order_id });
+  });
+
+  /**
+   * 2026-10-01 實機找到的死結：守門同時放在 UI（停用付款鍵）與 service（settleAttempt），
+   * 但 settleAttempt 只在按下付款時才跑 → 付款鍵停用 → 永遠跑不到 → 嘗試永遠不會清掉。
+   * 錢包因 blockhash 過期而沒送出時，使用者就卡在「付款結果不明」動不了。
+   */
+  test('R1 出口：查看狀態發現原交易已不可能成立 → 清掉嘗試，付款重新開放', async () => {
+    const k = `mainnet-beta:${wallet.toBase58()}`;
+    const open = order({ status: 'awaiting_payment' });
+    useSkrStore.setState({ persisted: { pending: { [k]: { orderId: open.order_id, signature: null, sku: 'genesis_mint_frame', attempt: attemptFor() } }, entitlements: {}, useGenesisFrame: {} }, catalog: catalog({}, { open_order: open }), catalogWallet: wallet.toBase58() } as never);
+    api.skrCatalog.mockResolvedValue(catalog({}, { open_order: open }));
+    api.skrRecover.mockResolvedValue({ order: open, found: false, verify: null });
+    // 有效期已過（attemptFor 的 lastValidBlockHeight=100）
+    const dead = jest.spyOn(skrService, 'attemptIsDead').mockResolvedValue(true);
+    await useSkrStore.getState().recover(wallet.toBase58(), open.order_id);
+    expect(openAttemptFor(useSkrStore.getState(), wallet.toBase58())).toBeNull();
+    dead.mockRestore();
+  });
+
+  test('R1 出口：原交易還可能落地 → 查看狀態不得解除封鎖', async () => {
+    const k = `mainnet-beta:${wallet.toBase58()}`;
+    const open = order({ status: 'awaiting_payment' });
+    useSkrStore.setState({ persisted: { pending: { [k]: { orderId: open.order_id, signature: null, sku: 'genesis_mint_frame', attempt: attemptFor() } }, entitlements: {}, useGenesisFrame: {} }, catalog: catalog({}, { open_order: open }), catalogWallet: wallet.toBase58() } as never);
+    api.skrCatalog.mockResolvedValue(catalog({}, { open_order: open }));
+    api.skrRecover.mockResolvedValue({ order: open, found: false, verify: null });
+    const dead = jest.spyOn(skrService, 'attemptIsDead').mockResolvedValue(false);
+    await useSkrStore.getState().recover(wallet.toBase58(), open.order_id);
+    expect(openAttemptFor(useSkrStore.getState(), wallet.toBase58())).not.toBeNull();
+    dead.mockRestore();
   });
 
   test('R1：attempt 撐得過 App 重啟——保護不能只活在記憶體裡', async () => {

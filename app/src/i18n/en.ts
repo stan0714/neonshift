@@ -1332,7 +1332,7 @@ export const en = {
   'skr.err.UNKNOWN': 'Something went wrong. If you approved a payment, tap “Check status” before paying again.',
   'skr.err.RESULT_UNKNOWN': 'An earlier payment for this order may still go through, so your wallet was not opened — paying now could charge you twice. Tap “Check status”.',
   'skr.attempt.title': 'Payment result unknown',
-  'skr.attempt.body': 'You approved a payment in your wallet and the result never came back. It may already have gone through, so paying again could charge you twice. Check the status — once the original transaction can no longer go through, paying opens up again on its own.',
+  'skr.attempt.body': 'You approved a payment in your wallet and the result never came back. It may already have gone through, so paying again could charge you twice. Tap “Check status”: if the payment went through you will get the frame, and once the original transaction can no longer go through, checking re-opens payment.',
   'skr.catalogError': 'Could not load SKR options right now.',
   'skr.footer': 'SKR is Solana Mobile’s token on mainnet; tSKR rewards in this app are devnet test tokens. Optional cosmetic only; no refunds for cancelled wallet approvals since nothing is charged.',
   'ms.title': 'Milestones',

@@ -165,11 +165,25 @@ export const useSkrStore = create<State>((set, get) => ({
       const r = await skrService.recover(orderId);
       set({ phase: null, outcome: r.order.status === 'fulfilled' ? { kind: 'fulfilled', order: r.order, signature: r.order.signature ?? '' } : null });
       await get().refreshCatalog(wallet);
-      if (cat?.enabled && (r.order.status === 'fulfilled' || r.order.status === 'cancelled' || r.order.status === 'expired')) {
+      const terminal = r.order.status === 'fulfilled' || r.order.status === 'cancelled' || r.order.status === 'expired';
+      if (cat?.enabled && terminal) {
         const next: Persisted = { ...get().persisted, pending: { ...get().persisted.pending } };
         delete next.pending[scope(cat.network, wallet)];
         set({ persisted: next });
         await persist(next);
+      } else if (cat?.enabled) {
+        /**
+         * R1 的出口（2026-10-01 實機）：訂單還開著，但那筆付款嘗試可能已經不可能成立
+         * （例如錢包因 blockhash 過期而沒送出）。這時要把 attempt 清掉，否則付款鍵
+         * 永遠停用——而清掉它的邏輯原本只在按下付款時才跑，形成死結。
+         */
+        const k = scope(cat.network, wallet);
+        const cur = get().persisted.pending[k];
+        if (cur?.attempt && (await skrService.attemptIsDead(r.order, cur.attempt))) {
+          const next: Persisted = { ...get().persisted, pending: { ...get().persisted.pending, [k]: { ...cur, attempt: null } } };
+          set({ persisted: next });
+          await persist(next);
+        }
       }
       return r.order;
     } catch (e) {

@@ -1311,7 +1311,7 @@ export const zhTW: Record<keyof typeof en, string> = {
   'skr.err.UNKNOWN': '發生錯誤。若你已核准付款，再付款前請先按「查看狀態」。',
   'skr.err.RESULT_UNKNOWN': '這張訂單先前那筆付款可能還會成立，所以沒有開啟錢包——現在再付可能被扣兩次。請按「查看狀態」。',
   'skr.attempt.title': '付款結果不明',
-  'skr.attempt.body': '你在錢包按過確認，但結果沒有回到 App。那筆付款可能已經成功，再付一次可能被扣兩次。請先查看狀態；等原本那筆交易確定不可能再成立，付款會自動重新開放。',
+  'skr.attempt.body': '你在錢包按過確認，但結果沒有回到 App。那筆付款可能已經成功，再付一次可能被扣兩次。請按「查看狀態」：如果付款已成功就會直接拿到邊框；等原本那筆交易確定不可能再成立，查看狀態就會重新開放付款。',
   'skr.catalogError': '目前無法載入 SKR 選項。',
   'skr.footer': 'SKR 是 Solana Mobile 在主網的代幣；本 App 的 tSKR 獎勵是 devnet 測試代幣。純選配外觀；錢包取消核准不會扣款，故無退款問題。',
   'ms.title': '首次里程碑',
