@@ -188,7 +188,55 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
             a?.minted || a?.status === 'minted' ? 'minted' : a?.status === 'revoked' || a?.status === 'revoke_pending' ? 'revoked' : a?.status === 'pending_registry' ? 'pending_registry' : m.status === 'eligible' ? 'claimable' : m.status;
           const unlocked = state === 'minted' || state === 'claimable' || state === 'pending_registry' || (a?.status === 'approved');
           const chipKind = state === 'minted' ? 'level' : state === 'claimable' || a?.status === 'approved' ? 'synced' : state === 'revoked' ? 'offline' : state === 'pending_registry' || state === 'pending_review' ? 'devnet' : 'neutral';
-          return (
+          /**
+   * 分享預覽（2026-10-01 實機回報「按了沒畫面」）。原本渲染在整個里程碑清單**之後**：
+   * 按最上面那張卡的分享鍵，預覽出現在螢幕外好幾張卡以下，而且畫面不會捲過去——
+   * 狀態的確變了，但變化在看不到的地方。改成渲染在**被點的那張卡裡面**，與節日卡片一致。
+   */
+  const sharePreview = (target: ShareTarget) => (
+    <View style={styles.shareBox} testID="ms-share-preview">
+      <Text variant="title">{t('share.card.title')}</Text>
+      <ShareCard ref={svgRef} layout={shareCardLayout(target, shareFields)} width={300} a11yLabel={t('share.card.a11y', { label: target.title, hero: target.title })} />
+      {target.detail ? (
+        <>
+          <View style={styles.shareRow}>
+            <Text variant="bodySmall" style={styles.shareLabel}>{t('share.card.detail')}</Text>
+            <Switch value={shareFields.detail} onValueChange={(v) => setShareFields((f) => ({ ...f, detail: v }))} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('share.card.detail')} testID="ms-share-detail" />
+          </View>
+          <Text variant="caption" tone="muted">{t('share.card.detailNote')}</Text>
+        </>
+      ) : null}
+      {target.achievedAt ? (
+        <View style={styles.shareRow}>
+          <Text variant="bodySmall" style={styles.shareLabel}>{t('share.card.date')}</Text>
+          <Switch value={shareFields.date} onValueChange={(v) => setShareFields((f) => ({ ...f, date: v }))} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('share.card.date')} testID="ms-share-date" />
+        </View>
+      ) : null}
+      <Button label={t('share.card.image')} onPress={() => void sendShare()} loading={sharePhase === 'rendering' || sharePhase === 'handing_off'} loadingLabel={t('share.card.rendering')} disabled={sharePhase === 'rendering' || sharePhase === 'handing_off'} testID="ms-share-send" />
+      <Button label={t('share.card.copy')} variant="secondary" onPress={() => void copyCaption(captionOf(target)).then((ok) => setShareNote(ok ? t('share.card.copied') : null))} testID="ms-share-copy" />
+      <Button label={t('common.cancel')} variant="secondary" onPress={() => { setShare(null); setShareErr(null); setShareNote(null); }} testID="ms-share-cancel" />
+      {/* 交付流程返回不等於對方已發布（§6.1） */}
+      {sharePhase === 'returned' && !shareErr ? <Text variant="caption" tone="secondary" testID="ms-share-returned">{t('share.card.returned')}</Text> : null}
+      {shareErr ? (
+        <View style={styles.shareErr} testID={`ms-share-error-${shareErr}`}>
+          <InlineState
+            kind={shareErr === 'unpublishable' ? 'warning' : 'error'}
+            title={t(shareErr === 'no_target' ? 'share.card.noTargetTitle' : shareErr === 'unpublishable' ? 'share.card.blockedTitle' : shareErr === 'cache_full' ? 'share.card.busyTitle' : 'share.card.failedTitle')}
+            body={t(shareErr === 'no_target' ? 'share.card.noTargetBody' : shareErr === 'unpublishable' ? 'share.card.blockedBody' : shareErr === 'cache_full' ? 'share.card.busyBody' : 'share.card.failedBody')}
+          />
+          {shareErr !== 'unpublishable' ? (
+            <>
+              {shareErr === 'render_failed' || shareErr === 'cache_full' ? <Button label={t('share.card.retry')} variant="secondary" onPress={() => void sendShare()} testID="ms-share-retry" /> : null}
+              <Button label={t('share.card.shareTextInstead')} variant="secondary" onPress={() => void shareTextInstead(captionOf(target))} testID="ms-share-text" />
+            </>
+          ) : null}
+        </View>
+      ) : null}
+      {shareNote ? <Text variant="caption" tone="secondary" testID="ms-share-note">{shareNote}</Text> : null}
+    </View>
+  );
+
+  return (
             <View key={m.key} style={[styles.card, !unlocked && styles.cardLocked, framed && unlocked && genesisFrameStyle]} testID={`ms-${m.category}-${m.verification_class}`} accessible accessibilityLabel={`${t(`ms.cat.${m.category}` as TKey)} · ${t(`pb.class.${m.verification_class}` as TKey)} · ${t(`ms.state.${state}` as TKey)}`}>
               <Text variant="title">{t(`ms.cat.${m.category}` as TKey)}</Text>
               <Text variant="caption" tone="muted">
@@ -221,54 +269,13 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
                     {`${IMAGE_BASE}${m.category}-${m.verification_class}.svg`}
                   </Text>
                   {a ? <Button label={t('share.card.image')} variant="secondary" style={styles.mtXs} onPress={() => openShare(m, a)} testID={`ms-share-${m.category}-${m.verification_class}`} /> : null}
+                  {share?.key === m.key ? sharePreview(share) : null}
                 </>
               ) : null}
             </View>
           );
         })}
       </View>
-      {share ? (
-        <View style={styles.shareBox} testID="ms-share-preview">
-          <Text variant="title">{t('share.card.title')}</Text>
-          <ShareCard ref={svgRef} layout={shareCardLayout(share, shareFields)} width={300} a11yLabel={t('share.card.a11y', { label: share.title, hero: share.title })} />
-          {share.detail ? (
-            <>
-              <View style={styles.shareRow}>
-                <Text variant="bodySmall" style={styles.shareLabel}>{t('share.card.detail')}</Text>
-                <Switch value={shareFields.detail} onValueChange={(v) => setShareFields((f) => ({ ...f, detail: v }))} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('share.card.detail')} testID="ms-share-detail" />
-              </View>
-              <Text variant="caption" tone="muted">{t('share.card.detailNote')}</Text>
-            </>
-          ) : null}
-          {share.achievedAt ? (
-            <View style={styles.shareRow}>
-              <Text variant="bodySmall" style={styles.shareLabel}>{t('share.card.date')}</Text>
-              <Switch value={shareFields.date} onValueChange={(v) => setShareFields((f) => ({ ...f, date: v }))} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('share.card.date')} testID="ms-share-date" />
-            </View>
-          ) : null}
-          <Button label={t('share.card.image')} onPress={() => void sendShare()} loading={sharePhase === 'rendering' || sharePhase === 'handing_off'} loadingLabel={t('share.card.rendering')} disabled={sharePhase === 'rendering' || sharePhase === 'handing_off'} testID="ms-share-send" />
-          <Button label={t('share.card.copy')} variant="secondary" onPress={() => void copyCaption(captionOf(share)).then((ok) => setShareNote(ok ? t('share.card.copied') : null))} testID="ms-share-copy" />
-          <Button label={t('common.cancel')} variant="secondary" onPress={() => { setShare(null); setShareErr(null); setShareNote(null); }} testID="ms-share-cancel" />
-          {/* 交付流程返回不等於對方已發布（§6.1） */}
-          {sharePhase === 'returned' && !shareErr ? <Text variant="caption" tone="secondary" testID="ms-share-returned">{t('share.card.returned')}</Text> : null}
-          {shareErr ? (
-            <View style={styles.shareErr} testID={`ms-share-error-${shareErr}`}>
-              <InlineState
-                kind={shareErr === 'unpublishable' ? 'warning' : 'error'}
-                title={t(shareErr === 'no_target' ? 'share.card.noTargetTitle' : shareErr === 'unpublishable' ? 'share.card.blockedTitle' : shareErr === 'cache_full' ? 'share.card.busyTitle' : 'share.card.failedTitle')}
-                body={t(shareErr === 'no_target' ? 'share.card.noTargetBody' : shareErr === 'unpublishable' ? 'share.card.blockedBody' : shareErr === 'cache_full' ? 'share.card.busyBody' : 'share.card.failedBody')}
-              />
-              {shareErr !== 'unpublishable' ? (
-                <>
-                  {shareErr === 'render_failed' || shareErr === 'cache_full' ? <Button label={t('share.card.retry')} variant="secondary" onPress={() => void sendShare()} testID="ms-share-retry" /> : null}
-                  <Button label={t('share.card.shareTextInstead')} variant="secondary" onPress={() => void shareTextInstead(captionOf(share))} testID="ms-share-text" />
-                </>
-              ) : null}
-            </View>
-          ) : null}
-          {shareNote ? <Text variant="caption" tone="secondary" testID="ms-share-note">{shareNote}</Text> : null}
-        </View>
-      ) : null}
       {notice ? <InlineState kind={notice.kind} title={notice.title} body={notice.body} testID={`ms-${notice.kind}`} /> : null}
       <GenesisFrameCard reloadKey={reloadKey} />
     </View>
