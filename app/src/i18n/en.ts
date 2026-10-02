@@ -56,6 +56,8 @@ export const en = {
   'common.somethingInterrupted': 'Something interrupted your shift',
   'common.devnetBreak': 'Devnet is taking a break',
   'common.requestCanceled': 'Request canceled',
+  'common.insufficientSol.body': 'This wallet cannot cover the network fee, so nothing was sent and nothing was charged. Add devnet SOL to this wallet, then try again.',
+  'common.insufficientSol.title': 'Not enough devnet SOL',
   'common.nothingChanged': 'Nothing changed.',
   'common.net.timeout': 'The server did not respond within {s} seconds.',
   'common.net.aborted': 'The request was cancelled.',
@@ -231,6 +233,8 @@ export const en = {
   'starter.err.NETWORK_ERROR.body': 'The transaction could not be sent. Your wallet was not charged. Retry in a moment.',
   'starter.err.FAILED.title': 'Something interrupted your shift',
   'starter.err.FAILED.body': 'The claim did not complete. Retrying is safe: your wallet can only ever hold one profile.',
+  'starter.err.INSUFFICIENT_SOL.body': 'Creating your profile needs a little devnet SOL for account rent plus the network fee. Nothing was sent. Add devnet SOL to this wallet, then try again.',
+  'starter.err.INSUFFICIENT_SOL.title': 'Not enough devnet SOL',
 
   // ---- mission card / task engine ----
   'mission.steps': 'Step mission',
@@ -1276,6 +1280,7 @@ export const en = {
   'pb.err.REJECTED': 'You declined in your wallet.',
   'pb.err.NETWORK_ERROR': 'Network problem — nothing was minted. Try again.',
   'pb.err.NOT_AVAILABLE': 'Onchain minting is not available in this build.',
+  'pb.err.INSUFFICIENT_SOL': 'Not enough devnet SOL for the network fee — nothing was minted. Add devnet SOL and try again.',
   'pb.err.generic': 'Minting failed. {message}',
   'pb.nftLevelRequired': 'PB saved · not eligible for this NFT. You needed Lv{need} active gear when this record was set (then: Lv{had}). After upgrading, set a new eligible PB to qualify.',
   'pb.nftHistoryUnknown': 'No level history for the day of this record; kept as a private PB.',

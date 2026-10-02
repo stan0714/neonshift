@@ -400,12 +400,16 @@ export function GearScreen({ route }: { route?: RouteProp<TabParamList, "Gear"> 
               ? t("gear.walletCancelled")
               : c.outcome.code === "NETWORK_ERROR"
                 ? t("gear.networkUnavailable")
-                : t("gear.claimFailed")
+                : c.outcome.code === "INSUFFICIENT_SOL"
+                  ? t("common.insufficientSol.title")
+                  : t("gear.claimFailed")
           }
           body={
             c.outcome.code === "REJECTED"
               ? t("gear.nothingSent")
-              : t("gear.failedBody", { message: c.outcome.message })
+              : c.outcome.code === "INSUFFICIENT_SOL"
+                ? t("common.insufficientSol.body")
+                : t("gear.failedBody", { message: c.outcome.message })
           }
           onDismiss={c.dismissOutcome}
           testID="collectible-error"

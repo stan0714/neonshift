@@ -114,6 +114,7 @@ function PhaseView({ phase, taskType }: { phase: ClaimPhase; taskType: TaskType 
       return <InlineState kind="warning" title={c.title} body={`${c.body}${phase.effectiveValue !== undefined ? t('clock.verifiedToday', { n: phase.effectiveValue }) : ''}`} testID="phase-rejected" />;
     }
     case 'failed':
+      if (phase.code === 'INSUFFICIENT_SOL') return <InlineState kind="error" title={t('common.insufficientSol.title')} body={t('common.insufficientSol.body')} testID="phase-insufficient-sol" />;
       if (phase.code === 'WALLET_NO_REPLY') return <InlineState kind="error" title={t('wallet.err.WALLET_NO_REPLY.title')} body={t('wallet.err.WALLET_NO_REPLY.body')} testID="phase-failed" />;
       return <InlineState kind="error" title={phase.code === 'CANCELLED' || phase.code === 'REJECTED' ? t('common.requestCanceled') : t('common.somethingInterrupted')} body={t('clock.failed.body', { message: phase.message })} referenceId={phase.referenceId} testID="phase-failed" />;
     default:

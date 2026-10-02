@@ -23,7 +23,7 @@ import { ThemeProvider } from '@/theme';
 jest.mock('@/config/app', () => ({ APP_CONFIG: { ...jest.requireActual('@/config/app').APP_CONFIG, programId: '6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA', chainConfigured: true } }));
 const mockAccountExists = jest.fn(async (_k: PublicKey) => false);
 const mockSend = jest.fn(async (_w: PublicKey, _ixs: unknown[]) => ({ signature: 'sigMint', blockhash: 'b', lastValidBlockHeight: 1 }));
-jest.mock('@/services/chain/ChainClient', () => ({ accountExists: (k: PublicKey) => mockAccountExists(k), sendWithWallet: (w: PublicKey, ixs: unknown[]) => mockSend(w, ixs), getConnection: () => ({}) }));
+jest.mock('@/services/chain/ChainClient', () => ({ accountExists: (k: PublicKey) => mockAccountExists(k), sendWithWallet: (w: PublicKey, ixs: unknown[]) => mockSend(w, ixs), getConnection: () => ({}), isInsufficientSol: jest.requireActual('@/services/chain/ChainClient').isInsufficientSol }));
 jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { personalBests: jest.fn(), myAchievements: jest.fn(async () => ({ items: [] })), mintIntent: jest.fn(), milestones: jest.fn(), milestoneMintIntent: jest.fn(), eventBadges: jest.fn(), eventBadgeMintIntent: jest.fn() } }));
 const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'personalBests' | 'myAchievements' | 'mintIntent' | 'milestones' | 'milestoneMintIntent' | 'eventBadges' | 'eventBadgeMintIntent', jest.Mock>;
 

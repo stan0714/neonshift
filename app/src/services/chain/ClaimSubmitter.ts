@@ -9,7 +9,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import { walletService } from '@/services/wallet/WalletService';
 
-import { buildTransaction, getConnection, rpcRead } from './ChainClient';
+import { assertCanPayFee, buildTransaction, getConnection, rpcRead } from './ChainClient';
 
 export type PendingTx = { signature: string; blockhash: string; lastValidBlockHeight: number; receipt: string; taskDate: number; taskType: number; wallet: string };
 
@@ -58,6 +58,8 @@ export class ClaimSubmitter {
   /** 送出並確認；逾時交給 `resolvePending` 判定 */
   async submit(player: PublicKey, instructions: TransactionInstruction[], receipt: PublicKey, task: { taskDate: number; taskType: number }): Promise<SubmitOutcome> {
     if (await this.receiptExists(receipt)) return { kind: 'already_claimed' };
+    // 付不出網路費就在開錢包前停下（丟 InsufficientSolError，ClaimFlow 以 code INSUFFICIENT_SOL 收尾）
+    await assertCanPayFee(player, undefined, () => this.conn());
     const { tx, blockhash, lastValidBlockHeight, minContextSlot } = await buildTransaction(player, instructions);
     const signature = await this.send(tx, { minContextSlot });
     const pending: PendingTx = { signature, blockhash, lastValidBlockHeight, receipt: receipt.toBase58(), wallet: player.toBase58(), ...task };

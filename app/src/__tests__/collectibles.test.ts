@@ -19,6 +19,7 @@ const mockGetProgramAccounts = jest.fn(async (_p: PublicKey, _cfg: unknown) => [
 jest.mock('@/services/chain/ChainClient', () => ({
   accountExists: (k: PublicKey) => mockAccountExists(k),
   sendWithWallet: (w: PublicKey, ixs: unknown[]) => mockSend(w, ixs),
+  isInsufficientSol: jest.requireActual('@/services/chain/ChainClient').isInsufficientSol,
   getConnection: () => ({ getMultipleAccountsInfo: (keys: PublicKey[]) => mockGetMultiple(keys), getProgramAccounts: (p: PublicKey, cfg: unknown) => mockGetProgramAccounts(p, cfg) }),
 }));
 

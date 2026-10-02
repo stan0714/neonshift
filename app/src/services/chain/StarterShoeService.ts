@@ -10,7 +10,7 @@ import { playerPda, PLAYER_PROFILE_SPACE } from '@/chain/program';
 import { APP_CONFIG } from '@/config/app';
 import { WalletError } from '@/services/wallet/WalletService';
 
-import { accountExists, estimateFeeLamports, sendWithWallet } from './ChainClient';
+import { accountExists, estimateFeeLamports, isInsufficientSol, MIN_FEE_LAMPORTS, rentExemptLamports, sendWithWallet } from './ChainClient';
 
 export type ClaimQuote = {
   shoeName: string;
@@ -23,7 +23,7 @@ export type ClaimQuote = {
 
 export type ClaimResult = { signature: string | null; profile: string; alreadyClaimed: boolean };
 
-export type ClaimErrorCode = 'NOT_AVAILABLE' | 'REJECTED' | 'NETWORK_ERROR' | 'FAILED';
+export type ClaimErrorCode = 'NOT_AVAILABLE' | 'REJECTED' | 'NETWORK_ERROR' | 'INSUFFICIENT_SOL' | 'FAILED';
 
 export class ClaimError extends Error {
   constructor(
@@ -67,9 +67,11 @@ export const starterShoeService = {
     const profile = playerPda(wallet);
     try {
       if (await accountExists(profile)) return { signature: null, profile: profile.toBase58(), alreadyClaimed: true };
-      const sent = await sendWithWallet(wallet, [initPlayerInstruction(wallet)]);
+      // 起始鞋要開 profile 帳戶：門檻是簽章費＋那個帳戶的 rent，不只是簽章費
+      const sent = await sendWithWallet(wallet, [initPlayerInstruction(wallet)], undefined, MIN_FEE_LAMPORTS + rentExemptLamports(PLAYER_PROFILE_SPACE));
       return { signature: sent.signature, profile: profile.toBase58(), alreadyClaimed: false };
     } catch (e) {
+      if (isInsufficientSol(e)) throw new ClaimError('INSUFFICIENT_SOL', e instanceof Error ? e.message : String(e)); // 沒送出：不用再查帳戶
       if (e instanceof WalletError) {
         if (e.code === 'REJECTED') throw new ClaimError('REJECTED', e.message);
         if (e.code === 'NETWORK_ERROR') throw new ClaimError('NETWORK_ERROR', e.message);

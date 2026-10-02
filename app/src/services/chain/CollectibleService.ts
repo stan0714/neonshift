@@ -12,7 +12,7 @@ import { APP_CONFIG } from '@/config/app';
 import { COLLECTIBLES, type CollectibleKind } from '@/domain/collectibles';
 import { WalletError } from '@/services/wallet/WalletService';
 
-import { accountExists, getConnection, sendWithWallet } from './ChainClient';
+import { accountExists, getConnection, isInsufficientSol, sendWithWallet } from './ChainClient';
 import { ClaimError } from './StarterShoeService';
 
 export type CollectibleClaimResult = { kind: CollectibleKind; asset: string; signature: string | null; alreadyClaimed: boolean };
@@ -63,6 +63,7 @@ export const collectibleService = {
       const sent = await sendWithWallet(wallet, [claimCollectibleInstruction(wallet, kind)]);
       return { kind, asset, signature: sent.signature, alreadyClaimed: false };
     } catch (e) {
+      if (isInsufficientSol(e)) throw new ClaimError('INSUFFICIENT_SOL', e instanceof Error ? e.message : String(e)); // 沒送出：不用再查帳戶
       if (e instanceof WalletError) {
         if (e.code === 'REJECTED') throw new ClaimError('REJECTED', e.message);
         if (e.code === 'NETWORK_ERROR') throw new ClaimError('NETWORK_ERROR', e.message);

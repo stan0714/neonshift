@@ -120,6 +120,45 @@ export async function buildTransaction(feePayer: PublicKey, instructions: Transa
   return { tx, blockhash, lastValidBlockHeight, minContextSlot: context.slot };
 }
 
+/**
+ * 送交易前的餘額底線：至少付得起一個簽章的費用。程式另外要開的帳戶 rent 由各流程自己加
+ * （例如起始鞋的 profile）。2026-10-02 前只有 SKR 付款有這道檢查：0 SOL 的錢包去領起始鞋或
+ * 鑄造成就，會先開錢包、簽完才失敗，畫面只說「Something interrupted your shift」。
+ */
+export const MIN_FEE_LAMPORTS = 5_000;
+
+/** Solana 的 rent 免除門檻是固定公式（(資料長度 + 128 bytes 帳戶標頭) × 3480 lamports/byte-year × 2 年），本機就算得出來，不必多打一次 RPC */
+export const rentExemptLamports = (space: number) => (space + 128) * 6_960;
+
+export class InsufficientSolError extends Error {
+  readonly code = 'INSUFFICIENT_SOL';
+  constructor(readonly haveLamports: number | null, readonly needLamports: number | null) {
+    super(haveLamports === null ? 'Not enough SOL for the network fee' : `Not enough SOL: have ${haveLamports} lamports, need ${needLamports}`);
+    this.name = 'InsufficientSolError';
+  }
+}
+
+/** 錢包或節點對「付不出錢」的固定說法。只認這幾句——`Custom(1)` 之類的程式錯誤碼在不同程式意義不同，不拿來猜 */
+const INSUFFICIENT_RE = /insufficient (lamports|funds)|no record of a prior credit|InsufficientFundsFor(Fee|Rent)/i;
+export function isInsufficientSol(e: unknown): boolean {
+  if (e instanceof InsufficientSolError) return true;
+  return INSUFFICIENT_RE.test(e instanceof Error ? e.message : String(e));
+}
+
+/**
+ * 開錢包之前確認付得起。**讀不到餘額時不擋**：這道檢查是為了把必然失敗的情況提早說清楚，
+ * 不能因為一次讀取失敗就新增一種原本不存在的失敗。
+ */
+export async function assertCanPayFee(payer: PublicKey, needLamports = MIN_FEE_LAMPORTS, conn: () => Connection = getConnection): Promise<void> {
+  let have: number;
+  try {
+    have = await rpcRead('getBalance', (c) => c.getBalance(payer, 'confirmed'), conn);
+  } catch {
+    return;
+  }
+  if (have < needLamports) throw new InsufficientSolError(have, needLamports);
+}
+
 /** 預估費用：簽章費 + 帳戶 rent（若有新帳戶） */
 export async function estimateFeeLamports(feePayer: PublicKey, instructions: TransactionInstruction[], newAccountSpace = 0): Promise<number> {
   const { tx } = await buildTransaction(feePayer, instructions);
@@ -129,7 +168,8 @@ export async function estimateFeeLamports(feePayer: PublicKey, instructions: Tra
 }
 
 /** 由錢包簽章送出並等待 confirmed；回傳可供冪等查詢的資訊 */
-export async function sendWithWallet(feePayer: PublicKey, instructions: TransactionInstruction[], onPhase?: (phase: 'wallet' | 'confirming') => void): Promise<SentTx> {
+export async function sendWithWallet(feePayer: PublicKey, instructions: TransactionInstruction[], onPhase?: (phase: 'wallet' | 'confirming') => void, needLamports = MIN_FEE_LAMPORTS): Promise<SentTx> {
+  await assertCanPayFee(feePayer, needLamports); // 在開錢包之前：付不出來就不要讓使用者簽一筆必然失敗的交易
   const { tx, blockhash, lastValidBlockHeight, minContextSlot } = await buildTransaction(feePayer, instructions);
   onPhase?.('wallet');
   const signature = await walletService.signAndSendTransaction(tx, { minContextSlot });

@@ -287,7 +287,7 @@ function Stat({ label, value, tint }: { label: string; value: string; tint: stri
 type T = ReturnType<typeof useT>['t'];
 const remaining = (t: T, secs: number) => (secs <= 0 ? t('arena.ended') : secs < 3600 ? t('arena.minutes', { n: Math.ceil(secs / 60) }) : t('arena.hoursMinutes', { h: Math.floor(secs / 3600), m: Math.floor((secs % 3600) / 60) }));
 const outcomeTitle = (t: T, o: NonNullable<ReturnType<typeof useArenaStore.getState>['outcome']>) =>
-  o.kind === 'success' ? t(`arena.ok.${o.action}` as TKey) : o.code === 'REJECTED' ? t('gear.walletCancelled') : o.code === 'NETWORK_ERROR' ? t('gear.networkUnavailable') : t(`arena.err.${o.action}` as TKey);
+  o.kind === 'success' ? t(`arena.ok.${o.action}` as TKey) : o.code === 'REJECTED' ? t('gear.walletCancelled') : o.code === 'NETWORK_ERROR' ? t('gear.networkUnavailable') : o.code === 'INSUFFICIENT_SOL' ? t('common.insufficientSol.title') : t(`arena.err.${o.action}` as TKey);
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.m },

@@ -76,7 +76,7 @@ export function EventBadges({ eventId, badges, registration, reloadKey = 0 }: Pr
                   if (r.kind === 'minted') setNotice({ kind: 'success', title: t('pb.minted'), body: t('pb.mintedBody') });
                 } catch (e) {
                   const code = e instanceof ClaimError ? e.code : 'FAILED';
-                  setNotice({ kind: 'error', title: code === 'REJECTED' || code === 'NETWORK_ERROR' || code === 'NOT_AVAILABLE' ? t(`pb.err.${code}` as TKey) : t('pb.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+                  setNotice({ kind: 'error', title: code === 'REJECTED' || code === 'NETWORK_ERROR' || code === 'NOT_AVAILABLE' || code === 'INSUFFICIENT_SOL' ? t(`pb.err.${code}` as TKey) : t('pb.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
                 } finally {
                   resolve();
                 }

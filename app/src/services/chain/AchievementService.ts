@@ -13,7 +13,7 @@ import { APP_CONFIG } from '@/config/app';
 import { apiClient, type MintIntent } from '@/services/api/ApiClient';
 import { WalletError } from '@/services/wallet/WalletService';
 
-import { accountExists, sendWithWallet } from './ChainClient';
+import { accountExists, isInsufficientSol, sendWithWallet } from './ChainClient';
 import { ClaimError } from './StarterShoeService';
 
 export type MintOutcome = { kind: 'minted'; asset: string; signature: string | null; alreadyMinted: boolean } | { kind: 'pending_registry' | 'revoke_pending' | 'revoked'; intent: MintIntent };
@@ -49,6 +49,7 @@ export const achievementService = {
       const sent = await sendWithWallet(wallet, [ed25519Instruction(message, signature, attestor), claimAchievementInstruction(wallet, message)], onPhase);
       return { kind: 'minted', asset, signature: sent.signature, alreadyMinted: false };
     } catch (e) {
+      if (isInsufficientSol(e)) throw new ClaimError('INSUFFICIENT_SOL', e instanceof Error ? e.message : String(e)); // 沒送出：不用再查帳戶
       if (e instanceof WalletError) {
         if (e.code === 'REJECTED') throw new ClaimError('REJECTED', e.message);
         if (e.code === 'NETWORK_ERROR') throw new ClaimError('NETWORK_ERROR', e.message);
