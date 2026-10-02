@@ -176,12 +176,12 @@ README 頂部應提供 APK、影片、Pitch PDF、五分鐘體驗步驟、Devnet
 | 提交負責人 | 使用者本人（單人參賽） |
 | Repository URL | `https://github.com/stan0714/neonshift`（評審存取權待確認） |
 | Release／Tag URL | 待填 |
-| Commit SHA | `5f6e439`（10/2 RC 候選，見 [RC 紀錄](../evidence/2026-10-02-rc-v15.md)；22:00 實機驗收後定案） |
+| Commit SHA | `0e9da06`（10/2 RC，實機驗收通過，見 [RC 紀錄](../evidence/2026-10-02-rc-v17.md)） |
 | APK 下載 URL | 待填 |
-| APK versionName／versionCode | 0.1.0／15（10/2 RC 候選，見 [RC 紀錄](../evidence/2026-10-02-rc-v15.md)；22:00 實機驗收後定案） |
-| APK SHA-256 | `3e203498dbe457699bf926d642a10bf8a1d9a7c2986ee37e0ca052c12f2711db`（10/2 RC 候選，見 [RC 紀錄](../evidence/2026-10-02-rc-v15.md)；22:00 實機驗收後定案） |
+| APK versionName／versionCode | 0.1.0／17（10/2 RC，實機驗收通過，見 [RC 紀錄](../evidence/2026-10-02-rc-v17.md)） |
+| APK SHA-256 | `c92cc737cc6398f9b5b790b5aa50da7d806f402f66105348a31aa27eff289c55`（10/2 RC，實機驗收通過，見 [RC 紀錄](../evidence/2026-10-02-rc-v17.md)） |
 | APK 簽章憑證指紋 | SHA-256 `c6b8bbb34b050ae3725c29dc8155d601875693f8c741356a1331d948fb5f4b04`（CN=NeonShift dev test；換正式簽章需重記） |
-| 建置日期 | 2026-10-02T09:38:05Z（10/2 RC 候選，見 [RC 紀錄](../evidence/2026-10-02-rc-v15.md)；22:00 實機驗收後定案） |
+| 建置日期 | 2026-10-02T14:11:44Z（10/2 RC，實機驗收通過，見 [RC 紀錄](../evidence/2026-10-02-rc-v17.md)） |
 | 評審指南 URL | 待填 |
 | Demo 影片 URL／時長 | 待填 |
 | 活動文字詳解 URL | 待填；不再要求長片 |
