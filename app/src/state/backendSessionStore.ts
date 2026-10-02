@@ -17,7 +17,11 @@ export type BackendSessionState = 'unknown' | 'active' | 'expired';
 
 type State = {
   state: BackendSessionState;
-  /** 最後一次失效的原因，只作診斷用，不進使用者文案 */
+  /**
+   * 最後一次失效的原因，**會決定文案**（2026-10-02 實機）：
+   * `missing`＝本機根本沒有 token（拒簽 SIWS、登出），`invalid`＝refresh 真的失效。
+   * 原本兩種共用「你的登入已過期」——但使用者幾秒前才拒簽，那句話是假的。
+   */
   reason: BackendSessionLostReason | null;
   /** 重新連結進行中 */
   restoring: boolean;
@@ -42,7 +46,7 @@ export const useBackendSessionStore = create<State>((set, get) => ({
       // 都被擋下。所以 `check()` 只能把 unknown 判成 expired，**不能**把已知的 expired
       // 升回 active。解除 expired 只有兩條路：重新登入成功，或某支需要登入的請求真的成功
       // （`onBackendSessionOk`）。
-      if (!ok) { set({ state: 'expired' }); return 'expired'; }
+      if (!ok) { set({ state: 'expired', reason: 'missing' }); return 'expired'; } // 沒有 token＝從來沒登入成功，不是過期
       if (get().state === 'expired') return 'expired';
       set({ state: 'active', reason: null });
       return 'active';

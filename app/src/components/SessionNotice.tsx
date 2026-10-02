@@ -27,6 +27,7 @@ export function SessionNotice({ visible = true }: { visible?: boolean }) {
   const insets = useSafeAreaInsets();
   const session = useWalletStore((s) => s.session);
   const state = useBackendSessionStore((s) => s.state);
+  const reason = useBackendSessionStore((s) => s.reason);
   const restoring = useBackendSessionStore((s) => s.restoring);
   const check = useBackendSessionStore((s) => s.check);
   const restore = useBackendSessionStore((s) => s.restore);
@@ -40,14 +41,19 @@ export function SessionNotice({ visible = true }: { visible?: boolean }) {
   }, [session, check]);
 
   if (!visible || !session || state !== 'expired') return null;
+  /**
+   * 文案要分：`missing` 是「本機根本沒有 token」（拒簽 SIWS、登出），`invalid` 才是真的過期。
+   * 兩者共用「你的登入已過期」會在使用者剛拒簽完的時候說一句假話（2026-10-02 實機）。
+   */
+  const k = reason === 'invalid' ? 'expired' : 'incomplete';
   return (
     <View style={[styles.card, { bottom: insets.bottom + space.s }]} accessibilityLiveRegion="polite" testID="session-notice">
-      <InlineState kind="warning" title={t('session.expired.title')} body={t('session.expired.body')} />
+      <InlineState kind="warning" title={t(`session.${k}.title`)} body={t(`session.${k}.body`)} />
       <Button
-        label={t('session.expired.action')}
+        label={t(`session.${k}.action`)}
         onPress={() => void restore(session.address)}
         loading={restoring}
-        loadingLabel={t('session.expired.working')}
+        loadingLabel={t(`session.${k}.working`)}
         style={styles.button}
         testID="session-restore"
       />

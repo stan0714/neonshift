@@ -85,3 +85,33 @@ test('check() 查不到時不亂猜，維持現狀（避免離線誤報要重新
   await useBackendSessionStore.getState().check();
   expect(useBackendSessionStore.getState().state).toBe('active');
 });
+
+/**
+ * 2026-10-02 實機：使用者在 SIWS 那一步拒簽，浮層卻說「Your sign-in expired」——
+ * 它沒有過期，是幾秒前才拒簽的。`missing`（本機根本沒有 token）與 `invalid`
+ * （refresh 真的失效）必須分開說，否則畫面在對使用者說一句假話。
+ */
+test('拒簽／登出（missing）說的是「登入沒完成」，不是「已過期」', async () => {
+  connect();
+  useBackendSessionStore.getState().markExpired('missing');
+  await render(<ThemeProvider><SessionNotice /></ThemeProvider>);
+  expect(await screen.findByTestId('session-notice')).toBeTruthy();
+  expect(screen.getByText('Finish signing in to NeonShift')).toBeTruthy();
+  expect(screen.queryByText(/expired/i)).toBeNull();
+  expect(screen.getByText(/not repeat setup/)).toBeTruthy(); // 兩種情況都要保證不重走新手流程
+});
+
+test('refresh 真的失效（invalid）才說「已過期」', async () => {
+  connect();
+  useBackendSessionStore.getState().markExpired('invalid');
+  await render(<ThemeProvider><SessionNotice /></ThemeProvider>);
+  expect(await screen.findByTestId('session-notice')).toBeTruthy();
+  expect(screen.getByText('Reconnect your wallet')).toBeTruthy();
+  expect(screen.getByText(/sign-in expired/)).toBeTruthy();
+});
+
+test('check() 查到本機沒有 token → 原因記成 missing（那不是過期）', async () => {
+  api.hasSession.mockResolvedValueOnce(false);
+  await useBackendSessionStore.getState().check();
+  expect(useBackendSessionStore.getState()).toMatchObject({ state: 'expired', reason: 'missing' });
+});

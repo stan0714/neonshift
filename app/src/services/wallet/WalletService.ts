@@ -46,7 +46,17 @@ const identity = { name: 'NeonShift', uri: APP_CONFIG.siteUrl, icon: 'favicon.pn
 const chain = `solana:${APP_CONFIG.cluster}` as const;
 
 /** COMP-W01：所有 MWA 操作都經守門（回前景寬限／硬逾時 → WALLET_NO_REPLY，晚到結果丟棄） */
-const guarded = <T>(cb: (wallet: Web3MobileWallet) => Promise<T>, op = 'wallet') => guardWalletOp(() => transact(cb), { op });
+const guarded = <T>(cb: (wallet: Web3MobileWallet) => Promise<T>, op = 'wallet', opts: { hardTimeoutMs?: number } = {}) => guardWalletOp(() => transact(cb), { op, ...opts });
+
+/**
+ * 斷開連接時向錢包撤銷授權的逾時（2026-10-02 實機）。
+ *
+ * 一般錢包操作給 120 秒是因為**使用者要讀、要想、要按指紋**。deauthorize 不一樣：
+ * 它是盡力而為的清理，真正重要的是本機狀態被清掉；錢包那邊的 auth token 留著
+ * 頂多是殘留記錄。實機上錢包的 bottom sheet 曾經起來卻不畫內容、也吃掉所有觸控，
+ * 使用者等於對著一個動不了的畫面等兩分鐘。15 秒夠正常情況完成，異常時也不折磨人。
+ */
+export const DEAUTHORIZE_TIMEOUT_MS = 15_000;
 
 function toSession(address: string, label: string | undefined, walletUriBase: string): WalletSession {
   return { address, publicKey: new PublicKey(address), label, walletUriBase };
@@ -249,7 +259,7 @@ export const walletService = {
     const stored = await readStored();
     if (stored) {
       try {
-        await guarded(async (wallet: Web3MobileWallet) => wallet.deauthorize({ auth_token: stored.authToken }), 'deauthorize');
+        await guarded(async (wallet: Web3MobileWallet) => wallet.deauthorize({ auth_token: stored.authToken }), 'deauthorize', { hardTimeoutMs: DEAUTHORIZE_TIMEOUT_MS });
       } catch {
         // 忽略：本機狀態優先清除
       }

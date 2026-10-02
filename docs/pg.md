@@ -1922,3 +1922,34 @@ navigation.reset(Landing)
 自動化測試會通過，因為狀態確實有變。
 
 App 88 suites／702 tests。
+
+## 2026-10-02｜deauthorize 不該等兩分鐘；「已過期」不該對剛拒簽的人說
+
+### deauthorize 的逾時獨立出來
+
+實機上 Solana Mobile Wallet 的 bottom sheet 起來卻**不畫內容**，又吃掉所有觸控，
+返回鍵也關不掉。NeonShift 這邊行為是對的——120 秒 hard timeout 觸發後錯誤被吞掉、
+本機狀態照樣清除、導回 Landing——但使用者對著一個動不了的畫面等了將近三分鐘。
+
+120 秒這個數字是給「使用者要讀、要想、要按指紋」的操作用的。`deauthorize` 不是：
+它是盡力而為的清理，真正重要的是本機狀態被清掉，錢包那邊的 auth token 留著頂多是殘留記錄。
+獨立成 `DEAUTHORIZE_TIMEOUT_MS = 15_000`。
+
+（錢包不畫內容是錢包端的問題，我們管不到；能管的是不要讓使用者陪它等。）
+
+### 「你的登入已過期」在拒簽後是假話
+
+實機：使用者在 SIWS 那一步拒簽，浮層卻說 *Your sign-in expired*。
+**它沒有過期——是幾秒前才拒簽的。**
+
+`ApiClient` 本來就分 `missing`（本機根本沒有 token：拒簽、登出）與 `invalid`
+（refresh 真的失效），但 `backendSessionStore` 的註解寫著「只作診斷用，不進使用者文案」，
+兩種共用同一段。現在依原因分開：`missing` 說「完成 NeonShift 登入」，
+`invalid` 才說「已過期」。兩種都保留「不會重走新手流程」那句——那是使用者最常問的。
+
+順帶修正 `check()`：本機查不到 token 時把原因記成 `missing`，而不是留著上一次的值。
+
+testID 維持 `session-notice` 不變——我一度把它改成帶後綴，打到既有測試。
+testID 是契約，不該為了加一個變體就換掉。
+
+App 88 suites／705 tests。
