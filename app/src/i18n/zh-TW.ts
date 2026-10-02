@@ -681,7 +681,7 @@ export const zhTW: Record<keyof typeof en, string> = {
 
   'profile.title': '個人',
   'profile.disconnect.title': '斷開錢包？',
-  'profile.disconnect.body': '將移除此手機上的錢包授權與後端登入。鏈上資料與 tSKR 仍在你的錢包中，隨時可以重新連接。',
+  'profile.disconnect.body': '將移除此手機上的錢包授權與後端登入。鏈上資料與 tSKR 仍在你的錢包中，隨時可以重新連接。錢包會瞭瞭開啟一下以正式撤銷授權，這段可能要幾秒。',
   'profile.disconnect.ok': '斷開',
   'profile.delete.title': '刪除我的後端資料？',
   'profile.delete.body': '這會從 NeonShift 伺服器移除你的健康摘要、驗證紀錄與登入，並將你登出。鏈上紀錄（錢包、打卡、tSKR）是公開的，無法刪除。若你有進行中的質押賽事，結算摘要會保留到結算完成，最長不超過 30 天。',
@@ -690,6 +690,7 @@ export const zhTW: Record<keyof typeof en, string> = {
   'profile.backendSession': '後端登入',
   'profile.signedIn': '已登入',
   'profile.signedOut': '已登出',
+  'profile.disconnecting': '中斷連接中…',
   'profile.disconnectWallet': '斷開錢包',
   'profile.permissions': '權限',
   'profile.healthConnect': 'Health Connect',

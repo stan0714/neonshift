@@ -36,6 +36,33 @@ beforeEach(() => {
 });
 
 describe('PG-A-21 Profile', () => {
+  /**
+   * 2026-10-02 實機回報「點了 Disconnect 會停住」。其實有在跑——signOut 是網路請求
+   * （最長 15 秒），之後 MWA deauthorize 還要開錢包選擇器——但這段期間畫面毫無變化，
+   * 使用者只能判斷成當掉。動作必須說出自己正在發生。
+   */
+  test('斷開連接要顯示進行中並擋掉重複觸發', async () => {
+    let release: (() => void) | undefined;
+    (apiClient.signOut as jest.Mock).mockImplementationOnce(() => new Promise<void>((r) => { release = r as () => void; }));
+    const walletDisconnect = jest.fn(async () => {});
+    useWalletStore.setState({ disconnect: walletDisconnect } as never);
+    await render(<ProfileScreen />, { wrapper: Wrapper });
+    expect(screen.getByTestId('profile-disconnect').props.accessibilityState.disabled).toBe(false);
+
+    await act(async () => { fireEvent.press(screen.getByTestId('profile-disconnect')); });
+    // signOut 還沒回來：按鈕進入進行中並停用
+    await waitFor(() => expect(screen.getByTestId('profile-disconnect').props.accessibilityState.busy).toBe(true));
+    expect(screen.getByText('Disconnecting…')).toBeTruthy();
+    expect(walletDisconnect).not.toHaveBeenCalled(); // 還沒走到錢包那一步
+
+    // 這段期間再按不會再跑一次
+    await act(async () => { fireEvent.press(screen.getByTestId('profile-disconnect')); });
+    expect(apiClient.signOut).toHaveBeenCalledTimes(1);
+
+    await act(async () => { release!(); });
+    await waitFor(() => expect(walletDisconnect).toHaveBeenCalledTimes(1));
+  });
+
   test('顯示錢包、權限狀態、隱私說明與 tSKR 免責', async () => {
     await render(<ProfileScreen />, { wrapper: Wrapper });
     expect(screen.getByText('7xKXtg…osgAsU')).toBeTruthy();

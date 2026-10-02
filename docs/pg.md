@@ -1895,3 +1895,30 @@ within(screen.getByTestId('ms-first_10k-device')).getByTestId('ms-share-preview'
 順帶確認：剛買到的 Genesis 金框在里程碑卡上有正確套用（實機截圖可見）。
 
 App 88 suites／701 tests。
+
+## 2026-10-02｜「點了 Disconnect 會停住」——又一個沒有回饋的動作
+
+實機回報按下斷開錢包沒反應。查證：App 行程活著、**沒有 ANR**、logcat 無 JS 例外，
+而 `dumpsys window` 顯示 `mCurrentFocus=ResolverActivity`——錢包選擇器其實已經起來了。
+
+所以不是當掉，是**中間那段完全沒有回饋**：
+
+```
+await apiClient.signOut()        ← 網路請求，最長 15 秒，畫面毫無變化
+await wallet.disconnect()        ← 才去開錢包（MWA deauthorize 要開錢包撤銷授權）
+await healthConnect.clearCache()
+navigation.reset(Landing)
+```
+
+第一步最久 15 秒，期間沒有 spinner、按鈕沒停用、什麼都沒變。使用者唯一能得到的結論就是壞了。
+
+修：按鈕進入進行中（`Disconnecting…`）並停用，重複觸發直接 return；確認框文案補一句
+「錢包會瞬間開啟一下以正式撤銷授權，這段可能要幾秒」——因為會跳出錢包選擇器這件事
+原本完全沒有預告。
+
+這是今天第三個同一類缺陷：
+「立即同步」是結果被丟掉、「分享圖卡」是變化在螢幕外、這個是過程中沒有回饋。
+三者的共同點都是**動作沒有說出自己發生了什麼**，而且三者都是實機才看得出來——
+自動化測試會通過，因為狀態確實有變。
+
+App 88 suites／702 tests。

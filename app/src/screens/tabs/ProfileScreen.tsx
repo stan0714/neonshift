@@ -69,6 +69,7 @@ export function ProfileScreen() {
   const [activity, setActivity] = useState<boolean | null>(null);
   const [backend, setBackend] = useState<boolean | null>(null);
   const [deletion, setDeletion] = useState<Deletion>({ state: 'idle' });
+  const [disconnecting, setDisconnecting] = useState(false);
   // PG-R-09：藝廊展示偏好（退出只停止展示）
   const [galleryShown, setGalleryShownState] = useState(true);
   const [galleryBusy, setGalleryBusy] = useState(false);
@@ -103,11 +104,23 @@ export function ProfileScreen() {
       {
         text: t('profile.disconnect.ok'),
         style: 'destructive',
+        /**
+         * 2026-10-02 實機回報「點了 Disconnect 會停住」。其實有在跑：signOut 是網路請求
+         * （最長 15 秒），之後 MWA 的 deauthorize 還要開錢包選擇器。但這段期間**畫面毫無變化**
+         * ——沒有 spinner、按鈕沒停用——使用者只能判斷成當掉。
+         * 動作要說出自己正在發生，否則使用者唯一的結論就是壞了。
+         */
         onPress: async () => {
-          await apiClient.signOut().catch(() => {});
-          await wallet.disconnect();
-          await healthConnect.clearCache().catch(() => {});
-          navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+          if (disconnecting) return;
+          setDisconnecting(true);
+          try {
+            await apiClient.signOut().catch(() => {});
+            await wallet.disconnect();
+            await healthConnect.clearCache().catch(() => {});
+            navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+          } finally {
+            setDisconnecting(false);
+          }
         },
       },
     ]);
@@ -173,7 +186,7 @@ export function ProfileScreen() {
       <Section title={t('profile.wallet')}>
         <Row icon="credit-card" label={wallet.session ? shortAddress(wallet.session.address, 6) : t('common.notConnected')} detail={wallet.session?.label ?? `Solana ${APP_CONFIG.cluster}`} />
         <Row icon="server" label={t('profile.backendSession')} detail={backend === null ? '…' : backend ? t('profile.signedIn') : t('profile.signedOut')} />
-        {wallet.session ? <Button label={t('profile.disconnectWallet')} variant="danger" style={styles.btn} onPress={disconnect} /> : <Button label={t('common.connectWallet')} style={styles.btn} onPress={() => navigation.navigate('Onboarding', { screen: 'WalletConnect' })} />}
+        {wallet.session ? <Button label={t('profile.disconnectWallet')} variant="danger" style={styles.btn} loading={disconnecting} loadingLabel={t('profile.disconnecting')} disabled={disconnecting} onPress={disconnect} testID="profile-disconnect" /> : <Button label={t('common.connectWallet')} style={styles.btn} onPress={() => navigation.navigate('Onboarding', { screen: 'WalletConnect' })} />}
       </Section>
 
       <Section title={t('profile.permissions')}>

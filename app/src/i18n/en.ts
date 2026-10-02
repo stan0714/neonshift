@@ -696,7 +696,7 @@ export const en = {
   // ---- profile ----
   'profile.title': 'Profile',
   'profile.disconnect.title': 'Disconnect wallet?',
-  'profile.disconnect.body': 'Your wallet authorization and backend session on this phone will be removed. Onchain data and tSKR stay in your wallet. You can connect again any time.',
+  'profile.disconnect.body': 'Your wallet authorization and backend session on this phone will be removed. Onchain data and tSKR stay in your wallet. You can connect again any time. Your wallet will open briefly so the authorization can be revoked properly — this can take a few seconds.',
   'profile.disconnect.ok': 'Disconnect',
   'profile.delete.title': 'Delete my backend data?',
   'profile.delete.body': 'This removes your health summaries, verification records and sessions from NeonShift servers and signs you out. Onchain records (wallet, claims, tSKR) are public and cannot be deleted. If you have an active staked tournament, settlement summaries are kept until it settles, never beyond 30 days.',
@@ -705,6 +705,7 @@ export const en = {
   'profile.backendSession': 'Backend session',
   'profile.signedIn': 'Signed in',
   'profile.signedOut': 'Signed out',
+  'profile.disconnecting': 'Disconnecting…',
   'profile.disconnectWallet': 'Disconnect wallet',
   'profile.permissions': 'Permissions',
   'profile.healthConnect': 'Health Connect',
