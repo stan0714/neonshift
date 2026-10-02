@@ -121,6 +121,7 @@ export const zhTW: Record<keyof typeof en, string> = {
   'wallet.title': '連接你的任務錢包',
   'wallet.lead': 'NeonShift 會開啟你的 Solana Mobile 錢包來連結帳號。助記詞永遠不會離開錢包。',
   'wallet.continueAs': '以 {address} 繼續',
+  'wallet.useDifferent': '改用其他錢包',
   'wallet.phase.opening': '正在開啟錢包…',
   'wallet.phase.authorizing': '等待錢包核准連接…',
   'wallet.phase.signing': '等待簽署登入訊息…',

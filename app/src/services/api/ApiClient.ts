@@ -318,9 +318,14 @@ export class ApiClient {
     return (await readTokens()) !== null;
   }
 
-  async signOut(): Promise<void> {
+  /**
+   * 後端登出是盡力而為：不管伺服器回不回，本機 token 都會清掉。
+   * 呼叫端可縮短等待——2026-10-02 RC v15 驗收：斷開連接時這一步（access 過期、要先換新）
+   * 耗了約 13 秒，錢包要等它結束才開，使用者對著「Disconnecting…」乾等。
+   */
+  async signOut(opts: { timeoutMs?: number } = {}): Promise<void> {
     try {
-      await this.request('POST', '/auth/logout', undefined);
+      await this.request('POST', '/auth/logout', undefined, opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {});
     } catch {
       // 後端不可達也要清本機
     }

@@ -21,6 +21,7 @@ import { activityRecognition } from '@/services/permissions/ActivityRecognition'
 import { useDashboardStore } from '@/state/dashboardStore';
 import { useOnboardingStore } from '@/state/onboardingStore';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
+import { disconnectWallet } from '@/services/session/disconnect';
 import { color, radius, space, Text } from '@/theme';
 import { useLocaleStore, useT, type TKey } from '@/i18n';
 import { FEATURES } from '@/config/features';
@@ -115,9 +116,7 @@ export function ProfileScreen() {
           if (disconnecting) return;
           setDisconnecting(true);
           try {
-            await apiClient.signOut().catch(() => {});
-            await wallet.disconnect();
-            await healthConnect.clearCache().catch(() => {});
+            await disconnectWallet(); // 後端登出最多等 3 秒，再撤銷錢包授權、清健康快取
             navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
           } finally {
             setDisconnecting(false);

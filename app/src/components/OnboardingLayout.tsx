@@ -50,5 +50,5 @@ const styles = StyleSheet.create({
   step: { marginTop: space.xxl, marginBottom: space.xs },
   lead: { marginTop: space.s },
   body: { marginTop: space.xl },
-  actions: { marginTop: 'auto', paddingTop: space.xxl },
+  actions: { marginTop: 'auto', paddingTop: space.xxl, gap: space.s },
 });

@@ -11,6 +11,7 @@ import { accountExists } from '@/services/chain/ChainClient';
 import { playerPda } from '@/chain/program';
 import { nextOnboardingStep } from '@/domain/onboardingStep';
 import { useOnboardingStore } from '@/state/onboardingStore';
+import { disconnectWallet } from '@/services/session/disconnect';
 
 /** Style 10.1／14 的錯誤文案：說明發生什麼、資料是否安全、下一步 */
 const ERROR_CODES: WalletErrorCode[] = ['REJECTED', 'WALLET_UNAVAILABLE', 'SESSION_EXPIRED', 'NETWORK_ERROR', 'WALLET_NO_REPLY', 'STORAGE_ERROR', 'UNKNOWN'];
@@ -28,6 +29,17 @@ export function WalletConnectScreen() {
   const { status, session, error, connect, phase, loginIncomplete } = useWalletStore();
 
   const [slow, setSlow] = useState(false);
+  // 換帳戶：新手流程裡原本沒有任何斷開的入口（見 services/session/disconnect.ts）
+  const [switching, setSwitching] = useState(false);
+  const useDifferentWallet = async () => {
+    if (switching) return;
+    setSwitching(true);
+    try {
+      await disconnectWallet();
+    } finally {
+      setSwitching(false);
+    }
+  };
   useEffect(() => {
     setSlow(false);
     if (status !== 'connecting') return;
@@ -92,7 +104,11 @@ export function WalletConnectScreen() {
               if (session && status === 'connected') void goNext();
               else void connect();
             }}
+            disabled={switching}
           />
+          {session && status === 'connected' ? (
+            <Button label={t('wallet.useDifferent')} variant="secondary" loading={switching} loadingLabel={t('profile.disconnecting')} disabled={switching} onPress={() => void useDifferentWallet()} testID="wallet-use-different" />
+          ) : null}
         </>
       }
     >

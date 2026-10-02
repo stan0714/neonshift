@@ -125,6 +125,7 @@ export const en = {
   'wallet.title': 'Connect your mission wallet',
   'wallet.lead': 'NeonShift opens your Solana Mobile wallet to link an account. Your seed phrase never leaves the wallet.',
   'wallet.continueAs': 'Continue as {address}',
+  'wallet.useDifferent': 'Use a different wallet',
   'wallet.phase.opening': 'Opening your wallet…',
   'wallet.phase.authorizing': 'Waiting for connection approval…',
   'wallet.phase.signing': 'Waiting for login signature…',
