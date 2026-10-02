@@ -3,7 +3,11 @@
 Genesis Mint frame（純外觀）以 TEST SKR 付款的完整主線：建單 → 餘額預檢 → MWA 簽送 →
 伺服器查驗 → 權限授予。負責人本人的 Seeker，真實錢包簽章，devnet 真實交易。
 
-截圖：`2026-10-01-skr-devnet-paid.png`（OWNED、金色邊框、Payment confirmed）。
+截圖：
+- `2026-10-01-skr-devnet-eligible.png`（16:17，付款前：資格通過、2.5 SKR 固定價、收款人 `8Wp3Xy…3gFa1k`、Buy with SKR）
+- `2026-10-01-skr-devnet-paid.png`（16:45，OWNED、金色邊框、Payment confirmed）
+
+兩張同一帳號、同一包（versionCode 11）。10/2 決定介紹片第 7、8 頁沿用這兩張，不另錄付款影片。
 
 ## 版本
 

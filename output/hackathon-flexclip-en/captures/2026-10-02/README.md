@@ -33,7 +33,9 @@
 
 ## 使用限制
 
-- **05 鏈上申領**與 **07–08 SKR 首次付款**仍須錄影：今天沒有合格任務；這個帳號的邊框已 OWNED，不能重演成首次付款。
+- **05 鏈上申領**仍須實錄：今天沒有合格任務。
+- **07–08 SKR 首次付款**：10/2 決定不另錄，投影片沿用 10/1 v11 的付款前／後兩張（`docs/evidence/2026-10-01-skr-devnet-eligible.png`、`-paid.png`）。本資料夾的 `s07-08_genesis-frame-owned` 只作備用。
+- 已套用到 [FlexClip v4 投影片](../../flexclip-v4/README.md) 第 1、3、4、6、9 頁。
 - `s04_activity-history` 標題旁有一個觸控指示圓點（手機開了「顯示觸控」），其他可用的影格都在過場中，必要時重拍這一張。
 - `s03_workouts-history` 的卡片 kcal 是「—」，`s04_summary-*` 是 ≈226：列表讀伺服器欄位，詳情頁用體重在本機估算。兩張不要並排。
 - 沒有收錄 Profile 的 About（版本會隨最終 APK 改變）與 Wallet interactions 紀錄（含 10/2 測試取消連接留下的 `Failed` 行）。
