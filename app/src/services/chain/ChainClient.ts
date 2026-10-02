@@ -48,11 +48,13 @@ const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
  *  2. `504 Gateway Timeout: {…}`——`createRpcClient` 自己丟的 `new Error(`${res.status} ${res.statusText}: ${text}`)`
  * 2026-10-02 實機只認得第一種，於是公用 devnet 的 5xx 全被判成 unknown；unknown 不重試，
  * 一次暫時性失敗就直接換來「Devnet is taking a break」。
- * 三位數仍然只從固定位置取，不對整段訊息抓（base58 位址裡也有數字）。
+ * 兩種都可能再被方法包一層：`failed to get balance of account <pk>: Error: 429 Too Many Requests: …`，
+ * 而 Android 上 HTTP/2 沒有原因片語，常見的是 `504 : {…}`。所以規則是：三位數出現在**開頭或 `Error:` 之後**，
+ * 後面可接原因片語，再接冒號。仍然只從這兩個固定位置取，不對整段訊息抓（base58 位址裡也有數字）。
  */
 export function classifyRpcError(label: string, e: unknown): RpcFailure {
   const detail = messageOf(e);
-  const status = Number(/Error:\s*(\d{3})\s*:/.exec(detail)?.[1] ?? /^\s*(\d{3})\s+\D[^:]*:/.exec(detail)?.[1] ?? /\bstatus(?:\s*code)?[:=]\s*(\d{3})\b/i.exec(detail)?.[1]) || null;
+  const status = Number(/(?:^\s*|Error:\s*)(\d{3})\b[^:\n]*:/.exec(detail)?.[1] ?? /\bstatus(?:\s*code)?[:=]\s*(\d{3})\b/i.exec(detail)?.[1]) || null;
   const aborted = (e as { name?: string })?.name === 'AbortError' || /\baborted\b|timed? ?out/i.test(detail);
   if (status === 429 || /too many requests|rate limit|-32005/i.test(detail)) return { reason: 'rate_limited', label, status, detail };
   if (aborted) return { reason: 'timeout', label, status, detail };
@@ -69,7 +71,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * 讀取用的退避重試。**只包讀，不包送交易**——重送交易要走 claimSubmitter 的 pending 流程，
  * 不能靠這裡重試（SD 5.3：逾時先查目標帳戶，不盲目重送）。
  */
-export async function rpcRead<T>(label: string, run: (conn: Connection) => Promise<T>, conn: () => Connection = getConnection): Promise<T> {
+export async function rpcRead<T>(label: string, run: (conn: Connection) => Promise<T>, conn: () => Connection = getReadConnection): Promise<T> {
   let last: RpcFailure | null = null;
   for (let attempt = 0; attempt <= RPC_RETRY_DELAYS_MS.length; attempt++) {
     try {
@@ -99,6 +101,19 @@ let connection: Connection | null = null;
 export function getConnection(): Connection {
   connection ??= new Connection(APP_CONFIG.rpcUrl, { commitment: 'confirmed', fetch: timeoutFetch });
   return connection;
+}
+
+let readConnection: Connection | null = null;
+/**
+ * 讀取專用連線：**關掉 web3.js 內建的 429 重試**，讀取的重試只由 rpcRead 一層負責（分類＋退避）。
+ *
+ * 2026-10-02：兩層疊在一起時，限流下一次讀取最多是 3 輪 × 每輪 5 次 HTTP 請求，
+ * 中間夾著 web3.js 的 0.5→1→2→4 秒指數等待——首頁同步可以卡上數十秒，而畫面只能乾等。
+ * 送交易仍用 getConnection：保留 web3.js 對 429 的重送（同一筆已簽交易重送在鏈上是冪等的）。
+ */
+export function getReadConnection(): Connection {
+  readConnection ??= new Connection(APP_CONFIG.rpcUrl, { commitment: 'confirmed', fetch: timeoutFetch, disableRetryOnRateLimit: true });
+  return readConnection;
 }
 
 /**
@@ -149,7 +164,7 @@ export function isInsufficientSol(e: unknown): boolean {
  * 開錢包之前確認付得起。**讀不到餘額時不擋**：這道檢查是為了把必然失敗的情況提早說清楚，
  * 不能因為一次讀取失敗就新增一種原本不存在的失敗。
  */
-export async function assertCanPayFee(payer: PublicKey, needLamports = MIN_FEE_LAMPORTS, conn: () => Connection = getConnection): Promise<void> {
+export async function assertCanPayFee(payer: PublicKey, needLamports = MIN_FEE_LAMPORTS, conn: () => Connection = getReadConnection): Promise<void> {
   let have: number;
   try {
     have = await rpcRead('getBalance', (c) => c.getBalance(payer, 'confirmed'), conn);

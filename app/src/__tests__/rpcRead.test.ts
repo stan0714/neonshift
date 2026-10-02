@@ -83,3 +83,13 @@ describe('退避重試', () => {
     expect(err.failure.detail).toContain('jsonrpc'); // 診斷用的原文仍留著
   });
 });
+
+describe('狀態碼：被方法再包一層、或沒有原因片語（2026-10-02）', () => {
+  test.each([
+    ['failed to get balance of account 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU: Error: 429 Too Many Requests: {"error":"rate"}', 429, 'rate_limited'],
+    ['failed to get info about account GuS38ZFpuvvqfpWiKZ1gGWtu8RujynuNZmbVjqik6Axc: Error: 503 Service Unavailable: upstream', 503, 'server'],
+    ['504 : {"jsonrpc":"2.0","error":{"code":504}}', 504, 'server'],
+  ])('%s', (m, status, reason) => {
+    expect(classifyRpcError('x', new Error(m))).toMatchObject({ status, reason });
+  });
+});
