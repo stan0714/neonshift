@@ -11,6 +11,7 @@ import { ShoeHero } from '@/components/ShoeHero';
 import { useAppearance } from '@/hooks/useAppearance';
 import { maintenanceNeeds } from '@/chain/accounts';
 import { APP_CONFIG } from '@/config/app';
+import { APP_VERSION } from '@/config/version';
 import { secondsUntilUtcMidnight, type TaskType } from '@/domain/taskEngine';
 import type { ClaimInput, ClaimPhase } from '@/services/claim/ClaimFlow';
 import { estimateReward, formatTskr, sleepProgress, stepsProgress, useDashboardStore, workoutProgress } from '@/state/dashboardStore';
@@ -92,7 +93,7 @@ export function HomeScreen() {
       workout: d.workout,
       chain: { mint: d.config.mint, rewardVault: d.config.rewardVault },
       maintenance: maintenanceNeeds(d.profile, d.taskDate, d.freeze !== null),
-      client: { appVersion: '0.1.0', deviceModel: 'Android', osApi: 34, sdkExtension: 0 },
+      client: { appVersion: APP_VERSION, deviceModel: 'Android', osApi: 34, sdkExtension: 0 },
     });
     d.dispatch(type, { kind: 'submit' });
   };

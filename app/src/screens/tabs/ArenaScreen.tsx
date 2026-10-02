@@ -7,6 +7,7 @@ import { Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import { SignInState } from '@/components/SignInState';
 import { APP_CONFIG } from '@/config/app';
+import { APP_VERSION } from '@/config/version';
 import type { TournamentView } from '@/services/api/ApiClient';
 import { useArenaStore, worstCaseLoss } from '@/state/arenaStore';
 import { formatTskr, useDashboardStore } from '@/state/dashboardStore';
@@ -134,7 +135,7 @@ export function ArenaScreen() {
                 <Stat label={t('arena.endsIn')} value={remaining(t, tt.ends_at - now)} tint={color.violet} />
               </View>
               {joined ? (
-                <Button label={t('arena.report')} variant="primary" style={styles.mt} onPress={() => void a.submitSteps({ appVersion: '0.1.0', deviceModel: 'Android', osApi: 34, sdkExtension: 0 })} loading={a.busy === 'steps'} loadingLabel={t('arena.verifying')} disabled={Boolean(disabledReason) || a.busy !== null} disabledReason={disabledReason} testID="arena-steps" />
+                <Button label={t('arena.report')} variant="primary" style={styles.mt} onPress={() => void a.submitSteps({ appVersion: APP_VERSION, deviceModel: 'Android', osApi: 34, sdkExtension: 0 })} loading={a.busy === 'steps'} loadingLabel={t('arena.verifying')} disabled={Boolean(disabledReason) || a.busy !== null} disabledReason={disabledReason} testID="arena-steps" />
               ) : (
                 <Text variant="bodySmall" tone="secondary" style={styles.mt}>
                   {t('arena.notEnteredBody')}

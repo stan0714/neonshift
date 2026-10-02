@@ -13,6 +13,7 @@ import { useSyncPrefs } from '@/state/syncPrefsStore';
 import { useAppearanceStore } from '@/state/appearanceStore';
 import { stageName } from '@/domain/collectibles';
 import { APP_CONFIG } from '@/config/app';
+import { APP_VERSION_DISPLAY } from '@/config/version';
 import { ApiError, apiClient } from '@/services/api/ApiClient';
 import { apiErrorText } from '@/services/api/errorText';
 import { healthConnect, type HealthPermissionSummary } from '@/services/health/HealthConnectService';
@@ -287,7 +288,7 @@ export function ProfileScreen() {
       <WalletTimelineCard />
 
       <Section title={t('profile.about')}>
-        <Row icon="info" label="NeonShift 0.1.0" detail={`${APP_CONFIG.chainConfigured ? t('profile.program', { id: shortAddress(APP_CONFIG.programId, 6) }) : t('profile.noProgram')} · ${APP_CONFIG.backendConfigured ? APP_CONFIG.apiUrl : t('profile.noBackend')}`} />
+        <Row icon="info" label={`NeonShift ${APP_VERSION_DISPLAY}`} testID="profile-version" detail={`${APP_CONFIG.chainConfigured ? t('profile.program', { id: shortAddress(APP_CONFIG.programId, 6) }) : t('profile.noProgram')} · ${APP_CONFIG.backendConfigured ? APP_CONFIG.apiUrl : t('profile.noBackend')}`} />
         <Row icon="refresh-cw" label={t('profile.healthSync')} detail={dashboard.health?.syncedAt ? `${dashboard.health.source} · ${new Date(dashboard.health.syncedAt).toLocaleTimeString()}` : t('profile.notSyncedYet')} />
         <Text variant="caption" tone="muted" style={styles.disclaimer}>
           {t('profile.aboutDisclaimer')}
@@ -310,9 +311,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Row({ icon, label, detail, tint = color.textSecondary }: { icon: React.ComponentProps<typeof Feather>['name']; label: string; detail: string; tint?: string }) {
+function Row({ icon, label, detail, tint = color.textSecondary, testID }: { icon: React.ComponentProps<typeof Feather>['name']; label: string; detail: string; tint?: string; testID?: string }) {
   return (
-    <View style={styles.row} accessible accessibilityLabel={`${label}: ${detail}`}>
+    <View style={styles.row} accessible accessibilityLabel={`${label}: ${detail}`} testID={testID}>
       <Feather name={icon} size={20} color={tint} />
       <View style={styles.rowText}>
         <Text variant="body">{label}</Text>

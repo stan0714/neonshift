@@ -20,6 +20,7 @@ jest.mock('@/services/health/HealthConnectService', () => ({
   healthConnect: { getPermissions: jest.fn(async () => ({ state: 'granted', granted: [], missing: [], backgroundGranted: true })), openSettings: jest.fn(), clearCache: jest.fn(async () => {}), disableBackgroundSync: jest.fn(async () => {}) },
 }));
 jest.mock('@/services/permissions/ActivityRecognition', () => ({ activityRecognition: { check: jest.fn(async () => true) } }));
+jest.mock('expo-application', () => ({ nativeApplicationVersion: '0.1.0', nativeBuildVersion: '14' }));
 
 const Wrapper = ({ children }: PropsWithChildren) => (
   <ThemeProvider>
@@ -36,6 +37,16 @@ beforeEach(() => {
 });
 
 describe('PG-A-21 Profile', () => {
+  /**
+   * 2026-10-02：實機測試時沒辦法確認手機上裝的是哪一包。About 原本寫死 `NeonShift 0.1.0`——
+   * 那比沒有更糟，看起來權威卻每一包都一樣。改成讀原生 build 的 versionName／versionCode。
+   */
+  test('About 顯示的是實際 build 的版本與 versionCode，不是寫死的字串', async () => {
+    await render(<ProfileScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('profile-version')).toBeTruthy());
+    expect(screen.getByText('NeonShift 0.1.0 (14)')).toBeTruthy();
+  });
+
   /**
    * 2026-10-02 實機回報「點了 Disconnect 會停住」。其實有在跑——signOut 是網路請求
    * （最長 15 秒），之後 MWA deauthorize 還要開錢包選擇器——但這段期間畫面毫無變化，
