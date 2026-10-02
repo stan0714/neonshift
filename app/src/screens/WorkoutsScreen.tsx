@@ -150,6 +150,13 @@ export function WorkoutsScreen() {
     ]);
   };
 
+  /** 有這支手機錄的原始紀錄 → 開 WorkoutSummary（路線、分段）；只在伺服器（匯入）→ ActivityDetail。與 Activity 分頁同一規則 */
+  const openServer = (w: { session_id: string }) => {
+    const local = workoutRecorder.localStore().list().find((m) => m.syncedSessionId === w.session_id);
+    if (local) navigation.navigate('WorkoutSummary', { sessionId: local.sessionId });
+    else navigation.navigate('ActivityDetail', { serverId: w.session_id });
+  };
+
   return (
     <Screen scroll testID="workouts-screen" refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} tintColor={color.mint} />}>
       <Text variant="bodySmall" tone="secondary">
@@ -245,7 +252,10 @@ export function WorkoutsScreen() {
         </>
       ) : null}
       {items?.filter((w) => matchesMode(w, mode)).map((w) => (
-        <Surface key={w.session_id} style={styles.card} testID={`workout-${w.session_id}`}>
+        // 2026-10-02 實機：已同步的紀錄只出現在這張伺服器卡片上，而它原本整張沒有 onPress——
+        // 同一筆在 Activity 分頁點得開，在這裡點下去毫無反應。開啟規則與 Activity 分頁一致。
+        <Pressable key={w.session_id} onPress={() => openServer(w)} accessibilityRole="button" testID={`workout-open-${w.session_id}`}>
+        <Surface style={styles.card} testID={`workout-${w.session_id}`}>
           <View style={styles.rowBetween}>
             <Text variant="title">
               {modeLabel(t, w.sport, w.intent)}
@@ -285,6 +295,7 @@ export function WorkoutsScreen() {
             </Pressable>
           </View>
         </Surface>
+        </Pressable>
       ))}
     </Screen>
   );
