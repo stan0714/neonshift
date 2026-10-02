@@ -1,5 +1,9 @@
 # Pitch 簡報與交付追蹤（PG-D-04）
 
+**10/2 中英投影片更新：** [十頁介紹投影片](../../output/hackathon-flexclip-en/flexclip-v4/README.md)已產出英文製片版與繁體中文對稿版，含 PPTX／PDF 和逐頁雙語旁白。兩版一致使用歷史截圖標示，不等於最終實機 Demo 完成。
+
+**2026-10-02 參賽優先入口：** [素材盤點](submission-materials-audit-2026-10-02.md)。35 頁募資稿是背景資料；六／九頁英文產物仍待更新為本次提交版。SKR 已有 [10/1 Devnet 付款證據](../evidence/2026-10-01-skr-devnet-payment.md)，不再概括為未實作；官方 SKR 主網付款不在這份證據範圍。影片使用 v4 五段；以下舊日期內容保留歷史。
+
 更新：2026-09-19。正式工作檔為 [NeonShift_募資簡報_中文草稿_v4.pptx](../../output/fundraising/NeonShift_募資簡報_中文草稿_v4.pptx)，35 頁（31 頁主文＋4 頁附錄）。本文件取代原十頁黑客松大綱，不代表商業假設、募資條件或主網計畫已核准。
 
 ## 頁次

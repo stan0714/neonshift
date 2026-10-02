@@ -12,7 +12,7 @@
 | 圖示 | `@expo/vector-icons`（Feather） | Feather Icons | MIT | ✅ | 隨套件授權 |
 | 字型 | 系統字型（Roboto／Noto CJK） | Android 內建 | 系統授權 | ✅ | App 未內嵌字型（`expo-font` 未載入自訂字體） |
 | 開源套件 | `app/package.json`、`backend/package.json`、`programs/Cargo.toml` | 各套件作者 | MIT／Apache-2.0／ISC 等 | ✅ | 提交前跑 `npx license-checker --summary`（app、backend）與 `cargo license`（programs）產出清單放 `docs/evidence/` |
-| Demo 影片旁白 | `docs/store/demo-voiceover-en.txt` → AI 配音（ElevenLabs，見 `docs/store/demo-ai-voice-guide.md`） | 文案本專案；聲音由 TTS 服務生成 | 依 TTS 服務商業授權條款（提交前確認方案允許公開發布） | ⚠️ 待確認 | 不模仿真人聲音 |
+| Demo 影片旁白 | `docs/store/demo-voiceover-en.txt` → AI 配音（現採 FlexClip；ElevenLabs 為舊備案，見 `docs/store/demo-ai-voice-guide.md`） | 文案本專案；聲音由 TTS 服務生成 | 依 TTS 服務商業授權條款（提交前確認方案允許公開發布） | ⚠️ 待確認 | 不模仿真人聲音 |
 | Demo 影片背景音樂 | FlexClip 內建曲庫（`output/hackathon-flexclip-en/production-plan.md`） | FlexClip | 依 FlexClip 方案授權 | ⚠️ 待確認 | 只用平台授權曲庫，不用外部音樂 |
 | 實機截圖／錄影 | `output/hackathon-flexclip-en/captures/**`、`docs/evidence/*.png` | 本專案 Seeker 實機 | 專案自有 | ✅ | 錢包畫面為黑（secure surface）；含負責人自己的錢包地址與運動摘要，無健康原始資料 |
 | Nike Run Club 參考截圖 | 只在對話中作版面參考 | Nike | 第三方 | ❌ 不入 repo、不入素材 | Activity 版面為自行實作 |

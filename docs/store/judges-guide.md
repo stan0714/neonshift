@@ -1,6 +1,6 @@
 # NeonShift｜評審快速入口 / Reviewer guide
 
-更新：2026-09-29。內部正式提交目標為 10/5；[準備進度](submission-sprint-2026-10-05.md)。**準備中：APK、影片與測試活動尚未在本文件登錄可用版本。** 這是可隨提交版本補齊的入口，不代表現在已可完成所有操作。
+更新：2026-10-02。內部正式提交目標為 10/5；[準備進度](submission-sprint-2026-10-05.md)。**準備中：APK、影片與測試活動尚未在本文件登錄可用版本。** 這是可隨提交版本補齊的入口，不代表現在已可完成所有操作。
 
 ## Start here (English)
 
@@ -18,7 +18,7 @@ If your device has no qualifying Health Connect records, open **Profile → Read
 |---|---|
 | 提交 APK／版本／SHA-256 | 待發布、待驗收 |
 | GitHub Release／Commit | 待登錄 |
-| 英文主片 2:50，最多 3:00 | 待錄製／配音；[六段腳本](demo-video.md)／[英文旁白](demo-voiceover-en.txt)／[AI 配音建議](demo-ai-voice-guide.md) |
+| 英文主片 2:50，最多 3:00 | 待錄製／配音；[五段腳本](demo-video.md)／[英文旁白](demo-voiceover-en.txt)／[AI 配音建議](demo-ai-voice-guide.md) |
 | 活動文字詳解 | [活動手冊](event-demo-playbook.md)；不再要求六分鐘補充影片 |
 | 參賽 Pitch PDF | [6 頁英文 PDF](../../output/hackathon-flexclip-en/NeonShift_Hackathon_EN.pdf)／[可編輯 PPTX](../../output/hackathon-flexclip-en/NeonShift_Hackathon_EN.pptx) 已產出；含早期截圖與流程示意，最終實機素材待補。這是 Repo 相對連結，公開提交 URL 尚待登錄 |
 | 測試活動 slug／有效日期／timezone | 待建立或核實；不能將範例 slug 當現存活動 |
