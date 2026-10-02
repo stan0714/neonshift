@@ -236,7 +236,9 @@ export function WorkoutsScreen() {
           <View style={styles.filters} accessibilityRole="tablist">
             {(['all', 'walking', 'running'] as const).map((f) => (
               <Pressable key={f} onPress={() => setMode(f)} accessibilityRole="tab" accessibilityState={{ selected: mode === f }} style={[styles.filter, mode === f && styles.filterOn]} testID={`workouts-filter-${f}`}>
-                <Text variant="caption" tone={mode === f ? undefined : 'secondary'} style={mode === f && styles.filterOnText}>
+                {/* 2026-10-02 實機：「Walk / brisk」在 brisk 前換行，第二行被圓角邊框裁掉，只剩「Walk /」。
+                    Android 的 highQuality 斷行與版面量測差一點寬度就會這樣；篩選標籤固定單行＋simple 斷行 */}
+                <Text variant="caption" tone={mode === f ? undefined : 'secondary'} style={mode === f && styles.filterOnText} numberOfLines={1} textBreakStrategy="simple" testID={`workouts-filter-label-${f}`}>
                   {t(`wo.filter.${f}` as TKey)}
                 </Text>
               </Pressable>

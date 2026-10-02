@@ -88,3 +88,17 @@ describe('列表與詳情的 kcal 必須是同一個數字', () => {
     expect(screen.queryByText(/≈\d+ kcal/)).toBeNull();
   });
 });
+
+/**
+ * 2026-10-02 實機（RC v15 驗收）：「Walk / brisk」在 brisk 前換行，第二行被圓角邊框裁掉，畫面只剩「Walk /」。
+ * 版面無法在 jest 量測；這裡釘住修法本身——篩選標籤單行、Android 用 simple 斷行。
+ */
+test('篩選標籤固定單行，不會在按鈕裡換行被裁掉', async () => {
+  api.myWorkouts.mockResolvedValue({ items: [w('srv-hc', 'health_connect')], rules_version: 1 });
+  jest.spyOn(workoutRecorder, 'localStore').mockReturnValue({ list: () => [] } as never);
+  await render(<WorkoutsScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByTestId('workouts-filter-label-walking')).toBeTruthy());
+  for (const f of ['all', 'walking', 'running']) {
+    expect(screen.getByTestId(`workouts-filter-label-${f}`).props).toMatchObject({ numberOfLines: 1, textBreakStrategy: 'simple' });
+  }
+});
