@@ -174,14 +174,14 @@ README 頂部應提供 APK、影片、Pitch PDF、五分鐘體驗步驟、Devnet
 | 官方精確截止時間／時區 | 待確認 |
 | 換算台灣時間 | 待確認 |
 | 提交負責人 | 使用者本人（單人參賽） |
-| Repository URL | 待填 |
+| Repository URL | `https://github.com/stan0714/neonshift`（評審存取權待確認） |
 | Release／Tag URL | 待填 |
-| Commit SHA | 待填 |
+| Commit SHA | `5f6e439`（10/2 RC 候選，見 [RC 紀錄](../evidence/2026-10-02-rc-v15.md)；22:00 實機驗收後定案） |
 | APK 下載 URL | 待填 |
-| APK versionName／versionCode | 待填，以提交產物為準 |
-| APK SHA-256 | 待填 |
-| APK 簽章憑證指紋 | 待填 |
-| 建置日期 | 待填 |
+| APK versionName／versionCode | 0.1.0／15（10/2 RC 候選，見 [RC 紀錄](../evidence/2026-10-02-rc-v15.md)；22:00 實機驗收後定案） |
+| APK SHA-256 | `3e203498dbe457699bf926d642a10bf8a1d9a7c2986ee37e0ca052c12f2711db`（10/2 RC 候選，見 [RC 紀錄](../evidence/2026-10-02-rc-v15.md)；22:00 實機驗收後定案） |
+| APK 簽章憑證指紋 | SHA-256 `c6b8bbb34b050ae3725c29dc8155d601875693f8c741356a1331d948fb5f4b04`（CN=NeonShift dev test；換正式簽章需重記） |
+| 建置日期 | 2026-10-02T09:38:05Z（10/2 RC 候選，見 [RC 紀錄](../evidence/2026-10-02-rc-v15.md)；22:00 實機驗收後定案） |
 | 評審指南 URL | 待填 |
 | Demo 影片 URL／時長 | 待填 |
 | 活動文字詳解 URL | 待填；不再要求長片 |
@@ -189,9 +189,9 @@ README 頂部應提供 APK、影片、Pitch PDF、五分鐘體驗步驟、Devnet
 | 主片實測秒數／字幕版本 | 待匯出後量測；目標 170、上限 180 秒 |
 | 測試活動／時窗／支援方式 | 待填，見活動手冊 |
 | Pitch PDF URL | 待填 |
-| 網路／Program ID／Mint | 待填，以提交環境為準 |
+| 網路／Program ID／Mint | devnet／`6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA`／tSKR `2itshf7Xup3WZeeDRSXbstv4nbPcjfiLhdDpcQjU7RtZ` |
 | 核心操作 Explorer 連結 | 待填 |
-| 驗收裝置／OS／錢包版本 | 待填 |
+| 驗收裝置／OS／錢包版本 | Solana Seeker／Android 16／Seeker Wallet 1.17.0 |
 | 已知限制 | 待填 |
 | 最後連結檢查時間 | 待填 |
 | 提交時間／回執／編號 | 待填 |
