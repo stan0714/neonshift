@@ -20,7 +20,9 @@ jest.mock('@/services/api/ApiClient', () => ({
   },
 }));
 
+import { estimateItemEnergy, itemFromLocal } from '@/domain/activity';
 import { WorkoutsScreen } from '@/screens/WorkoutsScreen';
+import { useBody } from '@/state/bodyStore';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { ThemeProvider } from '@/theme';
 
@@ -54,4 +56,35 @@ test('只在伺服器的紀錄（例如 Health Connect 匯入）→ 開 Activity
   await waitFor(() => expect(screen.getByTestId('workout-open-srv-hc')).toBeTruthy());
   await fireEvent.press(screen.getByTestId('workout-open-srv-hc'));
   expect(mockNavigate).toHaveBeenCalledWith('ActivityDetail', { serverId: 'srv-hc' });
+});
+
+/**
+ * 同一天拍素材時的第二個發現：列表上 9/30 的 kcal 是「—」，點進詳情卻是 ≈226。
+ * 列表只讀伺服器的能量欄位（GPS 紀錄沒有），詳情頁才用體重估算。兩處改用同一支 estimateItemEnergy。
+ */
+describe('列表與詳情的 kcal 必須是同一個數字', () => {
+  const meta = {
+    sessionId: 'local-930', syncedSessionId: 'srv-930', sport: 'run', intent: 'run', status: 'saved', startedAtUtc: Date.UTC(2026, 8, 30, 12, 59), endedAtUtc: Date.UTC(2026, 8, 30, 13, 25),
+    summary: { distanceMm: 3_890_000, elapsedMs: 1_538_000, movingMs: 1_536_000, avgPaceSPerKm: 395, avgSpeedKmh: 9.1, laps: [],
+      splits: [{ distanceMm: 1_000_000, durationMs: 429_000, paceSPerKm: 429, isPartial: false }, { distanceMm: 1_000_000, durationMs: 390_000, paceSPerKm: 390, isPartial: false }, { distanceMm: 1_000_000, durationMs: 387_000, paceSPerKm: 387, isPartial: false }, { distanceMm: 890_000, durationMs: 330_000, paceSPerKm: 371, isPartial: true }] },
+  };
+  afterEach(() => useBody.setState({ weightKg: null, loaded: false }));
+
+  test('有體重 → 列表顯示與詳情頁相同的估算值（≈N kcal），不是「—」', async () => {
+    useBody.setState({ weightKg: 82, loaded: true });
+    api.myWorkouts.mockResolvedValue({ items: [w('srv-930', 'gps')], rules_version: 1 });
+    jest.spyOn(workoutRecorder, 'localStore').mockReturnValue({ list: () => [meta] } as never);
+    const expected = estimateItemEnergy(itemFromLocal(meta as never, null)!, 82)!.activeKcal;
+    await render(<WorkoutsScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByText(`≈${expected} kcal`)).toBeTruthy());
+  });
+
+  test('沒設體重 → 仍是「—」（不憑空估）', async () => {
+    useBody.setState({ weightKg: null, loaded: true });
+    api.myWorkouts.mockResolvedValue({ items: [w('srv-930', 'gps')], rules_version: 1 });
+    jest.spyOn(workoutRecorder, 'localStore').mockReturnValue({ list: () => [meta] } as never);
+    await render(<WorkoutsScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('workout-srv-930')).toBeTruthy());
+    expect(screen.queryByText(/≈\d+ kcal/)).toBeNull();
+  });
 });

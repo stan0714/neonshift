@@ -1,4 +1,5 @@
 import { routeAppearanceOf, type RouteAppearance } from '@/domain/appearance';
+import { estimateEnergy, type EnergyEstimate } from '@/domain/energy';
 /**
  * 我的運動 Activity（PG-LINK-04，docs/shoe-sync-activity.md §4）：純函式——合併本機與伺服器紀錄、以 canonical id 去重、
  * 月／日分組依 session 保存的當地時區（跨午夜歸開始日）、篩選、穩定排序、月總覽（只計有效且去重的紀錄，待審另列）。
@@ -64,6 +65,16 @@ export function itemFromLocal(m: SessionMeta, entry: OutboxEntry | null): Activi
     splits: s.splits.map((l) => ({ distanceMm: l.distanceMm, durationMs: l.durationMs, paceSPerKm: l.paceSPerKm, isPartial: l.isPartial })),
     laps: s.laps.length, pbEligible: null, reviewReasons: [],
   };
+}
+
+/**
+ * 沒有裝置能量時的估算。詳情頁與 Workouts 列表共用這一支，同一筆紀錄在每個畫面都是同一個數字。
+ * 2026-10-02 實機截圖時看到：列表上 9/30 的 kcal 是「—」，點進詳情卻是 ≈226——列表只讀伺服器欄位，
+ * 詳情頁才用體重估算。輸入一律是 movingMs ＋ 完整分段（與 WorkoutSummary 讀的 meta.summary 相同）。
+ */
+export function estimateItemEnergy(it: ActivityItem, weightKg: number | null | undefined): EnergyEstimate | null {
+  if (it.activeKcalMkcal !== null) return null;
+  return estimateEnergy({ sport: it.sport, weightKg, movingMs: it.movingMs, distanceMm: it.distanceMm, segments: it.splits?.filter((l) => !l.isPartial).map((l) => ({ distanceMm: l.distanceMm, durationMs: l.durationMs })) ?? null });
 }
 
 export function itemFromRemote(w: WorkoutSummary): ActivityItem {

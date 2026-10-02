@@ -4,6 +4,7 @@ import { Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
 import { SignInState } from '@/components/SignInState';
+import { estimateItemEnergy, itemFromLocal, itemFromRemote } from '@/domain/activity';
 import { formatDuration, formatKcal, formatKm, formatPace, qualityKind, modeLabel } from '@/domain/workouts';
 import { useT, type TKey } from '@/i18n';
 import { localTimeZone, matchesMode, weeklyReview, type ModeFilter } from '@/domain/review';
@@ -14,6 +15,7 @@ import type { SessionMeta } from '@/services/workouts/LocalWorkoutStore';
 import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { outboxOrder, workoutOutbox } from '@/services/workouts/WorkoutOutbox';
 import { useOutbox } from '@/hooks/useOutbox';
+import { useWeightKg } from '@/state/bodyStore';
 import { PersonalBests } from './workouts/PersonalBests';
 import { color, radius, space, Text } from '@/theme';
 
@@ -150,6 +152,14 @@ export function WorkoutsScreen() {
     ]);
   };
 
+  const { weightKg } = useWeightKg();
+  /** 沒有裝置能量時的估算：本機錄的用本機摘要（與點進去的 Summary 同一組輸入），只在伺服器的用伺服器欄位 */
+  const estimatedKcal = (w: WorkoutSummary): number | null => {
+    const local = workoutRecorder.localStore().list().find((m) => m.syncedSessionId === w.session_id);
+    const it = (local ? itemFromLocal(local, null) : null) ?? itemFromRemote(w);
+    return estimateItemEnergy(it, weightKg)?.activeKcal ?? null;
+  };
+
   /** 有這支手機錄的原始紀錄 → 開 WorkoutSummary（路線、分段）；只在伺服器（匯入）→ ActivityDetail。與 Activity 分頁同一規則 */
   const openServer = (w: { session_id: string }) => {
     const local = workoutRecorder.localStore().list().find((m) => m.syncedSessionId === w.session_id);
@@ -270,7 +280,7 @@ export function WorkoutsScreen() {
             <Metric label="km" value={formatKm(w.metrics.distance?.value_mm)} />
             <Metric label={t('wo.time')} value={formatDuration(w.elapsed_ms)} />
             <Metric label={t('wo.pace')} value={formatPace(w.metrics.avg_pace_s_per_km)} />
-            <Metric label="kcal" value={w.metrics.active_energy ? formatKcal(w.metrics.active_energy.value_mkcal) : w.metrics.total_energy ? `${formatKcal(w.metrics.total_energy.value_mkcal)} (${t('wo.energyTotal')})` : '—'} />
+            <Metric label="kcal" value={w.metrics.active_energy ? formatKcal(w.metrics.active_energy.value_mkcal) : w.metrics.total_energy ? `${formatKcal(w.metrics.total_energy.value_mkcal)} (${t('wo.energyTotal')})` : ((k) => (k === null ? '—' : `≈${k} kcal`))(estimatedKcal(w))} />
           </View>
           <Text variant="caption" tone="muted" style={styles.mtXs}>
             {t('wo.source', { origin: t(`wo.origin.${w.source.origin}` as TKey), id: w.source.source_id })}

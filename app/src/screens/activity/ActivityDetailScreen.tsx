@@ -4,9 +4,8 @@ import { StyleSheet, View } from 'react-native';
 
 import { Chip, InlineState, Screen, Surface } from '@/components';
 import { SignInState } from '@/components/SignInState';
-import { itemFromRemote, type ActivityItem } from '@/domain/activity';
+import { estimateItemEnergy, itemFromRemote, type ActivityItem } from '@/domain/activity';
 import { stageName } from '@/domain/collectibles';
-import { estimateEnergy } from '@/domain/energy';
 import { formatDuration, formatKcal, formatKm, formatPace, modeLabel, qualityKind, reviewReasonsText } from '@/domain/workouts';
 import { useWeightKg } from '@/state/bodyStore';
 import { useT, type TKey } from '@/i18n';
@@ -45,7 +44,7 @@ export function ActivityDetailScreen() {
   const it: ActivityItem = itemFromRemote(w);
   const isWalk = it.sport === 'walk';
   // PG-R-11：無裝置熱量時，以手機上的體重估算（分段優先）
-  const energy = it.activeKcalMkcal === null ? estimateEnergy({ sport: it.sport, weightKg, movingMs: it.movingMs, distanceMm: it.distanceMm, segments: it.splits?.filter((l) => !l.isPartial).map((l) => ({ distanceMm: l.distanceMm, durationMs: l.durationMs })) ?? null }) : null;
+  const energy = estimateItemEnergy(it, weightKg);
   const when = (ms: number | null) => (ms === null ? '—' : new Date(ms).toLocaleString(undefined, { timeZone: it.timeZone ?? undefined }));
   return (
     <Screen scroll testID="activity-detail-screen">
