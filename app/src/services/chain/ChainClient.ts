@@ -43,12 +43,16 @@ const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
  * 判斷是不是「等一下再試就可能成功」的失敗。
- * web3.js 把 HTTP 錯誤包成 `failed to get info about account <pubkey>: Error: 504 : {…}`，
- * 所以狀態碼要從 `Error: <ddd> :` 這個固定格式取，不能對整段訊息抓三位數（base58 位址裡也有數字）。
+ * web3.js 有**兩種**包法，兩種都要認得：
+ *  1. `failed to get info about account <pubkey>: Error: 504 : {…}`（透過 jayson 包一層）
+ *  2. `504 Gateway Timeout: {…}`——`createRpcClient` 自己丟的 `new Error(`${res.status} ${res.statusText}: ${text}`)`
+ * 2026-10-02 實機只認得第一種，於是公用 devnet 的 5xx 全被判成 unknown；unknown 不重試，
+ * 一次暫時性失敗就直接換來「Devnet is taking a break」。
+ * 三位數仍然只從固定位置取，不對整段訊息抓（base58 位址裡也有數字）。
  */
 export function classifyRpcError(label: string, e: unknown): RpcFailure {
   const detail = messageOf(e);
-  const status = Number(/Error:\s*(\d{3})\s*:/.exec(detail)?.[1] ?? /\bstatus(?:\s*code)?[:=]\s*(\d{3})\b/i.exec(detail)?.[1]) || null;
+  const status = Number(/Error:\s*(\d{3})\s*:/.exec(detail)?.[1] ?? /^\s*(\d{3})\s+\D[^:]*:/.exec(detail)?.[1] ?? /\bstatus(?:\s*code)?[:=]\s*(\d{3})\b/i.exec(detail)?.[1]) || null;
   const aborted = (e as { name?: string })?.name === 'AbortError' || /\baborted\b|timed? ?out/i.test(detail);
   if (status === 429 || /too many requests|rate limit|-32005/i.test(detail)) return { reason: 'rate_limited', label, status, detail };
   if (aborted) return { reason: 'timeout', label, status, detail };

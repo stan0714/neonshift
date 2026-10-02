@@ -33,6 +33,12 @@ type State = {
   balance: bigint | null;
   chainSyncedAt: number | null;
   /**
+   * 鏈上讀取是否在途。健康資料讀本機、很快就回，chainSyncing 分開記：
+   * 公用 devnet 端點一次 getMultipleAccounts 實測 1～3 秒，加上餘額是第二個請求，
+   * 沒有這個旗標時畫面在這幾秒內毫無提示——轉圈停了、數字還沒換，看起來就是「卡住」。
+   */
+  chainSyncing: boolean;
+  /**
    * 鏈上讀取失敗。**只留分類與短 Ref**——原始 RPC payload 不進使用者文案（Style 14）：
    * 2026-09-27 手機上就出現過一整串 `{"jsonrpc":"2.0","error":{"code":504,…}}` 貼在錯誤卡正文裡。
    */
@@ -85,6 +91,7 @@ export const useDashboardStore = create<State>((set, get) => ({
   config: null,
   balance: null,
   chainSyncedAt: null,
+  chainSyncing: false,
   chainError: null,
   tasks: { steps: 'not_met', sleep: 'not_met', workout: 'not_met' },
   workout: null,
@@ -136,6 +143,7 @@ export const useDashboardStore = create<State>((set, get) => ({
       return;
     }
     const { taskDate } = get();
+    set({ chainSyncing: true });
     try {
       const steps = claimPda(wallet, taskDate, TASK_CODE.steps);
       const workout = claimPda(wallet, taskDate, TASK_CODE.workout);
@@ -166,6 +174,8 @@ export const useDashboardStore = create<State>((set, get) => ({
     } catch (e) {
       const failure = e instanceof RpcReadError ? e.failure : classifyRpcError('syncChain', e);
       set({ chainError: { reason: failure.reason, ref: rpcFailureRef(failure) } });
+    } finally {
+      set({ chainSyncing: false });
     }
   },
 

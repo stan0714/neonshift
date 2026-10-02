@@ -144,7 +144,9 @@ export function HomeScreen() {
     <ScrollView
       style={ap.scene ? styles.overScene : styles.root}
       contentContainerStyle={[{ paddingHorizontal: screenPaddingX, paddingTop: insets.top + space.m, paddingBottom: space.xl }]}
-      refreshControl={<RefreshControl refreshing={d.healthSyncing} onRefresh={() => void refresh()} tintColor={color.mint} />}
+      /* 鏈上讀取也要算進轉圈：健康資料讀本機、幾毫秒就回，只綁 healthSyncing 的話
+         轉圈會在鏈上請求還在路上時就停掉，看起來就是「刷新完了但數字沒變」 */
+      refreshControl={<RefreshControl refreshing={d.healthSyncing || d.chainSyncing} onRefresh={() => void refresh()} tintColor={color.mint} />}
       testID="home-screen"
     >
       <View style={styles.header}>
@@ -153,6 +155,8 @@ export function HomeScreen() {
           <Text variant="bodySmall" tone="secondary" numeric>
             {session ? shortAddress(session.address) : t('common.notConnected')} · {formatTskr(d.balance)} {APP_CONFIG.tokenSymbol}
           </Text>
+          {/* 餘額與等級是鏈上值：在途時說出來，不要讓使用者對著舊數字猜 */}
+          {d.chainSyncing ? <Text variant="caption" tone="muted" testID="home-chain-syncing">{t('home.chainSyncing')}</Text> : null}
         </View>
         <Chip label={t('common.devnet')} kind="devnet" />
         {FEATURES.demoLevel ? <Chip label={t('common.demoData')} kind="devnet" accessibilityLabel={t("common.demoData")} /> : null}

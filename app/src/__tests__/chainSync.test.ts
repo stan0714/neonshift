@@ -25,7 +25,7 @@ const wallet = new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
 
 beforeEach(() => {
   jest.clearAllMocks();
-  useDashboardStore.setState({ profile: null, config: null, freeze: null, balance: null, chainError: null, chainSyncedAt: null });
+  useDashboardStore.setState({ profile: null, config: null, freeze: null, balance: null, chainError: null, chainSyncedAt: null , chainSyncing: false });
 });
 
 test('一次 getMultipleAccounts 讀完所有帳戶，不再一個帳戶一個請求', async () => {
@@ -61,4 +61,31 @@ test('非 RpcReadError（例如解碼失敗）也會被分類，不會把例外�
   mockFetchAccountsInfo.mockRejectedValue(new Error('boom'));
   await useDashboardStore.getState().syncChain(wallet);
   expect(useDashboardStore.getState().chainError).toEqual({ reason: 'unknown', ref: 'unknown · syncChain' });
+});
+
+/**
+ * 2026-10-02 實機回報「UI 反應比較慢、沒有任何提示」。
+ * 原因是只有 syncHealth 有 healthSyncing，鏈上讀取沒有任何旗標——而健康資料讀本機、
+ * 幾毫秒就回，轉圈因此在鏈上請求還在路上時就停掉。公用 devnet 的 getMultipleAccounts
+ * 實測 1～3 秒，加上餘額是第二個請求，使用者就對著不動的舊數字乾等。
+ */
+test('鏈上讀取在途時 chainSyncing 為真，結束後歸零', async () => {
+  let release: (v: unknown) => void = () => {};
+  mockFetchAccountsInfo.mockReturnValue(new Promise((r) => { release = r; }));
+  const done = useDashboardStore.getState().syncChain(wallet);
+  expect(useDashboardStore.getState().chainSyncing).toBe(true);
+  release([null, null, null, null, null]);
+  await done;
+  expect(useDashboardStore.getState().chainSyncing).toBe(false);
+});
+
+test('讀失敗也要歸零，否則轉圈會永遠停不下來', async () => {
+  let fail: (e: unknown) => void = () => {};
+  mockFetchAccountsInfo.mockReturnValue(new Promise((_, rej) => { fail = rej; }));
+  const done = useDashboardStore.getState().syncChain(wallet);
+  expect(useDashboardStore.getState().chainSyncing).toBe(true);
+  fail(new Error('boom'));
+  await done;
+  expect(useDashboardStore.getState().chainSyncing).toBe(false);
+  expect(useDashboardStore.getState().chainError).not.toBeNull();
 });

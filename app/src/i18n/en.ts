@@ -293,6 +293,8 @@ export const en = {
   'home.healthErr.timeout': 'Health Connect did not answer in time. Showing your last synced numbers; nothing was sent. Trying again shortly usually works.',
   'home.healthErr.unknown': 'Health Connect could not be read this time. Showing your last synced numbers; nothing was sent.',
   // Style 14: say what happened, whether data is safe, and what to do next. Raw RPC text stays in the Ref.
+  'home.chainSyncing': 'Reading onchain data…',
+  'home.chainSyncing.long': 'The public devnet node is slow right now. Your cached values stay on screen until it answers.',
   'home.chainErr.rate_limited': 'Cannot read your onchain profile right now: the public devnet node is rate limiting us. Your tSKR and progress are safe onchain; these are cached values. Try again in a few minutes.',
   'home.chainErr.timeout': 'Cannot read your onchain profile right now: the devnet node stopped responding. Your tSKR and progress are safe onchain; these are cached values. You can try again.',
   'home.chainErr.server': 'Cannot read your onchain profile right now: the public devnet node is having trouble. Your tSKR and progress are safe onchain; these are cached values. Try again in a few minutes.',

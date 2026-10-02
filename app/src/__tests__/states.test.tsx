@@ -5,6 +5,7 @@ import { PublicKey } from '@solana/web3.js';
 import { getNetworkStateAsync, useNetworkState } from 'expo-network';
 import type { PropsWithChildren } from 'react';
 
+import { fetchAccountsInfo } from '@/services/chain/ChainClient';
 import { InlineState, OfflineBanner } from '@/components';
 import { HomeScreen } from '@/screens/tabs/HomeScreen';
 import { useDashboardStore } from '@/state/dashboardStore';
@@ -39,7 +40,7 @@ const Wrapper = ({ children }: PropsWithChildren) => (
 beforeEach(() => {
   jest.clearAllMocks();
   useWalletStore.setState({ status: 'connected', session: { address: wallet.toBase58(), publicKey: wallet, walletUriBase: '', label: 'Phantom' }, error: null } as never);
-  useDashboardStore.setState({ profile: null, config: null, chainError: null, health: null });
+  useDashboardStore.setState({ profile: null, config: null, chainError: null, health: null, chainSyncing: false });
 });
 
 describe('OfflineBanner', () => {
@@ -61,6 +62,19 @@ describe('OfflineBanner', () => {
 });
 
 describe('Home inline states（Style 14）', () => {
+  /**
+   * 2026-10-02 實機：「UI 反應比較慢，要有東西告知還在處理」。
+   * 公用 devnet 的 getMultipleAccounts 實測 1～3 秒，餘額還是第二個請求——
+   * 這幾秒內畫面原本完全沒有提示，使用者只看到不動的舊餘額。
+   */
+  test('鏈上讀取在途時，首頁要說自己正在讀，而不是讓人對著舊數字乾等', async () => {
+    // 讓這次讀取掛著不回：不能只 setState，HomeScreen 掛載就會自己 refresh 一次並把旗標歸零
+    (fetchAccountsInfo as jest.Mock).mockReturnValueOnce(new Promise(() => {}));
+    await render(<HomeScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('home-chain-syncing')).toBeTruthy());
+    expect(screen.getByText('Reading onchain data…')).toBeTruthy();
+  });
+
   test('健康權限關閉 → Health access is off + Review access；devnet 讀取失敗 → Devnet is taking a break + Retry', async () => {
     await render(<HomeScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('state-health-off')).toBeTruthy());

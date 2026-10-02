@@ -19,6 +19,30 @@ describe('錯誤分類', () => {
     expect(rpcFailureRef(f)).toBe('504 · getMultipleAccounts');
   });
 
+  /**
+   * 2026-10-02 實機：簽完名首頁就跳「Devnet is taking a break」，Ref 是 `unknown · getMultipleAccounts`。
+   * unknown 代表狀態碼根本沒解析出來——web3.js 的 createRpcClient 對非 2xx 丟的是
+   * `new Error(`${res.status} ${res.statusText}: ${text}`)`，跟上面那筆 jayson 包法的格式不一樣。
+   * 沒認出來的代價不只是 Ref 難看：unknown 不重試，一次暫時性 5xx 就直接變成錯誤卡。
+   */
+  test('web3.js 另一種包法 `503 Service Unavailable: …` 也要解出狀態碼，並判成 server', () => {
+    const f = classifyRpcError('getMultipleAccounts', new Error('503 Service Unavailable: {"error":"upstream"}'));
+    expect(f).toMatchObject({ reason: 'server', status: 503 });
+    expect(rpcFailureRef(f)).toBe('503 · getMultipleAccounts');
+  });
+
+  test('那種包法既然判成 server，就會真的重試，而不是一次就放棄', async () => {
+    const run = jest.fn(async () => { throw new Error('502 Bad Gateway: upstream connect error'); });
+    await expect(rpcRead('getMultipleAccounts', run)).rejects.toBeInstanceOf(RpcReadError);
+    expect(run).toHaveBeenCalledTimes(1 + RPC_RETRY_DELAYS_MS.length);
+  });
+
+  test('位址開頭的數字不會被誤認成狀態碼', () => {
+    const f = classifyRpcError('x', new Error('failed to get info for accounts 503abcDEF…: could not find account'));
+    expect(f.status).toBeNull();
+    expect(f.reason).toBe('unknown');
+  });
+
   test('限流、逾時、連不上各自分類', () => {
     expect(classifyRpcError('x', new Error('Error: 429 : Too Many Requests')).reason).toBe('rate_limited');
     expect(classifyRpcError('x', new Error('failed: -32005 node is behind')).reason).toBe('rate_limited');

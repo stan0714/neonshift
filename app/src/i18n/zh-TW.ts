@@ -284,6 +284,8 @@ export const zhTW: Record<keyof typeof en, string> = {
   'home.healthErr.timeout': 'Health Connect 這次沒有在時限內回應。顯示的是上次同步的數值；沒有任何資料被送出。稍後再試一次通常就好了。',
   'home.healthErr.unknown': 'Health Connect 這次讀取失敗。顯示的是上次同步的數值；沒有任何資料被送出。',
   // Style 14：說「發生什麼、資料是否安全、下一步」。原始 RPC 訊息只留在 Ref，不貼進正文
+  'home.chainSyncing': '正在讀取鏈上資料…',
+  'home.chainSyncing.long': '公用 devnet 節點現在比較慢。在它回覆之前，畫面上繼續顯示快取值。',
   'home.chainErr.rate_limited': '目前讀不到你的鏈上檔案：devnet 的公用節點正在限流。你的 tSKR 與進度都安全存在鏈上，畫面顯示的是快取值。過幾分鐘再試一次。',
   'home.chainErr.timeout': '目前讀不到你的鏈上檔案：devnet 節點太久沒有回應。你的 tSKR 與進度都安全存在鏈上，畫面顯示的是快取值。可以再試一次。',
   'home.chainErr.server': '目前讀不到你的鏈上檔案：devnet 的公用節點暫時故障。你的 tSKR 與進度都安全存在鏈上，畫面顯示的是快取值。過幾分鐘再試一次。',

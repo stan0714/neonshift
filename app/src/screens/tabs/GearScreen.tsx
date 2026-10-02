@@ -146,7 +146,7 @@ export function GearScreen({ route }: { route?: RouteProp<TabParamList, "Gear"> 
       testID="gear-screen"
       refreshControl={
         <RefreshControl
-          refreshing={c.loading}
+          refreshing={c.loading || d.chainSyncing}
           onRefresh={() => { setRefreshTick((n) => n + 1); void refresh(); }}
           tintColor={color.mint}
         />
