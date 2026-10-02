@@ -153,6 +153,18 @@ describe('PG-A-14 Gear', () => {
     expect(screen.queryByTestId('claim-1')).toBeNull(); // 無 profile → 全部 locked
   });
 
+  /**
+   * 2026-10-02 實機（0 SOL、沒領起始鞋的錢包）：「我的跑鞋」顯示原點「使用中」，
+   * 同一頁下方收藏卻寫原點要「建立玩家檔案」才解鎖。原點就是起始鞋，沒領就不算擁有。
+   */
+  test('沒有 profile 時「我的跑鞋」是空的，不會出現原點「使用中」', async () => {
+    useDashboardStore.setState({ profile: null } as never);
+    await render(<GearScreen />, { wrapper: Wrapper });
+    expect(screen.queryByTestId('gear-shoe-1')).toBeNull();
+    expect(screen.queryByText('In use')).toBeNull();
+    expect(screen.getByText(/Claim your starter shoe \(Origin\)/)).toBeTruthy();
+  });
+
   test('Lv.5 顯示 Max level、五階皆可領', async () => {
     useDashboardStore.setState({ profile: profile({ shoeLevel: 5, coreLevel: 5, xp: BigInt(9000) }) } as never);
     await render(<GearScreen />, { wrapper: Wrapper });

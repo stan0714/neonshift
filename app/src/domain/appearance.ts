@@ -1,6 +1,7 @@
 /**
  * 跑鞋外觀（PG-LINK-01，docs/shoe-sync-activity.md §2）：外觀選擇與 Active level 分開。
- * - 取得＝曾真正達到該階（鏈上 highest_level／shoe_level），只有 XP 達門檻不算；Lv.1 原點人人擁有。
+ * - 取得＝曾真正達到該階（鏈上 highest_level／shoe_level），只有 XP 達門檻不算。
+ *   Lv.1 原點＝起始鞋，要領取（init_player，鏈上 profile 存在）才算擁有——沒有 profile 的錢包一雙都沒有。
  * - 曾取得的外觀在正常降級後仍可用；倍率與新資格只看有效等級（不在此模組處理）。
  * - 尚未發行的系列不列入；NFT 轉入不自動授予鞋款（取得紀錄以鏈上 profile 為權威）。
  */
@@ -29,6 +30,8 @@ export const highestOwnedLevel = (profile: PlayerProfile | null): ShoeLevel => {
 export const activeLevel = (profile: PlayerProfile | null): ShoeLevel => (profile ? (Math.min(5, Math.max(1, profile.coreLevel || 1)) as ShoeLevel) : 1);
 
 export function ownedShoes(owner: string | null, profile: PlayerProfile | null, series: ShoeSeriesId = DEFAULT_SHOE_SERIES): OwnedShoe[] {
+  // 2026-10-02 實機：沒有 profile 的錢包在「我的跑鞋」顯示原點「使用中」，下方收藏卻寫「建立玩家檔案」解鎖。
+  if (!profile) return [];
   const top = highestOwnedLevel(profile);
   const out: OwnedShoe[] = [];
   for (let level = 1; level <= top; level++) {

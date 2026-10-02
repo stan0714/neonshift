@@ -299,7 +299,7 @@ export function GearScreen({ route }: { route?: RouteProp<TabParamList, "Gear"> 
         </Text>
       </View>
       <Text variant="caption" tone="muted" style={styles.sectionNote}>
-        {t(ap.owned.length > 1 ? "gear.myShoes.note" : "gear.myShoes.single")}
+        {t(ap.owned.length === 0 ? "gear.myShoes.none" : ap.owned.length > 1 ? "gear.myShoes.note" : "gear.myShoes.single")}
       </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shoeRow} testID="gear-my-shoes">
         {ap.owned.map((shoe) => {
@@ -495,7 +495,7 @@ export function GearScreen({ route }: { route?: RouteProp<TabParamList, "Gear"> 
         disabledReason={claimDisabledReason}
         onClaim={() => session && detailKind && void c.claim(session.publicKey, detailKind)}
         onPreviewReveal={setPreviewLevel}
-        look={detailKind ? { owned: ap.owned.some((o) => o.level === detailKind), inUse: detailKind === ap.level, active: level, onUse: () => { void selectShoe(detailKind); setDetailKind(null); } } : null}
+        look={detailKind ? { owned: ap.owned.some((o) => o.level === detailKind), inUse: ap.owned.some((o) => o.level === detailKind) && detailKind === ap.level, active: level, onUse: () => { void selectShoe(detailKind); setDetailKind(null); } } : null}
       />
       {previewLevel ? <RevealCeremony from={(previewLevel - 1) as ShoeLevel} to={previewLevel} preview onClose={() => setPreviewLevel(null)} /> : null}
       <Text
@@ -677,7 +677,7 @@ function ShoeDetailSheet({ kind, onClose, profile, status, section, xp, threshol
     { label: t("gear.detail.unlock"), value: collectibleUnlock(t, item) },
     { label: t("gear.detail.nft"), value: t(`gear.detail.nft.${status}` as TKey), testID: "shoe-detail-nft" },
     ...(editionValue ? [{ label: t("gear.detail.edition"), value: editionValue, testID: "shoe-detail-edition" }] : []),
-    { label: t("gear.detail.look"), value: look?.inUse ? t("gear.inUse") : look?.owned ? t("gear.detail.look.available") : t("gear.detail.look.locked", { n: kind }), testID: "shoe-detail-look" },
+    { label: t("gear.detail.look"), value: look?.inUse ? t("gear.inUse") : look?.owned ? t("gear.detail.look.available") : kind === 1 ? t("gear.detail.look.starter") : t("gear.detail.look.locked", { n: kind }), testID: "shoe-detail-look" },
   ];
   return (
     <Sheet visible onClose={onClose} title={collectibleName(t, item)} testID="shoe-detail" footer={

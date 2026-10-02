@@ -13,8 +13,9 @@ beforeEach(() => {
   useAppearanceStore.setState({ owner: null, loaded: false, selectedShoeId: null, shoeBackgroundEnabled: true, acquiredAt: {}, offer: null });
 });
 
-test('取得＝曾達到的最高階（highest／shoeLevel 取大者），XP 達門檻不算；Lv.1 人人擁有', () => {
-  expect(ownedShoes(owner, null).map((s) => s.level)).toEqual([1]);
+test('取得＝曾達到的最高階（highest／shoeLevel 取大者），XP 達門檻不算；Lv.1 要領過起始鞋才算', () => {
+  // 2026-10-02 實機：沒有 profile 卻顯示原點「使用中」，與收藏區「建立玩家檔案」矛盾
+  expect(ownedShoes(owner, null)).toEqual([]);
   expect(ownedShoes(owner, profile({ xp: BigInt(99_999), coreLevel: 1, shoeLevel: 1, highestLevel: 1 })).map((s) => s.level)).toEqual([1]);
   const list = ownedShoes(owner, profile({ coreLevel: 2, shoeLevel: 2, highestLevel: 4 }));
   expect(list.map((s) => s.level)).toEqual([1, 2, 3, 4]);
