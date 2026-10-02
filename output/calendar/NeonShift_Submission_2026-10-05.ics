@@ -1,0 +1,350 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//NeonShift//Submission Sprint//ZH-TW
+CALSCALE:GREGORIAN
+X-WR-CALNAME:NeonShift 10月5日送審衝刺
+X-WR-TIMEZONE:Asia/Taipei
+BEGIN:VTIMEZONE
+TZID:Asia/Taipei
+BEGIN:STANDARD
+DTSTART:19700101T000000
+TZOFFSETFROM:+0800
+TZOFFSETTO:+0800
+TZNAME:CST
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+UID:23956b40-29df-5a58-893a-a1feb12ce4df@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20260929T213000
+DTEND;TZID=Asia/Taipei:20260929T220000
+SUMMARY:NeonShift｜確認送審資格與本週安排
+DESCRIPTION:確認實際專案開始日、天使投資與報名收件；保
+ 存主辦方 Devnet／tSKR 回信。確認每日可投入時間。完成
+ 條件：待確認事項有答案或明確負責動作。\n時區：Asia/T
+ aipei。這是建議工作時段，可自行調整。\n計畫：docs/store
+ /submission-sprint-2026-10-05.md\nReview：docs/design/implementation-revi
+ ew-2026-09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:確認送審資格與本週安排
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:b054d6b2-7cae-5026-a5dc-0e6a8bcdb14b@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20260930T090000
+DTEND;TZID=Asia/Taipei:20260930T120000
+SUMMARY:NeonShift｜優先修正：付款重送與帳號隔離
+DESCRIPTION:先處理 R1：交易結果不明時禁止再次付款，先 re
+ cover。再處理 R2：換帳號不可沿用目錄／訂單。完成條件
+ ：遺失回覆、換帳號及晚到回應測試通過。\n時區：Asia/T
+ aipei。這是建議工作時段，可自行調整。\n計畫：docs/store
+ /submission-sprint-2026-10-05.md\nReview：docs/design/implementation-revi
+ ew-2026-09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:優先修正：付款重送與帳號隔離
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:60d0965e-15cf-5e14-af82-beeb6c52b2e0@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20260930T140000
+DTEND;TZID=Asia/Taipei:20260930T170000
+SUMMARY:NeonShift｜修正分享／通知，準備實機候選版
+DESCRIPTION:處理 R3 分享交付前有效性、R4 通知目的地、R5 
+ 節日舊資料、R6 快取保護。準備候選 APK 與測試資源。完
+ 成條件：停止新增功能；未修完的可選入口決定停用方
+ 案。\n時區：Asia/Taipei。這是建議工作時段，可自行調整
+ 。\n計畫：docs/store/submission-sprint-2026-10-05.md\nReview：docs/de
+ sign/implementation-review-2026-09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:修正分享／通知，準備實機候選版
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:ff1dad38-d8c4-5177-a75c-605ca17f9970@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20261001T090000
+DTEND;TZID=Asia/Taipei:20261001T120000
+SUMMARY:NeonShift｜實機主線：運動 → 同步 → NFT
+DESCRIPTION:準備真實 ≥5 km 與足夠時間的運動紀錄，測背景
+ 返回及依舊到新同步；驗證資格、核准、錢包、confirmed 
+ 與收藏。完成條件：APK 版本、錄影、log、Devnet 交易證據
+ 齊全。\n時區：Asia/Taipei。這是建議工作時段，可自行調
+ 整。\n計畫：docs/store/submission-sprint-2026-10-05.md\nReview：docs
+ /design/implementation-review-2026-09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:實機主線：運動 → 同步 → NFT
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:2e0d931b-7100-5ab1-a61d-49b0e76ae98b@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20261001T140000
+DTEND;TZID=Asia/Taipei:20261001T163000
+SUMMARY:NeonShift｜SKR：付款成功與故障恢復
+DESCRIPTION:Devnet 測試訂單 → 簽署 → 確認 → 邊框 → 重開
+ 復原；測拒簽、回覆遺失、換帳號。完成條件：不重付
+ 、不混帳號；畫面清楚標 TEST SKR。\n時區：Asia/Taipei。這
+ 是建議工作時段，可自行調整。\n計畫：docs/store/submission
+ -sprint-2026-10-05.md\nReview：docs/design/implementation-review-2026-09-
+ 29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:SKR：付款成功與故障恢復
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:1738e35a-e30d-5e41-b3c5-f216248d44e7@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20261001T170000
+DTEND;TZID=Asia/Taipei:20261001T173000
+SUMMARY:NeonShift｜決策：SKR／節日展示範圍
+DESCRIPTION:依實測決定 Go／No-go。未通過的付費入口停用，
+ 影片移除完成宣稱；節日鏈上支援未驗證只列預覽／roadm
+ ap。完成條件：最終展示範圍已記錄。\n時區：Asia/Taipei
+ 。這是建議工作時段，可自行調整。\n計畫：docs/store/subm
+ ission-sprint-2026-10-05.md\nReview：docs/design/implementation-review-20
+ 26-09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:決策：SKR／節日展示範圍
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:86c3e9e1-0667-5cac-a810-7c26f309069e@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20261002T090000
+DTEND;TZID=Asia/Taipei:20261002T120000
+SUMMARY:NeonShift｜修正實機阻斷，驗收最終候選版
+DESCRIPTION:測錢包取消／逾時／換帳號、分享、無資料唯讀
+ 預覽、冷安裝與升級。完成條件：核心交易及資料隔離
+ 通過；更換 APK 後重測受影響項目。\n時區：Asia/Taipei。
+ 這是建議工作時段，可自行調整。\n計畫：docs/store/submiss
+ ion-sprint-2026-10-05.md\nReview：docs/design/implementation-review-2026-
+ 09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:修正實機阻斷，驗收最終候選版
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:d38f5f1e-2867-5adf-bb45-07bc72867c19@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20261002T140000
+DTEND;TZID=Asia/Taipei:20261002T163000
+SUMMARY:NeonShift｜登錄 RC：APK、版本與環境證據
+DESCRIPTION:固定 commit／tag、APK SHA-256、簽章、網路／Program
+ ／Mint、後端版本；整理裝置與錢包版本及真實交易連結
+ 。完成條件：提交追蹤第 9 節版本一致。\n時區：Asia/Taip
+ ei。這是建議工作時段，可自行調整。\n計畫：docs/store/su
+ bmission-sprint-2026-10-05.md\nReview：docs/design/implementation-review-
+ 2026-09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:登錄 RC：APK、版本與環境證據
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:3514d780-d7b9-5f43-99c6-6d3591afc22f@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20261002T173000
+DTEND;TZID=Asia/Taipei:20261002T180000
+SUMMARY:NeonShift｜最終 RC 凍結
+DESCRIPTION:核對核心 gate；18:00 後只收阻斷性修正，不加功
+ 能。尚未通過就記錄阻塞與縮減方案，不把舊版 PASS 當
+ 本版驗收。\n時區：Asia/Taipei。這是建議工作時段，可自
+ 行調整。\n計畫：docs/store/submission-sprint-2026-10-05.md\nReview
+ ：docs/design/implementation-review-2026-09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:最終 RC 凍結
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:abd6f1ad-6c60-5e01-ae32-3a3b4ed2b184@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20261003T090000
+DTEND;TZID=Asia/Taipei:20261003T120000
+SUMMARY:NeonShift｜錄製 Demo 與英文字幕／旁白
+DESCRIPTION:使用凍結 RC 錄製，目標 2:50、上限 180 秒。SKR 保
+ 留訂單、簽署、確認與履約；保留 Devnet 標籤。完成條件
+ ：第一版成片可播放。\n時區：Asia/Taipei。這是建議工作
+ 時段，可自行調整。\n計畫：docs/store/submission-sprint-2026-10
+ -05.md\nReview：docs/design/implementation-review-2026-09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:錄製 Demo 與英文字幕／旁白
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:1f1482eb-44a3-59fa-a9d6-ea039402fe45@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20261003T140000
+DTEND;TZID=Asia/Taipei:20261003T170000
+SUMMARY:NeonShift｜更新 Pitch，安排陌生人試用
+DESCRIPTION:更新六頁／九頁簡報與 PDF，標示實作／待驗收
+ ／roadmap；請未參與開發者照指南操作並記錄卡點。找不
+ 到測試者則誠實標自測。\n時區：Asia/Taipei。這是建議工
+ 作時段，可自行調整。\n計畫：docs/store/submission-sprint-2026
+ -10-05.md\nReview：docs/design/implementation-review-2026-09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:更新 Pitch，安排陌生人試用
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:5a9baf59-fc80-533c-b02a-7b8c85e0969c@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20261004T090000
+DTEND;TZID=Asia/Taipei:20261004T120000
+SUMMARY:NeonShift｜修必要卡點，定稿四項交付物
+DESCRIPTION:檢查 APK、repo、影片、Pitch；必要修正後同步版
+ 本與證據。確認素材權利、無 secrets、測試活動有效期及
+ 後端維護安排。\n時區：Asia/Taipei。這是建議工作時段，
+ 可自行調整。\n計畫：docs/store/submission-sprint-2026-10-05.md\nR
+ eview：docs/design/implementation-review-2026-09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:修必要卡點，定稿四項交付物
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:bddf4e74-fa1a-5f08-81a5-ac8a33b0c192@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20261004T140000
+DTEND;TZID=Asia/Taipei:20261004T163000
+SUMMARY:NeonShift｜公開連結驗收與提交表單草稿
+DESCRIPTION:未登入檢查 APK 下載、repo、影片、PDF；量測影片
+  ≤180 秒；填資格／團隊／SKR 說明與評審指南。完成條
+ 件：四項連結可用，草稿已填但不誤標送出。\n時區：Asi
+ a/Taipei。這是建議工作時段，可自行調整。\n計畫：docs/st
+ ore/submission-sprint-2026-10-05.md\nReview：docs/design/implementation-r
+ eview-2026-09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:公開連結驗收與提交表單草稿
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:ad86f207-a1a3-5677-a386-80228e3bdc26@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20261004T173000
+DTEND;TZID=Asia/Taipei:20261004T180000
+SUMMARY:NeonShift｜交付凍結：明天只做最終核對與提交
+DESCRIPTION:核對四項素材、版本、聲明與測試支援。若仍缺
+ 必要項，記錄阻塞並立即處理；不把 10/5 當錄片或新功
+ 能開發日。\n時區：Asia/Taipei。這是建議工作時段，可自
+ 行調整。\n計畫：docs/store/submission-sprint-2026-10-05.md\nReview
+ ：docs/design/implementation-review-2026-09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:交付凍結：明天只做最終核對與提交
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:084c294f-bd04-5210-816f-ae74143de648@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20261005T090000
+DTEND;TZID=Asia/Taipei:20261005T103000
+SUMMARY:NeonShift｜提交前最後檢查
+DESCRIPTION:重新開啟四項公開連結、API 與評審指南；核對
+ 姓名、資格、網路、版本及最新回執欄位。完成條件：
+ 表單所有內容正確且可存取。\n時區：Asia/Taipei。這是建
+ 議工作時段，可自行調整。\n計畫：docs/store/submission-sprin
+ t-2026-10-05.md\nReview：docs/design/implementation-review-2026-09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:提交前最後檢查
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:4a7c5ec6-3ba4-5caa-a4a7-e635174101f5@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20261005T110000
+DTEND;TZID=Asia/Taipei:20261005T120000
+SUMMARY:NeonShift｜正式送出黑客松作品
+DESCRIPTION:由本人登入官方表單，核對後正式提交。保存成
+ 功畫面、提交編號／郵件回執、表單副本與連結快照。
+ 這是內部目標，不是官方截止時間；只存草稿不算完成
+ 。\n時區：Asia/Taipei。這是建議工作時段，可自行調整。\
+ n計畫：docs/store/submission-sprint-2026-10-05.md\nReview：docs/design
+ /implementation-review-2026-09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:正式送出黑客松作品
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:0039f92c-52d2-5f42-ab3e-da1372b13ede@neonshift.cc
+DTSTAMP:20260929T123530Z
+DTSTART;TZID=Asia/Taipei:20261005T170000
+DTEND;TZID=Asia/Taipei:20261005T180000
+SUMMARY:NeonShift｜確認提交成功與回執備份
+DESCRIPTION:確認正式提交回執／編號已取得且四項連結仍可
+ 用，填寫 clock-in-submission 第 9 節。18:00 為內部完成目標
+ ；未成功要明確記錄阻塞並處理，不自動延後。\n時區：
+ Asia/Taipei。這是建議工作時段，可自行調整。\n計畫：docs
+ /store/submission-sprint-2026-10-05.md\nReview：docs/design/implementatio
+ n-review-2026-09-29.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:確認提交成功與回執備份
+END:VALARM
+END:VEVENT
+END:VCALENDAR
