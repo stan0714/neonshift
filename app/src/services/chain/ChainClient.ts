@@ -142,8 +142,21 @@ export async function buildTransaction(feePayer: PublicKey, instructions: Transa
  */
 export const MIN_FEE_LAMPORTS = 5_000;
 
-/** Solana 的 rent 免除門檻是固定公式（(資料長度 + 128 bytes 帳戶標頭) × 3480 lamports/byte-year × 2 年），本機就算得出來，不必多打一次 RPC */
-export const rentExemptLamports = (space: number) => (space + 128) * 6_960;
+/**
+ * 帳戶 rent 免除門檻，**一律問鏈上**。
+ *
+ * 2026-10-02 RC v15 驗收時抓到：原本照主網費率（3480 lamports/byte-year）在本機算，
+ * 但 devnet 現行費率較低（85 bytes 的 profile：鏈上 1,082,040，本機算成 1,482,480）。
+ * 門檻多算 37%，餘額介於兩者之間、明明付得起的錢包會被誤擋——這正是這道檢查不該新增的失敗。
+ * 查不到就回 null，由呼叫端退回只檢查簽章費（寧可少擋，不可誤擋）。
+ */
+export async function rentExemptOnChain(space: number, conn: () => Connection = getReadConnection): Promise<number | null> {
+  try {
+    return await rpcRead('getMinimumBalanceForRentExemption', (c) => c.getMinimumBalanceForRentExemption(space, 'confirmed'), conn);
+  } catch {
+    return null;
+  }
+}
 
 export class InsufficientSolError extends Error {
   readonly code = 'INSUFFICIENT_SOL';

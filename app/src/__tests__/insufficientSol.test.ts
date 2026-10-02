@@ -18,7 +18,7 @@ jest.mock('@/services/chain/ChainClient', () => ({
 jest.mock('@/config/app', () => ({ APP_CONFIG: { ...jest.requireActual('@/config/app').APP_CONFIG, programId: '6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA', chainConfigured: true } }));
 
 import { PLAYER_PROFILE_SPACE } from '@/chain/program';
-import { assertCanPayFee, InsufficientSolError, isInsufficientSol, MIN_FEE_LAMPORTS, rentExemptLamports } from '@/services/chain/ChainClient';
+import { assertCanPayFee, InsufficientSolError, isInsufficientSol, MIN_FEE_LAMPORTS } from '@/services/chain/ChainClient';
 import { ClaimSubmitter } from '@/services/chain/ClaimSubmitter';
 import { starterShoeService } from '@/services/chain/StarterShoeService';
 
@@ -51,10 +51,6 @@ describe('isInsufficientSol：只認錢包／節點的固定說法', () => {
   test.each(['Transaction failed: {"InstructionError":[0,{"Custom":1}]}', 'boom'])('不猜：%s', (m) => expect(isInsufficientSol(new Error(m))).toBe(false));
 });
 
-test('rent 本機公式對得上 Solana 的已知值（0 bytes 帳戶 = 890,880 lamports）', () => {
-  expect(rentExemptLamports(0)).toBe(890_880);
-});
-
 test('每日打卡：付不出網路費 → 不開錢包，ClaimFlow 收到 code INSUFFICIENT_SOL', async () => {
   const send = jest.fn();
   const conn = () => ({ getAccountInfo: jest.fn(async () => null), getBalance: jest.fn(async () => 0) }) as never;
@@ -63,9 +59,36 @@ test('每日打卡：付不出網路費 → 不開錢包，ClaimFlow 收到 code
   expect(send).not.toHaveBeenCalled();
 });
 
-test('起始鞋：門檻是簽章費＋profile rent；只有簽章費的錢包也要擋，而且不開錢包', async () => {
-  // 夠付簽章費、不夠付 profile rent
-  jest.spyOn(Connection.prototype, 'getBalance').mockResolvedValue(MIN_FEE_LAMPORTS + rentExemptLamports(PLAYER_PROFILE_SPACE) - 1);
+/** devnet 10/2 實測：85 bytes 的 profile rent 免除門檻（本機照主網費率會算成 1,482,480） */
+const DEVNET_PROFILE_RENT = 1_082_040;
+const stubSend = () => {
+  jest.spyOn(Connection.prototype, 'getLatestBlockhashAndContext').mockResolvedValue({ context: { slot: 1 }, value: { blockhash: PublicKey.unique().toBase58(), lastValidBlockHeight: 10 } } as never);
+  jest.spyOn(Connection.prototype, 'confirmTransaction').mockResolvedValue({ context: { slot: 2 }, value: { err: null } } as never);
+  mockSign.mockResolvedValue('sig');
+};
+
+test('起始鞋：門檻是簽章費＋鏈上回報的 profile rent；少 1 lamport 就擋，而且不開錢包', async () => {
+  jest.spyOn(Connection.prototype, 'getMinimumBalanceForRentExemption').mockResolvedValue(DEVNET_PROFILE_RENT);
+  jest.spyOn(Connection.prototype, 'getBalance').mockResolvedValue(MIN_FEE_LAMPORTS + DEVNET_PROFILE_RENT - 1);
   await expect(starterShoeService.claim(payer)).rejects.toMatchObject({ name: 'ClaimError', code: 'INSUFFICIENT_SOL' });
   expect(mockSign).not.toHaveBeenCalled();
+});
+
+/**
+ * 2026-10-02 RC v15 驗收抓到的誤擋：門檻原本用主網費率在本機算（多算 37%），
+ * 餘額剛好夠付 devnet 實際 rent＋手續費的錢包，會被說成 SOL 不足。
+ */
+test('起始鞋：餘額剛好等於鏈上門檻 → 放行去開錢包（不得誤擋）', async () => {
+  jest.spyOn(Connection.prototype, 'getMinimumBalanceForRentExemption').mockResolvedValue(DEVNET_PROFILE_RENT);
+  jest.spyOn(Connection.prototype, 'getBalance').mockResolvedValue(MIN_FEE_LAMPORTS + DEVNET_PROFILE_RENT);
+  stubSend();
+  await expect(starterShoeService.claim(payer)).resolves.toMatchObject({ signature: 'sig', alreadyClaimed: false });
+  expect(mockSign).toHaveBeenCalledTimes(1);
+});
+
+test('起始鞋：查不到 rent → 只檢查簽章費，不因查詢失敗擋人', async () => {
+  jest.spyOn(Connection.prototype, 'getMinimumBalanceForRentExemption').mockRejectedValue(new Error('could not find account'));
+  jest.spyOn(Connection.prototype, 'getBalance').mockResolvedValue(MIN_FEE_LAMPORTS);
+  stubSend();
+  await expect(starterShoeService.claim(payer)).resolves.toMatchObject({ signature: 'sig' });
 });

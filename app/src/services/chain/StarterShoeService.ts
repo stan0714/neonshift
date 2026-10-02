@@ -10,7 +10,7 @@ import { playerPda, PLAYER_PROFILE_SPACE } from '@/chain/program';
 import { APP_CONFIG } from '@/config/app';
 import { WalletError } from '@/services/wallet/WalletService';
 
-import { accountExists, estimateFeeLamports, isInsufficientSol, MIN_FEE_LAMPORTS, rentExemptLamports, sendWithWallet } from './ChainClient';
+import { accountExists, estimateFeeLamports, isInsufficientSol, MIN_FEE_LAMPORTS, rentExemptOnChain, sendWithWallet } from './ChainClient';
 
 export type ClaimQuote = {
   shoeName: string;
@@ -67,8 +67,9 @@ export const starterShoeService = {
     const profile = playerPda(wallet);
     try {
       if (await accountExists(profile)) return { signature: null, profile: profile.toBase58(), alreadyClaimed: true };
-      // 起始鞋要開 profile 帳戶：門檻是簽章費＋那個帳戶的 rent，不只是簽章費
-      const sent = await sendWithWallet(wallet, [initPlayerInstruction(wallet)], undefined, MIN_FEE_LAMPORTS + rentExemptLamports(PLAYER_PROFILE_SPACE));
+      // 起始鞋要開 profile 帳戶：門檻是簽章費＋那個帳戶的 rent（問鏈上；查不到只檢查簽章費）
+      const rent = await rentExemptOnChain(PLAYER_PROFILE_SPACE);
+      const sent = await sendWithWallet(wallet, [initPlayerInstruction(wallet)], undefined, MIN_FEE_LAMPORTS + (rent ?? 0));
       return { signature: sent.signature, profile: profile.toBase58(), alreadyClaimed: false };
     } catch (e) {
       if (isInsufficientSol(e)) throw new ClaimError('INSUFFICIENT_SOL', e instanceof Error ? e.message : String(e)); // 沒送出：不用再查帳戶
