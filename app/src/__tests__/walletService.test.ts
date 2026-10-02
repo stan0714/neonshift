@@ -10,7 +10,7 @@ jest.mock('expo-secure-store', () => ({
 }));
 
 import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
-import { base64ToBase58, isKnownNoReplyWallet, mapSignError, mapWalletError, walletService } from '@/services/wallet/WalletService';
+import { base64ToBase58, isKnownNoReplyWallet, mapAuthorizeError, mapSignError, mapWalletError, walletService } from '@/services/wallet/WalletService';
 
 const mockTransact = transact as jest.MockedFunction<typeof transact>;
 const pk = PublicKey.unique();
@@ -93,6 +93,28 @@ describe('WalletService（PG-A-06，FR-01）', () => {
     expect(mapWalletError(Object.assign(new Error(), { code: -1 })).code).toBe('REJECTED');
     expect(mapWalletError(Object.assign(new Error(), { code: 'ERROR_SESSION_CLOSED' })).code).toBe('NETWORK_ERROR');
     expect(mapWalletError(new Error('x')).code).toBe('UNKNOWN');
+  });
+
+  /**
+   * 2026-10-02 Seeker 實機（A-4 ①）：在錢包的連接 sheet 按右上 X，畫面卻說
+   *「Wallet connection could not finish ... 去錢包檢查待處理的請求」——那是 UNKNOWN 的文案，
+   * 而使用者剛親手取消，沒有任何待處理的請求。logcat 顯示原生層是 CancellationException，
+   * 走 catch-all 的 promise.reject(e)，RN 給 EUNSPECIFIED，四個判斷全不中。
+   */
+  test('authorize 階段被取消（sheet 按 X）→ REJECTED，不是 UNKNOWN', () => {
+    expect(mapAuthorizeError(new Error('java.util.concurrent.CancellationException')).code).toBe('REJECTED');
+    // 已分類得出來的不被覆蓋
+    expect(mapAuthorizeError(Object.assign(new Error(), { code: 'ERROR_WALLET_NOT_FOUND' })).code).toBe('WALLET_UNAVAILABLE');
+    expect(mapAuthorizeError(Object.assign(new Error(), { code: 'ERROR_SESSION_CLOSED' })).code).toBe('NETWORK_ERROR');
+    // 真正不明的仍是 UNKNOWN——不要把所有不認得的失敗都說成「使用者取消」
+    expect(mapAuthorizeError(new Error('x')).code).toBe('UNKNOWN');
+    // 送交易階段語意相反（可能已送出），不得被改寫成 REJECTED
+    expect(mapSignError(new Error('java.util.concurrent.CancellationException')).code).toBe('WALLET_NO_REPLY');
+  });
+
+  test('connect 在 sheet 被關掉時丟 REJECTED（實機路徑，不只是 mapper 單元）', async () => {
+    mockTransact.mockRejectedValueOnce(new Error('java.util.concurrent.CancellationException'));
+    await expect(walletService.connect()).rejects.toMatchObject({ code: 'REJECTED' });
   });
 
   test('signMessage：無 session → SESSION_EXPIRED', async () => {

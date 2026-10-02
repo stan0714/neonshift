@@ -80,6 +80,31 @@ export function mapWalletError(e: unknown): WalletError {
 }
 
 /**
+ * authorize 階段的 CancellationException ＝ **使用者把錢包的 sheet 關掉了**。
+ *
+ * 2026-10-02 Seeker 實機（logcat 有完整堆疊）：按下 sheet 右上的 X 之後
+ * `NotifyingCompletableFuture.get` 丟 CancellationException，原生模組走的是 catch-all 的
+ * `promise.reject(e)`——那條路徑沒有語意化 code，RN 一律給 EUNSPECIFIED，於是
+ * mapWalletError 四個判斷全不中、掉進 UNKNOWN，畫面便說「無法確認回應，去錢包檢查
+ * 待處理的請求」。使用者剛剛才親手取消，根本沒有待處理的請求。
+ *
+ * message 可以精準比對：RN 的 PromiseImpl 在 throwable 沒有 message 時會退回
+ * `throwable.javaClass.canonicalName`，所以 JS 端收到的就是字串
+ * `java.util.concurrent.CancellationException`。
+ *
+ * 與 mapSignError **語意相反**，所以不合併：那裡的 CancellationException 代表「請求已送到
+ * 錢包、可能已經簽了」（WALLET_NO_REPLY，結果未知）；這裡代表「核准之前就取消」
+ * （REJECTED，什麼都沒發生）。送交易（signAndSendTransaction）同理，仍走 mapWalletError。
+ */
+export function mapAuthorizeError(e: unknown): WalletError {
+  const mapped = mapWalletError(e);
+  if (mapped.code !== 'UNKNOWN') return mapped;
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/CancellationException/i.test(msg)) return new WalletError('REJECTED', msg, e);
+  return mapped;
+}
+
+/**
  * 錢包簽了卻沒有把結果送回（2026-09-21 Seeker 實機：Phantom 26.6 在 Seed Vault 簽完訊息後內部出錯
  * `sol_mwa_sign_messages … Readable side is not in a state that permits enqueue`，不回覆也不跳回 App；
  * 等 App 回前景時 session 關閉，MWA 端拋 `CancellationException`）。與使用者主動取消（REJECTED）區分，
@@ -210,7 +235,7 @@ export const walletService = {
       cachedAuthToken = stored.authToken;
       return toSession(address, account.label, result.wallet_uri_base ?? '');
     } catch (e) {
-      throw mapWalletError(e);
+      throw mapAuthorizeError(e);
     }
   },
 

@@ -101,7 +101,7 @@ export function WalletConnectScreen() {
       <Bullet icon="info" text={t('wallet.bullet3', { symbol: APP_CONFIG.tokenSymbol })} tint={color.warning} />
       {status === 'connecting' ? <InlineState kind="info" title={t(`wallet.phase.${phase ?? 'opening'}` as TKey)} body={t(slow ? 'wallet.waitLong' : 'wallet.waitHint')} testID="wallet-progress" /> : null}
       {status === 'connected' && loginIncomplete ? <InlineState kind="warning" title={t('wallet.loginIncomplete.title')} body={t('wallet.loginIncomplete.body')} testID="wallet-login-incomplete" /> : null}
-      {copy ? <InlineState kind={error?.code === 'WALLET_UNAVAILABLE' ? 'warning' : 'error'} title={copy.title} body={`${phase ? t(`wallet.phase.${phase}` as TKey) + ' · ' : ''}${copy.body}`} testID="wallet-error" /> : null}
+      {copy ? <InlineState kind={error?.code === 'WALLET_UNAVAILABLE' ? 'warning' : 'error'} title={copy.title} body={`${phase ? t(`wallet.phase.${phase}` as TKey) + ' · ' : ''}${copy.body}`} referenceId={code ?? undefined} testID="wallet-error" /> : null}
     </OnboardingLayout>
   );
 }
