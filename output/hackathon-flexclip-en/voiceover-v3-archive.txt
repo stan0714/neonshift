@@ -1,0 +1,11 @@
+What keeps us moving after the first few days? NeonShift turns everyday movement into visible progress, wildlife-inspired shoes, and a reason to return. Built for Solana Mobile, it connects personal achievement with a wider purpose.
+
+Start with a walk or a run. The app now includes a personal Activity journal with monthly views and workout details. Choose automatic sync when online, with saved workouts processed oldest first. Starter shoes and level upgrades remain free.
+
+NeonShift connects qualifying daily activity with a claim on Solana devnet. An activity summary from Android Health Connect is checked before you approve the claim in your wallet. The resulting transaction can be viewed in the explorer. Raw health records stay on your phone; they are not published onchain. The prototype uses test tokens with no monetary value. The blockchain records the claim, not every step of your run.
+
+As you level up, discover Wild Guardians, inspired by threatened wildlife. The app now lets you switch between shoes you have earned, with matching forest or ocean backgrounds. Prefer a simpler view? Turn the background off. These choices are cosmetic; your active level still controls eligibility. Each shoe connects your progress with conservation learning.
+
+The journey also reaches beyond solo exercise. This event prototype previews registration and staff-confirmed check-in. Participants show a code; authorized staff confirm attendance. Event participation connects back to your personal journey. Our next step is to test this experience with local communities and conservation partners.
+
+Our direction is simple: move for yourself, move together for nature. We plan to fund useful event services through paying partners, with conservation contributions tracked separately. NeonShift brings movement, meaningful progress, and conservation learning into one mobile experience.

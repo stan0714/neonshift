@@ -1,5 +1,7 @@
 # NeonShift｜逐頁英文文案與中文分鏡
 
+> 歷史 v3 六段視覺參考；現行五段配音／時間軸見 ../../docs/store/demo-video.md。勿與 voiceover-en.txt 混用。
+
 2026-09-22 更新；第 2、4 頁仍為示意素材，功能已有程式，提交版實機驗收待完成。
 
 ## 01｜Move with purpose｜0:00–0:18

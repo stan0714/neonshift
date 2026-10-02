@@ -1,5 +1,9 @@
 # NeonShift｜英文黑客松影片投影片包
 
+**FlexClip 最新可上傳版本：** [flexclip-v4/NeonShift_FlexClip_v4.pptx](flexclip-v4/NeonShift_FlexClip_v4.pptx)，十頁對應五章、目標 2:50。請先看[操作指南](flexclip-v4/README.md)與[逐頁講稿](flexclip-v4/scene-guide.md)。下方舊六頁產物保留歷史用途。
+
+**2026-10-02 現行入口：** [交付／待拍盤點](../../docs/store/submission-materials-audit-2026-10-02.md)與[v4 五段稿](../../docs/store/demo-video.md)。`voiceover-en.txt` 已同步五段新版；既有 PPTX／PDF／PNG、storyboard.md、slide-content.json 仍是 v3 六段視覺參考，尚未重建。生成器改讀 `voiceover-v3-archive.txt`，只重建歷史六頁，不覆寫新版配音。下文六段組裝流程屬歷史說明。
+
 建立日期：2026-09-18；更新：2026-09-22。第 2、4 頁為示意素材；相關 App 功能已有程式，提交版實機驗收待完成；中文募資稿同步另存 v4。
 
 ## 交付內容

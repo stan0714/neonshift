@@ -1,0 +1,143 @@
+# NeonShift 中英逐頁對稿
+
+英文版用於 FlexClip；中文版僅供審稿。兩版頁碼、素材與英文時間軸相同；中文不作配音時長承諾。App 原圖維持原始介面語言。
+
+## 01 · Daily movement. Visible progress. / 每天動起來， 看見自己的成長。
+
+英文時間：0–12 秒
+
+**English**
+
+What keeps us moving after the first few days? NeonShift turns everyday movement into visible progress, wildlife-inspired shoes, and a reason to return.
+
+**中文意涵**
+
+最初幾天過後，是什麼讓我們繼續運動？NeonShift 將每天的運動轉化為看得見的成長、野生動物主題跑鞋，以及再次回來的理由。
+
+**素材界線**：真實資料 · 無展示覆寫。10/2 v14 實機首頁（真實資料，狀態列以 demo mode 固定）。最終 APK 外觀相同即可沿用。
+
+## 02 · Built for Solana Mobile. / 為 Solana Mobile 打造的運動體驗。
+
+英文時間：12–25 秒
+
+**English**
+
+Built for Solana Mobile, it connects daily activity with achievements you can collect and verify.
+
+**中文意涵**
+
+NeonShift 為 Solana Mobile 打造，將日常活動連結到可以收藏與查證的成就。
+
+**素材界線**：產品概念說明。具體說明手機運動、健康摘要與錢包用途；右側為功能圖解，不是實機。
+
+## 03 · Walk. Run. See your progress. / 走路、跑步， 看見自己的進步。
+
+英文時間：25–42 秒
+
+**English**
+
+Start with a walk or a run. Record your workout, save it on your phone, and review your progress in the Activity journal.
+
+**中文意涵**
+
+從一次步行或跑步開始。記錄運動、保存在手機上，再透過 Activity 日誌回顧自己的進度。
+
+**素材界線**：真實資料 · 無展示覆寫。10/2 v14 實機：9/30 跑步 3.89 km 的運動摘要（已保存、已同步）。
+
+## 04 · Sync when you are ready. / 準備好， 再同步。
+
+英文時間：42–60 秒
+
+**English**
+
+Choose automatic sync when online, with saved workouts processed oldest first. Starter shoes and level upgrades remain free. Recording a workout does not automatically qualify you for a reward.
+
+**中文意涵**
+
+可以選擇連網時自動同步，已保存的運動會由舊到新處理。初始鞋款與等級升級維持免費。記錄一筆運動，不代表自動取得獎勵資格。
+
+**素材界線**：真實資料 · 無展示覆寫。10/2 v14 實機：Auto-sync 開、0 pending、最後成功 9/30——真實同步狀態。保留「保存不等於獎勵資格」的旁白。
+
+## 05 · Your approval. An onchain claim. / 由你核准， 留下鏈上申領紀錄。
+
+英文時間：60–78 秒
+
+**English**
+
+Qualifying activity connects to a claim on Solana devnet. For daily steps, an Android Health Connect summary is checked before wallet approval. View the resulting transaction in the explorer.
+
+**中文意涵**
+
+符合條件的活動可以在 Solana Devnet 上申領獎勵。每日步數任務會先檢查 Android Health Connect 摘要，再由使用者透過錢包核准。交易結果可在區塊鏈瀏覽器查閱。
+
+**素材界線**：流程概念說明。黑客松 Demo 在本頁嵌入合格摘要、錢包與同筆 Explorer 實錄。
+
+## 06 · Collect milestones. Keep the meaning. / 收藏里程碑， 保留成就的意義。
+
+英文時間：78–95 秒
+
+**English**
+
+Raw health records are not published onchain. Achievement collectibles have their own requirements and approval process. The blockchain records the claim, not every step.
+
+**中文意涵**
+
+原始健康紀錄不會公布到鏈上。成就收藏品有各自的資格條件與核准流程。區塊鏈記錄的是申領，而不是運動的每一步。
+
+**素材界線**：真實資料 · 無展示覆寫。10/2 v14 實機：First 5K 成就收藏詳情（9/22 鑄造、devnet）。這是成就收藏，不是付款結果。
+
+## 07 · Earn eligibility. Unlock your frame. / 先取得資格， 再解鎖專屬邊框。
+
+英文時間：95–117 秒
+
+**English**
+
+NeonShift gives token payments a cosmetic purpose. Eligible first-five-kilometer runners can unlock a Genesis Mint frame, paid with a test token on devnet. The server sets the order, price, and recipient.
+
+**中文意涵**
+
+NeonShift 將代幣付款用於外觀。符合首次五公里資格的跑者，可以使用 Devnet 測試代幣付費解鎖 Genesis Mint 邊框。訂單、價格與收款人由伺服器決定。
+
+**素材界線**：TEST SKR · DEVNET · 非官方 SKR。10/1 v11 實機：資格通過後的訂單畫面（2.5 SKR 固定價、伺服器指定收款人）。與第 8 頁同一帳號、同一包。
+
+## 08 · Confirmed payment. Unlocked frame. / 付款確認， 邊框解鎖。
+
+英文時間：117–140 秒
+
+**English**
+
+Review the details, then approve in your wallet. After the server verifies the confirmed transfer onchain, the frame unlocks for that wallet. This payment uses test tokens, not official SKR. It buys no experience points, records, or achievements.
+
+**中文意涵**
+
+核對內容後，再透過錢包核准。伺服器驗證鏈上轉帳已確認後，就會為該錢包解鎖邊框。本次付款使用測試代幣，並非官方 SKR，不能購買經驗值、成績或成就。
+
+**素材界線**：TEST SKR · DEVNET · 非官方 SKR。10/1 v11 實機付款成功截圖（簽章見 docs/evidence/2026-10-01-skr-devnet-payment.md）。10/2 決定沿用此圖，不另錄付款影片。
+
+## 09 · Progress with a wildlife story. / 讓成長， 連結野生動物故事。
+
+英文時間：140–155 秒
+
+**English**
+
+Wild Guardians connect your progress with conservation learning. Local community pilots, paid event services, and separately tracked conservation contributions are planned.
+
+**中文意涵**
+
+Wild Guardians 將個人成長連結到保育學習。在地社群試辦、付費活動服務，以及獨立追蹤的保育款項，都是規劃中的方向。
+
+**素材界線**：App 內物種故事卡 · 試辦仍在規劃。10/2 v14 實機：亞洲象物種故事卡。物種資料引用 WWF，不代表合作或捐款。
+
+## 10 · Move for yourself. Move together for nature. / 為自己而動， 為棲地同行。
+
+英文時間：155–170 秒
+
+**English**
+
+No partnership or donation is claimed. Explore the Android app, source code, and reviewer guide through the submission links. Move for yourself. Move together for nature.
+
+**中文意涵**
+
+目前不宣稱已有合作或捐款。請透過提交連結查看 Android App、原始碼與評審指南。為自己而動，為棲地同行。
+
+**素材界線**：NEONSHIFT · SOLANA MOBILE。最後至少靜止 2 秒。公開連結放影片說明欄，不使用佔位 URL。

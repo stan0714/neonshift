@@ -13,7 +13,7 @@ BG='070B16'; PANEL='111A2B'; WHITE='F3F7FF'; MUTED='A8B6CF'; MINT='35E5C5'; PURP
 FONT_DIR=Path('/System/Library/Fonts/Supplemental')
 prs=Presentation(); prs.slide_width=Inches(13.333333); prs.slide_height=Inches(7.5)
 slides=[]; images=[]; manifest=[]
-NARRATION=(OUT.parents[1]/'docs/store/demo-voiceover-en.txt').read_text().strip().split('\n\n')
+NARRATION=(OUT/'voiceover-v3-archive.txt').read_text().strip().split('\n\n')
 assert len(NARRATION)==6
 
 def font(size,bold=False):
@@ -140,12 +140,12 @@ contact=Image.new('RGB',(1440,1215),'#'+BG)
 for i,im in enumerate(images): contact.paste(im.resize((720,405)),((i%2)*720,(i//2)*405))
 contact.save(OUT/'overview.jpg',quality=93)
 (OUT/'slide-content.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
-(OUT/'voiceover-en.txt').write_text('\n\n'.join(v['voiceover'] for v in manifest)+'\n')
+(OUT/'voiceover-v3-archive.txt').write_text('\n\n'.join(v['voiceover'] for v in manifest)+'\n')
 (OUT/'preview.html').write_text('<!doctype html><html lang="en"><meta charset="utf-8"><title>NeonShift — Hackathon</title><style>body{margin:0;background:#070b16;color:#a8b6cf;font:16px Arial}main{max-width:1280px;margin:auto}img{display:block;width:100%;margin:20px 0 8px}p{margin:0 0 32px}@media print{img{break-before:page;margin:0}p{display:none}@page{size:landscape;margin:0}}</style><main>'+''.join(f'<img src="{v["image"]}" alt="{escape(v["title"])}"><p>{v["slide"]:02d} / {v["time"]} — {escape(v["title"])}</p>' for v in manifest)+'</main></html>')
 print('Built 6 slides, PPTX, PDF, PNGs, preview, overview, narration, and manifest.')
 
-# Keep review storyboard in sync with slide text and canonical narration.
-sections=['# NeonShift｜逐頁英文文案與中文分鏡\n\n2026-09-22 更新；第 2、4 頁仍為示意素材，功能已有程式，提交版實機驗收待完成。']
+# Rebuild historical v3 visuals only; current v4 narration is maintained separately.
+sections=['# NeonShift｜逐頁英文文案與中文分鏡\n\n> 歷史 v3 六段視覺參考；現行五段配音／時間軸見 ../../docs/store/demo-video.md。勿與 voiceover-en.txt 混用。\n\n2026-09-22 更新；第 2、4 頁仍為示意素材，功能已有程式，提交版實機驗收待完成。']
 for slide_obj, item in zip(prs.slides, manifest):
     visible='\n\n'.join('\n'.join('> '+line for line in sh.text.splitlines()) for sh in slide_obj.shapes if sh.has_text_frame and sh.text.strip())
     sections.append(f"## {item['slide']:02d}｜{item['title']}｜{item['time']}\n\n### 投影片畫面文字\n\n{visible}\n\n### English voiceover\n\n{item['voiceover']}\n\n### 中文分鏡與製作註記\n\n{item['production_notes']}")

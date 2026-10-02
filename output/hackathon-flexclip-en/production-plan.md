@@ -1,5 +1,9 @@
 # NeonShift｜FlexClip 影片製作規劃
 
+**FlexClip 現行流程：** 改用[十頁 v4 上傳包與教學](flexclip-v4/README.md)，從 AI PPT/PDF to Video 匯入 PPTX、校正逐頁稿、選聲線／字幕，再回編輯器補實錄。下方手動匯入六張 PNG 為舊流程；手動備援請改用 v4 十張 PNG。
+
+**2026-10-02：本頁六段時間軸與 P0 活動雙角色清單已由 [v4 五段製作稿](../../docs/store/demo-video.md)及[逐鏡待拍表](../../docs/store/submission-materials-audit-2026-10-02.md)取代。** 新版配音使用 A–E；本頁保留舊視覺素材來源與剪輯參考。SKR 已有 10/1 Devnet 付款證據，完整成片仍待製作。
+
 日期：2026-09-18。對外文字、旁白與字幕用英文；本文件中文供製作。採 6 頁、2:50 目標，含轉場與片尾；不超過 3:00 是本包製作目標，2026-09-21 已查核網站 Brief 要求三分鐘 Demo。
 
 ## 敘事目標
