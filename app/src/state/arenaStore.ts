@@ -16,7 +16,13 @@ type State = {
   leaderboard: LeaderboardResponse | null;
   entry: TournamentEntry | null;
   loading: boolean;
+  /** 原始錯誤（診斷用，不直接給使用者看） */
   error: string | null;
+  /**
+   * 給畫面用的錯誤分類與 Ref。2026-10-03 實機（離線）：卡片直接印出
+   * `fetch failed: java.net.UnknownHostException: Unable to resolve host "api.neonshift.cc"…`。
+   */
+  errorInfo: { kind: 'offline' | 'timeout' | 'server'; ref: string } | null;
   /** 後端 session 不存在（NO_SESSION）：顯示登入而非錯誤 */
   needsSignIn: boolean;
   busy: ArenaAction | null;
@@ -29,6 +35,12 @@ type State = {
   claim: (wallet: PublicKey, mint: PublicKey, kind: 'prize' | 'refund') => Promise<void>;
   dismissOutcome: () => void;
 };
+
+export function arenaErrorInfo(e: unknown): { kind: 'offline' | 'timeout' | 'server'; ref: string } {
+  if (e instanceof ApiError && e.code === 'NETWORK_ERROR') return { kind: e.netReason === 'timeout' ? 'timeout' : 'offline', ref: e.netReason === 'timeout' ? 'TIMEOUT' : 'OFFLINE' };
+  if (e instanceof ApiError) return { kind: 'server', ref: e.requestId ? `${e.code} · ${e.requestId}` : e.code };
+  return { kind: 'server', ref: 'UNKNOWN' };
+}
 
 const fail = (action: ArenaAction, e: unknown): ArenaOutcome => ({
   kind: 'error',
@@ -43,6 +55,7 @@ export const useArenaStore = create<State>((set, get) => ({
   entry: null,
   loading: false,
   error: null,
+  errorInfo: null,
   needsSignIn: false,
   busy: null,
   outcome: null,
@@ -70,10 +83,10 @@ export const useArenaStore = create<State>((set, get) => ({
         t && t.status !== 'draft' && t.status !== 'registration' ? apiClient.tournamentLeaderboard(t.week_id).catch(() => null) : Promise.resolve(null),
         t && wallet ? tournamentService.entry(wallet, t.week_id).catch(() => null) : Promise.resolve(null),
       ]);
-      set({ current, leaderboard, entry, error: null, needsSignIn: false, syncedAt: Date.now() });
+      set({ current, leaderboard, entry, error: null, errorInfo: null, needsSignIn: false, syncedAt: Date.now() });
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'NO_SESSION') set({ needsSignIn: true, error: null });
-      else set({ error: e instanceof Error ? e.message : String(e) });
+      if (e instanceof ApiError && e.code === 'NO_SESSION') set({ needsSignIn: true, error: null, errorInfo: null });
+      else set({ error: e instanceof Error ? e.message : String(e), errorInfo: arenaErrorInfo(e) });
     } finally {
       set({ loading: false });
     }

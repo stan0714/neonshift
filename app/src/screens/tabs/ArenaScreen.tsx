@@ -81,7 +81,18 @@ export function ArenaScreen() {
         // 與其他頁共用登入卡（離線／拒簽／錢包不回覆的分類與 Phantom 提醒），成功後才標記已登入並重載
         <SignInState title={t('arena.signin.title')} body={t('arena.signin.body')} onSignedIn={async () => { useArenaStore.setState({ needsSignIn: false, error: null, outcome: null }); /* 清掉先前（例如 Phantom 不回覆）的失敗卡，不留「Could not enter」 */ if (session) await a.refresh(session.publicKey); }} testID="arena-signin" />
       ) : null}
-      {a.error && !tt ? <InlineState kind={APP_CONFIG.backendConfigured ? 'error' : 'info'} title={APP_CONFIG.backendConfigured ? t('arena.unavailable') : t('arena.noBackend')} body={APP_CONFIG.backendConfigured ? t('arena.unavailableBody', { error: a.error }) : t('arena.noBackendBody')} testID="arena-error" /> : null}
+      {a.error && !tt ? (
+        APP_CONFIG.backendConfigured ? (
+          <InlineState
+            kind={a.errorInfo?.kind === 'server' ? 'error' : 'warning'}
+            title={t(`arena.load.${a.errorInfo?.kind ?? 'server'}.title` as TKey)}
+            body={t(`arena.load.${a.errorInfo?.kind ?? 'server'}.body` as TKey)}
+            referenceId={a.errorInfo?.ref}
+            action={{ label: t('common.tryAgain'), onPress: () => void refresh(), loading: a.loading, testID: 'arena-error-retry' }}
+            testID="arena-error"
+          />
+        ) : <InlineState kind="info" title={t('arena.noBackend')} body={t('arena.noBackendBody')} testID="arena-error" />
+      ) : null}
 
       {!tt && !a.error && !a.needsSignIn ? (
         a.loading ? null : (
