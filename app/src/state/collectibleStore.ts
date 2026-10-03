@@ -6,6 +6,8 @@ import { create } from 'zustand';
 import type { CollectibleKind } from '@/domain/collectibles';
 import { ClaimError } from '@/services/chain/StarterShoeService';
 import { collectibleService, type CollectibleClaimResult, type CollectibleEdition } from '@/services/chain/CollectibleService';
+import { apiErrorText } from '@/services/api/errorText';
+import { t as tStatic } from '@/i18n';
 
 export type ClaimOutcome = { kind: 'success'; result: CollectibleClaimResult } | { kind: 'error'; code: ClaimError['code']; message: string; collectible: CollectibleKind };
 
@@ -39,7 +41,7 @@ export const useCollectibleStore = create<State>((set, get) => ({
     try {
       set({ claimed: await collectibleService.fetchClaimed(wallet), error: null });
     } catch (e) {
-      set({ error: e instanceof Error ? e.message : String(e) });
+      set({ error: apiErrorText(tStatic, e) });
     } finally {
       set({ loading: false });
     }
@@ -68,7 +70,7 @@ export const useCollectibleStore = create<State>((set, get) => ({
       void get().loadEdition(wallet, kind, true);
     } catch (e) {
       const code = e instanceof ClaimError ? e.code : 'FAILED';
-      set({ outcome: { kind: 'error', code, message: e instanceof Error ? e.message : String(e), collectible: kind } });
+      set({ outcome: { kind: 'error', code, message: apiErrorText(tStatic, e), collectible: kind } });
     } finally {
       set({ claiming: null });
     }

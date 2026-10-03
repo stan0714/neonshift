@@ -8,6 +8,7 @@ import { finishShareLayout, FINISH_SHARE_DEFAULT, type FinishShareFields } from 
 import { useT, type TKey } from '@/i18n';
 import { apiClient, type EventRegistration, type EventResultRow, type EventResults, type MyResult } from '@/services/api/ApiClient';
 import { color, radius, space, Text } from '@/theme';
+import { apiErrorText } from '@/services/api/errorText';
 
 /** `event` 只用來組完賽卡（標題與時間）；沒有傳就不提供完賽卡，不從 slug 猜活動名 */
 type Props = { eventId: string; slug: string; registration: EventRegistration | null; event?: { title: string; whenLabel: string }; onPrivacyChanged?: (r: EventRegistration) => void };
@@ -65,7 +66,7 @@ export function Results({ eventId, slug, registration, event, onPrivacyChanged }
       setSaved({ kind: 'success', title: t('res.saved') });
       await load();
     } catch (e) {
-      setSaved({ kind: 'error', title: t('res.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+      setSaved({ kind: 'error', title: t('res.err.generic', { message: apiErrorText(t, e) }) });
     } finally {
       setSaving(false);
     }

@@ -20,6 +20,7 @@ import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { modeOfIntent, useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import { color, layout, radius, space, Text } from '@/theme';
 import { useRecorder } from './useRecorder';
+import { apiErrorText } from '@/services/api/errorText';
 
 /**
  * 記錄頁（Style 23）：走路主顯示 km/h、跑步主顯示 min/km；時間／距離次要；GPS 與暫停狀態始終可見；
@@ -210,7 +211,7 @@ export function WorkoutRecordScreen() {
         </Text>
       ) : null}
       {finishFailed !== null || s.finishError !== null ? (
-        <InlineState kind="error" title={t('rec.finishFailed.title')} body={t('rec.finishFailed.body', { message: finishFailed ?? s.finishError ?? '' })} action={{ label: busy ? t('rec.finishing') : t('rec.finishFailed.retry'), onPress: () => void retryFinish() }} testID="record-finish-failed" />
+        <InlineState kind="error" title={t('rec.finishFailed.title')} body={t('rec.finishFailed.body', { message: apiErrorText(t, finishFailed ?? s.finishError ?? '') })} action={{ label: busy ? t('rec.finishing') : t('rec.finishFailed.retry'), onPress: () => void retryFinish() }} testID="record-finish-failed" />
       ) : null}
       {/* 定位診斷：詳細模式或 GPS 有狀況時顯示「收到幾筆／採用幾筆／精度」（實機回饋：戶外跑道 14 分鐘 0 km 沒有任何提示） */}
       {s.state === 'recording' && showDiag ? (

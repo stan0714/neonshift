@@ -11,6 +11,7 @@ import { achievementService } from '@/services/chain/AchievementService';
 import { ClaimError } from '@/services/chain/StarterShoeService';
 import { useWalletStore } from '@/state/walletStore';
 import { color, space, Text } from '@/theme';
+import { apiErrorText } from '@/services/api/errorText';
 
 /**
  * 活動留念章（PG-M-04；commemorative-nfts 2、3）：主辦方發行的報到章／完賽章分開，每玩家／活動／章別一次。
@@ -76,7 +77,7 @@ export function EventBadges({ eventId, badges, registration, reloadKey = 0 }: Pr
                   if (r.kind === 'minted') setNotice({ kind: 'success', title: t('pb.minted'), body: t('pb.mintedBody') });
                 } catch (e) {
                   const code = e instanceof ClaimError ? e.code : 'FAILED';
-                  setNotice({ kind: 'error', title: code === 'REJECTED' || code === 'NETWORK_ERROR' || code === 'NOT_AVAILABLE' || code === 'INSUFFICIENT_SOL' ? t(`pb.err.${code}` as TKey) : t('pb.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+                  setNotice({ kind: 'error', title: code === 'REJECTED' || code === 'NETWORK_ERROR' || code === 'NOT_AVAILABLE' || code === 'INSUFFICIENT_SOL' ? t(`pb.err.${code}` as TKey) : t('pb.err.generic', { message: apiErrorText(t, e) }) });
                 } finally {
                   resolve();
                 }
@@ -87,7 +88,7 @@ export function EventBadges({ eventId, badges, registration, reloadKey = 0 }: Pr
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setNotice({ kind: 'error', title: /EVENT_BADGE_NOT_ELIGIBLE/.test(msg) ? t('eb.notEligible') : t('pb.err.generic', { message: msg }) });
+      setNotice({ kind: 'error', title: /EVENT_BADGE_NOT_ELIGIBLE/.test(msg) ? t('eb.notEligible') : t('pb.err.generic', { message: apiErrorText(t, msg) }) });
     } finally {
       setMintPhase(null);
       setBusy(null);

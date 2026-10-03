@@ -58,8 +58,8 @@ export function WorkoutsScreen() {
       const o = r.target ?? { ok: false as const, code: 'UNKNOWN' as const, message: '' };
       if (o.ok) { setNotice({ kind: 'success', title: t('wo.local.synced') }); await load(); }
       else if (o.code === 'NO_SESSION') setNotice({ kind: 'warning', title: t('wo.local.needSignin') });
-      else if (o.code === 'BLOCKED_EARLIER') setNotice({ kind: 'warning', title: t('sync.blockedEarlier'), body: r.stoppedAt && !r.stoppedAt.outcome.ok ? t(`sync.err.${r.stoppedAt.outcome.code}` as TKey, { message: r.stoppedAt.outcome.message }) : undefined });
-      else setNotice({ kind: 'warning', title: t('wo.local.syncFailed', { message: o.message }) });
+      else if (o.code === 'BLOCKED_EARLIER') setNotice({ kind: 'warning', title: t('sync.blockedEarlier'), body: r.stoppedAt && !r.stoppedAt.outcome.ok ? t(`sync.err.${r.stoppedAt.outcome.code}` as TKey, { message: apiErrorText(t, r.stoppedAt.outcome.message) }) : undefined });
+      else setNotice({ kind: 'warning', title: t('wo.local.syncFailed', { message: apiErrorText(t, o.message) }) });
     } finally {
       setSyncingId(null);
       setUnsynced(workoutRecorder.unsynced());
@@ -137,14 +137,14 @@ export function WorkoutsScreen() {
                 await workoutOutbox.requestDelete(local.sessionId);
                 const r = await workoutOutbox.run(ob.owner, { manual: true, target: local.sessionId });
                 if (r.target?.ok) { setNotice({ kind: 'success', title: t('wo.deleted') }); await load(); }
-                else setNotice({ kind: 'info', title: t('sync.deletePending'), body: r.target && !r.target.ok ? t(`sync.err.${r.target.code}` as TKey, { message: r.target.message }) : undefined });
+                else setNotice({ kind: 'info', title: t('sync.deletePending'), body: r.target && !r.target.ok ? t(`sync.err.${r.target.code}` as TKey, { message: apiErrorText(t, r.target.message) }) : undefined });
                 return;
               }
               await apiClient.deleteWorkout(w.session_id);
               setNotice({ kind: 'success', title: t('wo.deleted') });
               await load();
             } catch (e) {
-              setNotice({ kind: 'warning', title: t('wo.err', { message: e instanceof Error ? e.message : String(e) }) });
+              setNotice({ kind: 'warning', title: t('wo.err', { message: apiErrorText(t, e) }) });
             }
           })();
         },
@@ -190,7 +190,7 @@ export function WorkoutsScreen() {
           <Text variant="title">{t('wo.local.title', { n: unsynced.length + ob.list.filter((e) => e.op === 'delete').length })}</Text>
           <Text variant="caption" tone="secondary">{t('wo.local.body')} {t(ob.autoSync ? 'sync.listAutoOn' : 'sync.listAutoOff')}</Text>
           {ob.summary.head && (ob.summary.head.status === 'blocked' || ob.summary.head.status === 'retry_wait') && ob.summary.pending > 1 ? (
-            <Text variant="caption" tone="warning" style={styles.mtXs} testID="workouts-head-stuck">{t('sync.headStuck', { when: new Date(ob.summary.head.meta.startedAtUtc).toLocaleDateString(), reason: t(`sync.err.${ob.summary.head.lastError?.code ?? 'UNKNOWN'}` as TKey, { message: ob.summary.head.lastError?.message ?? '' }) })}</Text>
+            <Text variant="caption" tone="warning" style={styles.mtXs} testID="workouts-head-stuck">{t('sync.headStuck', { when: new Date(ob.summary.head.meta.startedAtUtc).toLocaleDateString(), reason: t(`sync.err.${ob.summary.head.lastError?.code ?? 'UNKNOWN'}` as TKey, { message: apiErrorText(t, ob.summary.head.lastError?.message ?? '') }) })}</Text>
           ) : null}
           {/* 同步永遠由舊到新：清單也用同一順序，並標示目前處理項與狀態 */}
           {[...ob.list.map((e) => ({ m: e.meta, e })), ...ob.unassigned.map((m) => ({ m, e: null }))].sort((a, b) => outboxOrder(a.m, b.m)).map(({ m, e }) => (
@@ -199,7 +199,7 @@ export function WorkoutsScreen() {
                 <Text variant="body">{modeLabel(t, m.sport, m.intent)} · {formatKm(String(m.summary?.distanceMm ?? 0))} · {formatDuration(String(m.summary?.elapsedMs ?? 0))}</Text>
                 <Text variant="caption" tone="muted">{new Date(m.startedAtUtc).toLocaleString()}{m.status === 'needs_review' ? ` · ${t('sum.needsReviewShort')}` : ''}</Text>
                 <Text variant="caption" tone={e?.status === 'blocked' ? 'warning' : e?.status === 'excluded' ? 'danger' : 'muted'} testID={`workouts-local-status-${m.sessionId}`}>
-                  {e?.op === 'delete' ? t('sync.deletePending') : e ? t(`sync.status.${e.status}` as TKey) : t('sync.status.guest')}{e?.lastError && (e.status === 'blocked' || e.status === 'retry_wait') ? ` · ${t(`sync.err.${e.lastError.code}` as TKey, { message: e.lastError.message })}` : ''}
+                  {e?.op === 'delete' ? t('sync.deletePending') : e ? t(`sync.status.${e.status}` as TKey) : t('sync.status.guest')}{e?.lastError && (e.status === 'blocked' || e.status === 'retry_wait') ? ` · ${t(`sync.err.${e.lastError.code}` as TKey, { message: apiErrorText(t, e.lastError.message) })}` : ''}
                 </Text>
               </Pressable>
               {e?.status === 'excluded' ? (
@@ -225,7 +225,7 @@ export function WorkoutsScreen() {
         error.code === 'NO_SESSION' ? (
           <SignInState title={t('act.signin.title')} body={t('act.signin.body')} onSignedIn={load} testID="workouts-signin" />
         ) : (
-          <InlineState kind="error" title={t('common.somethingInterrupted')} body={t('wo.err', { message: error.message })} referenceId={error.ref} action={{ label: t('common.tryAgain'), onPress: () => void load(), loading }} testID="workouts-error" />
+          <InlineState kind="error" title={t('common.somethingInterrupted')} body={t('wo.err', { message: apiErrorText(t, error.message) })} referenceId={error.ref} action={{ label: t('common.tryAgain'), onPress: () => void load(), loading }} testID="workouts-error" />
         )
       ) : items && items.length === 0 ? (
         <InlineState kind="info" title={t('wo.empty')} testID="workouts-empty" />

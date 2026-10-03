@@ -9,6 +9,7 @@ import { ApiError, apiClient, type HistoryResponse } from '@/services/api/ApiCli
 import { formatTskr } from '@/state/dashboardStore';
 import { color, radius, space, Text } from '@/theme';
 import { useT } from '@/i18n';
+import { apiErrorText } from '@/services/api/errorText';
 
 const dateOf = (taskDate: number) => new Date(taskDate * 86_400_000).toISOString().slice(0, 10);
 
@@ -57,7 +58,7 @@ export function ActivityHistoryScreen() {
         error.code === 'NO_SESSION' ? (
           <SignInState title={t('act.signin.title')} body={t('act.signin.body')} onSignedIn={load} testID="activity-signin" />
         ) : (
-          <InlineState kind={error.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={error.code === 'NETWORK_ERROR' ? t('common.devnetBreak') : t('common.somethingInterrupted')} body={t('act.errBody', { message: error.message })} referenceId={error.ref} action={{ label: t('common.tryAgain'), onPress: () => void load(), loading }} testID="activity-error" />
+          <InlineState kind={error.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={error.code === 'NETWORK_ERROR' ? t('common.devnetBreak') : t('common.somethingInterrupted')} body={t('act.errBody', { message: apiErrorText(t, error.message) })} referenceId={error.ref} action={{ label: t('common.tryAgain'), onPress: () => void load(), loading }} testID="activity-error" />
         )
       ) : null}
 

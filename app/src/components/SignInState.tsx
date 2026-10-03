@@ -6,6 +6,7 @@ import { staleUntil } from '@/services/wallet/mwaGuard';
 import { isKnownNoReplyWallet, WalletError } from '@/services/wallet/WalletService';
 import { useWalletStore } from '@/state/walletStore';
 import { useT } from '@/i18n';
+import { apiErrorText } from '@/services/api/errorText';
 
 /**
  * 後端回 NO_SESSION 時的登入卡：就地以已連接的錢包簽一則登入訊息（SIWS，不是交易），成功後由畫面重新載入。
@@ -42,7 +43,7 @@ export function SignInState({ title, body, onSignedIn, testID }: { title: string
     : error.kind === 'offline' ? `${t('signin.offline')}${signedKept ? ` ${t('signin.offlineKept')}` : ''}`
     : error.kind === 'rejected' ? t('signin.rejected')
     : error.kind === 'noReply' ? t('signin.noReply', { wallet: walletLabel })
-    : t('signin.failed', { message: error.message });
+    : t('signin.failed', { message: apiErrorText(t, error.message) });
   const staleMs = staleUntil() - Date.now();
   const hint = `${!error && isKnownNoReplyWallet(session) ? ` ${t('signin.phantomHint')}` : ''}${staleMs > 0 ? ` ${t('signin.staleHint', { s: Math.ceil(staleMs / 1000) })}` : ''}`;
   return (

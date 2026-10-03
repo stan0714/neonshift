@@ -19,6 +19,7 @@ import { achievementShareLayout, ACHIEVEMENT_SHARE_DEFAULT, SHARE_RENDERER_VERSI
 import { copyCaption, shareLayout, shareTextInstead, type ShareFailReason } from '@/services/share/shareImage';
 import { APP_CONFIG } from '@/config/app';
 import type Svg from 'react-native-svg';
+import { apiErrorText } from '@/services/api/errorText';
 
 /**
  * Milestones 收藏（PG-M-03；commemorative-nfts 5、Style 22、FR-17.4）：Genesis Distance 四枚＋First Finish。
@@ -145,7 +146,7 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
                   if (r.kind === 'minted') setNotice({ kind: 'success', title: t('pb.minted'), body: t('pb.mintedBody') });
                 } catch (e) {
                   const code = e instanceof ClaimError ? e.code : 'FAILED';
-                  setNotice({ kind: 'error', title: code === 'REJECTED' || code === 'NETWORK_ERROR' || code === 'NOT_AVAILABLE' || code === 'INSUFFICIENT_SOL' ? t(`pb.err.${code}` as TKey) : t('pb.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+                  setNotice({ kind: 'error', title: code === 'REJECTED' || code === 'NETWORK_ERROR' || code === 'NOT_AVAILABLE' || code === 'INSUFFICIENT_SOL' ? t(`pb.err.${code}` as TKey) : t('pb.err.generic', { message: apiErrorText(t, e) }) });
                 } finally {
                   resolve();
                 }
@@ -156,7 +157,7 @@ export function Milestones({ reloadKey = 0 }: { reloadKey?: number | string }) {
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setNotice({ kind: 'error', title: /MILESTONE_NOT_ELIGIBLE/.test(msg) ? t('ms.notEligible') : t('pb.err.generic', { message: msg }) });
+      setNotice({ kind: 'error', title: /MILESTONE_NOT_ELIGIBLE/.test(msg) ? t('ms.notEligible') : t('pb.err.generic', { message: apiErrorText(t, msg) }) });
     } finally {
       setMintPhase(null);
       setBusy(null);

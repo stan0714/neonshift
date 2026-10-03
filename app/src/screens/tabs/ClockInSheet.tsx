@@ -10,6 +10,7 @@ import { runClaimFlow, type ClaimInput, type ClaimPhase } from '@/services/claim
 import { liveMotion } from '@/services/sensors/LiveMotionService';
 import { color, radius, space, Text } from '@/theme';
 import { useT, type TKey } from '@/i18n';
+import { apiErrorText } from '@/services/api/errorText';
 
 type Props = {
   visible: boolean;
@@ -116,7 +117,7 @@ function PhaseView({ phase, taskType }: { phase: ClaimPhase; taskType: TaskType 
     case 'failed':
       if (phase.code === 'INSUFFICIENT_SOL') return <InlineState kind="error" title={t('common.insufficientSol.title')} body={t('common.insufficientSol.body')} testID="phase-insufficient-sol" />;
       if (phase.code === 'WALLET_NO_REPLY') return <InlineState kind="error" title={t('wallet.err.WALLET_NO_REPLY.title')} body={t('wallet.err.WALLET_NO_REPLY.body')} testID="phase-failed" />;
-      return <InlineState kind="error" title={phase.code === 'CANCELLED' || phase.code === 'REJECTED' ? t('common.requestCanceled') : t('common.somethingInterrupted')} body={t('clock.failed.body', { message: phase.message })} referenceId={phase.referenceId} testID="phase-failed" />;
+      return <InlineState kind="error" title={phase.code === 'CANCELLED' || phase.code === 'REJECTED' ? t('common.requestCanceled') : t('common.somethingInterrupted')} body={t('clock.failed.body', { message: apiErrorText(t, phase.message) })} referenceId={phase.referenceId} testID="phase-failed" />;
     default:
       return null;
   }

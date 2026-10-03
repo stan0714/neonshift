@@ -64,7 +64,7 @@ export function EventsScreen() {
         {t('ev.intro')}
       </Text>
       <MyEvents />
-      {err ? <InlineState kind={err.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={err.code === 'NETWORK_ERROR' ? t('common.devnetBreak') : t('common.somethingInterrupted')} body={t('ev.errBody', { message: err.message })} referenceId={err.ref} action={{ label: t('common.tryAgain'), onPress: () => void load(), loading }} testID="events-error" /> : null}
+      {err ? <InlineState kind={err.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={err.code === 'NETWORK_ERROR' ? t('common.devnetBreak') : t('common.somethingInterrupted')} body={t('ev.errBody', { message: apiErrorText(t, err.message) })} referenceId={err.ref} action={{ label: t('common.tryAgain'), onPress: () => void load(), loading }} testID="events-error" /> : null}
       {events && events.length === 0 ? (
         <Surface style={styles.card} testID="events-empty">
           <Text variant="title">{t('ev.empty.title')}</Text>
@@ -175,7 +175,7 @@ export function EventDetailScreen() {
       const x = toErr(e);
       const known = ['EVENT_FULL', 'EVENT_NOT_OPEN', 'REVISION_CONFLICT', 'NO_SESSION'].includes(x.code);
       const title = known ? t(`ev.err.${x.code}.title` as TKey) : t('common.somethingInterrupted');
-      const body = known ? t(`ev.err.${x.code}.body` as TKey) : t('ev.err.generic.body', { message: x.message });
+      const body = known ? t(`ev.err.${x.code}.body` as TKey) : t('ev.err.generic.body', { message: apiErrorText(t, x.message) });
       setOutcome({ kind: 'error', title, body, ...(x.ref ? { ref: x.ref } : {}) });
       if (x.code === 'REVISION_CONFLICT') await load();
     } finally {
@@ -210,7 +210,7 @@ export function EventDetailScreen() {
 
   return (
     <Screen scroll testID="event-detail-screen">
-      {err ? <InlineState kind={err.code === 'NOT_FOUND' ? 'info' : 'error'} title={err.code === 'NOT_FOUND' ? t('ev.notFound.title') : t('common.somethingInterrupted')} body={err.code === 'NOT_FOUND' ? t('ev.notFound.body') : t('ev.errBody', { message: err.message })} referenceId={err.ref} action={err.code === 'NOT_FOUND' ? undefined : { label: t('common.tryAgain'), onPress: () => void load() }} testID="event-error" /> : null}
+      {err ? <InlineState kind={err.code === 'NOT_FOUND' ? 'info' : 'error'} title={err.code === 'NOT_FOUND' ? t('ev.notFound.title') : t('common.somethingInterrupted')} body={err.code === 'NOT_FOUND' ? t('ev.notFound.body') : t('ev.errBody', { message: apiErrorText(t, err.message) })} referenceId={err.ref} action={err.code === 'NOT_FOUND' ? undefined : { label: t('common.tryAgain'), onPress: () => void load() }} testID="event-error" /> : null}
       {event && tag ? <TagBanner tag={tag} /> : null}
       {event && staff ? <Button label={t('ev.staffLink')} variant="secondary" style={styles.card} onPress={() => navigation.navigate('StaffCheckIn', { eventId: event.event_id, slug: event.slug })} testID="event-staff-link" /> : null}
       {event ? (
@@ -237,7 +237,7 @@ export function EventDetailScreen() {
           {event.rules ? <RulesCard event={event} /> : null}
           {registered && reg ? <EventProgress event={event} reg={reg} /> : null}
           <EventInvite event={event} />
-          {regErr ? <InlineState kind="warning" title={t('ev.regUnknown.title')} body={t('ev.regUnknown.body', { message: regErr.message })} action={{ label: t('common.tryAgain'), onPress: () => void load() }} testID="event-reg-unknown" /> : null}
+          {regErr ? <InlineState kind="warning" title={t('ev.regUnknown.title')} body={t('ev.regUnknown.body', { message: apiErrorText(t, regErr.message) })} action={{ label: t('common.tryAgain'), onPress: () => void load() }} testID="event-reg-unknown" /> : null}
 
           {outcome ? (
             <Pressable onPress={() => setOutcome(null)} accessibilityRole="button" accessibilityLabel={t('common.dismiss')}>

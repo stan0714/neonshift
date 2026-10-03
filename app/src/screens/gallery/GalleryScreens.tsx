@@ -33,7 +33,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 function ErrorState({ err, retry, loading }: { err: Err; retry: () => void; loading: boolean }) {
   const { t } = useT();
   if (err.code === 'NO_SESSION') return <SignInState title={t('gal.signin.title')} body={t('gal.signin.body')} onSignedIn={retry} testID="gallery-signin" />;
-  return <InlineState kind={err.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={err.code === 'NETWORK_ERROR' ? t('common.devnetBreak') : t('common.somethingInterrupted')} body={t('gal.errBody', { message: err.message })} referenceId={err.ref} action={{ label: t('common.tryAgain'), onPress: retry, loading }} testID="gallery-error" />;
+  return <InlineState kind={err.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={err.code === 'NETWORK_ERROR' ? t('common.devnetBreak') : t('common.somethingInterrupted')} body={t('gal.errBody', { message: apiErrorText(t, err.message) })} referenceId={err.ref} action={{ label: t('common.tryAgain'), onPress: retry, loading }} testID="gallery-error" />;
 }
 
 /**
@@ -154,7 +154,7 @@ export function GalleryScreen() {
           ) : null}
         </View>
       ) : null}
-      {searchErr ? <InlineState kind={searchErr.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={t('gal.searchFailed')} body={t('gal.errBody', { message: searchErr.message })} action={{ label: t('common.tryAgain'), onPress: () => void runSearch(q.trim()), loading: searching }} testID="gallery-search-error" /> : null}
+      {searchErr ? <InlineState kind={searchErr.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={t('gal.searchFailed')} body={t('gal.errBody', { message: apiErrorText(t, searchErr.message) })} action={{ label: t('common.tryAgain'), onPress: () => void runSearch(q.trim()), loading: searching }} testID="gallery-search-error" /> : null}
       {err && !searchingMode ? <ErrorState err={err} retry={() => void load()} loading={loading} /> : null}
       {(results ? results.length === 0 : data && rows.length === 0 && !err) ? (
         <Surface style={styles.card} testID="gallery-empty">

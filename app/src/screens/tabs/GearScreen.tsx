@@ -41,6 +41,7 @@ import { useDashboardStore } from "@/state/dashboardStore";
 import { useWalletStore } from "@/state/walletStore";
 import { color, radius, space, Text } from "@/theme";
 import { useT, type TKey } from "@/i18n";
+import { apiErrorText } from '@/services/api/errorText';
 
 const RING = 132;
 const STROKE = 6;
@@ -409,7 +410,7 @@ export function GearScreen({ route }: { route?: RouteProp<TabParamList, "Gear"> 
               ? t("gear.nothingSent")
               : c.outcome.code === "INSUFFICIENT_SOL"
                 ? t("common.insufficientSol.body")
-                : t("gear.failedBody", { message: c.outcome.message })
+                : t("gear.failedBody", { message: apiErrorText(t, c.outcome.message) })
           }
           onDismiss={c.dismissOutcome}
           testID="collectible-error"
@@ -419,7 +420,7 @@ export function GearScreen({ route }: { route?: RouteProp<TabParamList, "Gear"> 
         <InlineState
           kind="warning"
           title={t("gear.outdated.title")}
-          body={t("gear.outdated.body", { error: c.error })}
+          body={t("gear.outdated.body", { error: apiErrorText(t, c.error) })}
           testID="collectible-outdated"
         />
       ) : null}

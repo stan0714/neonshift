@@ -134,6 +134,15 @@ test('伺服器摘要詳情：欄位、無分段說明、無路線說明；404 �
   await act(async () => {});
 });
 
+test('詳情頁離線：錯誤卡是白話說明，不印 java 例外原文（2026-10-03）', async () => {
+  api.workout.mockRejectedValueOnce(new Error('fetch failed: java.net.UnknownHostException: Unable to resolve host "api.neonshift.cc": No address associated with hostname'));
+  mockRoute = { params: { serverId: 'srv-hc' } };
+  await render(<ActivityDetailScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByTestId('activity-detail-error')).toBeTruthy());
+  expect(screen.getByText('Could not reach the server. Check your connection.')).toBeTruthy();
+  expect(screen.queryByText(/UnknownHostException|fetch failed/)).toBeNull();
+});
+
 test('訪客／升版前紀錄（無 owner）：列出並標待審核；連錢包時可一鍵歸屬 → 進佇列', async () => {
   const store = workoutRecorder.localStore();
   const m = await store.create({ sessionId: 'g16', sport: 'run', intent: 'run', goal: null, environment: 'outdoor', autoLapMm: null, splitLengthMm: 1_000_000, status: 'needs_review', startedAtUtc: Date.UTC(2026, 8, 16, 1), startedMonoMs: 0, processId: 'p', recordedTimeZone: 'Asia/Taipei' } as never);

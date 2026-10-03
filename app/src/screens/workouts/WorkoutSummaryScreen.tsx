@@ -29,6 +29,7 @@ import { goalReached, workoutRecorder, type SyncOutcome } from '@/services/worko
 import { workoutOutbox } from '@/services/workouts/WorkoutOutbox';
 import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
+import { apiErrorText } from '@/services/api/errorText';
 
 const store = new LocalWorkoutStore();
 
@@ -198,7 +199,7 @@ export function WorkoutSummaryScreen() {
         syncOutcome.code === 'NO_SESSION' ? (
           <SignInState title={t('sum.sync.signinTitle')} body={t('sum.sync.signinBody')} onSignedIn={syncNow} testID="sum-sync-signin" />
         ) : (
-          <InlineState kind={syncOutcome.code === 'NETWORK_ERROR' || syncOutcome.code === 'BLOCKED_EARLIER' ? 'warning' : 'error'} title={t(syncOutcome.code === 'NETWORK_ERROR' ? 'sum.sync.offlineTitle' : syncOutcome.code === 'REJECTED' ? 'sum.sync.rejectedTitle' : syncOutcome.code === 'BLOCKED_EARLIER' ? 'sync.blockedEarlier' : 'sum.sync.failedTitle')} body={syncOutcome.code === 'BLOCKED_EARLIER' ? t('sync.blockedEarlierBody', { message: syncOutcome.message }) : t(syncOutcome.code === 'NETWORK_ERROR' ? 'sum.sync.offlineBody' : syncOutcome.code === 'REJECTED' ? 'sum.sync.rejectedBody' : 'sum.sync.failedBody', { message: syncOutcome.message })} action={syncOutcome.code === 'REJECTED' ? undefined : syncOutcome.code === 'BLOCKED_EARLIER' ? { label: t('sync.openQueue'), onPress: () => navigation.dispatch(toWorkoutsFromHome) } : { label: t('common.tryAgain'), onPress: () => void syncNow(), loading: syncing }} testID={`sum-sync-${syncOutcome.code.toLowerCase()}`} />
+          <InlineState kind={syncOutcome.code === 'NETWORK_ERROR' || syncOutcome.code === 'BLOCKED_EARLIER' ? 'warning' : 'error'} title={t(syncOutcome.code === 'NETWORK_ERROR' ? 'sum.sync.offlineTitle' : syncOutcome.code === 'REJECTED' ? 'sum.sync.rejectedTitle' : syncOutcome.code === 'BLOCKED_EARLIER' ? 'sync.blockedEarlier' : 'sum.sync.failedTitle')} body={syncOutcome.code === 'BLOCKED_EARLIER' ? t('sync.blockedEarlierBody', { message: apiErrorText(t, syncOutcome.message) }) : t(syncOutcome.code === 'NETWORK_ERROR' ? 'sum.sync.offlineBody' : syncOutcome.code === 'REJECTED' ? 'sum.sync.rejectedBody' : 'sum.sync.failedBody', { message: apiErrorText(t, syncOutcome.message) })} action={syncOutcome.code === 'REJECTED' ? undefined : syncOutcome.code === 'BLOCKED_EARLIER' ? { label: t('sync.openQueue'), onPress: () => navigation.dispatch(toWorkoutsFromHome) } : { label: t('common.tryAgain'), onPress: () => void syncNow(), loading: syncing }} testID={`sum-sync-${syncOutcome.code.toLowerCase()}`} />
         )
       ) : null}
 

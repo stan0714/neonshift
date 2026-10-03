@@ -7,6 +7,7 @@ import { useT, type TKey } from '@/i18n';
 import type { RootParamList } from '@/navigation/types';
 import { ApiError, apiClient, type EventBenefit, type StaffCheckinResult } from '@/services/api/ApiClient';
 import { color, radius, space, Text } from '@/theme';
+import { apiErrorText } from '@/services/api/errorText';
 
 type Checkpoint = { checkpoint_id: string; name: string; purpose: string };
 
@@ -84,7 +85,7 @@ export function StaffCheckInScreen() {
     } catch (e) {
       const c = e instanceof ApiError ? e.code : 'UNKNOWN';
       const known = ['CHECKIN_CHALLENGE_EXPIRED', 'NOT_ELIGIBLE', 'ROLE_FORBIDDEN'].includes(c);
-      setOutcome({ kind: 'error', title: known ? t(`staff.err.${c}` as TKey) : t('staff.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+      setOutcome({ kind: 'error', title: known ? t(`staff.err.${c}` as TKey) : t('staff.err.generic', { message: apiErrorText(t, e) }) });
     } finally {
       setBusy(false);
     }
@@ -102,7 +103,7 @@ export function StaffCheckInScreen() {
     } catch (e) {
       const c = e instanceof ApiError ? e.code : 'UNKNOWN';
       const known = ['REDEMPTION_EXPIRED', 'REDEMPTION_CANCELLED', 'NOT_FOUND', 'ROLE_FORBIDDEN'].includes(c);
-      setOutcome({ kind: 'error', title: known ? t(`staff.err.${c}` as TKey) : t('staff.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+      setOutcome({ kind: 'error', title: known ? t(`staff.err.${c}` as TKey) : t('staff.err.generic', { message: apiErrorText(t, e) }) });
     } finally {
       setBusy(false);
     }

@@ -19,6 +19,7 @@ import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { workoutOutbox } from '@/services/workouts/WorkoutOutbox';
 import { useWorkoutPrefs } from '@/state/workoutPrefsStore';
 import { color, radius, space, Text } from '@/theme';
+import { apiErrorText } from '@/services/api/errorText';
 
 const PERIODS: readonly ActivityPeriod[] = ['week', 'month', 'year', 'all'];
 
@@ -144,7 +145,7 @@ export function ActivityScreen() {
     else setSyncNote({
       kind: 'warning',
       title: t('sync.stopped', { n: r.sent }),
-      body: t(`sync.err.${r.stoppedAt.outcome.ok ? 'UNKNOWN' : r.stoppedAt.outcome.code}` as TKey, { message: r.stoppedAt.outcome.ok ? '' : r.stoppedAt.outcome.message }),
+      body: t(`sync.err.${r.stoppedAt.outcome.ok ? 'UNKNOWN' : r.stoppedAt.outcome.code}` as TKey, { message: apiErrorText(t, r.stoppedAt.outcome.ok ? '' : r.stoppedAt.outcome.message) }),
     });
   };
 

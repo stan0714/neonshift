@@ -12,6 +12,8 @@ import { useT, type TKey } from '@/i18n';
 import type { RootParamList } from '@/navigation/types';
 import { ApiError, apiClient, type WorkoutSummary } from '@/services/api/ApiClient';
 import { color, space, Text } from '@/theme';
+import { apiErrorText } from '@/services/api/errorText';
+import { t as tStatic } from '@/i18n';
 
 /**
  * 伺服器摘要詳情（PG-LINK-04）：只在伺服器（Health Connect 匯入、他裝置同步）的紀錄——顯示可得欄位；缺資料隱藏對應區塊並說明。
@@ -25,7 +27,7 @@ export function ActivityDetailScreen() {
   const [err, setErr] = useState<{ code: string; message: string } | null>(null);
   const load = useCallback(async () => {
     try { setW(await apiClient.workout(params.serverId)); setErr(null); }
-    catch (e) { setErr(e instanceof ApiError ? { code: e.code, message: e.message } : { code: 'UNKNOWN', message: String(e) }); }
+    catch (e) { setErr({ code: e instanceof ApiError ? e.code : 'UNKNOWN', message: apiErrorText(tStatic, e) }); }
   }, [params.serverId]);
   useEffect(() => { void load(); }, [load]);
   const { weightKg } = useWeightKg(); // PG-R-11（hook 須在 early return 之前）

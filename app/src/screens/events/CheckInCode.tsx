@@ -6,6 +6,7 @@ import { Button, InlineState, Surface } from '@/components';
 import { useT } from '@/i18n';
 import { ApiError, apiClient, type CheckinChallenge } from '@/services/api/ApiClient';
 import { color, radius, space, Text } from '@/theme';
+import { apiErrorText } from '@/services/api/errorText';
 
 /** 顯示代碼期間有限度輪詢報名狀態（review：staff 報到後參加者畫面要自動更新，不用反覆問工作人員） */
 export const CHECKIN_POLL_MS = 5000;
@@ -68,7 +69,7 @@ export function CheckInCode({ eventId, checkpointId, checkpointName, onCheckedIn
     return () => { stopped = true; clearInterval(timer); };
   }, [ch, eventId, onCheckedIn]);
 
-  if (err) return <InlineState kind={err.code === 'NOT_ELIGIBLE' ? 'info' : 'error'} title={t('ci.title')} body={err.code === 'NOT_ELIGIBLE' ? t('ci.err.NOT_ELIGIBLE') : t('ci.err.generic', { message: err.message })} action={{ label: t('ci.renew'), onPress: () => void fetchCode(), loading: busy }} testID="checkin-error" />;
+  if (err) return <InlineState kind={err.code === 'NOT_ELIGIBLE' ? 'info' : 'error'} title={t('ci.title')} body={err.code === 'NOT_ELIGIBLE' ? t('ci.err.NOT_ELIGIBLE') : t('ci.err.generic', { message: apiErrorText(t, err.message) })} action={{ label: t('ci.renew'), onPress: () => void fetchCode(), loading: busy }} testID="checkin-error" />;
   if (!ch) return <InlineState kind="info" title={t('ci.title')} body={t('ci.loading', { name: checkpointName })} testID="checkin-loading" />;
   const expired = left <= 0;
   return (

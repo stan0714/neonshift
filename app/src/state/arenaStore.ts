@@ -7,6 +7,7 @@ import { ApiError, apiClient, type LeaderboardResponse, type TournamentCurrentRe
 import { ClaimError } from '@/services/chain/StarterShoeService';
 import { t as tr } from '@/i18n';
 import { tournamentService } from '@/services/tournament/TournamentService';
+import { apiErrorText } from '@/services/api/errorText';
 
 export type ArenaAction = 'join' | 'steps' | 'claim' | 'refund';
 export type ArenaOutcome = { kind: 'success'; action: ArenaAction; message: string } | { kind: 'error'; action: ArenaAction; code: string; message: string };
@@ -46,7 +47,7 @@ const fail = (action: ArenaAction, e: unknown): ArenaOutcome => ({
   kind: 'error',
   action,
   code: e instanceof ClaimError ? e.code : e instanceof ApiError ? e.code : 'FAILED',
-  message: e instanceof Error ? e.message : String(e),
+  message: apiErrorText(tr, e), // 給人看的；原始訊息不進畫面
 });
 
 export const useArenaStore = create<State>((set, get) => ({

@@ -12,6 +12,7 @@ import { achievementService } from '@/services/chain/AchievementService';
 import { ClaimError } from '@/services/chain/StarterShoeService';
 import { useWalletStore } from '@/state/walletStore';
 import { color, space, Text } from '@/theme';
+import { apiErrorText } from '@/services/api/errorText';
 
 /**
  * 個人最佳（PG-R-07，FR-15.1／BR-38）：固定類別、官方與裝置分開、戶外與室內分開；Baseline／刷新次數；
@@ -71,7 +72,7 @@ export function PersonalBests({ reloadKey = 0 }: { reloadKey?: number }) {
                   if (r.kind === 'minted') setNotice({ kind: 'success', title: t('pb.minted'), body: t('pb.mintedBody') });
                 } catch (e) {
                   const code = e instanceof ClaimError ? e.code : 'FAILED';
-                  setNotice({ kind: 'error', title: code === 'REJECTED' || code === 'NETWORK_ERROR' || code === 'NOT_AVAILABLE' || code === 'INSUFFICIENT_SOL' ? t(`pb.err.${code}` as TKey) : t('pb.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+                  setNotice({ kind: 'error', title: code === 'REJECTED' || code === 'NETWORK_ERROR' || code === 'NOT_AVAILABLE' || code === 'INSUFFICIENT_SOL' ? t(`pb.err.${code}` as TKey) : t('pb.err.generic', { message: apiErrorText(t, e) }) });
                 } finally {
                   resolve();
                 }
@@ -81,7 +82,7 @@ export function PersonalBests({ reloadKey = 0 }: { reloadKey?: number }) {
         ]);
       });
     } catch (e) {
-      setNotice({ kind: 'error', title: t('pb.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+      setNotice({ kind: 'error', title: t('pb.err.generic', { message: apiErrorText(t, e) }) });
     } finally {
       setMintPhase(null);
       setBusy(null);

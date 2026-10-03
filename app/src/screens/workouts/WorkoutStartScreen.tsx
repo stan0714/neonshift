@@ -27,6 +27,7 @@ import { useDashboardStore } from '@/state/dashboardStore';
 import { useWalletStore } from '@/state/walletStore';
 import { FREE_GOAL, GOAL_VERSION, modeToSport, useWorkoutPrefs, type WorkoutMode } from '@/state/workoutPrefsStore';
 import { color, glowStyle, radius, space, Text } from '@/theme';
+import { apiErrorText } from '@/services/api/errorText';
 
 type Seg<T extends string> = { value: T; label: string };
 function Segmented<T extends string>({ items, value, onChange, testID }: { items: Seg<T>[]; value: T; onChange: (v: T) => void; testID: string }) {
@@ -403,7 +404,7 @@ export function WorkoutStartScreen() {
       {env === 'indoor' ? <InlineState kind="info" title={t('rec.indoorHint')} action={{ label: t('wo.import'), onPress: () => navigation.navigate('Workouts') }} testID="start-indoor" /> : null}
       {err?.kind === 'permission' ? <InlineState kind="warning" title={t('rec.permissionTitle')} body={t('rec.permissionBody')} action={{ label: t('rec.permissionOpen'), onPress: () => void Linking.openSettings() }} testID="start-permission" /> : null}
       {channel && (channel.silenced || !channel.appNotificationsEnabled) ? <InlineState kind="warning" title={t('rec.notif.silencedTitle')} body={t(channel.appNotificationsEnabled ? 'rec.notif.silencedBody' : 'rec.notif.disabledBody')} action={{ label: t('rec.permissionOpen'), onPress: () => void Linking.openSettings() }} testID="start-notif-silenced" /> : null}
-      {err?.kind === 'generic' ? <InlineState kind="error" title={t('rec.err', { message: err.message ?? '' })} testID="start-error" /> : null}
+      {err?.kind === 'generic' ? <InlineState kind="error" title={t('rec.err', { message: apiErrorText(t, err.message ?? '') })} testID="start-error" /> : null}
 
       <Countdown mode={mode} visible={counting} voice={prefs.voice} haptic={prefs.haptic} locale={locale === 'zh-TW' ? 'zh-TW' : 'en'} onDone={() => void begin()} onCancel={() => setCounting(false)} />
 

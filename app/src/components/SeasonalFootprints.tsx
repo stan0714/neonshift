@@ -23,6 +23,7 @@ import { requestSeasonalNotificationPermission, seasonalNotificationPermission, 
 import { useSeasonalReminderStore } from '@/state/seasonalReminderStore';
 import { useWalletStore } from '@/state/walletStore';
 import { color, radius, space, Text } from '@/theme';
+import { apiErrorText } from '@/services/api/errorText';
 
 /**
  * Seasonal Footprints（PG-SEASON-03；設計 §4）。
@@ -316,7 +317,7 @@ function SeasonalClaim({ campaignId, themeId, year, onClaimed }: { campaignId: s
                   if (r.kind === 'minted') setNotice({ kind: 'success', title: t('season.claimed'), body: t('season.claimedBody') });
                 } catch (e) {
                   const code = e instanceof ClaimError ? e.code : 'FAILED';
-                  setNotice({ kind: 'error', title: code === 'REJECTED' || code === 'NETWORK_ERROR' || code === 'NOT_AVAILABLE' || code === 'INSUFFICIENT_SOL' ? t(`pb.err.${code}` as TKey) : t('pb.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+                  setNotice({ kind: 'error', title: code === 'REJECTED' || code === 'NETWORK_ERROR' || code === 'NOT_AVAILABLE' || code === 'INSUFFICIENT_SOL' ? t(`pb.err.${code}` as TKey) : t('pb.err.generic', { message: apiErrorText(t, e) }) });
                 } finally {
                   resolve();
                 }
@@ -328,7 +329,7 @@ function SeasonalClaim({ campaignId, themeId, year, onClaimed }: { campaignId: s
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       // 後端還沒開放領取（SEASONAL_MINT_NOT_OPEN）就照實說，不說成失敗
-      setNotice(/SEASONAL_MINT_NOT_OPEN/.test(msg) ? { kind: 'info', title: t('season.state.eligible'), body: t('season.state.eligibleBody') } : { kind: 'error', title: t('pb.err.generic', { message: msg }) });
+      setNotice(/SEASONAL_MINT_NOT_OPEN/.test(msg) ? { kind: 'info', title: t('season.state.eligible'), body: t('season.state.eligibleBody') } : { kind: 'error', title: t('pb.err.generic', { message: apiErrorText(t, msg) }) });
     } finally {
       setPhase(null);
       setBusy(false);

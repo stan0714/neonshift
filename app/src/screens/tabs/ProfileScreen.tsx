@@ -53,7 +53,7 @@ export function ProfileScreen() {
     try {
       const r = await workoutOutbox.run(ob.owner, { manual: true });
       if (!r.stoppedAt) setSyncNote({ kind: 'success', title: t('sync.done', { n: r.sent }) });
-      else setSyncNote({ kind: 'warning', title: t('sync.stopped', { n: r.sent }), body: t(`sync.err.${r.stoppedAt.outcome.ok ? 'UNKNOWN' : r.stoppedAt.outcome.code}` as TKey, { message: r.stoppedAt.outcome.ok ? '' : r.stoppedAt.outcome.message }) });
+      else setSyncNote({ kind: 'warning', title: t('sync.stopped', { n: r.sent }), body: t(`sync.err.${r.stoppedAt.outcome.ok ? 'UNKNOWN' : r.stoppedAt.outcome.code}` as TKey, { message: apiErrorText(t, r.stoppedAt.outcome.ok ? '' : r.stoppedAt.outcome.message) }) });
     } finally {
       setSyncBusy(false);
     }
@@ -232,7 +232,7 @@ export function ProfileScreen() {
         <Row icon="upload-cloud" label={t('sync.pending', { n: ob.summary.pending })} detail={ob.lastSuccessAt ? t('sync.lastSuccess', { when: new Date(ob.lastSuccessAt).toLocaleString() }) : t('sync.never')} tint={ob.summary.pending > 0 ? color.warning : color.success} />
         {ob.summary.head?.status === 'blocked' || ob.summary.head?.status === 'retry_wait' ? (
           <Text variant="bodySmall" tone="warning" style={styles.mtXs} testID="profile-sync-head-error">
-            {t('sync.headStuck', { when: new Date(ob.summary.head.meta.startedAtUtc).toLocaleDateString(), reason: t(`sync.err.${ob.summary.head.lastError?.code ?? 'UNKNOWN'}` as TKey, { message: ob.summary.head.lastError?.message ?? '' }) })}
+            {t('sync.headStuck', { when: new Date(ob.summary.head.meta.startedAtUtc).toLocaleDateString(), reason: t(`sync.err.${ob.summary.head.lastError?.code ?? 'UNKNOWN'}` as TKey, { message: apiErrorText(t, ob.summary.head.lastError?.message ?? '') }) })}
           </Text>
         ) : null}
         {ob.unassigned.length ? (
@@ -280,7 +280,7 @@ export function ProfileScreen() {
         <Button label={t('profile.deleteData')} variant="danger" style={styles.btn} onPress={deleteData} loading={deletion.state === 'working'} loadingLabel={t('profile.deleting')} disabled={!backend} disabledReason={backend === false ? t('profile.deleteReason') : undefined} />
         {deletion.state === 'done' ? <InlineState kind="success" title={t('profile.deleted.title')} body={t('profile.deleted.body')} testID="deletion-done" /> : null}
         {deletion.state === 'scheduled' ? <InlineState kind="info" title={t('profile.scheduled.title')} body={t('profile.scheduled.body', { when: deletion.dueAt ? new Date(deletion.dueAt).toLocaleString() : t('profile.retentionLimit') })} testID="deletion-scheduled" /> : null}
-        {deletion.state === 'error' ? <InlineState kind="error" title={t('common.somethingInterrupted')} body={t('profile.deleteErr.body', { message: deletion.message ?? '' })} referenceId={deletion.referenceId} action={{ label: t('common.tryAgain'), onPress: deleteData }} testID="deletion-error" /> : null}
+        {deletion.state === 'error' ? <InlineState kind="error" title={t('common.somethingInterrupted')} body={t('profile.deleteErr.body', { message: apiErrorText(t, deletion.message ?? '') })} referenceId={deletion.referenceId} action={{ label: t('common.tryAgain'), onPress: deleteData }} testID="deletion-error" /> : null}
       </Section>
 
       {/* XD-02：錢包互動時間線（驗收「記錄中自動彈出＝0」與等待時間拆分） */}
