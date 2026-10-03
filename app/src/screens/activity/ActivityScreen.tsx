@@ -43,8 +43,13 @@ export function ActivityScreen() {
   const setPeriod = (k: ActivityPeriod) => { setKind(k); void prefs.set({ activityPeriod: k }); setFilter((f) => ({ ...f, day: null })); };
   const shift = (delta: number) => { setAnchors((a) => ({ ...a, [kind]: shiftPeriod(kind, anchor, delta) })); setFilter((f) => ({ ...f, day: null })); };
   const [filter, setFilter] = useState<ActivityFilter>({ mode: 'all', source: 'all', status: 'all', day: null });
-  const [remote, setRemote] = useState<{ key: string; items: WorkoutSummary[] } | null>(null);
-  const [remoteErr, setRemoteErr] = useState<{ code: string; message: string } | null>(null);
+  /**
+   * 伺服器紀錄依期間快取（key＝owner:kind:anchor）。2026-10-03 實機：切到 Y／All 時總覽先用
+   * 本機紀錄算出 20.6 km，伺服器回來才跳成 25.1 km；原本只記得「目前這一期」，切走再切回又重抓、又跳。
+   * 有快取 → 直接顯示、背景刷新；沒快取（第一次看這一期）→ 總覽先顯示載入中，不秀一個不完整的數字。
+   */
+  const [remoteCache, setRemoteCache] = useState<Record<string, WorkoutSummary[]>>({});
+  const [remoteErr, setRemoteErr] = useState<{ code: string; message: string; key?: string } | null>(null);
   /**
    * 「立即同步」的結果。2026-09-30 實機：按下去**完全沒有反應**——原本是
    * `onPress={() => void workoutOutbox.run(...)}`，回傳值直接丟掉，所以失敗（例如後端
@@ -74,12 +79,13 @@ export function ActivityScreen() {
       }
       if (version !== requestVersion.current) return;
       setTruncated(!!cursor);
-      setRemote({ key: `${ob.owner ?? 'guest'}:${k}:${a}`, items });
+      setRemoteCache((c) => ({ ...c, [`${ob.owner ?? 'guest'}:${k}:${a}`]: items }));
       setRemoteErr(null);
     } catch (e) {
       if (version !== requestVersion.current) return;
       // 未登入／離線：仍能看本機已保存紀錄（登入失效不清掉本機日誌）
-      setRemoteErr(e instanceof ApiError ? { code: e.code, message: e.message } : { code: 'UNKNOWN', message: String(e) });
+      const key = `${ob.owner ?? 'guest'}:${k}:${a}`;
+      setRemoteErr(e instanceof ApiError ? { code: e.code, message: e.message, key } : { code: 'UNKNOWN', message: String(e), key });
     } finally {
       if (version === requestVersion.current) setLoading(false);
     }
@@ -92,9 +98,11 @@ export function ActivityScreen() {
   const items = useMemo(() => {
     void tick;
     const local = workoutRecorder.localStore().list().filter((m) => !ob.owner ? !m.owner : (m.owner === ob.owner || !m.owner));
-    const merged = mergeActivity(local, remote?.key === periodKey ? remote.items : [], ob.list);
+    const merged = mergeActivity(local, remoteCache[periodKey] ?? [], ob.list);
     return merged.filter((it) => inPeriod(it, kind, anchor));
-  }, [tick, remote, periodKey, kind, anchor, ob.owner, ob.list]);
+  }, [tick, remoteCache, periodKey, kind, anchor, ob.owner, ob.list]);
+  /** 已連錢包、這一期還沒拿到伺服器結果、也還沒失敗 → 總覽數字未定 */
+  const heroPending = !!ob.owner && !(periodKey in remoteCache) && remoteErr?.key !== periodKey;
   const scoped = useMemo(() => filterActivity(items, { ...filter, day: null }), [items, filter]);
   const summary = useMemo(() => periodSummary(scoped, kind, anchor), [scoped, kind, anchor]);
   const month = useMemo(() => monthSummary(scoped, anchor), [scoped, anchor]); // 月曆用（只在月檢視）
@@ -193,14 +201,15 @@ export function ActivityScreen() {
       {kind !== 'all' && anchor !== periodAnchorNow(kind) ? <Pressable onPress={() => { setAnchors((a) => ({ ...a, [kind]: periodAnchorNow(kind) })); setFilter((f) => ({ ...f, day: null })); }} style={styles.filterBtn} accessibilityRole="button" testID="activity-current-period"><Text variant="caption" tone="mint">{t('actv.currentPeriod')}</Text></Pressable> : null}
       <View style={styles.hero} testID="activity-hero">
         <Text variant="label" tone="mint">{t('actv.overview')}</Text>
-        <Text variant="displayL" numeric style={styles.heroKm} testID="activity-hero-km">{summary.hasDistance ? (summary.distanceMm / 1_000_000).toFixed(1) : '—'}</Text>
+        <Text variant="displayL" numeric style={styles.heroKm} testID="activity-hero-km">{heroPending ? '—' : summary.hasDistance ? (summary.distanceMm / 1_000_000).toFixed(1) : '—'}</Text>
         <Text variant="bodySmall" tone="secondary">{t('actv.kmUnit')}</Text>
         <View style={styles.heroStats}>
-          <View style={styles.heroStat}><Text variant="heading2" numeric testID="activity-hero-count">{summary.count}</Text><Text variant="caption" tone="secondary">{t(countLabel)}</Text></View>
-          <View style={styles.heroStat}><Text variant="heading2" numeric testID="activity-hero-pace">{walkMode ? (summary.avgSpeedKmh === null ? '—' : `${summary.avgSpeedKmh.toFixed(1)} km/h`) : formatPace(summary.avgPaceSPerKm)}</Text><Text variant="caption" tone="secondary">{t(walkMode ? 'actv.hero.speed' : 'actv.hero.pace')}</Text></View>
-          <View style={styles.heroStat}><Text variant="heading2" numeric testID="activity-hero-time">{summary.hasTime ? formatDuration(String(summary.elapsedMs)) : '—'}</Text><Text variant="caption" tone="secondary">{t('actv.hero.time')}</Text></View>
+          <View style={styles.heroStat}><Text variant="heading2" numeric testID="activity-hero-count">{heroPending ? '—' : summary.count}</Text><Text variant="caption" tone="secondary">{t(countLabel)}</Text></View>
+          <View style={styles.heroStat}><Text variant="heading2" numeric testID="activity-hero-pace">{heroPending ? '—' : walkMode ? (summary.avgSpeedKmh === null ? '—' : `${summary.avgSpeedKmh.toFixed(1)} km/h`) : formatPace(summary.avgPaceSPerKm)}</Text><Text variant="caption" tone="secondary">{t(walkMode ? 'actv.hero.speed' : 'actv.hero.pace')}</Text></View>
+          <View style={styles.heroStat}><Text variant="heading2" numeric testID="activity-hero-time">{heroPending ? '—' : summary.hasTime ? formatDuration(String(summary.elapsedMs)) : '—'}</Text><Text variant="caption" tone="secondary">{t('actv.hero.time')}</Text></View>
         </View>
-        {summary.excluded > 0 ? <Text variant="caption" tone="muted" testID="activity-summary">{t('actv.excludedCount', { n: summary.excluded })}</Text> : null}
+        {heroPending ? <Text variant="caption" tone="muted" testID="activity-hero-loading">{t('actv.heroLoading')}</Text> : null}
+        {!heroPending && summary.excluded > 0 ? <Text variant="caption" tone="muted" testID="activity-summary">{t('actv.excludedCount', { n: summary.excluded })}</Text> : null}
       </View>
       {kind !== 'month' || prefs.activityView !== 'calendar' ? (
         <>

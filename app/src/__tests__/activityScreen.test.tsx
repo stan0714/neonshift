@@ -218,6 +218,33 @@ test('篩選同步更新總覽；年圖表月份可點選並獨立清除', async
   expect(screen.queryByTestId('activity-clear-day')).toBeNull();
 });
 
+/**
+ * 2026-10-03 實機：切到 Y／All 總覽先顯示 20.6 km（只有本機紀錄），伺服器回來才跳成 25.1；
+ * 切走再切回又重抓、又跳一次。本機三筆＝15.0 km，合併伺服器後＝17.4 km。
+ */
+test('切換期間不先秀只有本機的數字；看過的期間切回來直接是完整數字', async () => {
+  await render(<ActivityScreen />, { wrapper: Wrapper });
+  await waitFor(() => expect(screen.getByTestId('activity-hero-km').props.children).toBe('17.4'));
+  const full = api.myWorkouts.getMockImplementation();
+  const pending: ((v: unknown) => void)[] = [];
+  api.myWorkouts.mockImplementation(() => new Promise((r) => { pending.push(r); }));
+  // 第一次看「年」：伺服器還沒回 → 載入中，不是 15.0
+  await fireEvent.press(screen.getByTestId('activity-period-year'));
+  await waitFor(() => expect(pending.length).toBe(1));
+  expect(screen.getByTestId('activity-hero-km').props.children).toBe('—');
+  expect(screen.getByTestId('activity-hero-loading')).toBeTruthy();
+  const page = await full!({});
+  await act(async () => { pending[0]!(page); });
+  expect(screen.getByTestId('activity-hero-km').props.children).toBe('17.4');
+  expect(screen.queryByTestId('activity-hero-loading')).toBeNull();
+  // 切回「月」再切回「年」：背景重抓還沒回，畫面已經是完整數字
+  await fireEvent.press(screen.getByTestId('activity-period-month'));
+  expect(screen.getByTestId('activity-hero-km').props.children).toBe('17.4');
+  await fireEvent.press(screen.getByTestId('activity-period-year'));
+  expect(screen.getByTestId('activity-hero-km').props.children).toBe('17.4');
+  await act(async () => { pending.forEach((r) => r(page)); });
+});
+
 test('較舊請求晚回來，不覆蓋新月份紀錄', async () => {
   let resolveOld!: (value: unknown) => void;
   api.myWorkouts.mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve; }));

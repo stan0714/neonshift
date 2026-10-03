@@ -1862,6 +1862,7 @@ export const en = {
   'sync.leave.sync': 'Sync, then go home',
   'sync.deletePending': 'Deletion pending · removed once the server confirms',
   'home.recentWorkout': 'Recent workout',
+  'actv.heroLoading': 'Loading synced workouts…',
   'actv.overview': 'DISTANCE THIS PERIOD',
   'actv.scopeNote': 'Overview follows mode, source and status filters. Select a chart interval to narrow the list.',
   'actv.currentPeriod': 'Back to current period',

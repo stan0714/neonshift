@@ -1841,6 +1841,7 @@ export const zhTW: Record<keyof typeof en, string> = {
   'sync.leave.sync': '先同步再回首頁',
   'sync.deletePending': '刪除待同步 · 伺服器確認後才會移除',
   'home.recentWorkout': '最近運動',
+  'actv.heroLoading': '正在讀取已同步的紀錄…',
   'actv.overview': '本期累積距離',
   'actv.scopeNote': '總覽依運動類型、來源與狀態篩選；點選圖表區間可縮小下方清單。',
   'actv.currentPeriod': '回到目前期間',
