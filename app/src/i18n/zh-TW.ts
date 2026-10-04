@@ -1666,6 +1666,7 @@ export const zhTW: Record<keyof typeof en, string> = {
   'share.maxSpeed': '最高速度 {v} km/h',
   'share.splits': '分段 {list}',
   'share.fastest': '最快分段 第 {n} 公里 {p}',
+  'share.laps_one': '計圈 {n} 圈',
   'share.laps': '計圈 {n} 圈',
   'share.goalKm': '{n} km',
   'share.goalMin': '{n} 分鐘',

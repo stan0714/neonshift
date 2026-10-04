@@ -57,7 +57,7 @@ test('shareCard：多行分享卡——模式／距離／時間／運動時間�
     'share.avgPace(5:29) · share.maxSpeed(12.4)',
     'share.splits(1k 5:31 · 2k 5:25 · 3k 5:30)',
     'share.fastest(2,5:25)',
-    'share.laps(2)',
+    'share.laps(2,2)', // n 與 count（複數選字）
     'share.goalMet(share.goalKm(5))',
     '#NeonShift · neonshift.cc',
   ]);
@@ -68,4 +68,15 @@ test('shareCard：多行分享卡——模式／距離／時間／運動時間�
   expect(all).toContain('share.quality(1500,3) · share.autoPaused(00:20)');
   expect(all).toContain('2026-09-16');
   expect(all).not.toMatch(/21:00|lat|lon/);
+});
+
+test('shareCard：計圈 1 圈用單數（2026-10-03 實機分享文字寫「1 laps」）', () => {
+  const { translate } = jest.requireActual('@/i18n') as typeof import('@/i18n');
+  const t = (k: string, p?: Record<string, string | number>) => translate('en', k as Parameters<typeof translate>[1], p);
+  const input = { sport: 'run' as const, intent: 'run' as const, startedAt: new Date(2026, 9, 3, 21, 0), elapsedMs: 1_583_000, movingMs: 1_574_000, distanceMm: 3_550_000, avgPaceSPerKm: 444, avgSpeedKmh: 8.1, maxSpeed5sKmh: null, splits: [], lapCount: 1, goal: null, goalMet: false, qualityAccepted: 1500, qualityRejected: 0, autoPausedMs: 0 };
+  const fields = { mode: true, pace: true, date: false, splits: true, goal: false, quality: false }; // 計圈跟著分段一起顯示
+  const one = shareCard(input, fields, t, { mode: 'Run', app: 'NeonShift', site: 'neonshift.cc' });
+  expect(one).toContain('1 lap');
+  expect(one).not.toContain('1 laps');
+  expect(shareCard({ ...input, lapCount: 3 }, fields, t, { mode: 'Run', app: 'NeonShift', site: 'neonshift.cc' })).toContain('3 laps');
 });

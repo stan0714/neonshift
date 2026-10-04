@@ -318,3 +318,33 @@ test('顯示速度平滑（EMA τ 15 s）：速度驟變時顯示值漸進、原
   e.resume(30_000);
   expect(e.currentSpeedMs()).toBeNull();
 });
+
+/**
+ * 2026-10-03 實機：平均 7:24/km（≈8 km/h）的跑步，分享文字寫「Top speed 29.2 km/h」。
+ * 精度差（50 m）時遲滯門檻是 30 m：位移先凍結、超過門檻才一次補進來，塞進 5 秒窗就成了假峰值。
+ */
+describe('最高速度不被 GPS 補帳與跳點灌高', () => {
+  test('精度 50 m、等速 2.2 m/s：靜止補回的整段位移不算進最高速度', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    run(track({ speedMs: 2.2, seconds: 300, accuracy: 50 }), e);
+    const s = e.finish(300_000);
+    expect(s.distanceMm / 1_000_000).toBeGreaterThan(0.55); // 距離照算
+    if (s.maxSpeed5sKmh !== null) expect(s.maxSpeed5sKmh).toBeLessThan(2.2 * 3.6 * 1.5);
+  });
+
+  test('超過跑步可信上限（7 m/s ≈ 25 km/h）的 5 秒窗不列入；距離照算', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    const a = track({ speedMs: 2.2, seconds: 60 });
+    const lastA = a[a.length - 1]!;
+    const lurch = track({ speedMs: 8.1, seconds: 6, startSec: 61, startLat: lastA.lat + 2.2 / M_PER_DEG_LAT, seqStart: a.length }); // 29.2 km/h，低於跳點上限 12 m/s
+    const lastL = lurch[lurch.length - 1]!;
+    const b = track({ speedMs: 2.2, seconds: 60, startSec: 68, startLat: lastL.lat + 2.2 / M_PER_DEG_LAT, seqStart: a.length + lurch.length });
+    run([...a, ...lurch, ...b], e);
+    const s = e.finish(128_000);
+    expect(s.maxSpeed5sKmh).not.toBeNull();
+    expect(s.maxSpeed5sKmh!).toBeLessThanOrEqual(25.2);
+    expect(s.distanceMm / 1_000_000).toBeGreaterThan(0.3);
+  });
+});

@@ -126,7 +126,7 @@ export function shareCard(w: ShareCardInput, fields: ShareCardFields, t: ShareT,
       lines.push(t('share.splits', { list: shown + (full.length > 10 ? ' …' : '') }));
       if (full.length > 1) lines.push(t('share.fastest', { n: fastest.index, p: fmtPace(fastest.paceSPerKm) }));
     }
-    if (w.lapCount > 0) lines.push(t('share.laps', { n: w.lapCount }));
+    if (w.lapCount > 0) lines.push(t('share.laps', { n: w.lapCount, count: w.lapCount }));
   }
   if (fields.goal && w.goal && w.goal.kind !== 'free') {
     const target = w.goal.kind === 'time' ? t('share.goalMin', { n: Math.round(w.goal.target / 60) }) : t('share.goalKm', { n: w.goal.target / 1_000_000 });

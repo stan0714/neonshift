@@ -19,6 +19,15 @@ import { GPS_QUALITY } from './thresholds';
 
 export const GPS_RULES_VERSION = 3;
 /** 完整性（防弊）規則 v2：模擬定位、持續超速、缺口瞬移、時鐘漂移、感測器不一致（後者由 recorder 填入） */
+/**
+ * 最高速度（5 秒窗）的可信上限（m/s）：跑步 7.0（≈25 km/h，業餘衝刺上緣）、走路 3.0（≈11 km/h）。
+ * 超過的窗視為 GPS 雜訊，不列入最高速度（距離照算，這裡只管顯示／分享的那個數字）。
+ * 2026-10-03 實機：平均 7:24/km（≈8 km/h）的跑步，分享文字寫「Top speed 29.2 km/h」。
+ */
+export const TOP_SPEED_CEILING_MS = { run: 7.0, walk: 3.0 } as const;
+/** 靜止後補回的位移會集中在一個點上，接下來這段時間的 5 秒窗不列入最高速度 */
+export const TOP_SPEED_CATCHUP_HOLD_MS = 5000;
+
 export const INTEGRITY_RULES = {
   /** 持續超速：60 秒滑動窗平均速度上限（m/s）；跑步 6.5（≈23 km/h）、走路 2.8（≈10 km/h） */
   sustainedWindowMs: 60_000,
@@ -153,6 +162,8 @@ export class GpsMetricsEngine {
   static readonly DISPLAY_HOLD_MS = 5_000;
   static readonly DISPLAY_PACE_STEP_S = 15;
   private maxSpeed5s: number | null = null;
+  /** 在此單調時間之前不更新最高速度（見 TOP_SPEED_CATCHUP_HOLD_MS） */
+  private topSpeedHoldUntil = 0;
   private coveredMs = 0;
   private rejected: Record<RejectReason, number> = { not_finite: 0, out_of_order: 0, duplicate: 0, low_accuracy: 0, speed_spike: 0, paused: 0, not_recording: 0, mock_location: 0 };
   // 完整性（防弊）
@@ -272,6 +283,9 @@ export class GpsMetricsEngine {
     const prevCum = this.cumMm;
     this.cumMm += distanceMm;
     const acc: Accepted = { monotonicMs: p.monotonicMs, lat: p.lat, lon: p.lon, cumMm: this.cumMm, segment: this.segment, elapsedMs };
+    // 前面有靜止點（錨點沒跟著走）→ 這一點一次補上從錨點起的整段位移；精度 50 m 時可達 30 m，
+    // 塞進 5 秒窗就變成假的最高速度。距離照算，只是這段時間不更新最高速度。
+    if (!stationary && distanceMm > 0 && this.anchor && this.anchor !== this.last) this.topSpeedHoldUntil = p.monotonicMs + TOP_SPEED_CATCHUP_HOLD_MS;
     if (!stationary) this.anchor = acc;
     const prev = this.last;
     this.last = acc;
@@ -284,7 +298,7 @@ export class GpsMetricsEngine {
       else break;
     }
     const raw = this.windowSpeedMs();
-    if (raw !== null && (this.maxSpeed5s === null || raw > this.maxSpeed5s)) this.maxSpeed5s = raw;
+    if (raw !== null && p.monotonicMs >= this.topSpeedHoldUntil && raw <= TOP_SPEED_CEILING_MS[this.sport] && (this.maxSpeed5s === null || raw > this.maxSpeed5s)) this.maxSpeed5s = raw;
     const display = this.windowSpeedMs(GpsMetricsEngine.DISPLAY_WINDOW_MS);
     if (display === null || newSegment) { this.smoothSpeedMs = display; this.shown = null; }
     else {

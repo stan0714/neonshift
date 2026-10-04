@@ -132,7 +132,7 @@ export function workoutShareLayout(
     const full = w.splits.filter((x) => !x.isPartial && x.paceSPerKm !== null) as { index: number; paceSPerKm: number }[];
     // 圖上放得下 8 格；再多就只看得到一堆小字（§4.2 最小字級 28 px）
     for (const x of full.slice(0, 8)) chips.push(`${x.index}k ${fmtPace(x.paceSPerKm)}`);
-    if (w.lapCount > 0) chips.push(t('share.laps', { n: w.lapCount }));
+    if (w.lapCount > 0) chips.push(t('share.laps', { n: w.lapCount, count: w.lapCount }));
   }
   return {
     kind: 'workout',

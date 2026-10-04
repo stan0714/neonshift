@@ -1687,6 +1687,7 @@ export const en = {
   'share.maxSpeed': 'Top speed {v} km/h',
   'share.splits': 'Splits {list}',
   'share.fastest': 'Fastest split km {n} at {p}',
+  'share.laps_one': '{n} lap',
   'share.laps': '{n} laps',
   'share.goalKm': '{n} km',
   'share.goalMin': '{n} min',
