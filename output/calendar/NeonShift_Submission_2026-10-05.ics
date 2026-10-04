@@ -232,35 +232,36 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:5a9baf59-fc80-533c-b02a-7b8c85e0969c@neonshift.cc
-DTSTAMP:20260929T123530Z
-DTSTART;TZID=Asia/Taipei:20261004T090000
-DTEND;TZID=Asia/Taipei:20261004T120000
-SUMMARY:NeonShift｜修必要卡點，定稿四項交付物
-DESCRIPTION:檢查 APK、repo、影片、Pitch；必要修正後同步版
- 本與證據。確認素材權利、無 secrets、測試活動有效期及
- 後端維護安排。\n時區：Asia/Taipei。這是建議工作時段，
- 可自行調整。\n計畫：docs/store/submission-sprint-2026-10-05.md\nR
- eview：docs/design/implementation-review-2026-09-29.md
+DTSTAMP:20261004T084411Z
+SEQUENCE:1
+DTSTART;TZID=Asia/Taipei:20261004T170000
+DTEND;TZID=Asia/Taipei:20261004T190000
+SUMMARY:NeonShift｜定稿 v20 RC 與第 5 頁以外的交付物
+DESCRIPTION:v20 已安裝：登錄 RC 紀錄與提交登錄 §9。影片除
+ 鏈上申領段外先剪好；Pitch 除第 5 頁外定稿。確認素材
+ 權利、無 secrets、測試活動有效期與後端維護安排。\n時
+ 區：Asia/Taipei。這是建議工作時段，可自行調整。\n計畫
+ ：docs/store/submission-sprint-2026-10-05.md
 STATUS:CONFIRMED
 TRANSP:OPAQUE
 BEGIN:VALARM
 ACTION:DISPLAY
 TRIGGER:-PT30M
-DESCRIPTION:修必要卡點，定稿四項交付物
+DESCRIPTION:定稿 v20 RC 與第 5 頁以外的交付物
 END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:bddf4e74-fa1a-5f08-81a5-ac8a33b0c192@neonshift.cc
-DTSTAMP:20260929T123530Z
-DTSTART;TZID=Asia/Taipei:20261004T140000
-DTEND;TZID=Asia/Taipei:20261004T163000
+DTSTAMP:20261004T084411Z
+SEQUENCE:1
+DTSTART;TZID=Asia/Taipei:20261004T200000
+DTEND;TZID=Asia/Taipei:20261004T213000
 SUMMARY:NeonShift｜公開連結驗收與提交表單草稿
-DESCRIPTION:未登入檢查 APK 下載、repo、影片、PDF；量測影片
-  ≤180 秒；填資格／團隊／SKR 說明與評審指南。完成條
- 件：四項連結可用，草稿已填但不誤標送出。\n時區：Asi
- a/Taipei。這是建議工作時段，可自行調整。\n計畫：docs/st
- ore/submission-sprint-2026-10-05.md\nReview：docs/design/implementation-r
- eview-2026-09-29.md
+DESCRIPTION:未登入檢查 APK 下載、repo、影片、PDF；填資格／
+ 團隊／SKR 說明與評審指南。完成條件：四項連結可用，
+ 草稿已填但不誤標送出。第 5 頁與影片申領段明早補。\n
+ 時區：Asia/Taipei。這是建議工作時段，可自行調整。\n計
+ 畫：docs/store/submission-sprint-2026-10-05.md
 STATUS:CONFIRMED
 TRANSP:OPAQUE
 BEGIN:VALARM
@@ -271,34 +272,114 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:ad86f207-a1a3-5677-a386-80228e3bdc26@neonshift.cc
-DTSTAMP:20260929T123530Z
-DTSTART;TZID=Asia/Taipei:20261004T173000
-DTEND;TZID=Asia/Taipei:20261004T180000
-SUMMARY:NeonShift｜交付凍結：明天只做最終核對與提交
-DESCRIPTION:核對四項素材、版本、聲明與測試支援。若仍缺
- 必要項，記錄阻塞並立即處理；不把 10/5 當錄片或新功
- 能開發日。\n時區：Asia/Taipei。這是建議工作時段，可自
- 行調整。\n計畫：docs/store/submission-sprint-2026-10-05.md\nReview
- ：docs/design/implementation-review-2026-09-29.md
+DTSTAMP:20261004T084411Z
+SEQUENCE:1
+DTSTART;TZID=Asia/Taipei:20261004T213000
+DTEND;TZID=Asia/Taipei:20261004T220000
+SUMMARY:NeonShift｜凍結（第 5 頁除外），準備明早跑步
+DESCRIPTION:只留鏈上申領的第 5 頁與影片段待補，其他不再
+ 改。手機充電、確認 v20、錢包有 Devnet SOL、螢幕錄影可
+ 用。\n時區：Asia/Taipei。這是建議工作時段，可自行調整
+ 。\n計畫：docs/store/submission-sprint-2026-10-05.md
 STATUS:CONFIRMED
 TRANSP:OPAQUE
 BEGIN:VALARM
 ACTION:DISPLAY
 TRIGGER:-PT30M
-DESCRIPTION:交付凍結：明天只做最終核對與提交
+DESCRIPTION:凍結（第 5 頁除外），準備明早跑步
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:a96ea516-6827-5404-a0ed-a8692a8b3ce9@neonshift.cc
+DTSTAMP:20261004T084411Z
+SEQUENCE:1
+DTSTART;TZID=Asia/Taipei:20261005T073000
+DTEND;TZID=Asia/Taipei:20261005T080000
+SUMMARY:NeonShift｜跑前準備
+DESCRIPTION:開 App 確認已登入、Devnet SOL 足夠、今日運動任
+ 務未領。注意：運動與領獎要在同一個 UTC 日，台灣時間
+  08:00 換日——08:00 之後才開始跑。\n時區：Asia/Taipei。這
+ 是建議工作時段，可自行調整。\n計畫：docs/store/submission
+ -sprint-2026-10-05.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT15M
+DESCRIPTION:跑前準備
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:6a46bdcb-6057-50d5-8ee9-97430fd48969@neonshift.cc
+DTSTAMP:20261004T084411Z
+SEQUENCE:1
+DTSTART;TZID=Asia/Taipei:20261005T080000
+DTEND;TZID=Asia/Taipei:20261005T090000
+SUMMARY:NeonShift｜跑步（運動任務）
+DESCRIPTION:戶外跑步，至少 1 km 且移動 10 分鐘以上（例如 3
+  km）。08:00 之後才按開始。結束後保存。\n時區：Asia/Taip
+ ei。這是建議工作時段，可自行調整。\n計畫：docs/store/su
+ bmission-sprint-2026-10-05.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:跑步（運動任務）
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:c06a9573-afa8-5984-9efd-6deace85edc3@neonshift.cc
+DTSTAMP:20261004T084411Z
+SEQUENCE:1
+DTSTART;TZID=Asia/Taipei:20261005T090000
+DTEND;TZID=Asia/Taipei:20261005T094500
+SUMMARY:NeonShift｜同步並打卡領獎（錄影）
+DESCRIPTION:同步運動 → 首頁打卡 → 錢包核准 → confirmed 
+ → Explorer 同一筆交易。全程錄影；保存交易簽章。錄到
+ 通知、鎖定畫面或錢包內容的畫格要刪除。\n時區：Asia/T
+ aipei。這是建議工作時段，可自行調整。\n計畫：docs/store
+ /submission-sprint-2026-10-05.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:同步並打卡領獎（錄影）
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:7d701b1b-a779-5ea1-9d9a-1bb94ceb83a2@neonshift.cc
+DTSTAMP:20261004T084411Z
+SEQUENCE:1
+DTSTART;TZID=Asia/Taipei:20261005T094500
+DTEND;TZID=Asia/Taipei:20261005T113000
+SUMMARY:NeonShift｜補第 5 頁與影片申領段，重新匯出
+DESCRIPTION:用剛才的實機畫面補投影片第 5 頁與影片鏈上申
+ 領段；重新匯出 PDF／影片並更新連結。11:30 還沒有可用
+ 錄影 → 改用標示「歷史畫面」的版本照常提交，不延後
+ 。\n時區：Asia/Taipei。這是建議工作時段，可自行調整。\
+ n計畫：docs/store/submission-sprint-2026-10-05.md
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT30M
+DESCRIPTION:補第 5 頁與影片申領段，重新匯出
 END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:084c294f-bd04-5210-816f-ae74143de648@neonshift.cc
-DTSTAMP:20260929T123530Z
-DTSTART;TZID=Asia/Taipei:20261005T090000
-DTEND;TZID=Asia/Taipei:20261005T103000
+DTSTAMP:20261004T084411Z
+SEQUENCE:1
+DTSTART;TZID=Asia/Taipei:20261005T113000
+DTEND;TZID=Asia/Taipei:20261005T123000
 SUMMARY:NeonShift｜提交前最後檢查
 DESCRIPTION:重新開啟四項公開連結、API 與評審指南；核對
  姓名、資格、網路、版本及最新回執欄位。完成條件：
  表單所有內容正確且可存取。\n時區：Asia/Taipei。這是建
  議工作時段，可自行調整。\n計畫：docs/store/submission-sprin
- t-2026-10-05.md\nReview：docs/design/implementation-review-2026-09-29.md
+ t-2026-10-05.md
 STATUS:CONFIRMED
 TRANSP:OPAQUE
 BEGIN:VALARM
@@ -309,16 +390,17 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:4a7c5ec6-3ba4-5caa-a4a7-e635174101f5@neonshift.cc
-DTSTAMP:20260929T123530Z
-DTSTART;TZID=Asia/Taipei:20261005T110000
-DTEND;TZID=Asia/Taipei:20261005T120000
+DTSTAMP:20261004T084411Z
+SEQUENCE:1
+DTSTART;TZID=Asia/Taipei:20261005T130000
+DTEND;TZID=Asia/Taipei:20261005T140000
 SUMMARY:NeonShift｜正式送出黑客松作品
-DESCRIPTION:由本人登入官方表單，核對後正式提交。保存成
- 功畫面、提交編號／郵件回執、表單副本與連結快照。
- 這是內部目標，不是官方截止時間；只存草稿不算完成
- 。\n時區：Asia/Taipei。這是建議工作時段，可自行調整。\
- n計畫：docs/store/submission-sprint-2026-10-05.md\nReview：docs/design
- /implementation-review-2026-09-29.md
+DESCRIPTION:由本人登入官方表單，核對後正式提交（原訂 12
+ :00，因早上跑步延至 13:00）。保存成功畫面、提交編號
+ ／郵件回執、表單副本與連結快照。這是內部目標，不
+ 是官方截止時間；只存草稿不算完成。\n時區：Asia/Taipei
+ 。這是建議工作時段，可自行調整。\n計畫：docs/store/subm
+ ission-sprint-2026-10-05.md
 STATUS:CONFIRMED
 TRANSP:OPAQUE
 BEGIN:VALARM
@@ -329,7 +411,8 @@ END:VALARM
 END:VEVENT
 BEGIN:VEVENT
 UID:0039f92c-52d2-5f42-ab3e-da1372b13ede@neonshift.cc
-DTSTAMP:20260929T123530Z
+DTSTAMP:20261004T084411Z
+SEQUENCE:1
 DTSTART;TZID=Asia/Taipei:20261005T170000
 DTEND;TZID=Asia/Taipei:20261005T180000
 SUMMARY:NeonShift｜確認提交成功與回執備份
@@ -337,8 +420,7 @@ DESCRIPTION:確認正式提交回執／編號已取得且四項連結仍可
  用，填寫 clock-in-submission 第 9 節。18:00 為內部完成目標
  ；未成功要明確記錄阻塞並處理，不自動延後。\n時區：
  Asia/Taipei。這是建議工作時段，可自行調整。\n計畫：docs
- /store/submission-sprint-2026-10-05.md\nReview：docs/design/implementatio
- n-review-2026-09-29.md
+ /store/submission-sprint-2026-10-05.md
 STATUS:CONFIRMED
 TRANSP:OPAQUE
 BEGIN:VALARM
