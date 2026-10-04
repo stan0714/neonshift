@@ -55,10 +55,15 @@ export function Button({
             style={styles.spinner}
           />
         )}
+        {/* 按鈕高度固定：文字換行會被切掉（2026-10-04 實機：半寬的「Health Connect settings」第三行不見）。
+            一律單行，放不下就縮字，最小 0.7 倍 */}
         <Text
           variant="title"
           tone={labelTone}
-          style={[!isDisabled && variant === 'primary' && { color: color.onMint }, variant === 'dangerFill' && !isDisabled && { color: color.textPrimary }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.7}
+          style={[styles.label, !isDisabled && variant === 'primary' && { color: color.onMint }, variant === 'dangerFill' && !isDisabled && { color: color.textPrimary }]}
         >
           {loading ? (loadingLabel ?? label) : label}
         </Text>
@@ -82,6 +87,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  label: { flexShrink: 1, textAlign: 'center' },
   primary: { backgroundColor: color.mint },
   secondary: { backgroundColor: 'transparent', borderWidth: 1, borderColor: color.violet },
   danger: { backgroundColor: 'transparent', borderWidth: 1, borderColor: color.danger },

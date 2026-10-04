@@ -192,9 +192,10 @@ export function ProfileScreen() {
       <Section title={t('profile.permissions')}>
         <Row icon="activity" label={t('profile.healthConnect')} detail={health ? (health.state === 'granted' ? `${t(FEATURES.sleep ? 'profile.stepsSleep' : 'profile.stepsOnly')}${health.backgroundGranted ? t('profile.background') : ''}` : health.state === 'partial' ? t('profile.partial') : t('profile.off')) : '…'} tint={health?.state === 'granted' ? color.success : color.warning} />
         <Row icon="bar-chart-2" label={t('profile.activity')} detail={activity === null ? '…' : activity ? t('profile.allowed') : t('profile.off')} tint={activity ? color.success : color.warning} />
-        <View style={styles.rowBtns}>
-          <Button label={t('profile.hcSettings')} variant="secondary" style={styles.half} onPress={() => void healthConnect.openSettings()} />
-          <Button label={t('profile.appSettings')} variant="secondary" style={styles.half} onPress={() => void Linking.openSettings()} />
+        {/* 上下排滿寬：並排時「Health Connect settings」在半寬按鈕裡會換成三行 */}
+        <View style={styles.stackBtns}>
+          <Button label={t('profile.hcSettings')} variant="secondary" onPress={() => void healthConnect.openSettings()} testID="profile-hc-settings" />
+          <Button label={t('profile.appSettings')} variant="secondary" onPress={() => void Linking.openSettings()} testID="profile-app-settings" />
         </View>
       </Section>
 
@@ -330,12 +331,11 @@ const styles = StyleSheet.create({
   sectionTitle: { marginBottom: space.xs },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: space.xs },
   rowText: { marginLeft: space.s, flex: 1 },
-  rowBtns: { flexDirection: 'row', marginTop: space.s, gap: space.xs },
+  stackBtns: { marginTop: space.s, gap: space.xs },
   segment: { flexDirection: 'row', backgroundColor: color.elevated, borderRadius: radius.m, padding: 4, marginTop: space.xs },
   segmentItem: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radius.s },
   segmentOn: { backgroundColor: color.mint },
   segmentOnText: { color: color.onMint },
-  half: { flex: 1 },
   btn: { marginTop: space.m },
   link: { marginTop: space.s, minHeight: 48, justifyContent: 'center' },
   disclaimer: { marginTop: space.s },

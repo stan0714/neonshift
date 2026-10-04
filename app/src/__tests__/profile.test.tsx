@@ -84,6 +84,16 @@ describe('PG-A-21 Profile', () => {
     expect(screen.getByText(/neonshift\.cc\/privacy/)).toBeTruthy();
   });
 
+  test('權限區兩個設定按鈕上下排滿寬（並排時「Health Connect settings」會換行被切）', async () => {
+    await render(<ProfileScreen />, { wrapper: Wrapper });
+    const flat = (st: unknown): Record<string, unknown> => Object.assign({}, ...([st].flat(Infinity) as Record<string, unknown>[]).filter(Boolean));
+    for (const id of ['profile-hc-settings', 'profile-app-settings']) {
+      const wrapper = screen.getByTestId(id).parent?.parent;
+      expect(flat(screen.getByTestId(id).props.style).flex).toBeUndefined();
+      expect(flat(wrapper?.props.style).flexDirection).not.toBe('row');
+    }
+  });
+
   test('PG-R-09：藝廊開關與跑步歷程入口', async () => {
     const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<string, jest.Mock>;
     await render(<ProfileScreen />, { wrapper: Wrapper });
