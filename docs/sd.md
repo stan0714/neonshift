@@ -816,7 +816,7 @@ total_staked + treasury_injection
 | 項目 | 值 | 說明 |
 |---|---|---|
 | Android applicationId | `cc.neonshift.app` | 反向網域；dApp Store 送審後不可更改 |
-| API base URL（dev） | `https://api.neonshift.cc/v1` | build-time 寫入 dev build；後端在 `l1.neonshift.cc:6080`，nginx（另一台）反代；`/healthz` |
+| API base URL（dev） | `https://api.neonshift.cc/v1` | build-time 寫入 dev build；後端在 `<l1>:6080`，nginx（另一台）反代；`/healthz` |
 | API base URL（demo） | `https://api.neonshift.cc/v1` | 目前與 dev 共用主機；正式 demo 時分離 |
 | SIWS `domain`／JWT `iss` | `neonshift.cc` | 4.2 登入訊息綁定；後端拒絕其他 domain |
 | App Links | `https://neonshift.cc/e/<slug>` | 11.4 NFC／App Links；`assetlinks.json` 需列 release 簽章指紋 |

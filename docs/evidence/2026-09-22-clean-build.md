@@ -20,7 +20,7 @@
 | 後端 | https://api.neonshift.cc/v1 |
 | 網路 | devnet |
 
-建置 log：`/private/tmp/claude-501/-Users-liushih-hao-Documents-learn-project-neonshift/f3e2e54d-b574-4659-b2e1-ee44d97b8b41/scratchpad/clean/build.log`（暫存，未納入 repo）。
+建置 log：`<本機暫存>/clean/build.log`（暫存，未納入 repo）。
 
 **判讀**：demo 與稍早 dev 重建（下節，commit 41b632e）的 APK 除簽章區塊外 zip entry 完全相同（含 `assets/index.android.bundle` 5,021,396 bytes、CRC `65ed5a7d`）——因 demo.env 已沿用 dev 的 program／tSKR／API／cluster，且 App 不讀 `EXPO_PUBLIC_APP_ENV`，兩次獨立 clone＋build 產出相同內容，可作「同一 commit 可重建出相同程式內容」的證據；SHA-256 差異僅來自 APK 簽章時間戳。提交版 APK 已複製到 `app/android/app/build/outputs/apk/release/`。
 
@@ -44,7 +44,7 @@
 | 後端 | https://api.neonshift.cc/v1 |
 | 網路 | devnet |
 
-建置 log：`/private/tmp/claude-501/-Users-liushih-hao-Documents-learn-project-neonshift/f3e2e54d-b574-4659-b2e1-ee44d97b8b41/scratchpad/clean/build.log`（暫存，未納入 repo）。
+建置 log：`<本機暫存>/clean/build.log`（暫存，未納入 repo）。
 
 2026-09-22 14:30：此重建 APK（`d143e404…`）已安裝至負責人 Seeker（SM02G4061936379，Android 16），冷啟動正常、既有 Seeker Wallet 登入 session 保留、首頁顯示 9/21 20:38 的 5.31 km 跑步已同步。工作樹 APK（`08e3232`）與本次（`41b632e`）差異為程式內容不同（22 個 zip entry），非簽章差異。
 

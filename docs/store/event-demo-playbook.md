@@ -65,12 +65,12 @@
 | 報到章／完賽章設定 | 皆開啟（報名時需 Lv≥2 才有資格，Lv1 顯示 level_locked） |
 | 參加者／staff 公開地址 | 參加者＝負責人 Seeker 錢包；demo owner `4sUmyriePDzJvyr8vm4zPzJP7fVv1fMVJwWHrjrNAZm1`、demo staff `B5gsSiLZ3cL1N6AKRHtuJis4GhPQCuFxDNJvyMJc91T7`（金鑰只在 `~/.config/neonshift/dev/demo/`，不進 repo） |
 | NFC 標籤 | 有效：`https://neonshift.cc/e/wild-guardian-day-2026?tag=jE6irsFYsOC5CvJmW9KlFaRVqR68IirU`；**已停用（測試用）**：`…?tag=WbB9O_K3PCYqHbppBU2q0mkXasjpoNv-` |
-| API／APK／Commit | `https://api.neonshift.cc/v1`（直連驗證走 `http://l2.neonshift.cc:6080`）／提交版 APK 見 `docs/evidence/<日期>-release-candidate.md` |
+| API／APK／Commit | `https://api.neonshift.cc/v1`（直連驗證走 `$NEONSHIFT_L2_API`）／提交版 APK 見 `docs/evidence/<日期>-release-candidate.md` |
 | registry 狀態／Explorer | 待真機鑄造後登錄 |
 | 支援人／時段／維護期 | 待負責人指定 |
 | 舊的中文活動 | `wild-guardian-day`／`d67d6da9-4a4b-4b75-9702-28ded6dcb5dc` 保留未動，供真機驗收第 11 步「取消活動」測試使用 |
 
-App 內 staff 需要第二個錢包帳號：`node backend/scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 add-staff <第二帳號位址> check_in`（同工具另有 `show`／`revoke-tag`；**沒有** set-stock——品項建立後不可改庫存，低庫存品項須在建立 fixture 時備好）。
+App 內 staff 需要第二個錢包帳號：`node backend/scripts/demo-event-admin.mjs $NEONSHIFT_L2_API add-staff <第二帳號位址> check_in`（同工具另有 `show`／`revoke-tag`；**沒有** set-stock——品項建立後不可改庫存，低庫存品項須在建立 fixture 時備好）。
 
 ## 4. 沒有 NFC、健康資料或 staff 時
 

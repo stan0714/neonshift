@@ -2,7 +2,7 @@
 # PG-I-07：以指定環境建置 Android APK。
 #   scripts/app/build.sh dev debug        # 開發用 debug APK（arm64，可裝 Seeker）
 #   scripts/app/build.sh demo release     # 已簽名 release APK（需先完成 Runbook 8.1 keystore）
-#   APP_ARCHS=arm64-v8a APP_API_URL_OVERRIDE=http://l1.neonshift.cc:6080/v1 scripts/app/build.sh dev release   # Seeker 實機測試包（單 ABI、直連 dev 後端）
+#   APP_ARCHS=arm64-v8a APP_API_URL_OVERRIDE=$NEONSHIFT_L1_API/v1 scripts/app/build.sh dev release   # Seeker 實機測試包（單 ABI、直連 dev 後端）
 # 環境參數（EXPO_PUBLIC_*）在建置時由 scripts/app/env.sh 注入並被 Metro 內嵌，不可事後改動（SD 8）。
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

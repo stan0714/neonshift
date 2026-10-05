@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# 從開發機部署後端到 API 主機（預設 l1；DEPLOY_HOST=root@l2.neonshift.cc 部署 l2）：rsync → npm ci → migration → 重啟 signer／api → /healthz。
+# 從開發機部署後端到 API 主機（預設 l1；DEPLOY_HOST=$NEONSHIFT_L2_SSH 部署 l2）：rsync → npm ci → migration → 重啟 signer／api → /healthz。
 #   deploy/l1/deploy.sh            # 部署
 #   deploy/l1/deploy.sh bootstrap  # 第一次：先跑 bootstrap.sh（安裝 Node／PG 或外部 DB、建帳號與環境檔）
-#   NEONSHIFT_DATABASE_URL=<url> DEPLOY_HOST=root@l2.neonshift.cc deploy/l1/deploy.sh bootstrap   # 共用外部 DB 的第二台
+#   NEONSHIFT_DATABASE_URL=<url> DEPLOY_HOST=$NEONSHIFT_L2_SSH deploy/l1/deploy.sh bootstrap   # 共用外部 DB 的第二台
 # attestor 私鑰：~/.config/neonshift/dev/attestor.json → /etc/neonshift/keys/attestor.json（只在遠端不存在時複製）。
 set -euo pipefail
+[ -f "$HOME/.config/neonshift/hosts.env" ] && . "$HOME/.config/neonshift/hosts.env"  # 主機位址只放本機（見 deploy/README.md）
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-HOST="${DEPLOY_HOST:-root@l1.neonshift.cc}"
+HOST="${DEPLOY_HOST:-${NEONSHIFT_L1_SSH:?在 ~/.config/neonshift/hosts.env 設定 NEONSHIFT_L1_SSH}}"
 SSH="ssh -o BatchMode=yes -o ConnectTimeout=10 $HOST"
 ATTESTOR="${ATTESTOR_KEYPAIR:-$HOME/.config/neonshift/dev/attestor.json}"
 

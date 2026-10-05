@@ -1,71 +1,14 @@
 # Pitch 簡報與交付追蹤（PG-D-04）
 
-**10/2 中英投影片更新：** [十頁介紹投影片](../../output/hackathon-flexclip-en/flexclip-v4/README.md)已產出英文製片版與繁體中文對稿版，含 PPTX／PDF 和逐頁雙語旁白。兩版一致使用歷史截圖標示，不等於最終實機 Demo 完成。
+**參賽簡報：** [十頁介紹投影片 v4](../../output/hackathon-flexclip-en/flexclip-v4/README.md)，英文製片版與繁體中文對稿版，含 PPTX／PDF 和逐頁雙語旁白；第 1、3、4、6、9 頁為 10/2 實機截圖，第 7、8 頁為 10/1 Devnet SKR 付款前／後實機截圖。九頁英文評審版見 [NeonShift_Hackathon_EN.pdf](../../output/hackathon-flexclip-en/NeonShift_Hackathon_EN.pdf)。
 
-**2026-10-02 參賽優先入口：** [素材盤點](submission-materials-audit-2026-10-02.md)。35 頁募資稿是背景資料；六／九頁英文產物仍待更新為本次提交版。SKR 已有 [10/1 Devnet 付款證據](../evidence/2026-10-01-skr-devnet-payment.md)，不再概括為未實作；官方 SKR 主網付款不在這份證據範圍。影片使用 v4 五段；以下舊日期內容保留歷史。
+SKR 已有 [10/1 Devnet 付款證據](../evidence/2026-10-01-skr-devnet-payment.md)；官方 SKR 主網付款不在這份證據範圍。
 
-更新：2026-09-19。正式工作檔為 [NeonShift_募資簡報_中文草稿_v4.pptx](../../output/fundraising/NeonShift_募資簡報_中文草稿_v4.pptx)，35 頁（31 頁主文＋4 頁附錄）。本文件取代原十頁黑客松大綱，不代表商業假設、募資條件或主網計畫已核准。
-
-## 頁次
-
-| 頁 | 主題 | 狀態／口徑 |
-|---|---|---|
-| 1–5 | 投資主張、問題、價值循環、品牌、活動合作 | 延續既有討論稿；活動人數為示意，非實績 |
-| 6–8 | 產業規模、動能、可服務市場情境 | 沿用原來源及 2026-09-14 查核日期；非新增市場研究 |
-| 9–11 | 商業模式、市場進入與定位 | 價格／合作家數待驗證 |
-| 12 | 新手指南與 NFT／升降等動畫 | 已實作，自動測試完成；待實機驗收 |
-| 13 | 荒野守護四款跑鞋 | 動物元素設計示意；App 已實作，待實機 |
-| 14 | 成長盲盒微差異 | 三款固定外觀；不是鏈上隨機抽取 |
-| 15 | 保育教育與系列延伸 | 故事卡已實作；聯名、系列切換與 NFT 獨立款式待開發 |
-| 16 | 跑鞋連動、同步與 Activity | 新增設計預覽，實作 TODO |
-| 17–23 | 共同方向、SOL、保育任務、合作、收支、證據與 90 天驗證 | 永續策略提案；未有已確認合作或成效 |
-| 24 | STEPN 機制對照 | 官方歷史設計＋本案推論，不作單一跌價歸因 |
-| 25 | 初始金庫壓力試算 | 200,000／滿階 33／日；100、1,000、10,000 錢包，非實際餘額 |
-| 26 | 經濟保護路線 | 成長解耦、全站預算、已撥款獎品為待實作；PG-EC |
-| 27–31 | 原型現況、里程碑、營收、募資用途、團隊 | 不宣稱有已驗證營收／留存；原募資金額假設保留 |
-| 32–35 | 市場來源、經濟來源、永續來源與對外前準備 | 網址可點擊、講稿保留模型限制 |
-
-## 同步產物
-
-- [HTML 預覽](../../output/fundraising/preview.html)
-- [逐頁講稿與資料來源](../../output/fundraising/講稿與資料來源.md)
-- [產生程式](../../output/fundraising/build_deck.py)／[來源清單](../../output/fundraising/sources.json)
-- 原 18 頁版本備份於 `output/fundraising/archive/2026-09-14/`。
+> 2026-10-05：募資用簡報與相關試算是內部工作檔，已移出公開 repo（Git 歷史保留）。本文件只追蹤參賽簡報。
 
 ## 對外使用規則
 
-1. tSKR 是無金錢價值的 devnet 測試幣，非官方 SKR；本版不提出代幣募資或價格保證。
-2. 固定供給、單人限額、消耗比不等同可持續；196 天舊平均情境不作保證。
-3. PG-A-17／PG-UX-01 已實作但未完整實機驗收；PG-EC-02～05 未實作，不宣稱已防止經濟崩潰。
-4. 詳細分析與試算以 [經濟風險評估](../economics/stepn-risk-review.md) 為準。正式寄出前仍需補團隊、付費試辦、單場成本、留存及募資條件。
-
-## 2026-09-17 更新
-
-新增第 13–15 頁保育跑鞋、成長盲盒與系列路線，包含 SVG 衍生鞋款示意。當時輸出 v2，現保留供歷史比較。保育來源於 2026-09-17 查核；原市場來源沿用先前查核日期。
-
-重建：先執行 `build_wildlife_assets.py`，再執行 `build_deck.py`（需 python-pptx、cairosvg 與 Cairo）。鞋款設計與實作範圍見 [荒野守護設計](../design/wild-guardian-shoes.md)。
-
-## 參賽展示補充（2026-09-18）
-
-短版參賽 Pitch 應保留一頁「日常運動 → 活動報名／報到 → 權益／成績／收藏 → 回訪」，並標示已實作、待實機與未來規劃。可取募資版第 5 頁、第 13–15 頁與第 17–23 頁的精簡內容；2026-09-19 已核對：另有 [6 頁英文參賽簡報包](../../output/hackathon-flexclip-en/README.md)，含 PPTX／PDF／1080p 圖片與分鏡；不是已完成實機影片。片尾、Pitch 與 README 共用 [評審指南](judges-guide.md)，活動細節見 [展示手冊](event-demo-playbook.md)，拍攝依 [Demo v3](demo-video.md)：英文六段，目標 2:50、上限 3:00。
-
-2026-09-18 已更新 v3 募資稿與 [永續研究](../sustainability-direction.md)，共同主張為「為自己而動，為棲地同行」。影片的 “Move for yourself. Move together for nature.” 承接同一方向；保育試辦與付費合作仍為規劃。
-
-
-## 2026-09-19：跑鞋連動、同步與 Activity
-
-新增產品設計：已取得跑鞋可切換並連動可關閉的棲地背景；使用者選擇連網自動同步，依運動時間由舊到新；Activity 回顧個人運動。展示需標 DESIGN PREVIEW，實作／實機驗收待完成。
-
-完整需求、畫面、資料契約及驗收以 [整合設計](../shoe-sync-activity.md) 為準。
-
-## 2026-09-22 版本與展示狀態
-
-評審版為 [九頁英文 PPTX](../../output/hackathon-flexclip-en/NeonShift_Hackathon_EN_Judges.pptx)，另有三頁 NFT 專題及中文講稿。原六頁保留影片用途。Activity／有序同步／切鞋背景已有程式，靜態投影片仍為示意；Workouts PB 解釋與四欄週回顧需新實錄。手動鞋款為 SVG 側面，非 3D。官方 SKR 付款尚在計畫，不與 tSKR 混用；提交以 [開發 gate](competition-development-plan.md) 與 [評審指南](judges-guide.md) 為準。
-
-## 2026-09-25：評審問答／Roadmap 補充 — Seasonal Footprints
-
-新增 [節日 NFT 規格與英文說明](../design/seasonal-achievement-nfts.md#7-參賽說明用語)／[原創徽章概念](../design/seasonal-badges-preview.html)。建議放在留存策略與 NFT 收藏附錄，標示 **ROADMAP / DESIGN PROTOTYPE**：年度生態與文化主題 → 限時有效運動 → server approval → 自主 Mint → 收藏／分享。
-
-可用英文說明：“Seasonal Footprints is our proposed annual collection: walk or run during a published window, earn approval, and choose whether to mint an original badge inspired by shared cultural and Solana ecosystem milestones.”
-
-強調參與與回訪，不宣稱官方授權、零成本鑄造、已提升留存或已完成 SKR 整合。現有 PPTX／PDF 未在本次重建；錄影／簡報正式加入前需將本段轉入 roadmap 頁並維持影片時間限制，不以概念圖替代實機證據。
+1. tSKR 是無金錢價值的 devnet 測試幣，非官方 SKR；不提出代幣募資或價格保證。
+2. 固定供給、單人限額、消耗比不等同可持續；試算情境不作保證。
+3. 已實作但未完整實機驗收的功能要標示；PG-EC-02～05 未實作，不宣稱已防止經濟崩潰。
+4. 詳細分析與試算以 [經濟風險評估](../economics/stepn-risk-review.md) 為準。

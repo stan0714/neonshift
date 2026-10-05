@@ -71,8 +71,8 @@ P0/P1 未補錄時，可用現有簡報說明原型，但不可稱為完整實�
 |---|---|---|
 | assets/dashboard.png | docs/evidence/2026-09-14-seeker-dashboard.png | 第 1 頁；保留原始像素，未修改健康數字／狀態 |
 | assets/gear.png | docs/evidence/2026-09-14-seeker-gear-top.png | 第 2 頁；早期鞋款 UI |
-| assets/asian-elephant.png | output/fundraising/wildlife-assets/lv2-dawn.png | 第 4 頁；亞洲象鞋款設計 |
-| assets/hawksbill-turtle.png | output/fundraising/wildlife-assets/lv3-aurora.png | 第 4 頁；玳瑁鞋款設計 |
+| assets/asian-elephant.png | assets/wildlife-shoes/wildlife-assets/lv2-dawn.png | 第 4 頁；亞洲象鞋款設計 |
+| assets/hawksbill-turtle.png | assets/wildlife-shoes/wildlife-assets/lv3-aurora.png | 第 4 頁；玳瑁鞋款設計 |
 
 產品口徑参考：README.md、docs/store/demo-video.md、docs/store/judges-guide.md、docs/design/wild-guardian-shoes.md。未新增外部市場或賽事規則主張。
 

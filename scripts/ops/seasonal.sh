@@ -10,10 +10,11 @@
 #
 # 不需要 OPS_TOKEN（/v1/seasonal 是公開目錄），也不連資料庫。
 set -euo pipefail
+[ -f "$HOME/.config/neonshift/hosts.env" ] && . "$HOME/.config/neonshift/hosts.env"  # 主機位址只放本機（見 deploy/README.md）
 cd "$(dirname "$0")/../.."
 # shellcheck disable=SC1091
 . scripts/env.sh >/dev/null 2>&1 || true
-API="${API:-http://l2.neonshift.cc:6080}"
+API="${API:-${NEONSHIFT_L2_API:?在 ~/.config/neonshift/hosts.env 設定 NEONSHIFT_L2_API}}"
 
 REMOTE=0
 ARGS=()

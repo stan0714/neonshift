@@ -4,7 +4,8 @@
 #   scripts/ops/share.sh 2026-09-25            # 指定 since
 #   scripts/ops/share.sh 2026-09-25 csv        # 匯出 CSV
 set -euo pipefail
-HOST="${OPS_HOST:-root@l2.neonshift.cc}"; API="${API:-http://l2.neonshift.cc:6080}"
+[ -f "$HOME/.config/neonshift/hosts.env" ] && . "$HOME/.config/neonshift/hosts.env"  # 主機位址只放本機（見 deploy/README.md）
+HOST="${OPS_HOST:-${NEONSHIFT_L2_SSH:?在 ~/.config/neonshift/hosts.env 設定 NEONSHIFT_L2_SSH}}"; API="${API:-${NEONSHIFT_L2_API:?在 ~/.config/neonshift/hosts.env 設定 NEONSHIFT_L2_API}}"
 SINCE="${1:-}"; FMT="${2:-json}"
 TOKEN="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST" "grep '^OPS_TOKEN=' /etc/neonshift/api.env | cut -d= -f2-")"
 [ -n "$TOKEN" ] || { echo "取不到 OPS_TOKEN" >&2; exit 1; }

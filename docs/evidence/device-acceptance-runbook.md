@@ -11,7 +11,7 @@
 | 做法 | 驗證重點 | 證據 |
 |---|---|---|
 | 裝提交版：`APP_ARCHS=arm64-v8a scripts/app/build.sh demo release` → `adb install -r …`；`scripts/release/evidence.sh` 產骨架 | release-notes 的 Git commit＝目前 HEAD、`展示覆寫 demoLevel: 0`、後端 `https://api.neonshift.cc/v1` | `docs/evidence/<日期>-release-candidate.md` 建置表 |
-| 後端兩台一致：`curl http://l1.neonshift.cc:6080/v1/rules/version`、同 l2、同 `https://api.neonshift.cc` | 三處 `rules_version` 相同；`/readyz` db ok | 貼三行輸出 |
+| 後端兩台一致：`curl $NEONSHIFT_L1_API/v1/rules/version`、同 l2、同 `https://api.neonshift.cc` | 三處 `rules_version` 相同；`/readyz` db ok | 貼三行輸出 |
 | 網路狀況先量：`for i in $(seq 10); do curl -s -o /dev/null -w '%{http_code} %{time_starttransfer}\n' https://api.neonshift.cc/v1/rules/version; done` | 10 次都 <2 s；有 >10 s 就是主機商對外路徑掉封包（9/22 已見），當天測試結果要註明 | 貼輸出 |
 | 手機：Seeker Wallet 為 `solana-wallet:` 預設（Phantom 26.6 不回覆）、通知權限開、定位「使用時允許」、Health Connect 步數已授權 | Profile → 權限列全綠 | 截圖 |
 | 診斷工具：`scripts/ops/player.sh AcBU5ro1FmheCL9XseGS2UYrKyu2RZb4gWCQ8MCovbV2` | 能看到你的運動／PB／里程碑／成就／SKR 狀態 | 跑一次貼結果（作起點） |
@@ -53,11 +53,11 @@ NFC 有效標籤 `…?tag=jE6irsFYsOC5CvJmW9KlFaRVqR68IirU`，另備一枚**已�
 
 ```bash
 cd backend
-node scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 show                     # 目前狀態（報名／庫存／報到筆數／現行角色）
-node scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 add-staff <錢包> check_in      # 指派 App staff（已指派帳號 B 於 Gate）
-node scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 add-staff <錢包> all          # 第 8 步之後改授全站點（一個錢包同時只有一個 staff 站點）
-node scripts/demo-event-admin.mjs http://l2.neonshift.cc:6080 revoke-tag <tag_id>           # 停用一枚 NFC 標籤
-# 重建／補齊（幂等，標籤會重用）：OPS_TOKEN=$(ssh root@l2.neonshift.cc 'grep ^OPS_TOKEN= /etc/neonshift/api.env | cut -d= -f2') node scripts/demo-event.mjs http://l2.neonshift.cc:6080
+node scripts/demo-event-admin.mjs $NEONSHIFT_L2_API show                     # 目前狀態（報名／庫存／報到筆數／現行角色）
+node scripts/demo-event-admin.mjs $NEONSHIFT_L2_API add-staff <錢包> check_in      # 指派 App staff（已指派帳號 B 於 Gate）
+node scripts/demo-event-admin.mjs $NEONSHIFT_L2_API add-staff <錢包> all          # 第 8 步之後改授全站點（一個錢包同時只有一個 staff 站點）
+node scripts/demo-event-admin.mjs $NEONSHIFT_L2_API revoke-tag <tag_id>           # 停用一枚 NFC 標籤
+# 重建／補齊（幂等，標籤會重用）：OPS_TOKEN=$(ssh $NEONSHIFT_L2_SSH 'grep ^OPS_TOKEN= /etc/neonshift/api.env | cut -d= -f2') node scripts/demo-event.mjs $NEONSHIFT_L2_API
 ```
 
 帳號 B `9esSdbMa8ZS5HY9beMscpKU1gAPKA3REPqLMQTSmNYRh` 已指派為 **Gate（check_in）staff**；`show` 末尾會列出現行角色。同一錢包不能自己幫自己報到，所以 A、B 必須是不同帳號。

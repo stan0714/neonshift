@@ -541,14 +541,14 @@ manifest 的 `consistent=false`（後端名單人數 ≠ 鏈上 `valid − forfe
 
 ### 7.7 後端部署到 l1（api.neonshift.cc）
 
-後端跑在 `root@l1.neonshift.cc`，**port 6080**，健康檢查 `GET /healthz`；`https://api.neonshift.cc` 由另一台主機的 nginx 反代（範本 `deploy/l1/nginx-api.neonshift.cc.conf`）；靜態站 `web/` 部署在 Cloudflare Pages（`https://neonshift.cc`）。
+後端跑在 `$NEONSHIFT_L1_SSH`，**port 6080**，健康檢查 `GET /healthz`；`https://api.neonshift.cc` 由另一台主機的 nginx 反代（範本 `deploy/l1/nginx-api.neonshift.cc.conf`）；靜態站 `web/` 部署在 Cloudflare Pages（`https://neonshift.cc`）。
 
 ```bash
 deploy/l1/deploy.sh bootstrap        # 第一次（安裝 Node 24／PostgreSQL、系統帳號、/etc/neonshift/*.env 隨機 secret、systemd）
 deploy/l1/deploy.sh                  # 每次更新：rsync backend → npm ci → migration（schema_migrations 一次性）→ 重啟 signer／api → healthz
 curl -s https://api.neonshift.cc/healthz          # {"status":"ok","env":"dev","cluster_id":1}
 cd backend && npm run smoke -- https://api.neonshift.cc   # healthz／readyz／events／SIWS 登入／event-history／partner/me／logout（唯讀，不留資料）
-ssh root@l1.neonshift.cc 'journalctl -u neonshift-api -n 100 --no-pager'
+ssh $NEONSHIFT_L1_SSH 'journalctl -u neonshift-api -n 100 --no-pager'
 ```
 
 attestor 私鑰只在 `neonshift-signer.service`（`127.0.0.1:6081`、獨立帳號）；API 透過 `ATTESTOR_SIGNER=http:http://127.0.0.1:6081` 簽章。鏈上 `Config.attestor_pubkey` 需與 `/etc/neonshift/keys/attestor.json` 一致（`init-config` 用同一把 `~/.config/neonshift/dev/attestor.json`）。
@@ -588,14 +588,14 @@ curl -s "$API/partner/events/$EV/campaign-summary?format=csv" -H "Authorization:
 
 ```bash
 # 需 dev program 已升級到含 claim_achievement 的版本（程式 600 KB，升級需 admin 先有 ≈ 3.1 SOL 供 buffer）
-OPS_TOKEN=$(ssh root@l1.neonshift.cc 'grep ^OPS_TOKEN= /etc/neonshift/api.env | cut -d= -f2') \
+OPS_TOKEN=$(ssh $NEONSHIFT_L1_SSH 'grep ^OPS_TOKEN= /etc/neonshift/api.env | cut -d= -f2') \
   npm --prefix tools/chain-admin run sync-achievements -- dev --dry-run   # 先看 pending
 OPS_TOKEN=… npm --prefix tools/chain-admin run sync-achievements -- dev   # 逐筆 set_achievement_eligibility 並回報
 ```
 
-**api.neonshift.cc（2026-09-17 已接通）**：l1 只跑 API（:6080），**不裝 nginx**——TLS 與反代由前面那台 nginx（`deploy/l1/nginx-api.neonshift.cc.conf`，upstream `l1.neonshift.cc:6080`，Let's Encrypt 憑證）經 Cloudflare 橘雲提供；`curl https://api.neonshift.cc/healthz` → 200。Seeker 測試包改用預設 API（`APP_ARCHS=arm64-v8a scripts/app/build.sh dev release`，不帶 `APP_API_URL_OVERRIDE`，明文 HTTP 關閉），`demo-event.mjs https://api.neonshift.cc` 已核對（state published）。
+**api.neonshift.cc（2026-09-17 已接通）**：l1 只跑 API（:6080），**不裝 nginx**——TLS 與反代由前面那台 nginx（`deploy/l1/nginx-api.neonshift.cc.conf`，upstream `<l1>:6080`，Let's Encrypt 憑證）經 Cloudflare 橘雲提供；`curl https://api.neonshift.cc/healthz` → 200。Seeker 測試包改用預設 API（`APP_ARCHS=arm64-v8a scripts/app/build.sh dev release`，不帶 `APP_API_URL_OVERRIDE`，明文 HTTP 關閉），`demo-event.mjs https://api.neonshift.cc` 已核對（state published）。
 
-2026-09-15 已升級（slot 498753143，資料帳戶 660,824 bytes）。`api.neonshift.cc` 尚未通時，chain-admin 可用 SSH tunnel：`ssh -f -N -L 16080:127.0.0.1:6080 root@l1.neonshift.cc` 並以 `NEONSHIFT_API_URL=http://127.0.0.1:16080/v1` 覆寫（任何 env 檔鍵都可用 `NEONSHIFT_<KEY>` 覆寫）。
+2026-09-15 已升級（slot 498753143，資料帳戶 660,824 bytes）。`api.neonshift.cc` 尚未通時，chain-admin 可用 SSH tunnel：`ssh -f -N -L 16080:127.0.0.1:6080 $NEONSHIFT_L1_SSH` 並以 `NEONSHIFT_API_URL=http://127.0.0.1:16080/v1` 覆寫（任何 env 檔鍵都可用 `NEONSHIFT_<KEY>` 覆寫）。
 
 升級程式：`scripts/chain/build.sh dev && solana program extend 6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA 100000 --url devnet -k ~/.config/neonshift/dev/admin.json && scripts/chain/deploy.sh dev`（先 extend program-data 到新大小）。
 
@@ -732,7 +732,7 @@ chmod 600 $KD/keystore.properties $KD/neonshift-dev-test.keystore
 ln -sfn $KD/keystore.properties app/android/keystore.properties   # build.gradle 支援 storeFile 絕對路徑
 
 # 每次出包（login shell 才有 Node 24）：單 ABI、後端直連 l1:6080（api.neonshift.cc 的 nginx vhost 尚未安裝）
-bash -lc 'APP_ARCHS=arm64-v8a APP_API_URL_OVERRIDE=http://l1.neonshift.cc:6080/v1 scripts/app/build.sh dev release'
+bash -lc 'APP_ARCHS=arm64-v8a APP_API_URL_OVERRIDE=$NEONSHIFT_L1_API/v1 scripts/app/build.sh dev release'
 adb uninstall cc.neonshift.app      # 首次由 debug 簽章切換必須先移除（本機運動紀錄與偏好會清空）
 adb install app/android/app/build/outputs/apk/release/app-release.apk
 ```

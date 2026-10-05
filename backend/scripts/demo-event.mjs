@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Demo 情境 fixture（docs/store/event-demo-playbook.md）：建立／核對「荒野守護體驗日」測試活動。
- *   cd backend && OPS_TOKEN=... node scripts/demo-event.mjs http://l1.neonshift.cc:6080
+ *   cd backend && OPS_TOKEN=... node scripts/demo-event.mjs $NEONSHIFT_L1_API
  * - 幂等：以 org slug／event slug 查找，存在就重用；只補缺的站點、角色、品項、NFC 標籤。
  * - 主辦方 owner 與 staff 用專屬 demo 金鑰（$KEY_DIR，預設 ~/.config/neonshift/dev/demo；不進 repo）；不動使用者錢包。
  * - 產出寫到 $KEY_DIR/fixture.json（活動 id、站點、標籤 URL、staff 位址），供錄影與評審指南登錄。
