@@ -2,7 +2,7 @@
 
 ## 中英兩版（10/2 對稿修訂）
 
-**10/6 新增第 10 頁（規劃）**：SKR 質押依跑鞋等級加成（示意 Lv.1 +1%、Lv.2 +3%、Lv.3 +5%、Lv.4 +7%、Lv.5 +10%）與質押獎勵 10% 撥入保育基金；頁面標示 ROADMAP · NOT LIVE · RATES NOT FINAL。第 9 頁旁白刪去「付費活動服務」以讓出時間；總長 170 → 177 秒（上限 180）。設計見 [skr-staking-boost.md](../../../docs/design/skr-staking-boost.md)。
+**10/6 新增第 10 頁（規劃）**：SKR 質押依跑鞋等級加成（示意 Lv.1 +1%、Lv.2 +3%、Lv.3 +5%、Lv.4 +7%、Lv.5 +10%）與加成獎勵的 10% 撥入保育基金；頁面標示 ROADMAP · NOT LIVE · RATES NOT FINAL。第 9 頁旁白刪去「付費活動服務」以讓出時間；總長 170 → 177 秒（上限 180）。設計見 [skr-staking-boost.md](../../../docs/design/skr-staking-boost.md)。
 
 | 用途 | 投影片 | 固定版面 PDF | 快速總覽 |
 |---|---|---|---|

@@ -66,14 +66,14 @@ scenes=[
  ('A','Daily movement.\nVisible progress.','A reason to return, every day.','MOVE  /  GROW  /  COLLECT',12,'output/hackathon-flexclip-en/captures/2026-10-02/2026-10-02_c14_s01_home-top.png','REAL DATA · NO DEMO OVERRIDE','10/2 v14 實機首頁（真實資料，狀態列以 demo mode 固定）。最終 APK 外觀相同即可沿用。'),
  ('A','Built for\nSolana Mobile.','Phone-based workouts.\nHealth summaries. Wallet approval.','MOBILE-FIRST FITNESS',13,None,'PRODUCT OVERVIEW','具體說明手機運動、健康摘要與錢包用途；右側為功能圖解，不是實機。'),
  ('B','Walk. Run.\nSee your progress.','Record → Save → Review','YOUR ACTIVITY JOURNAL',17,'output/hackathon-flexclip-en/captures/2026-10-02/2026-10-02_c14_s04_summary-finished.png','REAL DATA · NO DEMO OVERRIDE','10/2 v14 實機：9/30 跑步 3.89 km 的運動摘要（已保存、已同步）。'),
- ('B','Sync when\nyou are ready.','Optional online sync.\nOldest workout first.','STARTER SHOES + UPGRADES: FREE',18,'output/hackathon-flexclip-en/captures/2026-10-02/2026-10-02_c14_s04_profile-sync.png','REAL DATA · NO DEMO OVERRIDE','10/2 v14 實機：Auto-sync 開、0 pending、最後成功 9/30——真實同步狀態。保留「保存不等於獎勵資格」的旁白。'),
+ ('B','Sync when\nyou are ready.','Optional online sync.\nOldest workout first.','STARTER SHOES + UPGRADES: NO PURCHASE NEEDED',18,'output/hackathon-flexclip-en/captures/2026-10-02/2026-10-02_c14_s04_profile-sync.png','REAL DATA · NO DEMO OVERRIDE','10/2 v14 實機：Auto-sync 開、0 pending、最後成功 9/30——真實同步狀態。保留「保存不等於獎勵資格」的旁白。'),
  ('C','Your approval.\nAn onchain claim.','Qualifying summary\n→ Wallet approval → Explorer','SOLANA DEVNET',18,None,'WORKFLOW OVERVIEW','黑客松 Demo 在本頁嵌入合格摘要、錢包與同筆 Explorer 實錄。'),
  ('C','Collect milestones.\nKeep the meaning.','Achievements have their own\nrequirements and approval.','RAW HEALTH RECORDS: NOT ONCHAIN',17,'output/hackathon-flexclip-en/captures/2026-10-02/2026-10-02_c14_s06_nft-first5k-detail.png','REAL DATA · NO DEMO OVERRIDE','10/2 v14 實機：First 5K 成就收藏詳情（9/22 鑄造、devnet）。這是成就收藏，不是付款結果。'),
  ('D','Earn eligibility.\nUnlock your frame.','Verified first 5K eligibility.\nServer-set order, price, recipient.','COSMETIC PAYMENT',22,'docs/evidence/2026-10-01-skr-devnet-eligible.png','TEST SKR · DEVNET · NOT OFFICIAL SKR','10/1 v11 實機：資格通過後的訂單畫面（2.5 SKR 固定價、伺服器指定收款人）。與第 8 頁同一帳號、同一包。'),
  ('D','Confirmed payment.\nUnlocked frame.','Wallet approval → Onchain check\n→ Cosmetic unlock','NO XP, RECORDS OR ACHIEVEMENTS BOUGHT',23,'docs/evidence/2026-10-01-skr-devnet-paid.png','TEST SKR · DEVNET · NOT OFFICIAL SKR','10/1 v11 實機付款成功截圖（簽章見 docs/evidence/2026-10-01-skr-devnet-payment.md）。10/2 決定沿用此圖，不另錄付款影片。'),
- ('E','Progress with\na wildlife story.','Conservation learning today.\nCommunity pilots are planned.','NEXT: LOCAL PILOTS',12,'output/hackathon-flexclip-en/captures/2026-10-02/2026-10-02_c14_s09_elephant-habitat.png','IN-APP STORY CARD · PILOTS PLANNED','10/2 v14 實機：亞洲象物種故事卡。物種資料引用 WWF，不代表合作或捐款。'),
- ('E','Next: stake SKR.\nBoost by level.','Higher shoe levels earn higher boosts.\nA fixed share of staking rewards\nfunds wildlife conservation.','ROADMAP  ·  NOT LIVE  ·  RATES NOT FINAL',13,None,'PLANNED · NOT IMPLEMENTED','規劃中：質押 SKR 提升任務獎勵，等級越高加成越高；質押獎勵固定比例撥入獨立追蹤的保育基金。右側比率為示意，未定案；不承諾收益，主網與官方 SKR 尚未啟用。'),
- ('E','Move for yourself.\nMove together\nfor nature.','Explore NeonShift.','ANDROID APP  /  SOURCE  /  REVIEWER GUIDE',12,None,'NEONSHIFT · SOLANA MOBILE','最後至少靜止 2 秒。公開連結放影片說明欄，不使用佔位 URL。'),
+ ('E','Progress with\na wildlife story.','Conservation learning today.\nCommunity pilots are planned.','TODAY: SPECIES STORY CARDS',12,'output/hackathon-flexclip-en/captures/2026-10-02/2026-10-02_c14_s09_elephant-habitat.png','IN-APP STORY CARD · PILOTS PLANNED','10/2 v14 實機：亞洲象物種故事卡。物種資料引用 WWF，不代表合作或捐款。'),
+ ('E','Next: stake SKR.\nBoost by level.','Stake SKR to boost daily mission rewards.\nHigher shoe levels earn higher boosts.\n10% of the boost goes to wildlife conservation.','ROADMAP  ·  NOT LIVE  ·  RATES NOT FINAL',13,None,'PLANNED · NOT IMPLEMENTED · NO RETURNS PROMISED','規劃中：質押 SKR 提升任務獎勵，等級越高加成越高；質押獎勵固定比例撥入獨立追蹤的保育基金。右側比率為示意，未定案；不承諾收益，主網與官方 SKR 尚未啟用。'),
+ ('E','Move for yourself.\nMove together\nfor nature.','Explore NeonShift.\ngithub.com/stan0714/neonshift  ·  neonshift.cc','ANDROID APP  /  SOURCE  /  REVIEWER GUIDE',12,None,'NEONSHIFT · SOLANA MOBILE','最後至少靜止 2 秒。公開連結放影片說明欄，不使用佔位 URL。'),
 ]
 images=[]; manifest=[]; elapsed=0
 for i,(chapter,title,body,tag,duration,photo,label,note) in enumerate(scenes,1):
@@ -86,7 +86,9 @@ for i,(chapter,title,body,tag,duration,photo,label,note) in enumerate(scenes,1):
     txt(f'{i:02d} / {len(scenes)}',1700,65,150,26,MUTED)
     width=1120 if photo else 1760
     txt(title,80,190,width,70,WHITE,True)
-    txt(body,85,470,width,36,MUTED)
+    # 標題三行時說明往下移，避免貼住標題
+    body_y=max(470,190+len(title.split('\n'))*round(70*1.23)+40)
+    txt(body,85,body_y,width,36,MUTED)
     txt(tag,85,650,width,25,MINT,True)
     if photo:
         box(1280,152,540,650)
@@ -109,7 +111,7 @@ for i,(chapter,title,body,tag,duration,photo,label,note) in enumerate(scenes,1):
         y=205+5*92+14
         box(1230,y,600,90,'1B2A3F')
         txt('保育提撥' if LOCAL else 'CONSERVATION SHARE',1260,y+14,420,24,GOLD,True)
-        txt('質押獎勵的 10%' if LOCAL else '10% of staking rewards',1260,y+50,520,24,WHITE)
+        txt('加成獎勵的 10%' if LOCAL else '10% of the boost',1260,y+50,520,24,WHITE)
     if i in diagrams:
         for j,line in enumerate((diagrams_zh if LOCAL else diagrams)[i]):
             y=235+j*172

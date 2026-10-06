@@ -134,13 +134,13 @@ Wild Guardians 將個人成長連結到保育學習。在地社群試辦仍在�
 
 **English**
 
-Next, stake SKR to boost mission rewards, with higher boosts at higher shoe levels. A fixed share of staking rewards will fund a separately tracked wildlife conservation pool. Rates are not final.
+Next, stake SKR to boost daily mission rewards, with higher boosts at higher shoe levels. A fixed share of the boost will fund a separately tracked wildlife conservation pool. Rates are not final.
 
 **中文意涵**
 
-下一步：質押 SKR 可提升任務獎勵，跑鞋等級越高，加成越高。質押獎勵的固定比例，將撥入獨立追蹤的野生動物保育基金。比率尚未定案。
+下一步：質押 SKR 可提升每日任務獎勵，跑鞋等級越高，加成越高。加成的固定比例，將撥入獨立追蹤的野生動物保育基金。比率尚未定案。
 
-**素材界線**：規劃中 · 尚未實作。規劃中：質押 SKR 提升任務獎勵，等級越高加成越高；質押獎勵固定比例撥入獨立追蹤的保育基金。右側比率為示意，未定案；不承諾收益，主網與官方 SKR 尚未啟用。
+**素材界線**：規劃中 · 尚未實作 · 不承諾收益。規劃中：質押 SKR 提升任務獎勵，等級越高加成越高；質押獎勵固定比例撥入獨立追蹤的保育基金。右側比率為示意，未定案；不承諾收益，主網與官方 SKR 尚未啟用。
 
 ## 11 · Move for yourself. Move together for nature. / 為自己而動， 為棲地同行。
 

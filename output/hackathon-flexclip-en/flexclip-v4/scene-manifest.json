@@ -113,10 +113,10 @@
     "start_seconds": 152,
     "duration_seconds": 13,
     "title": "Next: stake SKR. Boost by level.",
-    "voiceover": "Next, stake SKR to boost mission rewards, with higher boosts at higher shoe levels. A fixed share of staking rewards will fund a separately tracked wildlife conservation pool. Rates are not final.",
+    "voiceover": "Next, stake SKR to boost daily mission rewards, with higher boosts at higher shoe levels. A fixed share of the boost will fund a separately tracked wildlife conservation pool. Rates are not final.",
     "image": "slides/10.png",
     "source": null,
-    "status": "PLANNED · NOT IMPLEMENTED",
+    "status": "PLANNED · NOT IMPLEMENTED · NO RETURNS PROMISED",
     "production_notes": "規劃中：質押 SKR 提升任務獎勵，等級越高加成越高；質押獎勵固定比例撥入獨立追蹤的保育基金。右側比率為示意，未定案；不承諾收益，主網與官方 SKR 尚未啟用。"
   },
   {

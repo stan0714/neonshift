@@ -112,11 +112,11 @@ Wild Guardians connect your progress with conservation learning. Local community
 
 ## 10 · Next: stake SKR. Boost by level.
 
-152–165 秒 · PLANNED · NOT IMPLEMENTED
+152–165 秒 · PLANNED · NOT IMPLEMENTED · NO RETURNS PROMISED
 
 ### Voiceover / 旁白
 
-Next, stake SKR to boost mission rewards, with higher boosts at higher shoe levels. A fixed share of staking rewards will fund a separately tracked wildlife conservation pool. Rates are not final.
+Next, stake SKR to boost daily mission rewards, with higher boosts at higher shoe levels. A fixed share of the boost will fund a separately tracked wildlife conservation pool. Rates are not final.
 
 ### 製作備註（不要配音）
 
