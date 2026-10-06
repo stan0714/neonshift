@@ -7,9 +7,9 @@
     "title": "Daily movement. Visible progress.",
     "voiceover": "What keeps us moving after the first few days? NeonShift turns everyday movement into visible progress, wildlife-inspired shoes, and a reason to return.",
     "image": "slides/01.png",
-    "source": "output/hackathon-flexclip-en/captures/2026-10-02/2026-10-02_c14_s01_home-top.png",
+    "source": "output/hackathon-flexclip-en/captures/2026-10-06/2026-10-06_c21_s01_home-top.png",
     "status": "REAL DATA · NO DEMO OVERRIDE",
-    "production_notes": "10/2 v14 實機首頁（真實資料，狀態列以 demo mode 固定）。最終 APK 外觀相同即可沿用。"
+    "production_notes": "10/6 v21 實機首頁：今日 6.41 km 已同步、兩項任務領取後 25 tSKR（狀態列以 demo mode 固定）。"
   },
   {
     "scene": 2,
@@ -31,9 +31,9 @@
     "title": "Walk. Run. See your progress.",
     "voiceover": "Start with a walk or a run. Record your workout, save it on your phone, and review your progress in the Activity journal.",
     "image": "slides/03.png",
-    "source": "output/hackathon-flexclip-en/captures/2026-10-02/2026-10-02_c14_s04_summary-finished.png",
+    "source": "output/hackathon-flexclip-en/captures/2026-10-06/2026-10-06_c21_s04_summary-6k.png",
     "status": "REAL DATA · NO DEMO OVERRIDE",
-    "production_notes": "10/2 v14 實機：9/30 跑步 3.89 km 的運動摘要（已保存、已同步）。"
+    "production_notes": "10/6 v21 實機：當天跑步 6.41 km 的運動摘要（已同步；最高速度 12.7 km/h 為 v20 修正後數值）。"
   },
   {
     "scene": 4,
@@ -43,9 +43,9 @@
     "title": "Sync when you are ready.",
     "voiceover": "Choose automatic sync when online, with saved workouts processed oldest first. Starter shoes and level upgrades remain free. Recording a workout does not automatically qualify you for a reward.",
     "image": "slides/04.png",
-    "source": "output/hackathon-flexclip-en/captures/2026-10-02/2026-10-02_c14_s04_profile-sync.png",
+    "source": "output/hackathon-flexclip-en/captures/2026-10-06/2026-10-06_c21_s04_profile-sync.png",
     "status": "REAL DATA · NO DEMO OVERRIDE",
-    "production_notes": "10/2 v14 實機：Auto-sync 開、0 pending、最後成功 9/30——真實同步狀態。保留「保存不等於獎勵資格」的旁白。"
+    "production_notes": "10/6 v21 實機：Auto-sync 開、0 pending、最後成功 10/6 22:29。保留「保存不等於獎勵資格」的旁白。"
   },
   {
     "scene": 5,
@@ -55,9 +55,9 @@
     "title": "Your approval. An onchain claim.",
     "voiceover": "Qualifying activity connects to a claim on Solana devnet. For daily steps, an Android Health Connect summary is checked before wallet approval. View the resulting transaction in the explorer.",
     "image": "slides/05.png",
-    "source": null,
-    "status": "WORKFLOW OVERVIEW",
-    "production_notes": "黑客松 Demo 在本頁嵌入合格摘要、錢包與同筆 Explorer 實錄。"
+    "source": "output/hackathon-flexclip-en/captures/2026-10-06/2026-10-06_c21_s05_claim-1-wallet-approve.png",
+    "status": "REAL CLAIM · TX 5QawZy2B… · DEVNET",
+    "production_notes": "10/6 v21 實機錄影擷取：錢包核准（+10 tSKR）→ 步數任務領取成功（Tx 5QawZy2B…）→ 今日 2/2 已領。交易：5QawZy…（步數 +10）、3aPL5G…（運動 +5）。原始錄影在本機 private/recordings/。"
   },
   {
     "scene": 6,
@@ -67,9 +67,9 @@
     "title": "Collect milestones. Keep the meaning.",
     "voiceover": "Raw health records are not published onchain. Achievement collectibles have their own requirements and approval process. The blockchain records the claim, not every step.",
     "image": "slides/06.png",
-    "source": "output/hackathon-flexclip-en/captures/2026-10-02/2026-10-02_c14_s06_nft-first5k-detail.png",
+    "source": "output/hackathon-flexclip-en/captures/2026-10-06/2026-10-06_c21_s06_nft-first5k-detail.png",
     "status": "REAL DATA · NO DEMO OVERRIDE",
-    "production_notes": "10/2 v14 實機：First 5K 成就收藏詳情（9/22 鑄造、devnet）。這是成就收藏，不是付款結果。"
+    "production_notes": "10/6 v21 實機：First 5K 成就 NFT 詳情（9/22 鑄造、devnet、asset 與 Explorer 入口）。這是成就收藏，不是付款結果。"
   },
   {
     "scene": 7,
@@ -103,9 +103,9 @@
     "title": "Progress with a wildlife story.",
     "voiceover": "Wild Guardians connect your progress with conservation learning. Local community pilots are planned. No partnership or donation is claimed.",
     "image": "slides/09.png",
-    "source": "output/hackathon-flexclip-en/captures/2026-10-02/2026-10-02_c14_s09_elephant-habitat.png",
+    "source": "output/hackathon-flexclip-en/captures/2026-10-06/2026-10-06_c21_s09_elephant-habitat.png",
     "status": "IN-APP STORY CARD · PILOTS PLANNED",
-    "production_notes": "10/2 v14 實機：亞洲象物種故事卡。物種資料引用 WWF，不代表合作或捐款。"
+    "production_notes": "10/6 v21 實機：亞洲象物種故事卡。物種資料引用 WWF，不代表合作或捐款。"
   },
   {
     "scene": 10,

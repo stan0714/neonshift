@@ -14,7 +14,7 @@ What keeps us moving after the first few days? NeonShift turns everyday movement
 
 最初幾天過後，是什麼讓我們繼續運動？NeonShift 將每天的運動轉化為看得見的成長、野生動物主題跑鞋，以及再次回來的理由。
 
-**素材界線**：真實資料 · 無展示覆寫。10/2 v14 實機首頁（真實資料，狀態列以 demo mode 固定）。最終 APK 外觀相同即可沿用。
+**素材界線**：真實資料 · 無展示覆寫。10/6 v21 實機首頁：今日 6.41 km 已同步、兩項任務領取後 25 tSKR（狀態列以 demo mode 固定）。
 
 ## 02 · Built for Solana Mobile. / 為 Solana Mobile 打造的運動體驗。
 
@@ -42,7 +42,7 @@ Start with a walk or a run. Record your workout, save it on your phone, and revi
 
 從一次步行或跑步開始。記錄運動、保存在手機上，再透過 Activity 日誌回顧自己的進度。
 
-**素材界線**：真實資料 · 無展示覆寫。10/2 v14 實機：9/30 跑步 3.89 km 的運動摘要（已保存、已同步）。
+**素材界線**：真實資料 · 無展示覆寫。10/6 v21 實機：當天跑步 6.41 km 的運動摘要（已同步；最高速度 12.7 km/h 為 v20 修正後數值）。
 
 ## 04 · Sync when you are ready. / 準備好， 再同步。
 
@@ -56,7 +56,7 @@ Choose automatic sync when online, with saved workouts processed oldest first. S
 
 可以選擇連網時自動同步，已保存的運動會由舊到新處理。初始鞋款與等級升級維持免費。記錄一筆運動，不代表自動取得獎勵資格。
 
-**素材界線**：真實資料 · 無展示覆寫。10/2 v14 實機：Auto-sync 開、0 pending、最後成功 9/30——真實同步狀態。保留「保存不等於獎勵資格」的旁白。
+**素材界線**：真實資料 · 無展示覆寫。10/6 v21 實機：Auto-sync 開、0 pending、最後成功 10/6 22:29。保留「保存不等於獎勵資格」的旁白。
 
 ## 05 · Your approval. An onchain claim. / 由你核准， 留下鏈上申領紀錄。
 
@@ -70,7 +70,7 @@ Qualifying activity connects to a claim on Solana devnet. For daily steps, an An
 
 符合條件的活動可以在 Solana Devnet 上申領獎勵。每日步數任務會先檢查 Android Health Connect 摘要，再由使用者透過錢包核准。交易結果可在區塊鏈瀏覽器查閱。
 
-**素材界線**：流程概念說明。黑客松 Demo 在本頁嵌入合格摘要、錢包與同筆 Explorer 實錄。
+**素材界線**：真實申領 · 交易 5QawZy2B… · DEVNET。10/6 v21 實機錄影擷取：錢包核准（+10 tSKR）→ 步數任務領取成功（Tx 5QawZy2B…）→ 今日 2/2 已領。交易：5QawZy…（步數 +10）、3aPL5G…（運動 +5）。原始錄影在本機 private/recordings/。
 
 ## 06 · Collect milestones. Keep the meaning. / 收藏里程碑， 保留成就的意義。
 
@@ -84,7 +84,7 @@ Raw health records are not published onchain. Achievement collectibles have thei
 
 原始健康紀錄不會公布到鏈上。成就收藏品有各自的資格條件與核准流程。區塊鏈記錄的是申領，而不是運動的每一步。
 
-**素材界線**：真實資料 · 無展示覆寫。10/2 v14 實機：First 5K 成就收藏詳情（9/22 鑄造、devnet）。這是成就收藏，不是付款結果。
+**素材界線**：真實資料 · 無展示覆寫。10/6 v21 實機：First 5K 成就 NFT 詳情（9/22 鑄造、devnet、asset 與 Explorer 入口）。這是成就收藏，不是付款結果。
 
 ## 07 · Earn eligibility. Unlock your frame. / 先取得資格， 再解鎖專屬邊框。
 
@@ -126,7 +126,7 @@ Wild Guardians connect your progress with conservation learning. Local community
 
 Wild Guardians 將個人成長連結到保育學習。在地社群試辦仍在規劃中。目前不宣稱已有合作或捐款。
 
-**素材界線**：App 內物種故事卡 · 試辦仍在規劃。10/2 v14 實機：亞洲象物種故事卡。物種資料引用 WWF，不代表合作或捐款。
+**素材界線**：App 內物種故事卡 · 試辦仍在規劃。10/6 v21 實機：亞洲象物種故事卡。物種資料引用 WWF，不代表合作或捐款。
 
 ## 10 · Next: stake SKR. Boost by level. / 下一步：質押 SKR， 依等級加成。
 

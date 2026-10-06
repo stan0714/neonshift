@@ -12,7 +12,7 @@ What keeps us moving after the first few days? NeonShift turns everyday movement
 
 ### 製作備註（不要配音）
 
-10/2 v14 實機首頁（真實資料，狀態列以 demo mode 固定）。最終 APK 外觀相同即可沿用。
+10/6 v21 實機首頁：今日 6.41 km 已同步、兩項任務領取後 25 tSKR（狀態列以 demo mode 固定）。
 
 ## 02 · Built for Solana Mobile.
 
@@ -36,7 +36,7 @@ Start with a walk or a run. Record your workout, save it on your phone, and revi
 
 ### 製作備註（不要配音）
 
-10/2 v14 實機：9/30 跑步 3.89 km 的運動摘要（已保存、已同步）。
+10/6 v21 實機：當天跑步 6.41 km 的運動摘要（已同步；最高速度 12.7 km/h 為 v20 修正後數值）。
 
 ## 04 · Sync when you are ready.
 
@@ -48,11 +48,11 @@ Choose automatic sync when online, with saved workouts processed oldest first. S
 
 ### 製作備註（不要配音）
 
-10/2 v14 實機：Auto-sync 開、0 pending、最後成功 9/30——真實同步狀態。保留「保存不等於獎勵資格」的旁白。
+10/6 v21 實機：Auto-sync 開、0 pending、最後成功 10/6 22:29。保留「保存不等於獎勵資格」的旁白。
 
 ## 05 · Your approval. An onchain claim.
 
-60–78 秒 · WORKFLOW OVERVIEW
+60–78 秒 · REAL CLAIM · TX 5QawZy2B… · DEVNET
 
 ### Voiceover / 旁白
 
@@ -60,7 +60,7 @@ Qualifying activity connects to a claim on Solana devnet. For daily steps, an An
 
 ### 製作備註（不要配音）
 
-黑客松 Demo 在本頁嵌入合格摘要、錢包與同筆 Explorer 實錄。
+10/6 v21 實機錄影擷取：錢包核准（+10 tSKR）→ 步數任務領取成功（Tx 5QawZy2B…）→ 今日 2/2 已領。交易：5QawZy…（步數 +10）、3aPL5G…（運動 +5）。原始錄影在本機 private/recordings/。
 
 ## 06 · Collect milestones. Keep the meaning.
 
@@ -72,7 +72,7 @@ Raw health records are not published onchain. Achievement collectibles have thei
 
 ### 製作備註（不要配音）
 
-10/2 v14 實機：First 5K 成就收藏詳情（9/22 鑄造、devnet）。這是成就收藏，不是付款結果。
+10/6 v21 實機：First 5K 成就 NFT 詳情（9/22 鑄造、devnet、asset 與 Explorer 入口）。這是成就收藏，不是付款結果。
 
 ## 07 · Earn eligibility. Unlock your frame.
 
@@ -108,7 +108,7 @@ Wild Guardians connect your progress with conservation learning. Local community
 
 ### 製作備註（不要配音）
 
-10/2 v14 實機：亞洲象物種故事卡。物種資料引用 WWF，不代表合作或捐款。
+10/6 v21 實機：亞洲象物種故事卡。物種資料引用 WWF，不代表合作或捐款。
 
 ## 10 · Next: stake SKR. Boost by level.
 
