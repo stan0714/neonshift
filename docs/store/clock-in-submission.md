@@ -167,12 +167,25 @@ README 頂部應提供 APK、影片、Pitch PDF、五分鐘體驗步驟、Devnet
 | SUB-03 | 填妥並送出官方表單，保存回執或提交編號 | TODO | 本人 | 10/05 | 不是只儲存草稿 |
 | SUB-04 | 未登入逐一測試所有提交連結；確認不過期、不需申請權限 | TODO | 本人 | 10/04 | 最後檢查時間 |
 
+## 8.5 官方規則摘要（2026-10-06 查）
+
+來源：[條款 PDF](https://solanamobile.radiant.nexus/legal/clock-in-terms.pdf)、官網與其公開 API（`align-api.radiant.nexus/hackathons/H5jQ…M1kb`）。
+
+- **日程**：報名／開放提交 9/8 16:00 UTC；提交截止見 §9（兩處不一致）；評審 10/13～11/9；公布 11/10～11/11。
+- **必交四項**（條款 §6.4）：可運作的 Android APK、GitHub repo、功能 Demo 影片（約 3 分鐘）、Pitch deck。
+- **表單欄位**：專案名稱；是否曾獲 VC／天使資金（是／否）；是否在近 3 個月內建置（是／否）；是否曾以此專案得獎；新增的行動端開發（長文）；**是否有 SKR 整合及方式**（長文）；Deck URL；Demo 影片 URL（YouTube、Loom 或公開 Google Drive）；Repo URL；**APK 直接下載連結**。
+- **修改**：截止前草稿可隨時修改；完成最終提交同意後不可再改。評審以截止前的提交與 GitHub commit 為準。
+- **Repo**：可公開，或以團隊成員連結的 GitHub App 授權私有 repo（主辦方建立私有評審副本）。
+- **評分**（各 25%）：黏著度與 PMF、使用體驗、創新、簡報與 Demo。
+- **SKR 整合獎**（$10,000 SKR）：**SKR 質押整合不列入**；本案以 Genesis Mint 邊框的 SKR 付款為整合主體，質押只作 Roadmap。
+- **得獎後**：公布後 30 天內須上架 Solana dApp Store；入圍須 KYC；USDC 獎限未獲 VC／天使資金者。
+
 ## 9. 最終交付登錄
 
 | 欄位 | 值 |
 |---|---|
-| 官方精確截止時間／時區 | 待確認 |
-| 換算台灣時間 | 待確認 |
+| 官方精確截止時間／時區 | **兩處不一致（2026-10-06 查）**：官網 API `submissionCloseDate` = `2026-10-12T11:59:00Z`（提交頁 DEADLINE 讀此值）；官網靜態行程表寫 10/8 23:59（hard，未標時區）。以較早者為準規劃，並向 hackathon@radiant.nexus 確認 |
+| 換算台灣時間 | API：**10/12（一）19:59**；行程表 10/8 23:59 若依 UTC 為 10/9 07:59、最早可能（UTC+14）為 10/8 17:59。內部目標：**10/8 17:00 前完成最終提交** |
 | 提交負責人 | 使用者本人（單人參賽） |
 | Repository URL | `https://github.com/stan0714/neonshift`（評審存取權待確認） |
 | Release／Tag URL | 待填 |
