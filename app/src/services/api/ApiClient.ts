@@ -12,6 +12,8 @@ import { Buffer } from 'buffer';
 import { APP_CONFIG } from '@/config/app';
 import { walletService } from '@/services/wallet/WalletService';
 
+import { challengeText } from './challengeText';
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -334,7 +336,7 @@ export class ApiClient {
 
   // ---------------- claim ----------------
 
-  /** SD 4.2：先算 request_hash → /auth/challenge → MWA 簽 `domain||nonce||request_hash||expiry_le` */
+  /** SD 4.2：先算 request_hash → /auth/challenge → MWA 簽 V2 可讀文字（challengeText）；後端仍接受 V1 bytes */
   async authorizeClaim(purpose: 'claim' | 'tournament_steps', requestHash: Uint8Array, taskDate: number, taskType: 1 | 2 | 3) {
     const c = await this.request<ChallengeResponse>('POST', '/auth/challenge', {
       purpose,
@@ -343,11 +345,11 @@ export class ApiClient {
       task_type: taskType,
     });
     const nonce = Buffer.from(c.challenge_b64, 'base64');
-    const expiry = new Uint8Array(8);
-    new DataView(expiry.buffer).setBigInt64(0, BigInt(c.expires_at), true);
-    const domain = purpose === 'claim' ? 'NEONSHIFT_CLAIM_V1' : 'NEONSHIFT_TOURNAMENT_STEPS_V1';
-    const message = Buffer.concat([Buffer.from(domain, 'ascii'), nonce, Buffer.from(requestHash), Buffer.from(expiry)]);
-    const sig = await walletService.signMessage(new Uint8Array(message));
+    // 後端以 JWT 的錢包重建文字驗簽，所以這裡用同一份 session 的錢包
+    const wallet = (await readTokens())?.wallet;
+    if (!wallet) throw new ApiError(401, 'NO_SESSION', 'Sign in required');
+    const message = challengeText(purpose, wallet, taskDate, taskType, nonce, requestHash, c.expires_at);
+    const sig = await walletService.signMessage(message);
     return { challenge_b64: c.challenge_b64, expires_at: c.expires_at, signature_b64: Buffer.from(sig).toString('base64') };
   }
 

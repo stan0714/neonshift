@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { ApiError } from "../errors.js";
 import { MemoryStore } from "../store/memory.js";
-import { CHALLENGE_TTL_SECONDS, challengeMessage, ChallengeService, type ChallengeRequest } from "./challenge.js";
+import { CHALLENGE_TTL_SECONDS, challengeMessage, challengeText, ChallengeService, type ChallengeRequest } from "./challenge.js";
 
 let store: MemoryStore;
 let clock: Date;
@@ -36,6 +36,48 @@ function authorize(res: { challenge_b64: string; expires_at: number }, r: Challe
 }
 
 describe("PG-B-05 /auth/challenge", () => {
+  /**
+   * 2026-10-06 實機：V1 是二進位 bytes，Seed Vault 顯示「This message contains characters that can't be
+   * safely displayed. It may hide a transaction」。V2 改為可讀 ASCII 文字；App 端測試用同一組向量。
+   */
+  it("V2 簽署文字：固定向量逐字相同、純可列印 ASCII", () => {
+    const text = challengeText("claim", "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU", 20_732, 1, Buffer.alloc(32, 1), Buffer.alloc(32, 2), 1_791_296_177).toString("ascii");
+    expect(text).toBe(
+      [
+        "NeonShift daily claim",
+        "Approve in your wallet to claim today's mission reward.",
+        "",
+        "Wallet: 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+        "Mission: Steps",
+        "Day (UTC): 2026-10-06",
+        `Request: ${"02".repeat(32)}`,
+        `Nonce: ${"01".repeat(32)}`,
+        "Expires (UTC): 2026-10-06T14:16:17Z",
+        "Domain: neonshift.cc",
+        "Version: NEONSHIFT_CLAIM_V2",
+      ].join("\n"),
+    );
+    expect(text).toMatch(/^[\x20-\x7e\n]+$/);
+    const t = challengeText("tournament_steps", "W", 2_960, 1, Buffer.alloc(32, 1), Buffer.alloc(32, 2), 1).toString("ascii");
+    expect(t.split("\n").slice(0, 5)).toEqual(["NeonShift tournament steps", "Approve in your wallet to submit your tournament steps.", "", "Wallet: W", "Week: 2960"]);
+    expect(t.endsWith("Version: NEONSHIFT_TOURNAMENT_STEPS_V2")).toBe(true);
+  });
+
+  it("V2 簽章通過並消耗；V1 簽章（舊版 App）仍通過；V2 內容與請求不符則拒絕", async () => {
+    const signV2 = (res: { challenge_b64: string; expires_at: number }, r: ChallengeRequest) => {
+      const msg = challengeText(r.purpose, wallet, r.taskDate, r.taskType, Buffer.from(res.challenge_b64, "base64"), r.requestHash, res.expires_at);
+      return { challengeB64: res.challenge_b64, expiresAt: res.expires_at, signatureB64: Buffer.from(nacl.sign.detached(msg, kp.secretKey)).toString("base64") };
+    };
+    const a = await svc.issue(wallet, req);
+    await svc.verifyAndConsume(wallet, req, signV2(a, req));
+    expect(await code(svc.verifyAndConsume(wallet, req, signV2(a, req)))).toBe("CHALLENGE_INVALID");
+    const b = await svc.issue(wallet, req);
+    await svc.verifyAndConsume(wallet, req, authorize(b)); // V1
+    const c = await svc.issue(wallet, req);
+    // 簽的是另一個任務類型的文字 → 與請求重建的文字不符
+    expect(await code(svc.verifyAndConsume(wallet, req, signV2(c, { ...req, taskType: 3 })))).toBe("CHALLENGE_BAD_SIGNATURE");
+  });
+
   it("簽章 bytes 佈局：domain || nonce(32) || request_hash(32) || expiry_le(8)", () => {
     const nonce = Buffer.alloc(32, 1);
     const rh = Buffer.alloc(32, 2);

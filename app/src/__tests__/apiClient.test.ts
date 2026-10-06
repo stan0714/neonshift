@@ -125,19 +125,35 @@ describe('PG-A-07 ApiClient', () => {
     expect(await api.hasSession()).toBe(false);
   });
 
-  test('authorizeClaim：challenge → 簽 domain||nonce||request_hash||expiry_le', async () => {
+  /**
+   * 2026-10-06 實機：V1 簽二進位 bytes，Seed Vault 警告「contains characters that can't be safely displayed」。
+   * V2 簽可讀 ASCII 文字；向量與 backend/src/auth/challenge.test.ts 相同（兩邊逐字一致才驗得過）。
+   */
+  test('authorizeClaim：challenge → 簽 V2 可讀文字（錢包取自 session），與後端向量逐字相同', async () => {
     const nonce = Buffer.alloc(32, 1).toString('base64');
-    const { f } = fakeFetch((c) => (c.url.endsWith('/auth/challenge') ? { status: 200, body: { challenge_b64: nonce, expires_at: 1_789_000_300, purpose: 'claim' } } : { status: 404 }));
-    await SecureStore.setItemAsync('neonshift.api.tokens.v1', JSON.stringify({ accessToken: 'A', refreshToken: 'R', accessExpiresAt: 2_000_000, wallet: 'W' }));
+    const wallet = '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU';
+    const { f } = fakeFetch((c) => (c.url.endsWith('/auth/challenge') ? { status: 200, body: { challenge_b64: nonce, expires_at: 1_791_296_177, purpose: 'claim' } } : { status: 404 }));
+    await SecureStore.setItemAsync('neonshift.api.tokens.v1', JSON.stringify({ accessToken: 'A', refreshToken: 'R', accessExpiresAt: 2_000_000, wallet }));
     const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
-    const rh = new Uint8Array(32).fill(2);
-    const a = await api.authorizeClaim('claim', rh, 20_710, 1);
+    const a = await api.authorizeClaim('claim', new Uint8Array(32).fill(2), 20_732, 1);
     expect(a.challenge_b64).toBe(nonce);
-    const signed = (walletService.signMessage as jest.Mock).mock.calls.at(-1)![0] as Uint8Array;
-    expect(Buffer.from(signed.subarray(0, 18)).toString('ascii')).toBe('NEONSHIFT_CLAIM_V1');
-    expect(Buffer.from(signed.subarray(18, 50))).toEqual(Buffer.alloc(32, 1));
-    expect(Buffer.from(signed.subarray(50, 82))).toEqual(Buffer.alloc(32, 2));
-    expect(new DataView(signed.buffer, signed.byteOffset + 82, 8).getBigInt64(0, true)).toBe(1_789_000_300n);
+    const signed = Buffer.from((walletService.signMessage as jest.Mock).mock.calls.at(-1)![0] as Uint8Array).toString('ascii');
+    expect(signed).toBe(
+      [
+        'NeonShift daily claim',
+        "Approve in your wallet to claim today's mission reward.",
+        '',
+        `Wallet: ${wallet}`,
+        'Mission: Steps',
+        'Day (UTC): 2026-10-06',
+        `Request: ${'02'.repeat(32)}`,
+        `Nonce: ${'01'.repeat(32)}`,
+        'Expires (UTC): 2026-10-06T14:16:17Z',
+        'Domain: neonshift.cc',
+        'Version: NEONSHIFT_CLAIM_V2',
+      ].join('\n'),
+    );
+    expect(signed).toMatch(/^[\x20-\x7e\n]+$/); // 錢包能完整顯示：只有可列印 ASCII 與換行
   });
 
   test('統一錯誤：422 拒絕帶 rules_version', async () => {
