@@ -100,23 +100,35 @@ Review the details, then approve in your wallet. After the server verifies the c
 
 ## 09 · Progress with a wildlife story.
 
-140–155 秒 · IN-APP STORY CARD · PILOTS PLANNED
+140–152 秒 · IN-APP STORY CARD · PILOTS PLANNED
 
 ### Voiceover / 旁白
 
-Wild Guardians connect your progress with conservation learning. Local community pilots, paid event services, and separately tracked conservation contributions are planned.
+Wild Guardians connect your progress with conservation learning. Local community pilots are planned. No partnership or donation is claimed.
 
 ### 製作備註（不要配音）
 
 10/2 v14 實機：亞洲象物種故事卡。物種資料引用 WWF，不代表合作或捐款。
 
-## 10 · Move for yourself. Move together for nature.
+## 10 · Next: stake SKR. Boost by level.
 
-155–170 秒 · NEONSHIFT · SOLANA MOBILE
+152–165 秒 · PLANNED · NOT IMPLEMENTED
 
 ### Voiceover / 旁白
 
-No partnership or donation is claimed. Explore the Android app, source code, and reviewer guide through the submission links. Move for yourself. Move together for nature.
+Next, stake SKR to boost mission rewards, with higher boosts at higher shoe levels. A fixed share of staking rewards will fund a separately tracked wildlife conservation pool. Rates are not final.
+
+### 製作備註（不要配音）
+
+規劃中：質押 SKR 提升任務獎勵，等級越高加成越高；質押獎勵固定比例撥入獨立追蹤的保育基金。右側比率為示意，未定案；不承諾收益，主網與官方 SKR 尚未啟用。
+
+## 11 · Move for yourself. Move together for nature.
+
+165–177 秒 · NEONSHIFT · SOLANA MOBILE
+
+### Voiceover / 旁白
+
+Explore the Android app, source code, and reviewer guide through the submission links. Move for yourself. Move together for nature.
 
 ### 製作備註（不要配音）
 

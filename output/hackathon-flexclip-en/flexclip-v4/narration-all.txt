@@ -14,6 +14,8 @@ NeonShift gives token payments a cosmetic purpose. Eligible first-five-kilometer
 
 Review the details, then approve in your wallet. After the server verifies the confirmed transfer onchain, the frame unlocks for that wallet. This payment uses test tokens, not official SKR. It buys no experience points, records, or achievements.
 
-Wild Guardians connect your progress with conservation learning. Local community pilots, paid event services, and separately tracked conservation contributions are planned.
+Wild Guardians connect your progress with conservation learning. Local community pilots are planned. No partnership or donation is claimed.
 
-No partnership or donation is claimed. Explore the Android app, source code, and reviewer guide through the submission links. Move for yourself. Move together for nature.
+Next, stake SKR to boost mission rewards, with higher boosts at higher shoe levels. A fixed share of staking rewards will fund a separately tracked wildlife conservation pool. Rates are not final.
+
+Explore the Android app, source code, and reviewer guide through the submission links. Move for yourself. Move together for nature.

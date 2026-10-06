@@ -7,5 +7,6 @@ scene,chapter,start_seconds,duration_seconds,voiceover_file
 6,C,78,17,narration/06.txt
 7,D,95,22,narration/07.txt
 8,D,117,23,narration/08.txt
-9,E,140,15,narration/09.txt
-10,E,155,15,narration/10.txt
+9,E,140,12,narration/09.txt
+10,E,152,13,narration/10.txt
+11,E,165,12,narration/11.txt

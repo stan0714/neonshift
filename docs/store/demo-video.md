@@ -1,12 +1,12 @@
 # CLOCK IN 影片製作稿 v4：五段、Devnet SKR
 
-**FlexClip 製作方式（10/2）：** 使用[十頁專用投影片包](../../output/hackathon-flexclip-en/flexclip-v4/README.md)上傳 AI PPT/PDF to Video。以下五章各拆兩頁，旁白內容不變；先生成介紹片，再於 C／D 場景補操作實錄。無須先用外部 TTS。
+**FlexClip 製作方式（10/2）：** 使用[十一頁專用投影片包](../../output/hackathon-flexclip-en/flexclip-v4/README.md)上傳 AI PPT/PDF to Video。以下五章各拆兩頁，旁白內容不變；先生成介紹片，再於 C／D 場景補操作實錄。無須先用外部 TTS。
 
 更新：2026-10-02。**現行時間軸與拍攝入口**；取代舊六段與舊 D 段主網文案。[英文純稿](demo-voiceover-en.txt)為配音唯一來源，五段 A–E；[盤點與待拍清單](submission-materials-audit-2026-10-02.md)記錄交付缺口。歷史稿保留在 `demo-video-v3-archive.md`，不得用來配音。
 
 ## 時間與旁白
 
-目標 170 秒、上限 180 秒，含轉場與片尾。五段共 **259 字**（空白分詞），125–135 wpm 約 115–124 秒純朗讀；其餘供操作與停頓，非音訊實測。舊稿「265 字需 2:35–2:45，另留 25–35 秒」的估算不成立，已移除。
+目標 177 秒、上限 180 秒，含轉場與片尾。五段共 **283 字**（空白分詞），125–135 wpm 約 126–136 秒純朗讀；其餘供操作與停頓，非音訊實測。舊稿「265 字需 2:35–2:45，另留 25–35 秒」的估算不成立，已移除。
 
 | 段落 | 時間 | 字數 | 音檔預算上限 | 必拍鏡頭／文字 |
 |---|---|---:|---:|---|
@@ -14,7 +14,7 @@
 | B · RECORD & SEE PROGRESS | 0:25–1:00 | 52 | 27 秒 | GPS 就緒→開始→保存→Activity 詳情；連網同步。長運動用預錄並標時間省略；不得把保存等同取得資格 |
 | C · VERIFY & COLLECT | 1:00–1:35 | 53 | 28 秒 | 合格摘要→核准→錢包→confirmed→同筆 Devnet Explorer；首次 5K 收藏僅於另有真實資格與 Mint 證據時加入 |
 | D · SKR IN USE | 1:35–2:20 | 69 | 36 秒 | 資格→訂單／2.5 TEST SKR／Devnet／收款人→錢包→確認→OWNED／邊框；全段 TEST SKR · devnet · not official SKR |
-| E · EVIDENCE & WHAT'S NEXT | 2:20–2:50 | 47 | 25 秒 | 野生動物鞋／故事；NEXT: LOCAL PILOTS；版本與交易入口簡短呈現；片尾至少靜止 2 秒 |
+| E · EVIDENCE & WHAT'S NEXT | 2:20–2:57 | 71 | 34 秒 | 野生動物鞋／故事；NEXT: LOCAL PILOTS；規劃頁：SKR 質押依等級加成＋保育提撥（ROADMAP · NOT LIVE · RATES NOT FINAL）；版本與交易入口簡短呈現；片尾至少靜止 2 秒 |
 
 英文逐字內容直接取純稿，不再在多份文件各自維護。活動雙角色不占主片必要鏡頭，詳解放 [活動手冊](event-demo-playbook.md)。若 C 段未取得成功錄影，仍是交付缺口，不能以流程示意宣稱完成實機 Demo。
 
@@ -45,4 +45,4 @@ ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:no
 
 > NeonShift connects daily movement, collectible achievements, and wildlife-inspired progression on Solana Mobile. This demo shows wallet-approved claims and a cosmetic payment on Solana devnet. TEST SKR has no monetary value and is not official SKR. Local pilots and conservation partnerships are planned. AI-generated narration. APK, source, pitch, and reviewer guide: links provided with this submission.
 
-本次已備妥十頁 FlexClip v4 投影片與逐頁旁白，不代表音訊、字幕、影片或最終 RC 驗收完成。六頁／九頁既有簡報仍保留為 v3 歷史參考。
+本次已備妥十一頁 FlexClip v4 投影片與逐頁旁白，不代表音訊、字幕、影片或最終 RC 驗收完成。六頁／九頁既有簡報仍保留為 v3 歷史參考。

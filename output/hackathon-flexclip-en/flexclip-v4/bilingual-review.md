@@ -116,28 +116,42 @@ Review the details, then approve in your wallet. After the server verifies the c
 
 ## 09 · Progress with a wildlife story. / 讓成長， 連結野生動物故事。
 
-英文時間：140–155 秒
+英文時間：140–152 秒
 
 **English**
 
-Wild Guardians connect your progress with conservation learning. Local community pilots, paid event services, and separately tracked conservation contributions are planned.
+Wild Guardians connect your progress with conservation learning. Local community pilots are planned. No partnership or donation is claimed.
 
 **中文意涵**
 
-Wild Guardians 將個人成長連結到保育學習。在地社群試辦、付費活動服務，以及獨立追蹤的保育款項，都是規劃中的方向。
+Wild Guardians 將個人成長連結到保育學習。在地社群試辦仍在規劃中。目前不宣稱已有合作或捐款。
 
 **素材界線**：App 內物種故事卡 · 試辦仍在規劃。10/2 v14 實機：亞洲象物種故事卡。物種資料引用 WWF，不代表合作或捐款。
 
-## 10 · Move for yourself. Move together for nature. / 為自己而動， 為棲地同行。
+## 10 · Next: stake SKR. Boost by level. / 下一步：質押 SKR， 依等級加成。
 
-英文時間：155–170 秒
+英文時間：152–165 秒
 
 **English**
 
-No partnership or donation is claimed. Explore the Android app, source code, and reviewer guide through the submission links. Move for yourself. Move together for nature.
+Next, stake SKR to boost mission rewards, with higher boosts at higher shoe levels. A fixed share of staking rewards will fund a separately tracked wildlife conservation pool. Rates are not final.
 
 **中文意涵**
 
-目前不宣稱已有合作或捐款。請透過提交連結查看 Android App、原始碼與評審指南。為自己而動，為棲地同行。
+下一步：質押 SKR 可提升任務獎勵，跑鞋等級越高，加成越高。質押獎勵的固定比例，將撥入獨立追蹤的野生動物保育基金。比率尚未定案。
+
+**素材界線**：規劃中 · 尚未實作。規劃中：質押 SKR 提升任務獎勵，等級越高加成越高；質押獎勵固定比例撥入獨立追蹤的保育基金。右側比率為示意，未定案；不承諾收益，主網與官方 SKR 尚未啟用。
+
+## 11 · Move for yourself. Move together for nature. / 為自己而動， 為棲地同行。
+
+英文時間：165–177 秒
+
+**English**
+
+Explore the Android app, source code, and reviewer guide through the submission links. Move for yourself. Move together for nature.
+
+**中文意涵**
+
+請透過提交連結查看 Android App、原始碼與評審指南。為自己而動，為棲地同行。
 
 **素材界線**：NEONSHIFT · SOLANA MOBILE。最後至少靜止 2 秒。公開連結放影片說明欄，不使用佔位 URL。
