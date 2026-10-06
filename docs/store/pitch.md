@@ -1,6 +1,6 @@
 # Pitch 簡報與交付追蹤（PG-D-04）
 
-**參賽簡報：** [十頁介紹投影片 v4](../../output/hackathon-flexclip-en/flexclip-v4/README.md)，英文製片版與繁體中文對稿版，含 PPTX／PDF 和逐頁雙語旁白；第 1、3、4、6、9 頁為 10/2 實機截圖，第 7、8 頁為 10/1 Devnet SKR 付款前／後實機截圖。九頁英文評審版見 [NeonShift_Hackathon_EN.pdf](../../output/hackathon-flexclip-en/NeonShift_Hackathon_EN.pdf)。
+**參賽簡報（提交用 Pitch）：** [11 頁英文 PDF](../../output/hackathon-flexclip-en/flexclip-v4/NeonShift_FlexClip_v4_EN.pdf)，來源為 [十一頁介紹投影片 v4](../../output/hackathon-flexclip-en/flexclip-v4/README.md)，英文製片版與繁體中文對稿版，含 PPTX／PDF 和逐頁雙語旁白；第 1、3、4、6、9 頁為 10/2 實機截圖，第 7、8 頁為 10/1 Devnet SKR 付款前／後實機截圖。舊版英文評審簡報 [NeonShift_Hackathon_EN.pdf](../../output/hackathon-flexclip-en/NeonShift_Hackathon_EN.pdf)（9/22）未含 SKR 實機證據與質押規劃，保留為歷史，不作提交。
 
 SKR 已有 [10/1 Devnet 付款證據](../evidence/2026-10-01-skr-devnet-payment.md)；官方 SKR 主網付款不在這份證據範圍。
 

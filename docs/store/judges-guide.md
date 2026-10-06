@@ -1,10 +1,10 @@
 # NeonShift｜評審快速入口 / Reviewer guide
 
-更新：2026-10-02。內部正式提交目標為 10/5；[準備進度](submission-sprint-2026-10-05.md)。**準備中：APK、影片與測試活動尚未在本文件登錄可用版本。** 這是可隨提交版本補齊的入口，不代表現在已可完成所有操作。
+更新：2026-10-06。提交版本為 **v0.1.0（versionCode 21）**，見 [RC 紀錄](../evidence/2026-10-04-rc-v21.md)。下載與影片的公開網址於提交時補上；其餘欄位已依提交版本填寫。
 
 ## Start here (English)
 
-NeonShift connects daily movement, Solana devnet clock-ins, conservation-inspired shoe progression, and event participation. Start with the English product video (target: 2 minutes 50 seconds; maximum: 3 minutes), then install the matching Android APK. The written event walkthrough explains registration, staff check-in, benefits and organizer-sourced results.
+NeonShift connects daily movement, Solana devnet clock-ins, conservation-inspired shoe progression, and event participation. Start with the English product video (about 3 minutes), then install the matching Android APK. The written event walkthrough explains registration, staff check-in, benefits and organizer-sourced results.
 
 **Current scope:** event App/API code exists, but a complete device-tested event flow is still pending. Staff currently enters a code; NFC opens an event and is not proof of attendance. Shoe finishes are deterministic cosmetic App appearances, not randomized NFT traits. tSKR is a valueless devnet test token, not official SKR. No real partner event or donation is claimed.
 
@@ -16,14 +16,14 @@ If your device has no qualifying Health Connect records, open **Profile → Read
 
 | 項目 | 入口／狀態 |
 |---|---|
-| 提交 APK／版本／SHA-256 | 待發布、待驗收 |
-| GitHub Release／Commit | 待登錄 |
-| 英文主片 2:50，最多 3:00 | 待錄製／配音；[五段腳本](demo-video.md)／[英文旁白](demo-voiceover-en.txt)／[AI 配音建議](demo-ai-voice-guide.md) |
+| 提交 APK／版本／SHA-256 | v0.1.0（versionCode 21）· arm64-v8a · SHA-256 `d08cfd700274d36bec7c5527c956ecf2c27f1b5ad58e1656c1b503324e5ca777`；下載網址待 GitHub Release |
+| GitHub Release／Commit | Commit `97a01cd`；Release 網址待建立 |
+| 英文主片（約 2:57，最多 3:00） | 待生成；投影片與旁白已定稿：[五段腳本](demo-video.md)／[英文旁白](demo-voiceover-en.txt)／[AI 配音建議](demo-ai-voice-guide.md) |
 | 活動文字詳解 | [活動手冊](event-demo-playbook.md)；不再要求六分鐘補充影片 |
-| 參賽 Pitch PDF | [6 頁英文 PDF](../../output/hackathon-flexclip-en/NeonShift_Hackathon_EN.pdf)／[可編輯 PPTX](../../output/hackathon-flexclip-en/NeonShift_Hackathon_EN.pptx) 已產出；含早期截圖與流程示意，最終實機素材待補。這是 Repo 相對連結，公開提交 URL 尚待登錄 |
+| 參賽 Pitch PDF | [11 頁英文 PDF](../../output/hackathon-flexclip-en/flexclip-v4/NeonShift_FlexClip_v4_EN.pdf)（含 10/1～10/2 實機截圖、devnet 界線與 Roadmap）；公開 URL 待 Release |
 | 測試活動 slug／有效日期／timezone | 待建立或核實；不能將範例 slug 當現存活動 |
-| Demo API／Program ID／Explorer 證據 | 待依提交 APK 登錄 |
-| Devnet SOL／必要測試資源取得方式 | 待提供評審可重現的方法；不依賴不穩定 faucet 的唯一入口 |
+| Demo API／Program ID／Explorer 證據 | `https://api.neonshift.cc/v1`／`6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA`（devnet）／tSKR `2itshf7Xup3WZeeDRSXbstv4nbPcjfiLhdDpcQjU7RtZ`；交易見 [RC v21 鏈上證據](../evidence/2026-10-04-rc-v21.md#鏈上證據devnet錢包-acbuvbv2) |
+| Devnet SOL／必要測試資源取得方式 | [faucet.solana.com](https://faucet.solana.com)（選 devnet）；每筆打卡／領取只需少量 SOL 網路費與 rent |
 | 活動 staff 協助／可用時段／聯絡方式 | 待指派；不得公開管理憑證 |
 
 ## 2. 三種閱讀與體驗深度

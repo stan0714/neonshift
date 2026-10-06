@@ -176,23 +176,23 @@ README 頂部應提供 APK、影片、Pitch PDF、五分鐘體驗步驟、Devnet
 | 提交負責人 | 使用者本人（單人參賽） |
 | Repository URL | `https://github.com/stan0714/neonshift`（評審存取權待確認） |
 | Release／Tag URL | 待填 |
-| Commit SHA | `0e9da06`（10/2 RC，實機驗收通過，見 [RC 紀錄](../evidence/2026-10-02-rc-v17.md)） |
+| Commit SHA | `97a01cd`（10/4 RC，見 [RC 紀錄](../evidence/2026-10-04-rc-v21.md)） |
 | APK 下載 URL | 待填 |
-| APK versionName／versionCode | 0.1.0／17（10/2 RC，實機驗收通過，見 [RC 紀錄](../evidence/2026-10-02-rc-v17.md)） |
-| APK SHA-256 | `c92cc737cc6398f9b5b790b5aa50da7d806f402f66105348a31aa27eff289c55`（10/2 RC，實機驗收通過，見 [RC 紀錄](../evidence/2026-10-02-rc-v17.md)） |
+| APK versionName／versionCode | 0.1.0／21（10/4 RC，見 [RC 紀錄](../evidence/2026-10-04-rc-v21.md)） |
+| APK SHA-256 | `d08cfd700274d36bec7c5527c956ecf2c27f1b5ad58e1656c1b503324e5ca777`（10/4 RC，見 [RC 紀錄](../evidence/2026-10-04-rc-v21.md)） |
 | APK 簽章憑證指紋 | SHA-256 `c6b8bbb34b050ae3725c29dc8155d601875693f8c741356a1331d948fb5f4b04`（CN=NeonShift dev test；換正式簽章需重記） |
-| 建置日期 | 2026-10-02T14:11:44Z（10/2 RC，實機驗收通過，見 [RC 紀錄](../evidence/2026-10-02-rc-v17.md)） |
+| 建置日期 | 2026-10-04T13:56:41Z（10/4 RC，見 [RC 紀錄](../evidence/2026-10-04-rc-v21.md)） |
 | 評審指南 URL | 待填 |
 | Demo 影片 URL／時長 | 待填 |
 | 活動文字詳解 URL | 待填；不再要求長片 |
 | AI 配音模型／voice ID／設定 | 待試聽與登錄 |
-| 主片實測秒數／字幕版本 | 待匯出後量測；目標 170、上限 180 秒 |
+| 主片實測秒數／字幕版本 | 待匯出後量測；目標 177、上限 180 秒（11 頁 v4） |
 | 測試活動／時窗／支援方式 | 待填，見活動手冊 |
-| Pitch PDF URL | 待填 |
+| Pitch PDF URL | 待填（採 [11 頁英文 v4 PDF](../../output/hackathon-flexclip-en/flexclip-v4/NeonShift_FlexClip_v4_EN.pdf)；公開 URL 待 Release） |
 | 網路／Program ID／Mint | devnet／`6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA`／tSKR `2itshf7Xup3WZeeDRSXbstv4nbPcjfiLhdDpcQjU7RtZ` |
-| 核心操作 Explorer 連結 | 待填 |
+| 核心操作 Explorer 連結 | 見 [RC v21 鏈上證據](../evidence/2026-10-04-rc-v21.md#鏈上證據devnet錢包-acbuvbv2)：InitPlayer、ClockIn、ClaimAchievement、ClaimCollectible、SKR（TEST）付款 |
 | 驗收裝置／OS／錢包版本 | Solana Seeker／Android 16／Seeker Wallet 1.17.0 |
-| 已知限制 | 待填 |
+| 已知限制 | 見 [RC v21 已知限制](../evidence/2026-10-04-rc-v21.md#已知限制)：devnet／tSKR 無價值、僅 arm64-v8a、dev test 簽章、同 UTC 日領取、session 過期未實測 |
 | 最後連結檢查時間 | 待填 |
 | 提交時間／回執／編號 | 待填 |
 
