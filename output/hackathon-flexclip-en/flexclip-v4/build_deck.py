@@ -98,8 +98,8 @@ for i,(chapter,title,body,tag,duration,photo,label,note) in enumerate(scenes,1):
     diagrams_zh={2:['手機運動紀錄','健康資料摘要','錢包核准'],5:['符合條件的摘要','使用錢包核准','Devnet 鏈上查證']}
     # 第 10 頁：各等級質押加成（示意）＋保育提撥
     if i==10:
-        rows=[('LV.1  ORIGIN','0%'),('LV.2','+3%'),('LV.3','+5%'),('LV.4','+7%'),('LV.5','+10%')]
-        rows_zh=[('LV.1 原點','0%'),('LV.2','+3%'),('LV.3','+5%'),('LV.4','+7%'),('LV.5','+10%')]
+        rows=[('LV.1  ORIGIN','+1%'),('LV.2','+3%'),('LV.3','+5%'),('LV.4','+7%'),('LV.5','+10%')]
+        rows_zh=[('LV.1 原點','+1%'),('LV.2','+3%'),('LV.3','+5%'),('LV.4','+7%'),('LV.5','+10%')]
         txt('質押加成（示意）' if LOCAL else 'STAKING BOOST (ILLUSTRATIVE)',1230,160,600,24,MUTED,True)
         for j,(lv,rate) in enumerate(rows_zh if LOCAL else rows):
             y=205+j*92
