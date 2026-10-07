@@ -1,6 +1,7 @@
 # CLOCK IN 提交表單：長文答案草稿
 
 狀態：**草稿（2026-10-07）**，待使用者確認後貼入提交表單。欄位見 [clock-in-submission §8.5](clock-in-submission.md#85-官方規則摘要2026-10-06-查)。
+表單字數上限：公開 API 與條款未載明，需登入提交頁貼草稿確認。
 原則：只寫已在實機或自動測試驗證過的事；devnet／tSKR／TEST SKR 明講；質押只列 Roadmap（官方規定質押整合不列入 SKR 獎）。
 
 ## 短欄位建議
@@ -46,7 +47,7 @@ Verified on a Seeker on devnet with real transactions, for example the 2026-10-0
 
 Automated tests cover the wrong mint, wrong network, replays, someone else's payment, double taps and RPC failures.
 
-**Status, stated plainly:** the flow is verified on **devnet with a test SKR mint**. On-chain proof (2026-10-01, 2.5 TEST SKR): `5wqCxqKXBmQzbWu4ZVtwoJ6rbtB5gCgLdpP6bCtLoPc8ymScvKZ6mszqqq4JaScsrvQ482haVLYFFToamoS7cEnF`. Mainnet uses the same code path with a different mint setting. A small mainnet purchase with official SKR is planned as part of the dApp Store launch. It has not been done yet.
+**Status, stated plainly:** the flow is verified on **devnet with a test SKR mint**. On-chain proof (2026-10-01, 2.5 TEST SKR): `5wqCxqKXBmQzbWu4ZVtwoJ6rbtB5gCgLdpP6bCtLoPc8ymScvKZ6mszqqq4JaScsrvQ482haVLYFFToamoS7cEnF`. Mainnet uses the same code path: the backend already defaults to the official SKR mint (`SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3`) on mainnet and refuses to start with any other mint. Switching is a configuration change. A live mainnet purchase has not been made yet.
 
 **Why this design:** SKR gets a real, repeatable use inside an everyday habit. Each new achievement, shoe series or route theme can add a new cosmetic. Because cosmetics never change the game, rewards stay fair.
 
