@@ -52,7 +52,7 @@ NeonShift 為 Solana Mobile 打造，將日常活動連結到可以收藏與查�
 
 ## 05 · 由你核准， 留下鏈上申領紀錄。
 
-60–78 秒 · 真實申領 · 交易 5QawZy2B… · DEVNET
+60–78 秒 · 真實申領 · 交易 3PpfNbBr… · DEVNET
 
 ### Voiceover / 旁白
 
@@ -60,7 +60,7 @@ NeonShift 為 Solana Mobile 打造，將日常活動連結到可以收藏與查�
 
 ### 製作備註（不要配音）
 
-10/6 v21 實機錄影擷取：錢包核准（+10 tSKR）→ 步數任務領取成功（Tx 5QawZy2B…）→ 今日 2/2 已領。交易：5QawZy…（步數 +10）、3aPL5G…（運動 +5）。原始錄影在本機 private/recordings/。
+10/7 v22 實機錄影擷取：錢包核准（+10 tSKR，App 圖示已顯示）→ 步數任務領取成功（Tx 3PpfNbBr…）→ 領取後首頁 35 tSKR。交易：3PpfNb…（步數 +10）。錄影檔留在本機，未提交。
 
 ## 06 · 收藏里程碑， 保留成就的意義。
 

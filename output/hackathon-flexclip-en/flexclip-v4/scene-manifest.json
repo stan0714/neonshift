@@ -55,9 +55,9 @@
     "title": "Your approval. An onchain claim.",
     "voiceover": "Qualifying activity connects to a claim on Solana devnet. For daily steps, an Android Health Connect summary is checked before wallet approval. View the resulting transaction in the explorer.",
     "image": "slides/05.png",
-    "source": "output/hackathon-flexclip-en/captures/2026-10-06/2026-10-06_c21_s05_claim-1-wallet-approve.png",
-    "status": "REAL CLAIM · TX 5QawZy2B… · DEVNET",
-    "production_notes": "10/6 v21 實機錄影擷取：錢包核准（+10 tSKR）→ 步數任務領取成功（Tx 5QawZy2B…）→ 今日 2/2 已領。交易：5QawZy…（步數 +10）、3aPL5G…（運動 +5）。原始錄影在本機 private/recordings/。"
+    "source": "output/hackathon-flexclip-en/captures/2026-10-07/2026-10-07_c22_s05_claim-1-wallet-approve.png",
+    "status": "REAL CLAIM · TX 3PpfNbBr… · DEVNET",
+    "production_notes": "10/7 v22 實機錄影擷取：錢包核准（+10 tSKR，App 圖示已顯示）→ 步數任務領取成功（Tx 3PpfNbBr…）→ 領取後首頁 35 tSKR。交易：3PpfNb…（步數 +10）。錄影檔留在本機，未提交。"
   },
   {
     "scene": 6,

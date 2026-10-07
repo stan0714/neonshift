@@ -68,7 +68,7 @@ scenes=[
  ('A','Built for\nSolana Mobile.','Phone-based workouts.\nHealth summaries. Wallet approval.','MOBILE-FIRST FITNESS',13,None,'PRODUCT OVERVIEW','具體說明手機運動、健康摘要與錢包用途；右側為功能圖解，不是實機。'),
  ('B','Walk. Run.\nSee your progress.','Record → Save → Review','YOUR ACTIVITY JOURNAL',17,'output/hackathon-flexclip-en/captures/2026-10-06/2026-10-06_c21_s04_summary-6k.png','REAL DATA · NO DEMO OVERRIDE','10/6 v21 實機：當天跑步 6.41 km 的運動摘要（已同步；最高速度 12.7 km/h 為 v20 修正後數值）。'),
  ('B','Sync when\nyou are ready.','Optional online sync.\nOldest workout first.','STARTER SHOES + UPGRADES: NO PURCHASE NEEDED',18,'output/hackathon-flexclip-en/captures/2026-10-06/2026-10-06_c21_s04_profile-sync.png','REAL DATA · NO DEMO OVERRIDE','10/6 v21 實機：Auto-sync 開、0 pending、最後成功 10/6 22:29。保留「保存不等於獎勵資格」的旁白。'),
- ('C','Your approval.\nAn onchain claim.','Qualifying summary\n→ Wallet approval → Explorer','SOLANA DEVNET',18,'output/hackathon-flexclip-en/captures/2026-10-06/2026-10-06_c21_s05_claim-1-wallet-approve.png','REAL CLAIM · TX 5QawZy2B… · DEVNET','10/6 v21 實機錄影擷取：錢包核准（+10 tSKR）→ 步數任務領取成功（Tx 5QawZy2B…）→ 今日 2/2 已領。交易：5QawZy…（步數 +10）、3aPL5G…（運動 +5）。原始錄影在本機 private/recordings/。'),
+ ('C','Your approval.\nAn onchain claim.','Qualifying summary\n→ Wallet approval → Explorer','SOLANA DEVNET',18,'output/hackathon-flexclip-en/captures/2026-10-07/2026-10-07_c22_s05_claim-1-wallet-approve.png','REAL CLAIM · TX 3PpfNbBr… · DEVNET','10/7 v22 實機錄影擷取：錢包核准（+10 tSKR，App 圖示已顯示）→ 步數任務領取成功（Tx 3PpfNbBr…）→ 領取後首頁 35 tSKR。交易：3PpfNb…（步數 +10）。錄影檔留在本機，未提交。'),
  ('C','Collect milestones.\nKeep the meaning.','Achievements have their own\nrequirements and approval.','RAW HEALTH RECORDS: NOT ONCHAIN',17,'output/hackathon-flexclip-en/captures/2026-10-06/2026-10-06_c21_s06_nft-first5k-detail.png','REAL DATA · NO DEMO OVERRIDE','10/6 v21 實機：First 5K 成就 NFT 詳情（9/22 鑄造、devnet、asset 與 Explorer 入口）。這是成就收藏，不是付款結果。'),
  ('D','Earn eligibility.\nUnlock your frame.','Verified first 5K eligibility.\nServer-set order, price, recipient.','COSMETIC PAYMENT',22,'docs/evidence/2026-10-01-skr-devnet-eligible.png','TEST SKR · DEVNET · NOT OFFICIAL SKR','10/1 v11 實機：資格通過後的訂單畫面（2.5 SKR 固定價、伺服器指定收款人）。與第 8 頁同一帳號、同一包。'),
  ('D','Confirmed payment.\nUnlocked frame.','Wallet approval → Onchain check\n→ Cosmetic unlock','NO XP, RECORDS OR ACHIEVEMENTS BOUGHT',23,'docs/evidence/2026-10-01-skr-devnet-paid.png','TEST SKR · DEVNET · NOT OFFICIAL SKR','10/1 v11 實機付款成功截圖（簽章見 docs/evidence/2026-10-01-skr-devnet-payment.md）。10/2 決定沿用此圖，不另錄付款影片。'),
@@ -92,10 +92,10 @@ for i,(chapter,title,body,tag,duration,photo,label,note) in enumerate(scenes,1):
     txt(body,85,body_y,width,36,MUTED)
     txt(tag,85,650,width,25,MINT,True)
     if i==5:
-        # 第 5 頁：同一次領取的三個實機畫面（錢包核准 → 領取成功 → 今日 2/2）
+        # 第 5 頁：同一次領取的三個實機畫面（錢包核准 → 領取成功 → 領取後首頁）
         box(960,152,880,650)
-        for j,name in enumerate(['claim-1-wallet-approve','claim-2-step-claimed','claim-3-today-2of2']):
-            pic(f'{C}2026-10-06/2026-10-06_c21_s05_{name}.png',975+j*285,170,270,610)
+        for j,name in enumerate(['claim-1-wallet-approve','claim-2-step-claimed','claim-3-home-35']):
+            pic(f'{C}2026-10-07/2026-10-07_c22_s05_{name}.png',975+j*285,170,270,610)
     elif photo:
         box(1280,152,540,650)
         pic(photo,1300,170,500,610)
@@ -124,7 +124,7 @@ for i,(chapter,title,body,tag,duration,photo,label,note) in enumerate(scenes,1):
             txt(f'{j+1:02d}',1260,y+20,90,27,MINT,True)
             txt(line,1260,y+65,535,25,WHITE,True)
     # 實機截圖一律標出拍攝日與 APK 版本代碼，讓評審分得出來源
-    caps={1:('OCT 06','10/6','21'),3:('OCT 06','10/6','21'),4:('OCT 06','10/6','21'),5:('OCT 06','10/6','21'),6:('OCT 06','10/6','21'),7:('OCT 01','10/1','11'),8:('OCT 01','10/1','11'),9:('OCT 06','10/6','21')}
+    caps={1:('OCT 06','10/6','21'),3:('OCT 06','10/6','21'),4:('OCT 06','10/6','21'),5:('OCT 07','10/7','22'),6:('OCT 06','10/6','21'),7:('OCT 01','10/1','11'),8:('OCT 01','10/1','11'),9:('OCT 06','10/6','21')}
     if i in caps:
         en_d,zh_d,code=caps[i]
         txt(f'實機截圖 · {zh_d} · APK 版本代碼 {code}' if LOCAL else f'DEVICE CAPTURE · {en_d} · APK CODE {code}',85,746,1120,25,GOLD)

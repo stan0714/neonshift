@@ -70,7 +70,7 @@ Qualifying activity connects to a claim on Solana devnet. For daily steps, an An
 
 符合條件的活動可以在 Solana Devnet 上申領獎勵。每日步數任務會先檢查 Android Health Connect 摘要，再由使用者透過錢包核准。交易結果可在區塊鏈瀏覽器查閱。
 
-**素材界線**：真實申領 · 交易 5QawZy2B… · DEVNET。10/6 v21 實機錄影擷取：錢包核准（+10 tSKR）→ 步數任務領取成功（Tx 5QawZy2B…）→ 今日 2/2 已領。交易：5QawZy…（步數 +10）、3aPL5G…（運動 +5）。原始錄影在本機 private/recordings/。
+**素材界線**：真實申領 · 交易 3PpfNbBr… · DEVNET。10/7 v22 實機錄影擷取：錢包核准（+10 tSKR，App 圖示已顯示）→ 步數任務領取成功（Tx 3PpfNbBr…）→ 領取後首頁 35 tSKR。交易：3PpfNb…（步數 +10）。錄影檔留在本機，未提交。
 
 ## 06 · Collect milestones. Keep the meaning. / 收藏里程碑， 保留成就的意義。
 
