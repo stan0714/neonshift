@@ -1,0 +1,199 @@
+import * as Clipboard from 'expo-clipboard';
+import { Directory, File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { Share } from 'react-native';
+import type Svg from 'react-native-svg';
+
+import { SHARE_IMAGE, sharePublishable, type ShareFormat, type ShareImageLayout, type ShareRenderSpec } from '@/domain/shareImage';
+
+/**
+ * 出圖與分享（docs/social-share §6.1）。
+ *
+ * 用 react-native-svg 的 `toDataURL(cb, { width, height })`：原生端依 viewBox 重算後畫成
+ * 所選格式的點陣（post 1080×1350、story 1080×1920，不受 PixelRatio 影響），
+ * 所以畫面上只顯示縮圖也能輸出正確尺寸的圖。
+ *
+ * 兩條規格上的硬性要求：
+ * 1. **不在分享 API 返回時刪檔**。接收 App 可能還沒讀完，只能記到期時間，下次啟動或下次產圖再清。
+ * 2. **失敗不自動彈第二個面板**。回傳原因讓畫面給「重試／改分享文字／複製文案」，
+ *    使用者自己選；使用者取消分享不是錯誤。
+ */
+export type ShareFailReason = 'unpublishable' | 'no_target' | 'render_failed' | 'stale' | 'cache_full';
+export type ShareOutcome = { ok: true; withImage: true } | { ok: false; reason: ShareFailReason };
+
+const PREFIX = 'neonshift-share-';
+/** 暫存期限：本專案建議值，待實機確認慢速接收端讀得完（§6.1） */
+export const SHARE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+/** 數量上限：避免長期累積；超量時清掉最舊的**可淘汰**檔（保護期內的不算） */
+export const SHARE_CACHE_MAX_FILES = 8;
+/**
+ * R6：交付後的保護期。`Sharing.shareAsync` 返回只代表面板關了，**不代表接收 App 讀完了**——
+ * 它可能還在背景複製。舊版一返回就把檔案從保護名單移除，接著下一次分享的數量上限
+ * 就能把它刪掉：連續快速分享或接收端慢讀時，使用者拿到的是一張壞掉的圖。
+ *
+ * 用檔名裡的建立時間判定，不是記憶體狀態——這樣 App 重啟後保護仍然成立
+ * （我們重啟不代表接收端讀完了）。
+ */
+export const SHARE_DELIVERY_PROTECT_MS = 5 * 60 * 1000;
+const RENDER_TIMEOUT_MS = 10_000;
+
+/** 正在交付中的檔案：清理時絕不刪這些（§9.1「不刪正在交付的檔案」） */
+const active = new Set<string>();
+/** R3：出圖工作序號——只有最後一次出圖能交付（svg 節點是畫面上共用的） */
+let jobSeq = 0;
+
+const expiryOf = (name: string): number => {
+  const m = /^neonshift-share-[a-z]+-(\d+)-[0-9a-f]+\.png$/.exec(name);
+  return m ? Number(m[1]) : 0;
+};
+/** 檔名記的是到期時間；建立時間＝到期 − TTL（R6 保護期用） */
+const createdOf = (name: string): number => expiryOf(name) - SHARE_CACHE_TTL_MS;
+
+/** 檔名不含使用者資料：kind ＋ 到期時間 ＋ 隨機值（§6.1） */
+const nameFor = (kind: string, now: number) => `${PREFIX}${kind}-${now + SHARE_CACHE_TTL_MS}-${Math.floor(Math.random() * 0xfffffff).toString(16)}.png`;
+
+/**
+ * 清理過期暫存。啟動時與每次產圖前各跑一次；回傳刪掉的檔數。
+ * 只刪「已到期且不在本次分享中」的檔；超過數量上限時，也清掉最舊的（同樣跳過交付中）。
+ */
+export function cleanupShareCache(now = Date.now()): number {
+  let removed = 0;
+  try {
+    const files = listShareFiles();
+    for (const x of files.filter((y) => y.expiry <= now && !isBusy(y, now))) {
+      try { x.f.delete(); removed++; } catch { /* 已不存在 */ }
+    }
+    // 數量上限只能吃**可淘汰**的檔：保護期內的已交付檔寧可超量也不刪（R6）
+    const rest = files.filter((y) => y.expiry > now);
+    const evictable = rest.filter((y) => !isBusy(y, now)).sort((a, b) => a.expiry - b.expiry);
+    for (const x of evictable.slice(0, Math.max(0, rest.length - SHARE_CACHE_MAX_FILES))) {
+      try { x.f.delete(); removed++; } catch { /* 已不存在 */ }
+    }
+  } catch {
+    // 快取目錄讀不到不影響分享本身
+  }
+  return removed;
+}
+
+type ShareFile = { f: File; expiry: number; created: number };
+function listShareFiles(): ShareFile[] {
+  return new Directory(Paths.cache)
+    .list()
+    .filter((e): e is File => e instanceof File && e.name.startsWith(PREFIX))
+    .map((f) => ({ f, expiry: expiryOf(f.name), created: createdOf(f.name) }));
+}
+/** 產圖中，或還在交付保護期內——兩者都不准刪 */
+const isBusy = (x: ShareFile, now: number) => active.has(x.f.uri) || now - x.created < SHARE_DELIVERY_PROTECT_MS;
+
+/**
+ * R6：保護期內的檔案已經佔滿上限時，**拒絕新的產圖**而不是刪掉可能還在被讀的圖。
+ * 使用者等幾分鐘再分享就好；拿到壞圖是修不回來的。
+ */
+export function shareCacheFull(now = Date.now()): boolean {
+  try {
+    const files = listShareFiles().filter((x) => x.expiry > now);
+    return files.length >= SHARE_CACHE_MAX_FILES && files.every((x) => isBusy(x, now));
+  } catch {
+    return false; // 讀不到目錄就不要擋住分享
+  }
+}
+
+function toPngBase64(svg: Svg, format: ShareFormat): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => { if (!settled) { settled = true; reject(new Error('SHARE_IMAGE_TIMEOUT')); } }, RENDER_TIMEOUT_MS);
+    try {
+      svg.toDataURL(
+        (b64) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          if (b64) resolve(b64);
+          else reject(new Error('SHARE_IMAGE_EMPTY'));
+        },
+        // 尺寸**依所選格式**，不寫死 post：story 是 1080×1920，輸出錯尺寸等於裁掉內容
+        { width: SHARE_IMAGE[format].width, height: SHARE_IMAGE[format].height },
+      );
+    } catch (e) {
+      settled = true;
+      clearTimeout(timer);
+      reject(e instanceof Error ? e : new Error('SHARE_IMAGE_FAILED'));
+    }
+  });
+}
+
+/**
+ * 出圖並交給系統分享面板。一次只做一件事由呼叫端以狀態控制（`rendering`／`handing_off`）；
+ * 回傳 ok 只代表「交付流程返回」，不代表對方社群已發布。
+ */
+export async function shareLayout(opts: {
+  svg: Svg | null;
+  layout: ShareImageLayout;
+  dialogTitle: string;
+  /** 預覽當下凍結的輸入；帳號或來源變了就作廢，不讓延遲的匯出寫到別的帳號 */
+  spec?: ShareRenderSpec;
+  stillValid?: (spec: ShareRenderSpec) => boolean;
+  /** 輸出尺寸（§4.1）；預設 post 1080×1350 */
+  format?: ShareFormat;
+}): Promise<ShareOutcome> {
+  // 缺必要的網路標示一律不匯出：寧可不分享，也不讓人以為是主網資產或官方 SKR（§4.2）
+  if (!sharePublishable(opts.layout)) return { ok: false, reason: 'unpublishable' };
+  /**
+   * R3：一次出圖是一個 job，從這裡到交付都必須是**同一份工作、同一個帳號**。
+   * 舊版只在第一個 await 之前驗一次，之後等待能力查詢與 SVG 產圖的期間（實機上是好幾秒）
+   * 刪掉來源或換帳號，圖照樣寫出來、面板照樣打開。
+   *
+   * job 序號另外擋一種情況：svg 是畫面上**共用**的那個節點，前一次的 toDataURL
+   * 可能在使用者改了版面之後才回來——那張圖已經不是他當初預覽的內容。
+   */
+  const job = ++jobSeq;
+  const stillOurs = () => job === jobSeq && (!opts.spec || !opts.stillValid || opts.stillValid(opts.spec));
+  if (!stillOurs()) return { ok: false, reason: 'stale' };
+  if (!opts.svg) return { ok: false, reason: 'render_failed' };
+  cleanupShareCache();
+  if (shareCacheFull()) return { ok: false, reason: 'cache_full' };
+  let file: File | null = null;
+  let uri: string | null = null;
+  let handedOff = false;
+  try {
+    if (!(await Sharing.isAvailableAsync())) return { ok: false, reason: 'no_target' };
+    if (!stillOurs()) return { ok: false, reason: 'stale' };
+    const b64 = await toPngBase64(opts.svg, opts.format ?? 'post');
+    if (!stillOurs()) return { ok: false, reason: 'stale' }; // 產圖後、寫檔前：連檔案都不要產生
+    file = new File(Paths.cache, nameFor(opts.layout.kind, Date.now()));
+    file.create({ overwrite: true });
+    file.write(b64, { encoding: 'base64' });
+    uri = file.uri;
+    active.add(uri);
+    if (!stillOurs()) return { ok: false, reason: 'stale' }; // 交付前最後一道；檔案在 finally 刪掉
+    handedOff = true;
+    await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: opts.dialogTitle });
+    return { ok: true, withImage: true };
+  } catch {
+    return { ok: false, reason: 'render_failed' };
+  } finally {
+    // 交付結束就不再保護，但**不刪**：接收 App 可能還在讀，交給 TTL 清理。
+    // 沒交付出去的就不一樣——沒有人可能在讀它，而它是一張不該存在的圖，直接刪。
+    if (uri) active.delete(uri);
+    if (file && !handedOff) { try { file.delete(); } catch { /* 已不存在 */ } }
+  }
+}
+
+/** 使用者自己選「改成分享文字」時才走純文字，不由失敗自動觸發 */
+export async function shareTextInstead(message: string): Promise<boolean> {
+  try {
+    await Share.share({ message });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Android 上 IG 等只取圖、丟掉文字 → 文案與連結要能一鍵複製（§6.1） */
+export async function copyCaption(message: string): Promise<boolean> {
+  try {
+    return await Clipboard.setStringAsync(message);
+  } catch {
+    return false;
+  }
+}

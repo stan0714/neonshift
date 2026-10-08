@@ -2,16 +2,39 @@
  * GpsMetricsEngine（PG-R-04／R-05；walk-run-tracking 4、5；SD 16）。
  * 純計算、可由固定軌跡重播；不碰定位 API、不持久化。內部整數毫米／毫秒；UI 四捨五入不參與比較。
  *
- * 規則（GPS_RULES_VERSION 1）：
- * - 拒絕：非有限座標、時間倒序／重複、精度 > 20 m、與前一接受點的速度超過上限（跑 12 m/s／走 4 m/s）→ 疑似跳點、暫停中的點。
+ * 規則（GPS_RULES_VERSION 3；v2 完整性／防弊、v3 靜止漂移抑制）：
+ * - 拒絕：非有限座標、時間倒序／重複、精度 > acceptMaxAccuracyM（50 m，見 thresholds.ts）、與前一接受點的速度超過上限（跑 12 m/s／走 4 m/s）→ 疑似跳點、暫停中的點。
  * - 連續段：與前一接受點間隔 > 5 s、或暫停後恢復，從新點重新建段；不跨缺口補直線距離。
- * - 抖動：位移小於遲滯門檻的點不累加距離（錨點不前進），避免原地飄移增加里程。
+ * - 抖動：位移小於遲滯門檻（max(3 m, 0.6 × 精度)）的點不累加距離（錨點不前進）；OS 速度 < 0.3 m/s 且位移 < 3 × 精度也視為靜止（v3），避免原地飄移增加里程。
  * - 速度：最近完整 5 秒連續窗的接受距離 ÷ 5；窗不完整（缺口／暫停／剛開始）→ null。最高速度 = 該窗最大值。
+ *   顯示用速度／配速另走 10 秒窗＋EMA（τ 15 s）＋保持（變化 < 15 s/km 時最多每 5 s 更新一次），主數字不再每秒跳動（實機回饋）。
  * - Splits：每 splitLengthMm（1,000,000 或 1,609,344）在兩接受點間按距離比例插值時間；一次跨多界線逐一切；跨缺口者標 uncertain；末段 partial。
  * - Laps：手動圈與自訂距離自動圈為獨立序列；暫停時不可按 Lap；零距離／零時間不新增。
+ * - 完整性（INTEGRITY_RULES）：模擬定位點一律拒絕並記數；60 秒滑動窗平均速度超過跑 6.5／走 2.8 m/s 記一次持續超速；
+ *   缺口前後位移換算速度超過跳點上限記一次瞬移；utc−monotonic 偏移變化 > 30 s 記時鐘漂移；感測器探測（由 recorder 餵入）
+ *   ≥ 2 次且過半不一致記 motion_mismatch。任一旗標 → needs_review、不具 PB／任務資格；後端以 client_flags 二次判定，不信任 App 單方。
  */
 
-export const GPS_RULES_VERSION = 1;
+import { GPS_QUALITY } from './thresholds';
+
+export const GPS_RULES_VERSION = 3;
+/** 完整性（防弊）規則 v2：模擬定位、持續超速、缺口瞬移、時鐘漂移、感測器不一致（後者由 recorder 填入） */
+/**
+ * 最高速度（5 秒窗）的可信上限（m/s）：跑步 7.0（≈25 km/h，業餘衝刺上緣）、走路 3.0（≈11 km/h）。
+ * 超過的窗視為 GPS 雜訊，不列入最高速度（距離照算，這裡只管顯示／分享的那個數字）。
+ * 2026-10-03 實機：平均 7:24/km（≈8 km/h）的跑步，分享文字寫「Top speed 29.2 km/h」。
+ */
+export const TOP_SPEED_CEILING_MS = { run: 7.0, walk: 3.0 } as const;
+/** 靜止後補回的位移會集中在一個點上，接下來這段時間的 5 秒窗不列入最高速度 */
+export const TOP_SPEED_CATCHUP_HOLD_MS = 5000;
+
+export const INTEGRITY_RULES = {
+  /** 持續超速：60 秒滑動窗平均速度上限（m/s）；跑步 6.5（≈23 km/h）、走路 2.8（≈10 km/h） */
+  sustainedWindowMs: 60_000,
+  sustainedSpeedMs: { run: 6.5, walk: 2.8 } as const,
+  /** 缺口瞬移：缺口前後位移換算速度超過該模式跳點上限即記一次 */
+  clockDriftToleranceMs: 30_000,
+} as const;
 export const SPLIT_KM_MM = 1_000_000;
 export const SPLIT_MILE_MM = 1_609_344;
 /** PG-R-12 跑道模式可接受的圈長範圍（公尺）：涵蓋 200 m 室內／400 m 標準與較長環道；超出視為輸入錯誤 */
@@ -23,8 +46,12 @@ export type GpsConfig = {
   maxAccuracyM: number;
   maxGapMs: number;
   maxSpeedMs: number;
-  /** 遲滯：小於此位移不累加（mm） */
+  /** 遲滯：小於此位移不累加（mm）；實際門檻＝max(jitterFloorMm, accuracyFloorFactor × 精度) */
   jitterFloorMm: number;
+  /** 精度比例遲滯（精度 20 m × 0.6 ＝ 12 m）：精度差時抖動更大 */
+  accuracyFloorFactor: number;
+  /** Doppler 靜止門檻：OS 回報速度 < 此值且位移 < 3 × 精度 → 視為靜止（實機：室內放桌上 1h48 漂移累積 4.39 km） */
+  stillSpeedMs: number;
   splitLengthMm: number;
   /** 自訂距離自動圈（null = 關閉） */
   autoLapMm: number | null;
@@ -33,18 +60,24 @@ export type GpsConfig = {
 };
 
 export const defaultConfig = (sport: Sport, over: Partial<GpsConfig> = {}): GpsConfig => ({
-  maxAccuracyM: 20,
+  /** 2026-09-17 實機：無 SIM（無 A-GPS）戶外跑道 14 分鐘精度一直 > 20 m → 全部拒絕、0 km；放寬到 50 m（見 thresholds.ts），抖動由 0.6×精度的遲滯門檻抑制 */
+  maxAccuracyM: GPS_QUALITY.acceptMaxAccuracyM,
   maxGapMs: 5000,
   maxSpeedMs: sport === 'run' ? 12 : 4,
   jitterFloorMm: 3000,
+  accuracyFloorFactor: 0.6,
+  stillSpeedMs: 0.3,
   splitLengthMm: SPLIT_KM_MM,
   autoLapMm: null,
   trackLapMm: null,
   ...over,
 });
 
-export type RawPoint = { seq: number; monotonicMs: number; utcMs: number; lat: number; lon: number; accuracyM: number; speedMs?: number | null };
-export type RejectReason = 'not_finite' | 'out_of_order' | 'duplicate' | 'low_accuracy' | 'speed_spike' | 'paused' | 'not_recording';
+export type RawPoint = { seq: number; monotonicMs: number; utcMs: number; lat: number; lon: number; accuracyM: number; speedMs?: number | null; /** Android 模擬定位（LocationObject.mocked） */ mocked?: boolean };
+export type RejectReason = 'not_finite' | 'out_of_order' | 'duplicate' | 'low_accuracy' | 'speed_spike' | 'paused' | 'not_recording' | 'mock_location';
+export type IntegrityFlag = 'mock_location' | 'sustained_speed' | 'gap_teleport' | 'clock_drift' | 'motion_mismatch';
+/** 完整性摘要（防弊）：計數與旗標；旗標非空 → session needs_review、不具 PB 資格、不計探索任務 */
+export type Integrity = { mockPoints: number; sustainedSpeedEpisodes: number; gapTeleports: number; clockDriftMs: number; motionProbes: { total: number; mismatched: number }; flags: IntegrityFlag[] };
 export type PointResult = { accepted: boolean; reason?: RejectReason; distanceMm: number; newSegment: boolean; stationary: boolean };
 
 export type Lap = {
@@ -71,8 +104,15 @@ export type Summary = {
   elapsedMs: number;
   movingMs: number;
   pausedMs: number;
+  /**
+   * 全程平均（含暫停）：距離 ÷ elapsed。與後端 `avg_pace_s_per_km` 定義一致（伺服器以 ended−started 計）。
+   * 2026-09-19 review 1：跑步畫面主數字用的是運動平均（不含暫停），摘要主數字也改用 `movingAvg*`；這兩個欄位保留給「全程」與後端對照。
+   */
   avgSpeedKmh: number | null;
   avgPaceSPerKm: number | null;
+  /** 運動平均（不含暫停）：距離 ÷ moving。跑步中畫面與摘要主數字皆用此，兩處一致 */
+  movingAvgSpeedKmh: number | null;
+  movingAvgPaceSPerKm: number | null;
   /** 最高速度（5 秒平均），km/h */
   maxSpeed5sKmh: number | null;
   splits: Lap[];
@@ -80,6 +120,7 @@ export type Summary = {
   fastestSplit: Lap | null;
   trackEquivalent: TrackEquivalent | null;
   quality: { accepted: number; rejected: Record<RejectReason, number>; stationary: number; segments: number; gaps: number; coverageRatio: number; complete: boolean };
+  integrity: Integrity;
 };
 
 const R_MM = 6_371_008_800; // 平均地球半徑（mm）
@@ -108,9 +149,36 @@ export class GpsMetricsEngine {
   private cumMm = 0;
   private segment = 0;
   private window: Accepted[] = [];
+  /**
+   * 顯示用平滑速度（實機回饋二次：5 秒窗＋τ 8 s 的配速仍每秒跳動，不夠專業）：
+   * 10 秒窗（DISPLAY_WINDOW_MS）再做 EMA（τ 15 s），再經「保持」——顯示值只在變化 ≥ 15 s/km、或距上次更新 ≥ 5 s 時才換，
+   * 避免 5 秒量化邊界來回閃動。防弊／最高速度／自動暫停仍用原始 5 秒窗（windowSpeedMs()）。
+   */
+  private smoothSpeedMs: number | null = null;
+  private smoothAtMono = 0;
+  private shown: { speedMs: number; paceSPerKm: number | null; atMono: number } | null = null;
+  static readonly SPEED_SMOOTH_TAU_MS = 15_000;
+  static readonly DISPLAY_WINDOW_MS = 10_000;
+  static readonly DISPLAY_HOLD_MS = 5_000;
+  static readonly DISPLAY_PACE_STEP_S = 15;
   private maxSpeed5s: number | null = null;
+  /** 在此單調時間之前不更新最高速度（見 TOP_SPEED_CATCHUP_HOLD_MS） */
+  private topSpeedHoldUntil = 0;
   private coveredMs = 0;
-  private rejected: Record<RejectReason, number> = { not_finite: 0, out_of_order: 0, duplicate: 0, low_accuracy: 0, speed_spike: 0, paused: 0, not_recording: 0 };
+  private rejected: Record<RejectReason, number> = { not_finite: 0, out_of_order: 0, duplicate: 0, low_accuracy: 0, speed_spike: 0, paused: 0, not_recording: 0, mock_location: 0 };
+  // 完整性（防弊）
+  private sustainedWindow: { monotonicMs: number; cumMm: number }[] = [];
+  private inSustained = false;
+  private sustainedEpisodes = 0;
+  private gapTeleports = 0;
+  private clockOffset0: number | null = null;
+  private clockDriftMs = 0;
+  private motionProbes = { total: 0, mismatched: 0 };
+  // 記錄頁即時視覺化（只在記憶體、不持久化）：最近接受點與 5 秒窗速度樣本
+  private recent: RawPoint[] = [];
+  private speedSamples: { monotonicMs: number; speedMs: number }[] = [];
+  static readonly RECENT_MAX = 600;
+  static readonly SPEED_SAMPLE_WINDOW_MS = 300_000;
   private accepted = 0;
   private stationary = 0;
   private gaps = 0;
@@ -152,6 +220,8 @@ export class GpsMetricsEngine {
     this.state = 'recording';
     this.resumePending = true; // 恢復後從新點重新建段
     this.window = [];
+    this.smoothSpeedMs = null;
+    this.shown = null;
     return true;
   }
   elapsedAt(monotonicMs: number) {
@@ -167,6 +237,7 @@ export class GpsMetricsEngine {
     if (this.state === 'ready' || this.state === 'finished') return none('not_recording');
     if (this.state === 'paused') return none('paused');
     if (![p.lat, p.lon, p.accuracyM, p.monotonicMs].every(Number.isFinite) || Math.abs(p.lat) > 90 || Math.abs(p.lon) > 180) return none('not_finite');
+    if (p.mocked) return none('mock_location');
     if (p.seq <= this.lastSeq) return none('duplicate');
     if (p.monotonicMs < this.lastMono) return none('out_of_order');
     if (this.last && p.monotonicMs === this.last.monotonicMs) return none('duplicate');
@@ -177,7 +248,12 @@ export class GpsMetricsEngine {
     let stationary = false;
     if (!this.last || this.resumePending || p.monotonicMs - this.last.monotonicMs > this.config.maxGapMs) {
       // 新連續段：不跨缺口補距離
-      if (this.last && !this.resumePending) this.gaps += 1;
+      if (this.last && !this.resumePending) {
+        this.gaps += 1;
+        // 缺口瞬移：缺口期間的位移若超過該模式跳點上限，記一次（不計距離、只作完整性旗標）
+        const gapS = (p.monotonicMs - this.last.monotonicMs) / 1000;
+        if (gapS > 0 && haversineMm(this.last.lat, this.last.lon, p.lat, p.lon) / 1000 / gapS > this.config.maxSpeedMs) this.gapTeleports += 1;
+      }
       this.segment += 1;
       newSegment = true;
       this.resumePending = false;
@@ -191,7 +267,10 @@ export class GpsMetricsEngine {
       if (dt > 0 && dFromLast / 1000 / dt > this.config.maxSpeedMs) return none('speed_spike');
       const base = this.anchor ?? this.last;
       const dFromAnchor = haversineMm(base.lat, base.lon, p.lat, p.lon);
-      if (dFromAnchor < this.config.jitterFloorMm) {
+      const floorMm = Math.max(this.config.jitterFloorMm, this.config.accuracyFloorFactor * p.accuracyM * 1000);
+      // Doppler 靜止：OS 速度可用且接近 0，而位移仍在精度雜訊範圍內（< 3 × 精度）→ 不累加（位移很大時仍信位置，避免某些裝置永遠回報 0）
+      const dopplerStill = typeof p.speedMs === 'number' && p.speedMs >= 0 && p.speedMs < this.config.stillSpeedMs && dFromAnchor < 3 * p.accuracyM * 1000;
+      if (dFromAnchor < floorMm || dopplerStill) {
         stationary = true;
         this.stationary += 1;
       } else {
@@ -204,39 +283,137 @@ export class GpsMetricsEngine {
     const prevCum = this.cumMm;
     this.cumMm += distanceMm;
     const acc: Accepted = { monotonicMs: p.monotonicMs, lat: p.lat, lon: p.lon, cumMm: this.cumMm, segment: this.segment, elapsedMs };
+    // 前面有靜止點（錨點沒跟著走）→ 這一點一次補上從錨點起的整段位移；精度 50 m 時可達 30 m，
+    // 塞進 5 秒窗就變成假的最高速度。距離照算，只是這段時間不更新最高速度。
+    if (!stationary && distanceMm > 0 && this.anchor && this.anchor !== this.last) this.topSpeedHoldUntil = p.monotonicMs + TOP_SPEED_CATCHUP_HOLD_MS;
     if (!stationary) this.anchor = acc;
     const prev = this.last;
     this.last = acc;
     this.accepted += 1;
-    // 5 秒窗
+    // 連續窗：保留最近 10 秒（顯示用）；5 秒窗（最高速度／防弊／自動暫停）由同一列表取尾段
     this.window.push(acc);
-    while (this.window.length > 1 && acc.monotonicMs - this.window[0]!.monotonicMs > 5000) {
-      if (acc.monotonicMs - this.window[1]!.monotonicMs >= 5000) this.window.shift();
+    const keepMs = GpsMetricsEngine.DISPLAY_WINDOW_MS;
+    while (this.window.length > 1 && acc.monotonicMs - this.window[0]!.monotonicMs > keepMs) {
+      if (acc.monotonicMs - this.window[1]!.monotonicMs >= keepMs) this.window.shift();
       else break;
     }
+    const raw = this.windowSpeedMs();
+    if (raw !== null && p.monotonicMs >= this.topSpeedHoldUntil && raw <= TOP_SPEED_CEILING_MS[this.sport] && (this.maxSpeed5s === null || raw > this.maxSpeed5s)) this.maxSpeed5s = raw;
+    const display = this.windowSpeedMs(GpsMetricsEngine.DISPLAY_WINDOW_MS);
+    if (display === null || newSegment) { this.smoothSpeedMs = display; this.shown = null; }
+    else {
+      const dt = Math.max(0, p.monotonicMs - this.smoothAtMono);
+      const alpha = 1 - Math.exp(-dt / GpsMetricsEngine.SPEED_SMOOTH_TAU_MS);
+      this.smoothSpeedMs = this.smoothSpeedMs === null ? display : this.smoothSpeedMs + alpha * (display - this.smoothSpeedMs);
+    }
+    this.smoothAtMono = p.monotonicMs;
+    this.updateShown(p.monotonicMs);
     const cur = this.currentSpeedMs();
-    if (cur !== null && (this.maxSpeed5s === null || cur > this.maxSpeed5s)) this.maxSpeed5s = cur;
+    this.trackIntegrity(p, acc, newSegment);
+    this.recent.push({ seq: p.seq, monotonicMs: p.monotonicMs, utcMs: p.utcMs, lat: p.lat, lon: p.lon, accuracyM: p.accuracyM });
+    if (this.recent.length > GpsMetricsEngine.RECENT_MAX) this.recent.splice(0, this.recent.length - GpsMetricsEngine.RECENT_MAX);
+    if (cur !== null) {
+      this.speedSamples.push({ monotonicMs: p.monotonicMs, speedMs: cur });
+      while (this.speedSamples.length && p.monotonicMs - this.speedSamples[0]!.monotonicMs > GpsMetricsEngine.SPEED_SAMPLE_WINDOW_MS) this.speedSamples.shift();
+    }
     // 界線：在 prev→acc 間插值
     if (distanceMm > 0 && prev) this.crossBoundaries(prev.elapsedMs, prevCum, acc.elapsedMs, this.cumMm);
     return { accepted: true, distanceMm, newSegment, stationary };
   }
 
-  /** 最近完整 5 秒連續窗的平均速度（m/s）；窗不完整回 null */
+  /** 完整性：60 秒滑動窗持續超速（以 episode 計）與時鐘漂移（utc − monotonic 偏移量變化） */
+  private trackIntegrity(p: RawPoint, acc: Accepted, newSegment: boolean) {
+    if (newSegment) {
+      this.sustainedWindow = [];
+      this.inSustained = false;
+    }
+    this.sustainedWindow.push({ monotonicMs: acc.monotonicMs, cumMm: acc.cumMm });
+    while (this.sustainedWindow.length > 2 && acc.monotonicMs - this.sustainedWindow[1]!.monotonicMs >= INTEGRITY_RULES.sustainedWindowMs) this.sustainedWindow.shift();
+    const first = this.sustainedWindow[0]!;
+    const span = acc.monotonicMs - first.monotonicMs;
+    if (span >= INTEGRITY_RULES.sustainedWindowMs) {
+      const avg = (acc.cumMm - first.cumMm) / 1000 / (span / 1000);
+      const over = avg > INTEGRITY_RULES.sustainedSpeedMs[this.sport];
+      if (over && !this.inSustained) this.sustainedEpisodes += 1;
+      this.inSustained = over;
+    }
+    if (Number.isFinite(p.utcMs)) {
+      const offset = p.utcMs - p.monotonicMs;
+      if (this.clockOffset0 === null) this.clockOffset0 = offset;
+      else this.clockDriftMs = Math.max(this.clockDriftMs, Math.abs(offset - this.clockOffset0));
+    }
+  }
+
+  /** 最近接受點（最多 600 個；即時軌跡用，缺口以時間差在投影時斷線） */
+  recentPath(): RawPoint[] {
+    return this.recent;
+  }
+  /** 最近 5 分鐘的 5 秒窗速度樣本（sparkline 用） */
+  recentSpeeds(): { monotonicMs: number; speedMs: number }[] {
+    return this.speedSamples;
+  }
+
+  /** 外部時鐘漂移觀測（recorder 以單調時鐘對照牆鐘；點本身的 utc/monotonic 若同源則靠這個） */
+  recordClockDrift(ms: number) {
+    if (Number.isFinite(ms) && ms > this.clockDriftMs) this.clockDriftMs = ms;
+  }
+
+  /** 感測器探測結果（recorder 每隔一段時間量一次；GPS 在動但機身沒有步態＝不一致） */
+  recordMotionProbe(mismatched: boolean) {
+    this.motionProbes.total += 1;
+    if (mismatched) this.motionProbes.mismatched += 1;
+  }
+
+  /** 目前完整性摘要（記錄中亦可讀，供即時提示） */
+  integrity(): Integrity {
+    const flags: IntegrityFlag[] = [];
+    if (this.rejected.mock_location > 0) flags.push('mock_location');
+    if (this.sustainedEpisodes > 0) flags.push('sustained_speed');
+    if (this.gapTeleports > 0) flags.push('gap_teleport');
+    if (this.clockDriftMs > INTEGRITY_RULES.clockDriftToleranceMs) flags.push('clock_drift');
+    if (this.motionProbes.total >= 2 && this.motionProbes.mismatched >= 2 && this.motionProbes.mismatched * 2 >= this.motionProbes.total) flags.push('motion_mismatch');
+    return { mockPoints: this.rejected.mock_location, sustainedSpeedEpisodes: this.sustainedEpisodes, gapTeleports: this.gapTeleports, clockDriftMs: this.clockDriftMs, motionProbes: { ...this.motionProbes }, flags };
+  }
+
+  /** 顯示用目前速度（m/s）：10 秒窗經 EMA 平滑並保持；窗不完整回 null */
   currentSpeedMs(): number | null {
+    if (this.state !== 'recording' || this.shown === null) return null;
+    return this.shown.speedMs;
+  }
+  /**
+   * 最近完整 `spanMs` 連續窗的平均速度（m/s，未平滑）；預設 5 秒（最高速度／防弊／自動暫停用），顯示用傳 10 秒。
+   * 窗不完整（點不足 spanMs）回 null。
+   */
+  windowSpeedMs(spanMs = 5000): number | null {
     if (this.state !== 'recording' || this.window.length < 2) return null;
     const last = this.window[this.window.length - 1]!;
-    const first = this.window[0]!;
-    if (last.monotonicMs - first.monotonicMs < 5000) return null;
-    // 窗起點在 first 與 window[1] 之間插值累積距離
-    const t0 = last.monotonicMs - 5000;
-    const second = this.window[1]!;
-    const ratio = second.monotonicMs === first.monotonicMs ? 0 : (t0 - first.monotonicMs) / (second.monotonicMs - first.monotonicMs);
-    const cumAtT0 = first.cumMm + (second.cumMm - first.cumMm) * Math.min(1, Math.max(0, ratio));
-    return (last.cumMm - cumAtT0) / 1000 / 5;
+    if (last.monotonicMs - this.window[0]!.monotonicMs < spanMs) return null;
+    // 窗起點 t0 落在 window[i] 與 window[i+1] 之間：按時間比例插值累積距離
+    const t0 = last.monotonicMs - spanMs;
+    let i = 0;
+    while (i + 1 < this.window.length && this.window[i + 1]!.monotonicMs <= t0) i += 1;
+    const a = this.window[i]!;
+    const b = this.window[Math.min(i + 1, this.window.length - 1)]!;
+    const ratio = b.monotonicMs === a.monotonicMs ? 0 : (t0 - a.monotonicMs) / (b.monotonicMs - a.monotonicMs);
+    const cumAtT0 = a.cumMm + (b.cumMm - a.cumMm) * Math.min(1, Math.max(0, ratio));
+    return (last.cumMm - cumAtT0) / 1000 / (spanMs / 1000);
   }
+  /** 顯示用目前配速（s/km），取到 5 秒（如 5:30、5:35）並保持；速度 < 0.3 m/s 或窗不完整 → null */
   currentPaceSPerKm(): number | null {
-    const v = this.currentSpeedMs();
-    return v === null || v < 0.3 ? null : Math.round(1000 / v);
+    if (this.state !== 'recording' || this.shown === null) return null;
+    return this.shown.paceSPerKm;
+  }
+  private static paceOfSpeed(v: number): number | null {
+    return v < 0.3 ? null : Math.round(1000 / v / 5) * 5;
+  }
+  /** 保持：顯示值只在（首次／配速變化 ≥ 15 s/km／距上次更新 ≥ 5 s）時換成最新平滑值 */
+  private updateShown(monotonicMs: number) {
+    const v = this.smoothSpeedMs;
+    if (v === null) { this.shown = null; return; }
+    const pace = GpsMetricsEngine.paceOfSpeed(v);
+    const prev = this.shown;
+    const bigChange = prev === null || prev.paceSPerKm === null || pace === null ? true : Math.abs(pace - prev.paceSPerKm) >= GpsMetricsEngine.DISPLAY_PACE_STEP_S;
+    if (prev === null || bigChange || monotonicMs - prev.atMono >= GpsMetricsEngine.DISPLAY_HOLD_MS) this.shown = { speedMs: v, paceSPerKm: pace, atMono: monotonicMs };
   }
 
   private crossBoundaries(t0: number, d0: number, t1: number, d1: number) {
@@ -309,12 +486,15 @@ export class GpsMetricsEngine {
       pausedMs: this.pausedTotalMs,
       avgSpeedKmh: km > 0 && elapsedMs > 0 ? Number((km / (elapsedMs / 3_600_000)).toFixed(3)) : null,
       avgPaceSPerKm: paceOf(this.cumMm, elapsedMs),
+      movingAvgSpeedKmh: km > 0 && movingMs > 0 ? Number((km / (movingMs / 3_600_000)).toFixed(3)) : null,
+      movingAvgPaceSPerKm: paceOf(this.cumMm, movingMs),
       maxSpeed5sKmh: this.maxSpeed5s === null ? null : Number((this.maxSpeed5s * 3.6).toFixed(2)),
       splits,
       laps,
       fastestSplit,
       trackEquivalent: this.trackEquivalent(),
       quality: { accepted: this.accepted, rejected: { ...this.rejected }, stationary: this.stationary, segments: this.segment, gaps: this.gaps, coverageRatio, complete: this.gaps === 0 && coverageRatio >= 0.9 },
+      integrity: this.integrity(),
     };
   }
 }

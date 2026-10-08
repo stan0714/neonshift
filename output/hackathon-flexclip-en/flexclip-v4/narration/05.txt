@@ -1,0 +1,1 @@
+Qualifying activity connects to a claim on Solana devnet. For daily steps, an Android Health Connect summary is checked before wallet approval. View the resulting transaction in the explorer.

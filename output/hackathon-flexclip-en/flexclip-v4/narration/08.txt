@@ -1,0 +1,1 @@
+Review the details, then approve in your wallet. After the server verifies the confirmed transfer onchain, the frame unlocks for that wallet. This payment uses test tokens, not official SKR. It buys no experience points, records, or achievements.

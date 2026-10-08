@@ -5,7 +5,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
+import { SignInState } from '@/components/SignInState';
 import { APP_CONFIG } from '@/config/app';
+import { APP_VERSION } from '@/config/version';
 import type { TournamentView } from '@/services/api/ApiClient';
 import { useArenaStore, worstCaseLoss } from '@/state/arenaStore';
 import { formatTskr, useDashboardStore } from '@/state/dashboardStore';
@@ -76,15 +78,21 @@ export function ArenaScreen() {
         </Pressable>
       ) : null}
       {a.needsSignIn && !tt ? (
-        <Surface style={styles.card} testID="arena-signin">
-          <Text variant="title">{t('arena.signin.title')}</Text>
-          <Text variant="bodySmall" tone="secondary" style={styles.mt}>
-            {t('arena.signin.body')}
-          </Text>
-          <Button label={t('arena.signin.btn')} style={styles.mt} onPress={() => session && void a.signIn(session.publicKey)} loading={a.loading} loadingLabel={t('arena.signin.loading')} disabled={!session} disabledReason={session ? undefined : t('common.reasonConnectWallet')} testID="arena-signin-btn" />
-        </Surface>
+        // 與其他頁共用登入卡（離線／拒簽／錢包不回覆的分類與 Phantom 提醒），成功後才標記已登入並重載
+        <SignInState title={t('arena.signin.title')} body={t('arena.signin.body')} onSignedIn={async () => { useArenaStore.setState({ needsSignIn: false, error: null, outcome: null }); /* 清掉先前（例如 Phantom 不回覆）的失敗卡，不留「Could not enter」 */ if (session) await a.refresh(session.publicKey); }} testID="arena-signin" />
       ) : null}
-      {a.error && !tt ? <InlineState kind={APP_CONFIG.backendConfigured ? 'error' : 'info'} title={APP_CONFIG.backendConfigured ? t('arena.unavailable') : t('arena.noBackend')} body={APP_CONFIG.backendConfigured ? t('arena.unavailableBody', { error: a.error }) : t('arena.noBackendBody')} testID="arena-error" /> : null}
+      {a.error && !tt ? (
+        APP_CONFIG.backendConfigured ? (
+          <InlineState
+            kind={a.errorInfo?.kind === 'server' ? 'error' : 'warning'}
+            title={t(`arena.load.${a.errorInfo?.kind ?? 'server'}.title` as TKey)}
+            body={t(`arena.load.${a.errorInfo?.kind ?? 'server'}.body` as TKey)}
+            referenceId={a.errorInfo?.ref}
+            action={{ label: t('common.tryAgain'), onPress: () => void refresh(), loading: a.loading, testID: 'arena-error-retry' }}
+            testID="arena-error"
+          />
+        ) : <InlineState kind="info" title={t('arena.noBackend')} body={t('arena.noBackendBody')} testID="arena-error" />
+      ) : null}
 
       {!tt && !a.error && !a.needsSignIn ? (
         a.loading ? null : (
@@ -138,7 +146,7 @@ export function ArenaScreen() {
                 <Stat label={t('arena.endsIn')} value={remaining(t, tt.ends_at - now)} tint={color.violet} />
               </View>
               {joined ? (
-                <Button label={t('arena.report')} variant="primary" style={styles.mt} onPress={() => void a.submitSteps({ appVersion: '0.1.0', deviceModel: 'Android', osApi: 34, sdkExtension: 0 })} loading={a.busy === 'steps'} loadingLabel={t('arena.verifying')} disabled={Boolean(disabledReason) || a.busy !== null} disabledReason={disabledReason} testID="arena-steps" />
+                <Button label={t('arena.report')} variant="primary" style={styles.mt} onPress={() => void a.submitSteps({ appVersion: APP_VERSION, deviceModel: 'Android', osApi: 34, sdkExtension: 0 })} loading={a.busy === 'steps'} loadingLabel={t('arena.verifying')} disabled={Boolean(disabledReason) || a.busy !== null} disabledReason={disabledReason} testID="arena-steps" />
               ) : (
                 <Text variant="bodySmall" tone="secondary" style={styles.mt}>
                   {t('arena.notEnteredBody')}
@@ -290,7 +298,7 @@ function Stat({ label, value, tint }: { label: string; value: string; tint: stri
 type T = ReturnType<typeof useT>['t'];
 const remaining = (t: T, secs: number) => (secs <= 0 ? t('arena.ended') : secs < 3600 ? t('arena.minutes', { n: Math.ceil(secs / 60) }) : t('arena.hoursMinutes', { h: Math.floor(secs / 3600), m: Math.floor((secs % 3600) / 60) }));
 const outcomeTitle = (t: T, o: NonNullable<ReturnType<typeof useArenaStore.getState>['outcome']>) =>
-  o.kind === 'success' ? t(`arena.ok.${o.action}` as TKey) : o.code === 'REJECTED' ? t('gear.walletCancelled') : o.code === 'NETWORK_ERROR' ? t('gear.networkUnavailable') : t(`arena.err.${o.action}` as TKey);
+  o.kind === 'success' ? t(`arena.ok.${o.action}` as TKey) : o.code === 'REJECTED' ? t('gear.walletCancelled') : o.code === 'NETWORK_ERROR' ? t('gear.networkUnavailable') : o.code === 'INSUFFICIENT_SOL' ? t('common.insufficientSol.title') : t(`arena.err.${o.action}` as TKey);
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.m },

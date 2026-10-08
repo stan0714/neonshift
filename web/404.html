@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>找不到這個頁面 / Page not found — NeonShift</title>
+<meta name="description" content="這個網址在 neonshift.cc 上不存在。">
+<!-- 404 頁不是可分享的頁面：不放 OG／Twitter 標籤，也不讓它被索引。
+     Cloudflare Pages 找不到檔案時會用這一頁，並回正確的 404 狀態碼——
+     在此之前缺檔會被回成首頁＋200，害得「網站沒部署」看起來像一切正常。 -->
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="/brand-mark.svg">
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #050711; color: #F4F8FF; font: 16px/1.6 Inter, Roboto, Helvetica, Arial, sans-serif; }
+  main { max-width: 620px; margin: 0 auto; padding: 48px 20px 80px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+  header img { width: 40px; height: 40px; }
+  header .name { font-size: 18px; font-weight: 700; letter-spacing: .02em; }
+  .code { font-size: 13px; letter-spacing: .18em; color: #30EBC8; text-transform: uppercase; }
+  h1 { font-size: 28px; line-height: 1.2; margin: 6px 0; }
+  h2 { font-size: 18px; color: #AAB7CC; font-weight: 400; margin: 0 0 20px; }
+  p { color: #AAB7CC; }
+  code { color: #24C8FF; font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
+  .links { display: flex; flex-direction: column; gap: 12px; margin: 28px 0; }
+  .btn { display: block; text-align: center; padding: 14px 20px; border-radius: 12px; font-weight: 700; text-decoration: none; border: 1px solid transparent; }
+  .btn.primary { background: #30EBC8; color: #041016; }
+  .btn.ghost { color: #F4F8FF; border-color: #26324A; background: #0B1020; }
+  .box { background: #0B1020; border: 1px solid #26324A; border-radius: 14px; padding: 16px 18px; margin-top: 24px; }
+  .box h3 { margin: 0 0 6px; font-size: 15px; color: #30EBC8; }
+  .box p { margin: 0; font-size: 14px; }
+  footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid #26324A; color: #718099; font-size: 14px; }
+  footer a { color: #24C8FF; text-decoration: none; margin-right: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="/brand-mark.svg" alt="">
+    <span class="name">NeonShift</span>
+  </header>
+
+  <span class="code">404</span>
+  <h1>找不到這個頁面</h1>
+  <h2>Page not found</h2>
+  <p>你要找的網址 <code id="path">—</code> 不在 neonshift.cc 上。可能是連結打錯、或這個頁面還沒發布。</p>
+  <p>The address you asked for is not on neonshift.cc. The link may be mistyped, or the page may not be published yet.</p>
+
+  <div class="links">
+    <a class="btn primary" href="/">回首頁 / Go to the homepage</a>
+    <a class="btn ghost" href="/privacy/">隱私政策 / Privacy policy</a>
+  </div>
+
+  <div class="box">
+    <h3>從 App 的分享連結來的？ / Came from a share link?</h3>
+    <p>分享連結長得像 <code>neonshift.cc/s/…</code>。如果它落到這一頁，通常是那個頁面還沒發布；連結本身沒有壞，稍後再打開一次就好。分享圖片與連結都不含路線、精確時間與錢包位址。<br>Share links look like <code>neonshift.cc/s/…</code>. Landing here usually means that page is not published yet — the link itself is fine, so try again later. Share links and images carry no route, exact start time or wallet address.</p>
+  </div>
+
+  <footer>
+    <a href="/">首頁 / Home</a><a href="/privacy/">隱私 / Privacy</a><a href="/licenses/">Licenses</a>
+  </footer>
+</main>
+<script>
+  // 只顯示路徑，不顯示 query／fragment：分享連結的 ?source= 之類參數沒有必要回印在畫面上。
+  // 用 textContent 寫入（不是 innerHTML），所以網址裡的任何內容都不會被當成標記執行。
+  try {
+    var p = location.pathname;
+    document.getElementById('path').textContent = p.length > 120 ? p.slice(0, 120) + '…' : p;
+  } catch (e) { /* 顯示失敗就保留破折號 */ }
+</script>
+</body>
+</html>

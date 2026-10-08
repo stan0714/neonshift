@@ -85,6 +85,9 @@ pub fn handle_clock_in(ctx: Context<ClockIn>, args: AttestationArgs) -> Result<(
     // 2～7. ed25519 前置指令、attestor 公鑰、canonical bytes、program／cluster、wallet、時效
     let att = verify_attestation(&ctx.accounts.instructions_sysvar, config, &player_key, &args, now)?;
 
+    // 7b. 維持規則 v2（DEC-04）：睡眠任務退役——結構上仍能解析（歷史相容），但不再接受新申請
+    require!(att.task_type != TASK_SLEEP, ErrorCode::TaskTypeRetired);
+
     // 8. task_date 必須等於鏈上目前 UTC 日序
     let current_task_date = u32::try_from(now.div_euclid(SECONDS_PER_DAY)).map_err(|_| ErrorCode::InvalidTaskDate)?;
     require!(att.task_date == current_task_date, ErrorCode::InvalidTaskDate);
@@ -165,7 +168,11 @@ pub fn handle_clock_in(ctx: Context<ClockIn>, args: AttestationArgs) -> Result<(
 
     // 15. PG-V-02：Active level 只在期末結算切換（取代「XP 達標立刻升級」）；本筆計入本期維持點與活躍日
     //     （同日雙任務只算一個活躍日；每任務每日一張 receipt，故每日最多 150 點）
-    let points: u16 = if att.task_type == TASK_STEPS { MAINTENANCE_POINTS_STEPS } else { MAINTENANCE_POINTS_SLEEP };
+    //     v2（DEC-04）：步數 100、運動 100；睡眠已在步驟 7b 拒收（6045）
+    let points: u16 = if att.task_type == TASK_STEPS { MAINTENANCE_POINTS_STEPS } else { MAINTENANCE_POINTS_WORKOUT };
+    if profile.maintenance_rules_version < MAINTENANCE_RULES_VERSION {
+        profile.maintenance_rules_version = MAINTENANCE_RULES_VERSION; // 門檻不變，不重新錨定
+    }
     profile.epoch_points = profile.epoch_points.saturating_add(points);
     profile.epoch_bitmap |= 1u8 << day_offset(profile.epoch_anchor, att.task_date);
 

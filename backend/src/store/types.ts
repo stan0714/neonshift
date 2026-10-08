@@ -26,7 +26,7 @@ export type Session = {
 
 export type Player = { wallet: string; firstSeenAt: Date; lastSeenAt: Date; deletedAt: Date | null };
 
-export interface Store extends ClaimStore, PlayerDataStore, TournamentStore, IndexerStore, RetentionStore, GalleryStore, PartnerStore {
+export interface Store extends SkrStore, QuestStore, ClaimStore, PlayerDataStore, TournamentStore, IndexerStore, RetentionStore, GalleryStore, PartnerStore {
   insertChallenge(c: Challenge): Promise<void>;
   /** 原子消耗：只有未使用且未過期才會成功，回傳被消耗的 challenge */
   consumeChallenge(nonceHash: Buffer, now: Date): Promise<Challenge | null>;
@@ -294,6 +294,9 @@ export interface PartnerStore {
   listEventParticipants(eventId: string): Promise<EventParticipant[]>;
   updateParticipantPrivacy(eventId: string, wallet: string, patch: { displayName?: string | null; publicConsent?: boolean }, now: Date): Promise<EventParticipant | null>;
   bumpCampaign(eventId: string, source: string, day: string, field: "views" | "registrations" | "checkins" | "redemptions"): Promise<void>;
+  /** PG-SHARE-05：分享落地頁彙總（非唯一事件數；不存 IP／referrer／個人識別） */
+  bumpShare(kind: string, source: string, day: string, eventName: string): Promise<void>;
+  listShare(sinceDay: string, untilDay: string): Promise<{ kind: string; source: string; day: string; eventName: string; count: number }[]>;
   listCampaign(eventId: string): Promise<{ source: string; day: string; views: number; registrations: number; checkins: number; redemptions: number }[]>;
 
   // ---- PG-E-04：站點與 NFC 載具 ----
@@ -384,13 +387,16 @@ export interface PartnerStore {
 }
 
 /** PG-R-08 PB 成就＋ PG-M-02 首次里程碑：kind=pb 以 pbId 為來源；kind=milestone 以穩定 key（category|environment|class）為來源，來源更正沿用同一 achievement_id（終身一枚） */
-export type Achievement = { achievementId: string; wallet: string; kind: "pb" | "milestone" | "event"; pbId: string | null; milestoneKey: string | null; sourceKind: "workout" | "result" | null; sourceId: string | null; category: string; verificationClass: "organizer" | "device"; sourceRevision: number; rulesMajor: number; publicConsent: boolean; metadata: Record<string, unknown>; metadataHash: Buffer; status: "pending_registry" | "approved" | "minted" | "revoke_pending" | "revoked"; registrySignature: string | null; registryUpdatedAt: Date | null; asset: string | null; mintedSignature: string | null; mintedAt: Date | null; createdAt: Date; updatedAt: Date };
+export type Achievement = { achievementId: string; wallet: string; kind: "pb" | "milestone" | "event" | "seasonal"; pbId: string | null; milestoneKey: string | null; sourceKind: "workout" | "result" | null; sourceId: string | null; category: string; verificationClass: "organizer" | "device"; sourceRevision: number; rulesMajor: number; publicConsent: boolean; metadata: Record<string, unknown>; metadataHash: Buffer; status: "pending_registry" | "approved" | "minted" | "revoke_pending" | "revoked"; registrySignature: string | null; registryUpdatedAt: Date | null; asset: string | null; mintedSignature: string | null; mintedAt: Date | null; createdAt: Date; updatedAt: Date };
 
 export type PbDesired = { key: string; discipline: "run"; category: string; environment: string; verificationClass: string; timingBasis: string; rulesMajor: number; value: bigint; sourceKind: "workout" | "result"; sourceId: string; sourceRevision: number; achievedAt: Date; status: "current" | "historical"; isBaseline: boolean; previousSourceId: string | null };
 export type PbRevision = { pbId: string; wallet: string; discipline: string; category: string; environment: string; verificationClass: string; timingBasis: string; rulesMajor: number; value: bigint; sourceKind: "workout" | "result"; sourceId: string; sourceRevision: number; achievedAt: Date; status: "current" | "historical" | "invalidated"; isBaseline: boolean; previousPbId: string | null; createdAt: Date; invalidatedAt: Date | null; reason: string | null };
 
 export type WorkoutSession = {
   sessionId: string; wallet: string; sport: "run" | "walk"; environment: "outdoor" | "indoor" | "unknown"; origin: "health_connect" | "device" | "gps" | "organizer" | "manual";
+  /** PG-U-01：使用模式；舊資料 null */
+  intent: "casual" | "brisk" | "run" | null;
+  goalSnapshot: { kind: "free" | "time" | "distance"; target: number; unit: "s" | "mm"; version: number } | null;
   sourceId: string; externalRecordId: string; sourceRevision: number; startedAt: Date; endedAt: Date; elapsedMs: bigint; pausedMs: bigint;
   status: "saved" | "needs_review" | "invalid" | "deleted"; quality: "complete" | "partial" | "estimated" | "needs_review" | "invalid"; rulesVersion: number;
   distanceMm: bigint | null; distanceMethod: "device" | "gps" | "estimated" | "organizer" | null; steps: number | null; activeEnergyMkcal: bigint | null; energyMethod: "device" | "estimated" | "total" | null; totalEnergyMkcal: bigint | null; stepLengthMm: number | null;
@@ -412,3 +418,62 @@ export type NfcTag = { tagId: string; eventId: string; checkpointId: string | nu
 
 /** levelAtRegistration：報名時鞋階快照（PG-M-04／shoe-gameplay：活動 NFT 依報名時承諾權限，之後降級不沒收）；舊列 null */
 export type EventParticipant = { eventId: string; wallet: string; status: "registered" | "cancelled" | "checked_in"; acceptedRuleRevision: string; displayName: string | null; publicConsentAt: Date | null; registeredAt: Date; cancelledAt: Date | null; retentionDueAt: Date | null; levelAtRegistration: number | null };
+
+// ---------------- PG-U-04：個人週任務與探索冊（SD 17） ----------------
+export type QuestTemplate = { templateId: string; version: number; kind: "active_days" | "goal_time"; params: Record<string, unknown>; cosmeticId: string; active: boolean };
+export type QuestEnrollment = { enrollmentId: string; wallet: string; templateId: string; templateVersion: number; goal: Record<string, unknown>; timezone: string; periodStart: Date; periodEnd: Date; acceptedAt: Date; status: "active" | "completed" | "claimed" | "expired" | "revoked"; idempotencyKey: string; completedAt: Date | null; updatedAt: Date };
+export type QuestContribution = { enrollmentId: string; sourceKind: "workout"; sourceId: string; sourceRevision: number; localDay: string };
+export type QuestReceipt = { receiptId: string; wallet: string; enrollmentId: string; cosmeticId: string; issuedAt: Date; revokedAt: Date | null; revokeReason: string | null };
+export type CosmeticEntitlement = { wallet: string; cosmeticId: string; receiptId: string; status: "active" | "revoked"; grantedAt: Date; updatedAt: Date };
+
+/** XD-07 任務漏斗（只回計數，不含錢包）：每模板 接受→開始→合格完成→領取；另附撤銷／過期 */
+export type QuestFunnelRow = { templateId: string; accepted: number; started: number; completed: number; claimed: number; revoked: number; expired: number };
+/** XD-07 玩家概況與粗略留存（只回計數）：cohort＝since 起 7 天內首見；retained＝首見後 ≥7／≥30 天仍有活動（last_seen） */
+export type PlayerCohortStats = { players: number; new7d: number; active7d: number; cohort: { size: number; retainedD7: number; retainedD30: number } };
+export interface QuestStore {
+  questFunnel(since: Date, until: Date): Promise<QuestFunnelRow[]>;
+  playerCohortStats(since: Date, now: Date): Promise<PlayerCohortStats>;
+  listQuestTemplates(): Promise<QuestTemplate[]>;
+  listQuestEnrollments(wallet: string): Promise<QuestEnrollment[]>;
+  getQuestEnrollment(wallet: string, enrollmentId: string): Promise<QuestEnrollment | null>;
+  /** 冪等：同 wallet＋idempotency_key 或同 wallet＋template＋period_start → 回既有（created=false） */
+  createQuestEnrollment(e: Omit<QuestEnrollment, "status" | "completedAt" | "updatedAt">, now: Date): Promise<{ enrollment: QuestEnrollment; created: boolean }>;
+  replaceQuestContributions(enrollmentId: string, list: QuestContribution[]): Promise<void>;
+  listQuestContributions(enrollmentId: string): Promise<QuestContribution[]>;
+  setQuestEnrollmentStatus(enrollmentId: string, status: QuestEnrollment["status"], completedAt: Date | null, now: Date): Promise<QuestEnrollment | null>;
+  /** 發放：receipt＋外觀權限＋enrollment=claimed 同交易；已發放回既有 */
+  issueQuestReceipt(r: Omit<QuestReceipt, "revokedAt" | "revokeReason">, now: Date): Promise<{ receipt: QuestReceipt; created: boolean }>;
+  getQuestReceipt(enrollmentId: string): Promise<QuestReceipt | null>;
+  /** 撤銷：receipt 標記（保留最小紀錄）、外觀權限 revoked、enrollment=revoked */
+  revokeQuestReceipt(enrollmentId: string, reason: string, now: Date): Promise<void>;
+  /** 撤銷後重新符合：同 receipt 恢復（清 revoked_at、外觀 active、enrollment=claimed），不重發 */
+  restoreQuestReceipt(enrollmentId: string, now: Date): Promise<void>;
+  listCosmetics(wallet: string): Promise<CosmeticEntitlement[]>;
+}
+
+// ---------------- SKR-02～06：官方 SKR 外觀付款（docs/store/competition-development-plan.md §5） ----------------
+export type SkrOrderStatus = "awaiting_payment" | "confirming" | "fulfilled" | "expired" | "needs_review" | "cancelled";
+/** 訂單不可變欄位：network、wallet、SKU／版本、mint、最小單位金額、recipient、reference、期限、資格引用與來源環境（§5）；status／signature／paid* 為狀態欄 */
+export type SkrOrder = {
+  orderId: string; wallet: string; sku: string; skuVersion: number; cosmeticId: string; network: "mainnet-beta" | "devnet"; mint: string; decimals: number; amount: bigint;
+  recipient: string; recipientTokenAccount: string; reference: string; eligibilityRef: string; sourceEnv: string;
+  status: SkrOrderStatus; signature: string | null; paidAmount: bigint | null; paidSlot: bigint | null; paidAt: Date | null; failureReason: string | null;
+  expiresAt: Date; createdAt: Date; updatedAt: Date;
+};
+/** 一筆鏈上付款只能兌換一張訂單（signature 主鍵） */
+export type SkrReceipt = { signature: string; orderId: string; wallet: string; amount: bigint; slot: bigint; blockTime: Date | null; verifiedAt: Date };
+export type SkrEntitlement = { wallet: string; cosmeticId: string; orderId: string; status: "active" | "revoked"; grantedAt: Date; updatedAt: Date };
+
+export interface SkrStore {
+  createSkrOrder(o: Omit<SkrOrder, "status" | "signature" | "paidAmount" | "paidSlot" | "paidAt" | "failureReason" | "createdAt" | "updatedAt">, now: Date): Promise<SkrOrder>;
+  getSkrOrder(orderId: string): Promise<SkrOrder | null>;
+  /** 同錢包同 SKU 尚未終結（awaiting_payment／confirming／needs_review）的訂單，最新一張 */
+  findOpenSkrOrder(wallet: string, sku: string, skuVersion: number): Promise<SkrOrder | null>;
+  listSkrOrders(wallet: string, limit: number): Promise<SkrOrder[]>;
+  updateSkrOrder(orderId: string, patch: Partial<Pick<SkrOrder, "status" | "signature" | "paidAmount" | "paidSlot" | "paidAt" | "failureReason">>, now: Date): Promise<SkrOrder | null>;
+  getSkrReceipt(signature: string): Promise<SkrReceipt | null>;
+  /** 履約：receipt（signature 唯一）＋訂單 fulfilled＋外觀權限 active 同交易；signature 已被其他訂單使用 → { kind: "signature_used" }；同訂單重送 → 回既有 */
+  fulfillSkrOrder(orderId: string, receipt: Omit<SkrReceipt, "verifiedAt">, now: Date): Promise<{ kind: "ok"; order: SkrOrder; created: boolean } | { kind: "signature_used"; byOrderId: string } | { kind: "not_found" }>;
+  listSkrEntitlements(wallet: string): Promise<SkrEntitlement[]>;
+}
+

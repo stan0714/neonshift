@@ -10,6 +10,7 @@ import { ApiError, apiClient, type GalleryAchievementDetail } from '@/services/a
 import { color, space, Text } from '@/theme';
 import { shortAddress } from '@/state/walletStore';
 import { PbCard } from './PbCard';
+import { apiErrorText } from '@/services/api/errorText';
 
 /** NFT 詳情（activity-running-gallery 6.2）：作品、系列、原達成者／現持有人分開、鑄造日期、來源、狀態、network、asset、Explorer */
 export function AchievementDetailScreen() {
@@ -23,6 +24,7 @@ export function AchievementDetailScreen() {
       setData(await apiClient.galleryAchievement(params.asset));
       setErr(null);
     } catch (e) {
+      setData(null); // 對方退出藝廊（NOT_FOUND）或失敗：不留舊作品（review P1-2）
       setErr(e instanceof ApiError ? { code: e.code, message: e.message } : { code: 'UNKNOWN', message: String(e) });
     }
   }, [params.asset]);
@@ -32,7 +34,7 @@ export function AchievementDetailScreen() {
 
   return (
     <Screen scroll testID="achievement-detail-screen">
-      {err ? <InlineState kind={err.code === 'NOT_FOUND' ? 'info' : 'error'} title={err.code === 'NOT_FOUND' ? t('gal.missing.title') : t('common.somethingInterrupted')} body={err.code === 'NOT_FOUND' ? t('gal.missing.body') : t('nftd.err', { message: err.message })} testID="achievement-error" /> : null}
+      {err ? <InlineState kind={err.code === 'NOT_FOUND' ? 'info' : 'error'} title={err.code === 'NOT_FOUND' ? t('gal.missing.title') : t('common.somethingInterrupted')} body={err.code === 'NOT_FOUND' ? t('gal.missing.body') : t('nftd.err', { message: apiErrorText(t, err.message) })} testID="achievement-error" /> : null}
       {data ? (
         <>
           <View style={styles.cardWrap}>

@@ -1,7 +1,7 @@
 /** PG-R-08 App：claim_achievement 指令（帳戶順序、args ＝ 194-byte 訊息去 domain、向量）、鑄造服務（冪等／錯誤）、PB 區塊鑄造流程（同意 → 待核准／核准 → 費用確認 → 錢包）。 */
 import { PublicKey } from '@solana/web3.js';
 import { NavigationContainer } from '@react-navigation/native';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import bs58 from 'bs58';
 import { Buffer } from 'buffer';
 import type { PropsWithChildren } from 'react';
@@ -23,7 +23,7 @@ import { ThemeProvider } from '@/theme';
 jest.mock('@/config/app', () => ({ APP_CONFIG: { ...jest.requireActual('@/config/app').APP_CONFIG, programId: '6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA', chainConfigured: true } }));
 const mockAccountExists = jest.fn(async (_k: PublicKey) => false);
 const mockSend = jest.fn(async (_w: PublicKey, _ixs: unknown[]) => ({ signature: 'sigMint', blockhash: 'b', lastValidBlockHeight: 1 }));
-jest.mock('@/services/chain/ChainClient', () => ({ accountExists: (k: PublicKey) => mockAccountExists(k), sendWithWallet: (w: PublicKey, ixs: unknown[]) => mockSend(w, ixs), getConnection: () => ({}) }));
+jest.mock('@/services/chain/ChainClient', () => ({ accountExists: (k: PublicKey) => mockAccountExists(k), sendWithWallet: (w: PublicKey, ixs: unknown[]) => mockSend(w, ixs), getConnection: () => ({}), isInsufficientSol: jest.requireActual('@/services/chain/ChainClient').isInsufficientSol }));
 jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { personalBests: jest.fn(), myAchievements: jest.fn(async () => ({ items: [] })), mintIntent: jest.fn(), milestones: jest.fn(), milestoneMintIntent: jest.fn(), eventBadges: jest.fn(), eventBadgeMintIntent: jest.fn() } }));
 const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'personalBests' | 'myAchievements' | 'mintIntent' | 'milestones' | 'milestoneMintIntent' | 'eventBadges' | 'eventBadgeMintIntent', jest.Mock>;
 
@@ -94,7 +94,7 @@ describe('PersonalBests 鑄造流程', () => {
     api.personalBests.mockResolvedValueOnce({ rules_major: 1, imported_since: '2026-09-01T00:00:00Z', groups: [{ key: 'k', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', current: pb(), nft_eligibility: { status: 'level_required', level: 2, required: 3, effective_from: 20700 }, history: [] }, { key: 'k2', category: 'fastest_10k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', current: pb({ pb_id: 'p2', category: 'fastest_10k' }), nft_eligibility: { status: 'history_unknown', level: null, required: 3, effective_from: null }, history: [] }] });
     await render(<PersonalBests />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('pb-nft-level_required-fastest_5k-device')).toBeTruthy());
-    expect(screen.getByText('PB NFTs need Lv3 gear at the time of the record (you were Lv2). Kept as a private PB.')).toBeTruthy();
+    expect(screen.getByText('PB saved · not eligible for this NFT. You needed Lv3 active gear when this record was set (then: Lv2). After upgrading, set a new eligible PB to qualify.')).toBeTruthy();
     expect(screen.getByTestId('pb-nft-history_unknown-fastest_10k-device')).toBeTruthy();
     expect(screen.queryByTestId('pb-mint-fastest_5k-device')).toBeNull();
     api.personalBests.mockResolvedValue({ rules_major: 1, imported_since: '2026-09-01T00:00:00Z', groups: [{ key: 'k', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', current: pb(), nft_eligibility: { status: 'eligible', level: 3, required: 3, effective_from: 20700 }, history: [] }] });
@@ -126,6 +126,25 @@ describe('PersonalBests 鑄造流程', () => {
 
 describe('Milestones 收藏（PG-M-03）', () => {
   const item = (category: string, status: string, over: Record<string, unknown> = {}) => ({ key: `${category}|outdoor|${(over.verification_class as string) ?? 'device'}`, category, environment: 'outdoor', verification_class: 'device', rules_major: 1, threshold_mm: category === 'first_finish' ? null : '5000000', status, first: status === 'eligible' ? { source: { kind: 'workout', id: 'w1', revision: 1 }, achieved_at: '2026-09-05T01:00:00Z', distance_mm: '12000000', reason: null } : null, pending: null, ...over });
+  /**
+   * 2026-10-01 實機回報「按分享圖卡沒畫面」。預覽原本渲染在整個里程碑清單**之後**——
+   * 按最上面那張卡，預覽出現在螢幕外好幾張卡以下，而且畫面不會捲過去。
+   * 這裡斷言的是**位置**：預覽必須是被點那張卡的子節點，不是清單尾巴。
+   */
+  test('分享預覽出現在被點的那張卡裡面（不是整個清單之後）', async () => {
+    useWalletStore.setState({ status: 'connected', session: { address: wallet.toBase58(), publicKey: wallet, walletUriBase: '', label: 'Phantom' }, error: null } as never);
+    api.milestones.mockResolvedValue({ rules_major: 1, imported_since: null, items: [item('first_5k', 'eligible'), item('first_10k', 'eligible'), item('first_marathon', 'locked')], unlocked_by_source: [] });
+    api.myAchievements.mockResolvedValue({ items: [{ achievement_id: 'm10', kind: 'milestone', milestone_key: 'first_10k|outdoor|device', status: 'minted', minted: true }] });
+    await render(<Milestones />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('ms-share-first_10k-device')).toBeTruthy());
+    expect(screen.queryByTestId('ms-share-preview')).toBeNull();
+    await fireEvent.press(screen.getByTestId('ms-share-first_10k-device'));
+    await waitFor(() => expect(screen.getByTestId('ms-share-preview')).toBeTruthy());
+    expect(within(screen.getByTestId('ms-first_10k-device')).getByTestId('ms-share-preview')).toBeTruthy();
+    // 只有被點的那一張有預覽
+    expect(within(screen.getByTestId('ms-first_5k-device')).queryByTestId('ms-share-preview')).toBeNull();
+  });
+
   test('未連線不顯示；目錄狀態（未解鎖／裝置版待開放／待審／可領取／已領取／已撤銷）與「同一筆解鎖 N 個」；領取：同意 → 預覽列出公開內容＋費用 → 錢包簽送 → 已鑄造；未達標 409 提示', async () => {
     useWalletStore.setState({ status: 'disconnected', session: null, error: null } as never);
     await render(<Milestones />, { wrapper: Wrapper });

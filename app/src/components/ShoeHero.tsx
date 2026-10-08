@@ -2,17 +2,29 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Animated, AppState, Easing, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Stop } from 'react-native-svg';
 
+import { WildlifeShoePattern } from './WildlifeShoePattern';
+import { useT, type TKey } from '@/i18n';
+import { shoeVariant } from '@/config/shoeCollection';
+import { useWalletStore } from '@/state/walletStore';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { SHOE_PROGRESSION, type ShoeLevel } from '@/config/shoeProgression';
 import { color, space, Text } from '@/theme';
 
-export type ShoeHeroProps = { level?: ShoeLevel; size?: number; active?: boolean; /** 右上角 `LV. n` 標籤；縮圖（收藏格）可關閉 */ badge?: boolean };
+export type ShoeDetail = 'heel' | 'upper' | 'sole';
+const DETAIL_VIEWBOX: Record<ShoeDetail, string> = { heel: '22 62 82 84', upper: '61 92 163 51', sole: '29 130 195 33' };
 
-/** Layered vector shoe; native-driven levitation, with a stable perspective platform. */
-export function ShoeHero({ level = 1, size = 260, active = true, badge = true }: ShoeHeroProps) {
+export type ShoeHeroProps = { detail?: ShoeDetail; owner?: string | null; level?: ShoeLevel; size?: number; active?: boolean; /** 右上角 `LV. n` 標籤；縮圖（收藏格）可關閉 */ badge?: boolean };
+
+/** Gentle planar motion keeps the SVG shoe rigid and its proportions unchanged. */
+export function ShoeHero({ level = 1, size = 260, active = true, badge = true, owner, detail }: ShoeHeroProps) {
+  const { t } = useT();
+  const viewBox = detail ? DETAIL_VIEWBOX[detail] : '0 0 260 208';
+  const wallet = useWalletStore(s => s.session?.publicKey.toString() ?? null);
+  const variant = shoeVariant(owner === undefined ? wallet : owner, level);
   const reduceMotion = useReduceMotion();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const phase = useRef(new Animated.Value(0)).current;
+  const turn = useRef(new Animated.Value(0)).current;
   const id = useId().replace(/:/g, '');
   const stage = SHOE_PROGRESSION.stages[level - 1];
   const tint = stage.tint;
@@ -25,18 +37,30 @@ export function ShoeHero({ level = 1, size = 260, active = true, badge = true }:
 
   useEffect(() => {
     phase.setValue(0);
-    if (reduceMotion || !foreground || !active) return;
+    turn.setValue(0);
+    if (reduceMotion || !foreground || !active || detail) return;
     const timing = (toValue: number) => Animated.timing(phase, {
       toValue, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true, isInteraction: false,
     });
     const loop = Animated.loop(Animated.sequence([timing(1), timing(0)]));
+    const rotateTo = (toValue: number, duration: number) => Animated.timing(turn, {
+      toValue, duration, easing: Easing.inOut(Easing.sin), useNativeDriver: true, isInteraction: false,
+    });
+    // Begin and end face-on, so stopping motion restores a neutral presentation.
+    const rotation = Animated.loop(Animated.sequence([
+      rotateTo(1, 1800), rotateTo(-1, 3600), rotateTo(0, 1800),
+    ]));
     loop.start();
-    return () => loop.stop();
-  }, [phase, reduceMotion, foreground, active]);
+    rotation.start();
+    return () => {
+      loop.stop();
+      rotation.stop();
+    };
+  }, [phase, turn, reduceMotion, foreground, active, detail]);
 
   return (
-    <View style={{ width: size, maxWidth: '100%', height: size * 0.8 }} accessible accessibilityRole="image" accessibilityLabel={`Level ${level} shoe`} pointerEvents="none">
-      <Svg width="100%" height="100%" viewBox="0 0 260 208" style={StyleSheet.absoluteFill}>
+    <View style={{ width: size, maxWidth: '100%', height: size * 0.8 }} accessible accessibilityRole="image" accessibilityLabel={detail ? t('wild.detailLabel', { name: t(`col.stage.${level}` as TKey), part: t(`wild.part.${detail}` as TKey) }) : t(`col.stage.${level}` as TKey)} pointerEvents="none">
+      <Svg width="100%" height="100%" viewBox={viewBox} style={[StyleSheet.absoluteFill, detail && styles.hidden]}>
         <Defs>
           <RadialGradient id={`${id}-halo`}>
             <Stop offset="0" stopColor={tint} stopOpacity={0.13} />
@@ -50,17 +74,17 @@ export function ShoeHero({ level = 1, size = 260, active = true, badge = true }:
         <Path d="M22 169 H35 M225 169 H238 M130 148 V153 M130 191 V196" stroke={tint} strokeOpacity={0.5} strokeWidth={1.5} />
         <Path d="M31 48 V38 H44 M216 38 H229 V48" stroke={color.borderSubtle} fill="none" />
       </Svg>
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: phase.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0.28] }), transform: [{ scaleX: phase.interpolate({ inputRange: [0, 1], outputRange: [1, 0.85] }) }] }]}>
-        <Svg width="100%" height="100%" viewBox="0 0 260 208">
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: detail ? 0 : phase.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0.28] }), transform: [{ scaleX: phase.interpolate({ inputRange: [0, 1], outputRange: [1, 0.85] }) }] }]}>
+        <Svg width="100%" height="100%" viewBox={viewBox}>
           <Ellipse cx="133" cy="172" rx="66" ry="7" fill={tint} fillOpacity={0.2} />
           <Path d="M33 181 C65 200 194 200 226 179" fill="none" stroke={tint} strokeOpacity={0.65} strokeWidth={1.3} />
         </Svg>
       </Animated.View>
       <Animated.View style={[StyleSheet.absoluteFill, { transform: [
         { translateY: phase.interpolate({ inputRange: [0, 1], outputRange: [0, -size * 0.026] }) },
-        { rotate: phase.interpolate({ inputRange: [0, 1], outputRange: ['-2deg', '0deg'] }) },
+        { rotateZ: turn.interpolate({ inputRange: [-1, 0, 1], outputRange: ['-2deg', '0deg', '2deg'] }) },
       ] }]}>
-        <Svg width="100%" height="100%" viewBox="0 0 260 208">
+        <Svg width="100%" height="100%" viewBox={viewBox}>
           <Defs>
             <LinearGradient id={`${id}-upper`} x1="0%" y1="0%" x2="80%" y2="100%">
               <Stop offset="0" stopColor={color.textMuted} />
@@ -104,7 +128,7 @@ export function ShoeHero({ level = 1, size = 260, active = true, badge = true }:
             <Path d="M102 143 L113 150 L143 149 L157 142" stroke={color.canvas} strokeWidth={3} fill="none" />
           </G> : null}
           {level >= 4 ? <G>
-            <Path d="M34 99 L23 76 L38 83 L28 64 L44 77 L47 98 Z" fill={stage.material} stroke={tint} strokeWidth={1.2} />
+            <Path d="M32 108 Q24 85 34 76 Q44 79 48 98 L47 119 Z" fill={stage.material} stroke={tint} strokeWidth={1.2} />
             <Path d="M49 139 Q68 144 89 145 L84 151 L52 147 Z" fill={color.canvas} stroke={tint} />
             <Path d="M56 142 L79 146" stroke={tint} strokeWidth={2} />
           </G> : null}
@@ -113,6 +137,7 @@ export function ShoeHero({ level = 1, size = 260, active = true, badge = true }:
             <Path d="M61 151 L88 155 L86 160 L60 156 Z M154 154 L178 151 L177 157 L153 160 Z" fill={stage.material} stroke={tint} />
             <Path d="M93 155 H145" stroke={stage.accent} strokeDasharray="3 4" />
           </G> : null}
+          <WildlifeShoePattern level={level} variant={variant} tint={tint} />
           {/* N / forward-shift panel and restrained luminous piping. */}
           <Path d="M125 124 L136 103 L144 105 L150 117 L157 106 L166 109 L153 130 L145 128 L139 116 L133 126 Z" fill={paint('energy')} />
           <Path d="M36 125 Q104 148 214 131" fill="none" stroke={tint} strokeOpacity={0.12} strokeWidth={7} />
@@ -124,7 +149,7 @@ export function ShoeHero({ level = 1, size = 260, active = true, badge = true }:
           {level === 5 ? <Path d="M51 100 L57 95 L63 102" stroke={color.mint} fill="none" strokeWidth={2} /> : null}
         </Svg>
       </Animated.View>
-      {badge ? (
+      {badge && !detail ? (
         <View style={styles.badge}>
           <View style={[styles.dot, { backgroundColor: tint }]} />
           <Text variant="label" tone="secondary" uppercase>LV. {level}</Text>
@@ -135,6 +160,7 @@ export function ShoeHero({ level = 1, size = 260, active = true, badge = true }:
 }
 
 const styles = StyleSheet.create({
+  hidden: { opacity: 0 },
   badge: { position: 'absolute', right: space.s, top: space.xs, flexDirection: 'row', alignItems: 'center', gap: space.xs },
   dot: { width: 4, height: 4, borderRadius: 2 },
 });

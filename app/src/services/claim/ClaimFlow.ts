@@ -9,7 +9,7 @@ import bs58 from 'bs58';
 import { randomUUID } from 'expo-crypto';
 
 import { buildClaimInstructions } from '@/chain/txBuilder';
-import type { TaskType } from '@/domain/taskEngine';
+import { TASK_CODE, type TaskType } from '@/domain/taskEngine';
 import { ApiError, apiClient, type ClaimResponse } from '@/services/api/ApiClient';
 import { requestHashOf, type Json } from '@/services/api/canonical';
 import { claimSubmitter, type SubmitOutcome } from '@/services/chain/ClaimSubmitter';
@@ -34,6 +34,8 @@ export type ClaimInput = {
   taskDate: number;
   steps: StepsResult | null;
   sleep: SleepResult | null;
+  /** 維持規則 v2：運動任務證據（當日已同步的伺服器 session id；後端會自行核對） */
+  workout?: { serverId: string | null; distanceM: number; movingMs: number } | null;
   chain: { mint: PublicKey; rewardVault: PublicKey };
   /** PG-V-02：目前 profile 的維持狀態（由 dashboard 讀取）；缺省視為不需前置 */
   maintenance?: { migrate: boolean; pendingEpochs: number; freezeExists?: boolean };
@@ -45,6 +47,20 @@ export type ClaimInput = {
 /** SD 4.3 claim body（不含 claim_authorization） */
 export function buildClaimBody(input: ClaimInput, sensorSummary: Json | null): Record<string, Json> {
   const isSteps = input.taskType === 'steps';
+  if (input.taskType === 'workout') {
+    return {
+      task_type: 'workout',
+      task_date: input.taskDate,
+      steps: null,
+      sleep_minutes: null,
+      ...(input.workout?.serverId ? { workout_session_id: input.workout.serverId } : {}),
+      step_rate_summary: null,
+      data_origins: [],
+      sensor_summary: null,
+      motion_summary: null,
+      client: { app_version: input.client.appVersion, device_model: input.client.deviceModel, os_api: input.client.osApi, sdk_extension: input.client.sdkExtension },
+    };
+  }
   return {
     task_type: input.taskType,
     task_date: input.taskDate,
@@ -85,7 +101,7 @@ export async function runClaimFlow(input: ClaimInput, onPhase: (p: ClaimPhase) =
     const requestHash = requestHashOf(body);
 
     // 3. challenge（MWA 簽章）→ 4. attestation
-    const claim_authorization = await api.authorizeClaim('claim', requestHash, input.taskDate, input.taskType === 'steps' ? 1 : 2);
+    const claim_authorization = await api.authorizeClaim('claim', requestHash, input.taskDate, TASK_CODE[input.taskType]);
     let att: ClaimResponse;
     try {
       att = await api.claim({ ...body, claim_authorization }, randomUUID());

@@ -9,6 +9,7 @@
  *   npm run admin -- migrate-players <env> [--dry-run]                 # PG-V-02 舊帳戶遷移
  *   npm run admin -- settle-players <env> [--dry-run]                  # PG-V-02 批次結算
  *   npm run admin -- set-freeze <env> <startISO|0> <endISO|0> [reason]  # PG-V-05 全域凍結
+ *   OPS_TOKEN=… npm run admin -- demo-gallery <env> [--dry-run] [--players 3]   # Demo：藝廊示範玩家（devnet 真實帳戶）
  */
 import { PublicKey } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
@@ -16,6 +17,7 @@ import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { createCtx, DEFAULT_CONFIG, programDataAddress } from "./client.js";
 import { loadKeypair, require_ } from "./env.js";
 import { syncAchievements } from "./achievements.js";
+import { demoGallery } from "./demoGallery.js";
 import { migratePlayers, setFreeze, settlePlayers } from "./maintenance.js";
 import { tournamentCommand } from "./tournament.js";
 
@@ -25,7 +27,7 @@ const [cmd, envName, ...rest] = argv[0] === "tournament" ? ["tournament", argv[2
 
 async function main() {
   if (!cmd || !envName) {
-    console.error("用法：admin <init-config|status|set-paused|rotate-attestor|tournament|sync-achievements|migrate-players|settle-players|set-freeze> <dev|demo> [...]");
+    console.error("用法：admin <init-config|status|set-paused|rotate-attestor|tournament|sync-achievements|migrate-players|settle-players|set-freeze|demo-gallery> <dev|demo> [...]");
     process.exit(2);
   }
   const ctx = createCtx(envName);
@@ -97,6 +99,11 @@ async function main() {
     case "settle-players":
       await settlePlayers(ctx, rest.includes("--dry-run"));
       break;
+    case "demo-gallery": {
+      const n = rest.indexOf("--players");
+      await demoGallery(ctx, { dryRun: rest.includes("--dry-run"), players: n >= 0 ? Number(rest[n + 1]) : 3 });
+      break;
+    }
     case "set-freeze":
       await setFreeze(ctx, rest[0]!, rest[1]!, rest.filter((x) => x !== "--dry-run").slice(2).join(" ") || "incident", rest.includes("--dry-run"));
       break;

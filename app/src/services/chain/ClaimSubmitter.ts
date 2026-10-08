@@ -9,7 +9,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import { walletService } from '@/services/wallet/WalletService';
 
-import { buildTransaction, getConnection } from './ChainClient';
+import { assertCanPayFee, buildTransaction, getConnection, rpcRead } from './ChainClient';
 
 export type PendingTx = { signature: string; blockhash: string; lastValidBlockHeight: number; receipt: string; taskDate: number; taskType: number; wallet: string };
 
@@ -37,18 +37,31 @@ async function writePending(p: PendingTx | null) {
 export class ClaimSubmitter {
   constructor(
     private readonly conn: () => Connection = getConnection,
-    private readonly send: (tx: Parameters<typeof walletService.signAndSendTransaction>[0]) => Promise<string> = (tx) => walletService.signAndSendTransaction(tx),
+    private readonly send: (tx: Parameters<typeof walletService.signAndSendTransaction>[0], opts?: { minContextSlot?: number }) => Promise<string> = (tx, opts) => walletService.signAndSendTransaction(tx, opts),
   ) {}
 
+  /**
+   * receipt 是否已存在——**這是「這筆到底有沒有上鏈」的判準**，不只是一個查詢。
+   *
+   * 三個呼叫點裡有兩個在 `resolvePending` 的逾時分支，而這個讀取一旦丟例外，
+   * 整個判定就會以例外收場：pending 紀錄還在（不會遺失），但使用者看到的是錯誤而不是結論，
+   * 明明只要 400 ms 後重試一次就會有答案。所以這裡走 `rpcRead` 的退避（只對限流／逾時／
+   * 5xx／連不上重試，「帳號不存在」不重試）。讀取重試沒有冪等問題；**送出交易仍然不重試**。
+   *
+   * 同一分支後面的 `getSignatureStatus`／`getBlockHeight` 刻意保留 `.catch(() => null)`：
+   * 它們失敗時會落到「仍在有效期內、保留 pending、稍後再查」，那是安全的結論。
+   */
   async receiptExists(receipt: PublicKey): Promise<boolean> {
-    return (await this.conn().getAccountInfo(receipt, 'confirmed')) !== null;
+    return (await rpcRead('getAccountInfo(receipt)', (c) => c.getAccountInfo(receipt, 'confirmed'), () => this.conn())) !== null;
   }
 
   /** 送出並確認；逾時交給 `resolvePending` 判定 */
   async submit(player: PublicKey, instructions: TransactionInstruction[], receipt: PublicKey, task: { taskDate: number; taskType: number }): Promise<SubmitOutcome> {
     if (await this.receiptExists(receipt)) return { kind: 'already_claimed' };
-    const { tx, blockhash, lastValidBlockHeight } = await buildTransaction(player, instructions);
-    const signature = await this.send(tx);
+    // 付不出網路費就在開錢包前停下（丟 InsufficientSolError，ClaimFlow 以 code INSUFFICIENT_SOL 收尾）
+    await assertCanPayFee(player, undefined, () => this.conn());
+    const { tx, blockhash, lastValidBlockHeight, minContextSlot } = await buildTransaction(player, instructions);
+    const signature = await this.send(tx, { minContextSlot });
     const pending: PendingTx = { signature, blockhash, lastValidBlockHeight, receipt: receipt.toBase58(), wallet: player.toBase58(), ...task };
     await writePending(pending);
     return this.resolvePending(pending);

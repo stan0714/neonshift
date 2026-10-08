@@ -1,0 +1,1 @@
+Raw health records are not published onchain. Achievement collectibles have their own requirements and approval process. The blockchain records the claim, not every step.

@@ -31,6 +31,8 @@ export function loadEnv(name: string): DeployEnv {
   for (const k of Object.keys(vars)) vars[k] = expand(vars[k]!);
   // 二次展開處理 $KEY_DIR 內含 $HOME
   for (const k of Object.keys(vars)) vars[k] = expand(vars[k]!);
+  // 環境變數可覆寫（例：API_URL 走 SSH tunnel 到 l1:6080 而非尚未設定的 api.neonshift.cc）
+  for (const k of Object.keys(vars)) if (process.env[`NEONSHIFT_${k}`]) vars[k] = process.env[`NEONSHIFT_${k}`]!;
   return vars as DeployEnv;
 }
 

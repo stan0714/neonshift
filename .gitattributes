@@ -1,0 +1,2 @@
+# iCalendar（RFC 5545）規定以 CRLF 換行；不讓 core.autocrlf 轉成 LF
+*.ics -text

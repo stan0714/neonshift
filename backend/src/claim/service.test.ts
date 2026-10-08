@@ -68,7 +68,7 @@ async function authorize(u: Awaited<ReturnType<typeof login>>, body: Record<stri
       method: "POST",
       url: "/v1/auth/challenge",
       headers: { authorization: `Bearer ${u.token}` },
-      payload: { purpose: "claim", request_hash_b64: rh.toString("base64"), task_date: body.task_date, task_type: body.task_type === "steps" ? 1 : 2 },
+      payload: { purpose: "claim", request_hash_b64: rh.toString("base64"), task_date: body.task_date, task_type: body.task_type === "steps" ? 1 : body.task_type === "workout" ? 3 : 2 },
     })
   ).json();
   const msg = challengeMessage("claim", Buffer.from(c.challenge_b64, "base64"), rh, c.expires_at);
@@ -86,7 +86,7 @@ describe("PG-B-11 POST /attestation/claim", () => {
     const res = await claim(u, randomUUID(), payload);
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.rules_version).toBe(3);
+    expect(body.rules_version).toBe(4);
     expect(body.effective_value).toBe(9_420);
     expect(body.score).toBeUndefined();
     expect(body.threshold).toBeUndefined();
@@ -103,9 +103,9 @@ describe("PG-B-11 POST /attestation/claim", () => {
     expect(f.taskType).toBe(1);
     expect(Number(f.expiry - f.issuedAt)).toBe(600);
     expect(store.snapshots).toHaveLength(1);
-    expect(store.decisions[0]).toMatchObject({ decision: "pass", rulesVersion: 3 });
+    expect(store.decisions[0]).toMatchObject({ decision: "pass", rulesVersion: 4 });
     expect(store.attestations.size).toBe(1);
-    expect(store.ruleSets.get(3)).toBeTruthy();
+    expect(store.ruleSets.get(4)).toBeTruthy();
   });
 
   it("idempotency：同 key 同 payload 回原回應（同一簽章，不重簽）；同 key 不同 payload 409；challenge 只用一次", async () => {
@@ -134,7 +134,7 @@ describe("PG-B-11 POST /attestation/claim", () => {
     const key = randomUUID();
     const res = await claim(u, key, payload);
     expect(res.statusCode).toBe(422);
-    expect(res.json()).toEqual({ error: { code: "TASK_NOT_MET", message: expect.any(String), rules_version: 3, effective_value: 7_999 } });
+    expect(res.json()).toEqual({ error: { code: "TASK_NOT_MET", message: expect.any(String), rules_version: 4, effective_value: 7_999 } });
     expect(store.attestations.size).toBe(0);
     expect(store.decisions[0]).toMatchObject({ decision: "reject", rejectCode: "TASK_NOT_MET" });
     const again = await claim(u, key, payload);
@@ -189,8 +189,47 @@ describe("PG-B-11 POST /attestation/claim", () => {
     expect(retry.json().error.code).toBe("CHALLENGE_INVALID");
   });
 
+  it("維持規則 v2（DEC-04）：運動任務——無同日 GPS 紀錄 → WORKOUT_NOT_SYNCED；待審 → WORKOUT_UNDER_REVIEW；太短 → TASK_NOT_MET；合格 → task_type 3 attestation，證據含 session／距離／revision；睡眠 task_type 不再接受", async () => {
+    const u = await login();
+    const workoutBody = () => ({ task_type: "workout", task_date: 20_710, steps: null, sleep_minutes: null, step_rate_summary: null, data_origins: [], sensor_summary: null, motion_summary: null, client: { app_version: "0.1.0", device_model: "Seeker", os_api: 36, sdk_extension: 22 } });
+    const mk = (id: string, o: Partial<Parameters<MemoryStore["upsertWorkout"]>[0]>) => store.upsertWorkout({
+      sessionId: id, wallet: u.wallet, sport: "run", environment: "outdoor", origin: "gps", intent: "run", goalSnapshot: null, sourceId: "cc.neonshift.app/gps", externalRecordId: id, sourceRevision: 1,
+      startedAt: new Date("2026-09-14T10:00:00Z"), endedAt: new Date("2026-09-14T10:30:00Z"), elapsedMs: 1_800_000n, pausedMs: 300_000n, status: "saved", quality: "complete", rulesVersion: 1,
+      distanceMm: 5_000_000n, distanceMethod: "gps", steps: null, activeEnergyMkcal: null, energyMethod: null, totalEnergyMkcal: null, stepLengthMm: null, pbEligible: true, reviewReasons: [], extras: {}, requestHash: Buffer.alloc(32), ...o,
+    }, clock);
+    let res = await claim(u, randomUUID(), await authorize(u, workoutBody()));
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error).toMatchObject({ code: "WORKOUT_NOT_SYNCED", rules_version: 4 });
+    // Health Connect 匯入不算
+    await mk("hc-1", { origin: "health_connect", sourceId: "com.example.watch" });
+    res = await claim(u, randomUUID(), await authorize(u, workoutBody()));
+    expect(res.json().error.code).toBe("WORKOUT_NOT_SYNCED");
+    // 太短（0.8 km）
+    await mk("short", { distanceMm: 800_000n, externalRecordId: "short" });
+    res = await claim(u, randomUUID(), await authorize(u, workoutBody()));
+    expect(res.json().error).toMatchObject({ code: "TASK_NOT_MET", effective_value: 800_000 });
+    // 待審核
+    await mk("review", { status: "needs_review", quality: "needs_review", reviewReasons: ["sustained_speed"], externalRecordId: "review" });
+    res = await claim(u, randomUUID(), await authorize(u, workoutBody()));
+    expect(res.json().error.code).toBe("WORKOUT_UNDER_REVIEW");
+    // 合格：5 km、移動 25 分
+    await mk("ok-1", { externalRecordId: "ok-1" });
+    res = await claim(u, randomUUID(), await authorize(u, workoutBody()));
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.effective_value).toBe(5_000_000);
+    const att = decode(Buffer.from(body.attestation.message_b64, "base64"));
+    expect(att.taskType).toBe(3);
+    const snap = store.snapshots.at(-1)!;
+    expect(snap.taskType).toBe(3);
+    expect((snap.sourceSummary as { workout: { sessionId: string; distanceMm: number; movingMs: number } }).workout).toMatchObject({ sessionId: "ok-1", distanceMm: 5_000_000, movingMs: 1_500_000 });
+    // 睡眠：schema 不接受
+    res = await claim(u, randomUUID(), { ...workoutBody(), task_type: "sleep", claim_authorization: { challenge_b64: "x", expires_at: 1, signature_b64: "y" } });
+    expect(res.statusCode).toBe(400);
+  });
+
   it("GET /rules/version 公開版本與 hash", async () => {
     const r = await app.inject({ method: "GET", url: "/v1/rules/version" });
-    expect(r.json()).toMatchObject({ rules_version: 3, rules_hash: expect.stringMatching(/^sha256:[0-9a-f]{64}$/) });
+    expect(r.json()).toMatchObject({ rules_version: 4, rules_hash: expect.stringMatching(/^sha256:[0-9a-f]{64}$/) });
   });
 });

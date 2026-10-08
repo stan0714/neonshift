@@ -37,6 +37,8 @@ const REJECT_MESSAGES: Record<string, string> = {
   NO_SENSOR: "Complete the short motion check before claiming steps.",
   LIVE_MOTION_INCOMPLETE: "The motion check did not record enough movement. Walk a little and try again.",
   TASK_NOT_MET: "Today's mission goal has not been reached yet.",
+  WORKOUT_NOT_SYNCED: "No run or walk recorded in NeonShift has been synced for today yet.",
+  WORKOUT_UNDER_REVIEW: "Today's workout is still under review and cannot be claimed.",
   RISK_SCORE: "This claim could not be verified.",
 };
 
@@ -89,7 +91,9 @@ export class ClaimService {
         throw e;
       }
 
-      const decision = evaluate(req, this.rules);
+      // 運動任務：證據＝本人已同步、伺服器審核過的 GPS session（同 UTC 日）
+      const workouts = req.task_type === "workout" ? (await this.store.listWorkouts(wallet, 200, 0)) : [];
+      const decision = evaluate(req, this.rules, { workouts });
       if (req.task_type === "steps" && decision.steps?.inconsistent) {
         throw new ApiError(400, "VALIDATION", "step_rate_summary buckets do not add up to attributed steps");
       }
@@ -100,7 +104,7 @@ export class ClaimService {
         taskType,
         attributedSteps: decision.steps?.attributedSteps ?? null,
         sleepMinutes: decision.sleepMinutes,
-        sourceSummary: req.data_origins,
+        sourceSummary: req.task_type === "workout" ? { workout: decision.workout, data_origins: req.data_origins } : req.data_origins,
         stepRateSummary: req.step_rate_summary,
         sleepOverlapMinutes: decision.sleepOverlapMinutes,
         sensorSummary: req.sensor_summary,
@@ -183,6 +187,7 @@ export class ClaimService {
       effective_value: d.effectiveValue,
       sleep_minutes: d.sleepMinutes,
       sleep_overlap_minutes: d.sleepOverlapMinutes,
+      workout: d.workout ? { session_id: d.workout.sessionId, distance_mm: d.workout.distanceMm, moving_ms: d.workout.movingMs, revision: d.workout.revision } : null,
       data_origins: req.data_origins.map((o) => ({ package: o.package, source_kind: o.source_kind, steps: o.steps })),
       sensor_summary: req.sensor_summary,
       motion_summary: req.motion_summary,

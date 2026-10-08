@@ -1,0 +1,12 @@
+scene,chapter,start_seconds,duration_seconds,voiceover_file
+1,A,0,12,narration/01.txt
+2,A,12,13,narration/02.txt
+3,B,25,17,narration/03.txt
+4,B,42,18,narration/04.txt
+5,C,60,18,narration/05.txt
+6,C,78,17,narration/06.txt
+7,D,95,22,narration/07.txt
+8,D,117,23,narration/08.txt
+9,E,140,12,narration/09.txt
+10,E,152,13,narration/10.txt
+11,E,165,12,narration/11.txt

@@ -1,0 +1,1 @@
+符合條件的活動可以在 Solana Devnet 上申領獎勵。每日步數任務會先檢查 Android Health Connect 摘要，再由使用者透過錢包核准。交易結果可在區塊鏈瀏覽器查閱。

@@ -1,0 +1,21 @@
+{
+  "rules_version": 4,
+  "description": "維持規則 v2（DEC-04 方案 B，2026-09-20）：第二每日任務改為運動 session（App 內 GPS 記錄、伺服器審核通過、≥ 1 km 且移動 ≥ 10 分鐘）；睡眠任務退役。步數規則同 v3。",
+  "goals": { "steps": 8000, "sleep_minutes": 420, "workout": { "min_distance_mm": 1000000, "min_moving_ms": 600000 } },
+  "hard_reject": [
+    { "id": "SRC_UNATTRIBUTED", "task": "steps" },
+    { "id": "SRC_MANUAL", "task": "steps" },
+    { "id": "NO_SENSOR", "task": "steps" },
+    { "id": "LIVE_MOTION_INCOMPLETE", "task": "steps", "min_step_delta": 10 }
+  ],
+  "clamp": [
+    { "id": "RATE_EXCEEDED", "max_steps_per_minute": 250 },
+    { "id": "DAILY_CAP", "max_steps_per_day": 40000 }
+  ],
+  "score": [
+    { "id": "freq_variance_low", "task": "steps", "weight": 35, "max_freq_variance": 0.08, "min_step_delta": 10 },
+    { "id": "no_displacement_high_steps", "task": "steps", "weight": 20, "max_displacement_m": 200, "min_steps": 15000 },
+    { "id": "stride_implausible", "task": "steps", "weight": 25, "min_stride_m": 0.3, "max_stride_m": 1.5 }
+  ],
+  "threshold": 60
+}

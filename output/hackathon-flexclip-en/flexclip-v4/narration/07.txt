@@ -1,0 +1,1 @@
+NeonShift gives token payments a cosmetic purpose. Eligible first-five-kilometer runners can unlock a Genesis Mint frame, paid with a test token on devnet. The server sets the order, price, and recipient.

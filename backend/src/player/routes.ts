@@ -35,7 +35,7 @@ export async function playerRoutes(app: FastifyInstance, opts: { auth: AuthServi
       if (amount) totalEarned += BigInt(amount);
       return {
         task_date: i.taskDate,
-        task_type: i.taskType === 1 ? "steps" : "sleep",
+        task_type: i.taskType === 1 ? "steps" : i.taskType === 3 ? "workout" : "sleep",
         issued_at: i.issuedAt.toISOString(),
         expires_at: i.expiresAt.toISOString(),
         redeemed_signature: i.redeemedSig ?? (ev ? ev.signature : null),

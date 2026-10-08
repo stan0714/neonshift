@@ -1,6 +1,10 @@
+import { freezeWorkoutArtwork } from "../workouts/appearance.js";
 import { randomUUID } from "node:crypto";
 import { compareLeaderboard } from "./leaderboard.js";
-import type { GalleryBoard, LevelHistoryEntry, AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type { PlayerCohortStats, QuestFunnelRow,
+  SkrEntitlement,
+  SkrOrder,
+  SkrReceipt, CosmeticEntitlement, QuestContribution, QuestEnrollment, QuestReceipt, QuestTemplate, GalleryBoard, LevelHistoryEntry, AttestationRow, AuditEntry, Challenge, ChainCursor, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 /** 單元測試用；行為需與 PostgreSQL 實作一致（見 store.integration.test.ts） */
 export class MemoryStore implements Store {
@@ -287,6 +291,16 @@ export class MemoryStore implements Store {
     row[field] += 1;
     this.campaign.set(k, row);
   }
+  private share = new Map<string, { kind: string; source: string; day: string; eventName: string; count: number }>();
+  async bumpShare(kind: string, source: string, day: string, eventName: string) {
+    const k = `${kind}:${source}:${day}:${eventName}`;
+    const row = this.share.get(k) ?? { kind, source, day, eventName, count: 0 };
+    row.count += 1;
+    this.share.set(k, row);
+  }
+  async listShare(sinceDay: string, untilDay: string) {
+    return [...this.share.values()].filter((r) => r.day >= sinceDay && r.day <= untilDay).sort((a, b) => a.day.localeCompare(b.day) || a.kind.localeCompare(b.kind) || a.source.localeCompare(b.source) || a.eventName.localeCompare(b.eventName));
+  }
   async listCampaign(eventId: string) {
     return [...this.campaign.entries()].filter(([k]) => k.startsWith(`${eventId}:`)).map(([, v]) => v);
   }
@@ -492,10 +506,12 @@ export class MemoryStore implements Store {
       if (w.sourceRevision < existing.sourceRevision) return { outcome: "stale" as const, session: { ...existing } };
       if (w.sourceRevision === existing.sourceRevision && !existing.deletedAt) return { outcome: "same" as const, session: { ...existing } };
       const dup = this.findDuplicate(w, existing.sessionId);
+      w = { ...w, extras: freezeWorkoutArtwork(w.extras, existing.extras) };
       Object.assign(existing, { ...w, sessionId: existing.sessionId, revision: existing.revision + 1, updatedAt: now, deletedAt: null, possibleDuplicateOf: dup });
       return { outcome: "superseded" as const, session: { ...existing } };
     }
     const dup = this.findDuplicate(w, null);
+    w = { ...w, extras: freezeWorkoutArtwork(w.extras) };
     const row: WorkoutSession = { ...w, revision: 1, importedAt: now, updatedAt: now, deletedAt: null, possibleDuplicateOf: dup };
     this.workouts.set(row.sessionId, row);
     return { outcome: "created" as const, session: { ...row } };
@@ -751,7 +767,127 @@ export class MemoryStore implements Store {
     const i = sortLeaderboard([...this.tournamentSteps.values()].filter((r) => r.weekId === weekId)).findIndex((r) => r.wallet === wallet);
     return i < 0 ? null : i + 1;
   }
+  // ---- PG-U-04：探索冊 ----
+  private questTemplates: QuestTemplate[] = [
+    { templateId: "three_days", version: 1, kind: "active_days", params: { days: 3 }, cosmeticId: "chapter_01_three_days", active: true },
+    { templateId: "timed_goal", version: 1, kind: "goal_time", params: { minutes: [10, 20, 30] }, cosmeticId: "chapter_01_timed_goal", active: true },
+  ];
+  private questEnrollments = new Map<string, QuestEnrollment>();
+  async questFunnel(since: Date, until: Date): Promise<QuestFunnelRow[]> {
+    const rows = new Map<string, QuestFunnelRow>();
+    for (const e of this.questEnrollments.values()) {
+      if (e.acceptedAt < since || e.acceptedAt > until) continue;
+      const r = rows.get(e.templateId) ?? { templateId: e.templateId, accepted: 0, started: 0, completed: 0, claimed: 0, revoked: 0, expired: 0 };
+      r.accepted++;
+      // 開始＝接受後、截止前有任何一筆該錢包的跑步／走路（不論是否合格）
+      if ([...this.workouts.values()].some((w) => w.wallet === e.wallet && w.status !== "deleted" && w.startedAt >= e.acceptedAt && w.endedAt < e.periodEnd)) r.started++;
+      if (e.status === "completed" || e.status === "claimed") r.completed++;
+      if (e.status === "claimed") r.claimed++;
+      if (e.status === "revoked") r.revoked++;
+      if (e.status === "expired") r.expired++;
+      rows.set(e.templateId, r);
+    }
+    return [...rows.values()].sort((a, b) => a.templateId.localeCompare(b.templateId));
+  }
+  async playerCohortStats(since: Date, now: Date): Promise<PlayerCohortStats> {
+    const all = [...this.players.values()].filter((p) => !p.deletedAt);
+    const d = 86_400_000;
+    const cohort = all.filter((p) => p.firstSeenAt >= since && p.firstSeenAt < new Date(since.getTime() + 7 * d));
+    return {
+      players: all.length,
+      new7d: all.filter((p) => p.firstSeenAt >= new Date(now.getTime() - 7 * d)).length,
+      active7d: all.filter((p) => p.lastSeenAt >= new Date(now.getTime() - 7 * d)).length,
+      cohort: { size: cohort.length, retainedD7: cohort.filter((p) => p.lastSeenAt.getTime() - p.firstSeenAt.getTime() >= 7 * d).length, retainedD30: cohort.filter((p) => p.lastSeenAt.getTime() - p.firstSeenAt.getTime() >= 30 * d).length },
+    };
+  }
+  private questContributions = new Map<string, QuestContribution[]>();
+  private questReceipts = new Map<string, QuestReceipt>(); // by enrollmentId
+  private cosmetics: CosmeticEntitlement[] = [];
+  async listQuestTemplates() { return this.questTemplates.filter((t) => t.active).map((t) => ({ ...t })); }
+  async listQuestEnrollments(wallet: string) { return [...this.questEnrollments.values()].filter((e) => e.wallet === wallet).sort((a, b) => b.periodEnd.getTime() - a.periodEnd.getTime()).map((e) => ({ ...e })); }
+  async getQuestEnrollment(wallet: string, enrollmentId: string) { const e = this.questEnrollments.get(enrollmentId); return e && e.wallet === wallet ? { ...e } : null; }
+  async createQuestEnrollment(e: Omit<QuestEnrollment, "status" | "completedAt" | "updatedAt">, now: Date) {
+    const dup = [...this.questEnrollments.values()].find((x) => x.wallet === e.wallet && (x.idempotencyKey === e.idempotencyKey || (x.templateId === e.templateId && x.periodStart.getTime() === e.periodStart.getTime())));
+    if (dup) return { enrollment: { ...dup }, created: false };
+    const row: QuestEnrollment = { ...e, status: "active", completedAt: null, updatedAt: now };
+    this.questEnrollments.set(row.enrollmentId, row);
+    return { enrollment: { ...row }, created: true };
+  }
+  async replaceQuestContributions(enrollmentId: string, list: QuestContribution[]) { this.questContributions.set(enrollmentId, list.map((c) => ({ ...c }))); }
+  async listQuestContributions(enrollmentId: string) { return (this.questContributions.get(enrollmentId) ?? []).map((c) => ({ ...c })); }
+  async setQuestEnrollmentStatus(enrollmentId: string, status: QuestEnrollment["status"], completedAt: Date | null, now: Date) {
+    const e = this.questEnrollments.get(enrollmentId);
+    if (!e) return null;
+    Object.assign(e, { status, completedAt, updatedAt: now });
+    return { ...e };
+  }
+  async issueQuestReceipt(r: Omit<QuestReceipt, "revokedAt" | "revokeReason">, now: Date) {
+    const cur = this.questReceipts.get(r.enrollmentId);
+    if (cur) return { receipt: { ...cur }, created: false };
+    const receipt: QuestReceipt = { ...r, revokedAt: null, revokeReason: null };
+    this.questReceipts.set(r.enrollmentId, receipt);
+    this.cosmetics.push({ wallet: r.wallet, cosmeticId: r.cosmeticId, receiptId: r.receiptId, status: "active", grantedAt: now, updatedAt: now });
+    await this.setQuestEnrollmentStatus(r.enrollmentId, "claimed", this.questEnrollments.get(r.enrollmentId)?.completedAt ?? now, now);
+    return { receipt: { ...receipt }, created: true };
+  }
+  async getQuestReceipt(enrollmentId: string) { const r = this.questReceipts.get(enrollmentId); return r ? { ...r } : null; }
+  async revokeQuestReceipt(enrollmentId: string, reason: string, now: Date) {
+    const r = this.questReceipts.get(enrollmentId);
+    if (r && !r.revokedAt) Object.assign(r, { revokedAt: now, revokeReason: reason });
+    for (const c of this.cosmetics) if (r && c.receiptId === r.receiptId) Object.assign(c, { status: "revoked", updatedAt: now });
+    await this.setQuestEnrollmentStatus(enrollmentId, "revoked", null, now);
+  }
+  async restoreQuestReceipt(enrollmentId: string, now: Date) {
+    const r = this.questReceipts.get(enrollmentId);
+    if (!r) return;
+    Object.assign(r, { revokedAt: null, revokeReason: null });
+    for (const c of this.cosmetics) if (c.receiptId === r.receiptId) Object.assign(c, { status: "active", updatedAt: now });
+    await this.setQuestEnrollmentStatus(enrollmentId, "claimed", this.questEnrollments.get(enrollmentId)?.completedAt ?? now, now);
+  }
+  async listCosmetics(wallet: string) { return this.cosmetics.filter((c) => c.wallet === wallet).map((c) => ({ ...c })); }
+
+  // ---- SKR-02～06 ----
+  private skrOrders = new Map<string, SkrOrder>();
+  private skrReceipts = new Map<string, SkrReceipt>();
+  private skrEntitlements: SkrEntitlement[] = [];
+  async createSkrOrder(o: Omit<SkrOrder, "status" | "signature" | "paidAmount" | "paidSlot" | "paidAt" | "failureReason" | "createdAt" | "updatedAt">, now: Date) {
+    const row: SkrOrder = { ...o, status: "awaiting_payment", signature: null, paidAmount: null, paidSlot: null, paidAt: null, failureReason: null, createdAt: now, updatedAt: now };
+    this.skrOrders.set(o.orderId, row);
+    return { ...row };
+  }
+  async getSkrOrder(orderId: string) { const o = this.skrOrders.get(orderId); return o ? { ...o } : null; }
+  async findOpenSkrOrder(wallet: string, sku: string, skuVersion: number) {
+    const open = [...this.skrOrders.values()].filter((o) => o.wallet === wallet && o.sku === sku && o.skuVersion === skuVersion && (o.status === "awaiting_payment" || o.status === "confirming" || o.status === "needs_review")).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return open[0] ? { ...open[0] } : null;
+  }
+  async listSkrOrders(wallet: string, limit: number) { return [...this.skrOrders.values()].filter((o) => o.wallet === wallet).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit).map((o) => ({ ...o })); }
+  async updateSkrOrder(orderId: string, patch: Partial<Pick<SkrOrder, "status" | "signature" | "paidAmount" | "paidSlot" | "paidAt" | "failureReason">>, now: Date) {
+    const o = this.skrOrders.get(orderId); if (!o) return null;
+    Object.assign(o, patch, { updatedAt: now });
+    return { ...o };
+  }
+  async getSkrReceipt(signature: string) { const r = this.skrReceipts.get(signature); return r ? { ...r } : null; }
+  async fulfillSkrOrder(orderId: string, receipt: Omit<SkrReceipt, "verifiedAt">, now: Date) {
+    const o = this.skrOrders.get(orderId); if (!o) return { kind: "not_found" as const };
+    const used = this.skrReceipts.get(receipt.signature);
+    if (used && used.orderId !== orderId) return { kind: "signature_used" as const, byOrderId: used.orderId };
+    if (o.status === "fulfilled") return { kind: "ok" as const, order: { ...o }, created: false };
+    this.skrReceipts.set(receipt.signature, { ...receipt, verifiedAt: now });
+    Object.assign(o, { status: "fulfilled", signature: receipt.signature, paidAmount: receipt.amount, paidSlot: receipt.slot, paidAt: receipt.blockTime ?? now, failureReason: null, updatedAt: now });
+    const existing = this.skrEntitlements.find((e) => e.wallet === o.wallet && e.cosmeticId === o.cosmeticId);
+    if (existing) Object.assign(existing, { status: "active", orderId, updatedAt: now });
+    else this.skrEntitlements.push({ wallet: o.wallet, cosmeticId: o.cosmeticId, orderId, status: "active", grantedAt: now, updatedAt: now });
+    return { kind: "ok" as const, order: { ...o }, created: true };
+  }
+  async listSkrEntitlements(wallet: string) { return this.skrEntitlements.filter((e) => e.wallet === wallet).map((e) => ({ ...e })); }
+
   async deletePlayerData(wallet: string, now: Date, deferUntil: Date | null): Promise<DeletionResult> {
+    // PG-U-04：探索冊資料隨錢包刪除
+    for (const [id, e] of this.questEnrollments) if (e.wallet === wallet) { this.questEnrollments.delete(id); this.questContributions.delete(id); this.questReceipts.delete(id); }
+    this.cosmetics = this.cosmetics.filter((c) => c.wallet !== wallet);
+    // SKR：外觀權限與未履約訂單一併刪除；已履約訂單與 receipt 為付款紀錄，保留（§5 退款／人工處理依據）
+    this.skrEntitlements = this.skrEntitlements.filter((e) => e.wallet !== wallet);
+    for (const [k, o] of this.skrOrders) if (o.wallet === wallet && o.status !== "fulfilled") this.skrOrders.delete(k);
     const sessions = await this.revokeWallet(wallet, now);
     const p = this.players.get(wallet);
     if (p) {

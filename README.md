@@ -1,83 +1,127 @@
 # NeonShift
 
-Solana Mobile 健康追蹤 dApp。將每日跑步／健走與睡眠轉化為「打卡」任務，由後端驗證 Health Connect 摘要並簽發 attestation，鏈上程式驗簽後發放 tSKR 測試代幣、累積 XP、免費升級跑鞋；達成等級／里程碑可免費領取 Metaplex Core 成就 NFT，週末以質押制步數錦標賽競賽，藝廊展示全站排行。
+[繁體中文](README.zh-TW.md)
 
-> **tSKR 是 devnet 測試代幣，無金錢價值，不是官方 SKR。** 目標裝置 Solana Mobile Seeker（Android 14+）；iOS 不在範圍。正式網域 `neonshift.cc`，Android package `cc.neonshift.app`。
+**Move every day, prove it on Solana.** NeonShift is an Android dApp for the Solana Mobile Seeker. It turns daily running and walking into "clock-in" missions. The backend checks a Health Connect / GPS workout summary and signs an attestation. The on-chain program verifies that signature, then pays out tSKR test tokens and XP that level up your running shoe. Hitting a level or milestone unlocks free Metaplex Core achievement NFTs.
 
-## 架構
+> **Devnet only.** tSKR is a devnet test token with **no monetary value** and is **not** the official SKR. Supported devices: Android / Solana Mobile Seeker (Android 14+). iOS is out of scope. Supported activities: running and walking.
+
+| | |
+|---|---|
+| Network | Solana **devnet** |
+| Program ID | `6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA` |
+| tSKR mint | `2itshf7Xup3WZeeDRSXbstv4nbPcjfiLhdDpcQjU7RtZ` |
+| API | `https://api.neonshift.cc/v1` |
+| Android package | `cc.neonshift.app` |
+| Website | [neonshift.cc](https://neonshift.cc) |
+
+## For judges
+
+| Deliverable | Link |
+|---|---|
+| Android APK (release, signed) | _added at submission_ |
+| Demo video (≤ 3 min) | _added at submission_ |
+| Pitch deck (PDF) | _added at submission_ |
+| Judges' quick guide | [docs/store/judges-guide.md](docs/store/judges-guide.md) (Traditional Chinese) |
+
+To try it, you need a Seeker or another Android 14+ phone with an MWA wallet (Seed Vault Wallet, Phantom, Solflare) on **devnet**, plus a little devnet SOL for fees (for example from [faucet.solana.com](https://faucet.solana.com)).
+
+## What works today
+
+**Verified on a Seeker** (release build, devnet). Evidence is in [`docs/evidence/`](docs/evidence/):
+
+- **Wallet:** wallet connection and Sign-In With Solana through Mobile Wallet Adapter, including:
+  - cancel and timeout handling;
+  - switching accounts with data kept separate per wallet;
+  - a clear "no compatible wallet" state ([RC record](docs/evidence/2026-10-02-rc-v17.md)).
+- **Workouts:** GPS run/walk recording with splits and a summary, sync to the backend, and an Activity history with week/month/year views.
+- **Daily clock-in:** the backend attests, the wallet signs, and the program pays tSKR and XP. Each wallet can claim once per UTC day, and this is enforced on-chain by a receipt PDA.
+- **Achievement NFTs:** free Metaplex Core collectibles such as "First 5K", minted to the player's wallet.
+- **Genesis Mint frame:** a cosmetic frame bought with a **devnet test SKR mint**. It covers the order, the wallet signature, on-chain verification and the OWNED state ([evidence](docs/evidence/2026-10-01-skr-devnet-payment.md)). A payment with official SKR on mainnet has **not** been made.
+
+**Implemented with automated tests, partially device-tested:** weekly staked step tournaments (Arena), partner events with staff check-in ([evidence](docs/evidence/2026-09-24-events.md)), the public player gallery, and share cards.
+
+**Planned, not built:** SKR staking that boosts mission rewards by shoe level, with 10% of the boost going to a separately tracked wildlife conservation pool (rates not final, no returns promised; [design](docs/design/skr-staking-boost.md)); mainnet deployment; pattern-route challenges ([design](docs/design/pattern-route-challenges.md)); more shoe series.
+
+## Architecture
 
 ```mermaid
 flowchart LR
-  subgraph Phone["Seeker（Android）"]
-    HC[Health Connect<br/>Steps／Sleep] --> App
-    Sensors[Motion sensors] --> App
-    App[NeonShift App<br/>Expo／React Native] <--> MWA[Mobile Wallet Adapter<br/>Seed Vault／Phantom]
+  subgraph Phone["Seeker (Android)"]
+    HC[Health Connect<br/>steps] --> App
+    GPS[GPS workouts] --> App
+    App[NeonShift app<br/>Expo / React Native] <--> MWA[Mobile Wallet Adapter<br/>Seed Vault / Phantom]
   end
-  App -- "SIWS 登入、claim（錢包簽章 challenge）、賽事步數" --> API
-  subgraph Backend["後端（Fastify／PostgreSQL）"]
-    API[REST /v1] --> Risk[風險規則 v3]
-    API --> Signer[Attestor signer<br/>（隔離服務）]
-    IDX[ChainIndexer] --> DB[(PostgreSQL)]
+  App -- "SIWS sign-in, claim challenge, tournament steps" --> API
+  subgraph Backend["Backend (Fastify / PostgreSQL)"]
+    API[REST /v1] --> Risk[Risk rules]
+    API --> Signer[Attestor signer<br/>isolated service]
+    IDX[Chain indexer] --> DB[(PostgreSQL)]
     API --> DB
-    IDX --> Gallery[藝廊投影]
   end
-  App -- "clock_in / join / claim_prize / claim_collectible" --> Chain
+  App -- "clock_in / claim_collectible / join / claim_prize" --> Chain
   subgraph Chain["Solana devnet"]
-    Prog[neonshift-core<br/>Anchor 1.2] --> SPL[tSKR SPL Token]
-    Prog --> Core[Metaplex Core NFT]
+    Prog[neonshift-core<br/>Anchor] --> SPL[tSKR SPL token]
+    Prog --> Core[Metaplex Core NFTs]
   end
-  Chain -- "finalized 事件" --> IDX
-  Web[neonshift.cc<br/>NFT metadata／隱私政策] -. URI .- Core
+  Chain -- finalized events --> IDX
 ```
 
-**信任邊界**：原始健康紀錄只留在手機；後端只收到任務日摘要（最長保留 30 天）；鏈上只記錄「是否達標」與金額，不含健康數值。attestation 為 164-byte canonical bytes（`NEONSHIFT_ATTEST_V1`），Rust／TypeScript／Python 三方向量鎖定；每個 claim 需錢包對單次 challenge 簽章，JWT 只負責 session。
+**Trust boundaries:**
 
-## Repo 結構
+- **On the phone:** raw health records and GPS routes never leave the device.
+- **On the backend:** only per-day summaries, kept for at most 30 days.
+- **On-chain:** whether a mission was met and the amount paid. No health values.
 
-| 路徑 | 內容 |
+**Attestations:**
+
+- Each attestation is 164 canonical bytes (`NEONSHIFT_ATTEST_V1`), pinned by shared test vectors across Rust, TypeScript and Python.
+- It is valid for 10 minutes and uses a single-use nonce.
+- It is bound to the program ID, cluster, wallet and task day.
+- Every claim also needs the wallet to sign a one-time challenge.
+
+**Anti-cheat (summary):**
+
+- **Source filtering:** only device-recorded steps count. Manual and third-party entries are excluded.
+- **Caps:** 250 steps per minute and 40,000 steps per day.
+- **GPS checks:** speed-spike and teleport detection.
+- **Versioned rules:** the rules version is bound into every attestation.
+- **Tournament settlement:** a rolling-hash commitment with a vault balance reconciliation.
+
+## Repository layout
+
+| Path | Contents |
 |---|---|
-| `app/` | React Native Android App（Expo SDK 57 custom dev client；Kotlin 模組 `modules/neonshift-health`、`modules/neonshift-sensors`） |
-| `backend/` | Attestor 後端（Node 24 + Fastify 5 + PostgreSQL）：SIWS／JWT、challenge、風險引擎、attestation、賽事 API、ChainIndexer、藝廊、保留清理 |
-| `programs/` | Anchor 1.2 workspace：`attestation-core`（共用 canonical bytes）、`neonshift-core`（Config／Player／clock_in／collectible／tournament）、LiteSVM 測試 |
-| `tools/chain-admin/` | 鏈上管理 CLI（init-config、pause、attestor 輪替、錦標賽生命週期） |
-| `tools/nft-assets/` | 成就 NFT metadata／圖片產生器 → `web/nft/` |
-| `web/` | neonshift.cc 靜態站（NFT metadata、隱私政策） |
-| `scripts/` | 環境、建置、部署、`test-all.sh` |
-| `deploy/` | `dev.env`／`demo.env`／`local.env`（公開參數；私鑰一律在 `~/.config/neonshift/<env>/`） |
-| `docs/` | BRD、SA、SD、Style、PG 進度、Runbook、實機證據截圖 |
+| `app/` | React Native Android app (Expo SDK 57 custom dev client; Kotlin modules for Health Connect and motion sensors) |
+| `backend/` | Attestor backend (Node 24, Fastify 5, PostgreSQL): SIWS/JWT, challenges, risk engine, attestation, tournaments, indexer, gallery |
+| `programs/` | Anchor workspace: `attestation-core` (shared canonical bytes) and `neonshift-core` (config, player, clock-in, collectibles, tournaments), with LiteSVM tests |
+| `tools/` | Chain admin CLI and NFT metadata/image generator |
+| `web/` | Static site for neonshift.cc (NFT metadata, privacy policy) |
+| `scripts/`, `deploy/` | Environment, build, deploy and test scripts. Public parameters only; keys never live in this repo |
+| `docs/` | Requirements, analysis, design, UI style guide, progress tracking and device evidence. Most of it is in Traditional Chinese |
 
-## 文件
-
-| 文件 | 用途 |
-|---|---|
-| `docs/brd-detailed.md` | 業務需求 |
-| `docs/sa.md` | 系統分析（業務規則 BR-*） |
-| `docs/sd.md` | 系統設計（帳戶、指令、API、結算協議、藝廊） |
-| `docs/style.md` | UI 樣式規範（token、畫面、狀態） |
-| `docs/pg.md` | 開發項目與進度追蹤（狀態規則：合入 dev 前只標 WIP） |
-| `docs/build-and-test.md` | 環境安裝、實機建置、devnet 部署、賽事操作、Release APK |
-| `docs/store/listing.md` | dApp Store 上架素材與送審檢查表 |
-
-## 快速開始
+## Build and test
 
 ```bash
-source scripts/env.sh                 # Node 24、JDK 17、Android SDK、solana 3.1、anchor 1.2
-scripts/env-check.sh                  # 檢查工具鏈
-scripts/test-all.sh                   # Rust／向量／DB／後端／App／LiteSVM 全部測試（需 Docker）
+source scripts/env.sh        # Node 24, JDK 17, Android SDK, Solana CLI, Anchor
+scripts/env-check.sh         # check the toolchain
+scripts/test-all.sh          # Rust, vectors, DB, backend, app and LiteSVM tests (needs Docker)
 
-# 後端本機
+# Backend (local)
 cd backend && npm ci && npm run db:up && npm run db:migrate && npm run dev
 
-# App（實機 Seeker，dev 環境參數）
-scripts/app/build.sh dev debug && adb install -r app/android/app/build/outputs/apk/debug/app-debug.apk
-scripts/app/start.sh dev
+# App: release APK for a device (bring your own keystore; none is in this repo)
+APP_ARCHS=arm64-v8a scripts/app/build.sh demo release
 
-# 鏈上
+# Programs
 cd programs && anchor build --arch v0 && cargo test -p neonshift-core
 ```
 
-詳細步驟與工具鏈注意事項見 `docs/build-and-test.md`。
+The full steps are in [`docs/build-and-test.md`](docs/build-and-test.md) (Traditional Chinese). A release build writes `release-notes.txt` with the Git commit, APK SHA-256, versionCode, backend and network. Demo builds always ship with demo overrides off.
 
-## 防作弊（摘要）
+## Authorship, AI assistance and license
 
-來源歸因只計裝置步數（Android legacy／current device SPN），排除手動與第三方；每分鐘 250 步、每日 40,000 步夾限；可選 20 秒動作統計（只上傳摘要）；規則版本 `rules_version` 綁進 attestation 與鏈上事件；attestation 十分鐘有效、單次 nonce、綁 program id／cluster／錢包／任務日；鏈上 receipt PDA 防重領；賽事結算以 canonical entry rolling hash 承諾，資金守恆斷言與 vault 實際餘額對帳。細節見 `docs/sd.md` 4.4、6.2 與 SA 附錄 A。
+- **Team:** solo project by Stanley Liu. The full Git history is kept; nothing has been squashed or rewritten.
+- **AI assistance:** the code, docs and some assets were produced with AI tools such as Claude Code. This includes brand concept art and the demo voice-over (TTS). The author made the design decisions, ran the acceptance tests and is responsible for the submission. AI-assisted commits are marked with `Co-Authored-By`.
+- **License:** the code is [MIT](LICENSE) (app, backend and programs). The NeonShift / CLOCK IN names and logos, the wildlife shoe artwork, and the documents in `docs/` and `output/` are not covered by MIT; all rights are reserved (see the end of LICENSE).
+- **Third-party licenses:** listed at [neonshift.cc/licenses](https://neonshift.cc/licenses/). Asset sources are in [docs/legal/asset-sources.md](docs/legal/asset-sources.md).

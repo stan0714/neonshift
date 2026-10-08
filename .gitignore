@@ -29,3 +29,27 @@ secrets/
 
 # 部署用金鑰不進 repo（deploy/README.md）
 **/*-keypair.json
+app/modules/*/android/.gradle/
+
+# 不公開的工作檔（募資簡報、個人行程、內部規劃）——只留在本機
+private/
+
+# 伺服器上的 env 與密碼檔（範本 *.env.example 可提交；deploy/{dev,demo,local}.env 只有公開值，刻意追蹤）
+**/api.env
+**/signer.env
+.dbpass
+*.env
+!deploy/dev.env
+!deploy/demo.env
+!deploy/local.env
+
+# 建置產物、紀錄與傾印
+*.apk
+*.aab
+*.log
+*.har
+logcat*.txt
+*.dump
+*.sql.gz
+.wrangler/
+app/modules/*/android/build/

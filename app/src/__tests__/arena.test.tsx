@@ -41,7 +41,7 @@ beforeEach(() => {
   mockSvc.submitSteps.mockResolvedValue({ week_id: 202638, verified_steps: 12_345, submitted_steps: 12_345, accepted: true, first_reached_at: null, rank: 2 });
   useWalletStore.setState({ status: 'connected', session: { address: wallet.toBase58(), publicKey: wallet, walletUriBase: '', label: 'Phantom' }, error: null } as never);
   useDashboardStore.setState({ config: { mint, paused: false, coreMultiplierBps: [10_000], shoeXpThresholds: [] } } as never);
-  useArenaStore.setState({ current: null, leaderboard: null, entry: null, loading: false, error: null, needsSignIn: false, busy: null, outcome: null, syncedAt: null });
+  useArenaStore.setState({ current: null, leaderboard: null, entry: null, loading: false, error: null, errorInfo: null, needsSignIn: false, busy: null, outcome: null, syncedAt: null });
   jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => buttons?.find((b) => b.text !== 'Cancel')?.onPress?.());
 });
 
@@ -120,6 +120,30 @@ describe('PG-A-15 Arena', () => {
     await waitFor(() => expect(screen.getByTestId('arena-error')).toBeTruthy());
   });
 
+  /** 2026-10-03 實機（離線）：卡片印出 `fetch failed: java.net.UnknownHostException: Unable to resolve host…` */
+  test('載入失敗：離線／逾時／伺服器各給白話說明與 Ref，不印原始例外；再試一次會重抓', async () => {
+    const { ApiError } = jest.requireActual('@/services/api/ApiClient');
+    const raw = 'fetch failed: java.net.UnknownHostException: Unable to resolve host "api.neonshift.cc": No address associated with hostname';
+    mockApi.tournamentCurrent.mockRejectedValue(new ApiError(0, 'NETWORK_ERROR', raw, undefined, undefined, undefined, 'unreachable'));
+    await render(<ArenaScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('arena-error')).toBeTruthy());
+    expect(screen.getByText("You're offline")).toBeTruthy();
+    expect(screen.getByText(/can't load without a connection/)).toBeTruthy();
+    expect(screen.getByText('Ref OFFLINE')).toBeTruthy();
+    expect(screen.queryByText(/UnknownHostException|fetch failed|api\.neonshift\.cc/)).toBeNull();
+
+    mockApi.tournamentCurrent.mockClear().mockRejectedValue(new ApiError(0, 'NETWORK_ERROR', 'timeout after 15000 ms', undefined, undefined, undefined, 'timeout'));
+    await fireEvent.press(screen.getByTestId('arena-error-retry'));
+    await waitFor(() => expect(screen.getByText('Arena is taking too long')).toBeTruthy());
+    expect(mockApi.tournamentCurrent).toHaveBeenCalledTimes(1);
+
+    mockApi.tournamentCurrent.mockRejectedValue(new ApiError(503, 'SERVER_ERROR', 'upstream connect error or disconnect/reset before headers', undefined, undefined, 'req-42'));
+    await fireEvent.press(screen.getByTestId('arena-error-retry'));
+    await waitFor(() => expect(screen.getByText('Arena is temporarily unavailable')).toBeTruthy());
+    expect(screen.getByText('Ref SERVER_ERROR · req-42')).toBeTruthy();
+    expect(screen.queryByText(/upstream connect/)).toBeNull();
+  });
+
   test('無後端 session：顯示登入而非錯誤；登入後重新載入', async () => {
     const { ApiError } = jest.requireActual('@/services/api/ApiClient');
     mockApi.tournamentCurrent.mockRejectedValueOnce(new ApiError(401, 'NO_SESSION', 'Sign in required')).mockResolvedValue(current(tournament()));
@@ -127,8 +151,24 @@ describe('PG-A-15 Arena', () => {
     await render(<ArenaScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('arena-signin')).toBeTruthy());
     expect(screen.queryByTestId('arena-error')).toBeNull();
+    useArenaStore.setState({ outcome: { kind: 'error', action: 'join', code: 'FAILED', message: 'java.util.concurrent.CancellationException' } }); // 先前錢包不回覆留下的失敗卡
     await fireEvent.press(screen.getByTestId('arena-signin-btn'));
     await waitFor(() => expect(screen.getByTestId('arena-tournament')).toBeTruthy());
     expect(mockApi.signIn).toHaveBeenCalledWith(wallet.toBase58());
+    expect(screen.queryByTestId('arena-error')).toBeNull(); // 登入成功後不再顯示舊的「Could not enter」
+  });
+
+  test('Phantom（Seeker 已知簽完不回覆）：登入卡事前提醒；簽了沒回覆 → 改用 Seeker Wallet 的步驟', async () => {
+    const { ApiError } = jest.requireActual('@/services/api/ApiClient');
+    const { WalletError } = jest.requireActual('@/services/wallet/WalletService');
+    useWalletStore.setState({ session: { ...useWalletStore.getState().session!, label: 'Phantom' } } as never);
+    mockApi.tournamentCurrent.mockRejectedValue(new ApiError(401, 'NO_SESSION', 'Sign in required'));
+    mockApi.signIn.mockRejectedValue(new WalletError('WALLET_NO_REPLY', 'java.util.concurrent.CancellationException'));
+    await render(<ArenaScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('arena-signin')).toBeTruthy());
+    expect(screen.getByText(/Phantom on Seeker currently does not return signed messages/)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('arena-signin-btn'));
+    await waitFor(() => expect(screen.getByText(/Phantom approved the message but never sent the signature back/)).toBeTruthy());
+    expect(screen.getByText(/Disconnect wallet → Connect wallet → choose “Wallet”/)).toBeTruthy();
   });
 });

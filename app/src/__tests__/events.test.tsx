@@ -12,8 +12,8 @@ import { ThemeProvider } from '@/theme';
 const mockNavigate = jest.fn();
 const mockRoute = { params: { idOrSlug: 'river-5k', source: 'ig' } as { idOrSlug: string; source?: string; tag?: string } };
 jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => ({ navigate: mockNavigate }), useRoute: () => mockRoute }));
-jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { events: jest.fn(), event: jest.fn(), eventRegistration: jest.fn(), registerEvent: jest.fn(), cancelEventRegistration: jest.fn(), eventTag: jest.fn(), partnerMe: jest.fn(async () => ({ organizations: [], event_roles: [] })), partnerCheckpoints: jest.fn(async () => ({ checkpoints: [] })), checkinChallenge: jest.fn() } }));
-const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'events' | 'event' | 'eventRegistration' | 'registerEvent' | 'cancelEventRegistration' | 'eventTag' | 'partnerMe' | 'partnerCheckpoints' | 'checkinChallenge', jest.Mock>;
+jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { events: jest.fn(), event: jest.fn(), eventRegistration: jest.fn(), registerEvent: jest.fn(), cancelEventRegistration: jest.fn(), eventTag: jest.fn(), partnerMe: jest.fn(async () => ({ organizations: [], event_roles: [] })), partnerCheckpoints: jest.fn(async () => ({ checkpoints: [] })), checkinChallenge: jest.fn(), myEventHistory: jest.fn(async () => ({ items: [] })) } }));
+const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'events' | 'event' | 'eventRegistration' | 'registerEvent' | 'cancelEventRegistration' | 'eventTag' | 'partnerMe' | 'partnerCheckpoints' | 'checkinChallenge' | 'myEventHistory', jest.Mock>;
 const { ApiError } = jest.requireActual('@/services/api/ApiClient');
 
 const future = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
@@ -38,7 +38,9 @@ describe('EventDetailScreen', () => {
     await waitFor(() => expect(screen.getByTestId('event-register')).toBeTruthy());
     expect(api.event).toHaveBeenCalledWith('river-5k', 'ig');
     expect(screen.getByText('Rules v2')).toBeTruthy();
-    expect(screen.getByText(/distance m: 5000/)).toBeTruthy();
+    expect(screen.getByTestId('event-rule-distance_m')).toBeTruthy(); // 規則轉成跑者看得懂的欄位（review P1-4）
+    expect(screen.getByText('5 km')).toBeTruthy();
+    expect(screen.queryByText(/distance m: 5000/)).toBeNull();
     const registered = { status: 'registered', accepted_rule_revision: 'REV2', display_name: null, public_consent: false, registered_at: '', cancelled_at: null };
     api.registerEvent.mockResolvedValue({ registration: registered, already: false });
     api.eventRegistration.mockResolvedValue({ registration: registered }); // 報名成功後會重新 load()
@@ -122,5 +124,47 @@ describe('EventsScreen', () => {
     api.events.mockResolvedValueOnce({ events: [], next_cursor: null });
     await render(<EventsScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('events-empty')).toBeTruthy());
+  });
+});
+
+describe('EventDetail／Events（2026-09-19 review）', () => {
+  test('報名狀態查詢失敗（非未登入）→ 顯示「目前無法確認」＋再試，不顯示報名按鈕；再試成功後恢復', async () => {
+    api.event.mockResolvedValue(ev());
+    api.eventRegistration.mockRejectedValueOnce(new ApiError(503, 'NETWORK_ERROR', 'offline'));
+    await render(<EventDetailScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('event-reg-unknown')).toBeTruthy());
+    expect(screen.queryByTestId('event-register')).toBeNull();
+    api.eventRegistration.mockResolvedValue({ registration: { status: 'registered', accepted_rule_revision: 'REV2', display_name: null, public_consent: false, registered_at: '', cancelled_at: null } });
+    await fireEvent.press(screen.getByText('Try again'));
+    await waitFor(() => expect(screen.getByTestId('event-registered')).toBeTruthy());
+    expect(screen.queryByTestId('event-reg-unknown')).toBeNull();
+    // 進度列：報名完成、報到為目前步驟；邀請按鈕存在
+    expect(screen.getByTestId('event-step-0-done')).toBeTruthy();
+    expect(screen.getByTestId('event-step-1-current')).toBeTruthy();
+    expect(screen.getByTestId('event-invite')).toBeTruthy();
+  });
+
+  test('列表頂部「我的活動」：今天／即將／待領取／已完成分類；今天的活動點入直接展開報到碼', async () => {
+    api.events.mockResolvedValue({ events: [], next_cursor: null });
+    const reg = (status: string) => ({ status, accepted_rule_revision: 'R', display_name: null, public_consent: false, registered_at: '', cancelled_at: null });
+    // 「今天」用本地日曆日：開始定在今天內、結束定在今天 23:59:59，測試在任何時刻執行都不會跨日
+    const todayAt = (h: number, m: number, sec = 0) => { const d = new Date(); d.setHours(h, m, sec, 0); return d.toISOString(); };
+    const soon = todayAt(new Date().getHours() < 12 ? 23 : 0, 30);
+    api.myEventHistory.mockResolvedValue({ items: [
+      { event: { event_id: 'E1', slug: 'today-run', title: 'Today Run', state: 'published', starts_at: soon, ends_at: todayAt(23, 59, 59) }, registration: reg('registered'), check_ins: [], redemptions: [], results: [] },
+      { event: { event_id: 'E2', slug: 'next-week', title: 'Next Week', state: 'published', starts_at: future(24 * 7), ends_at: future(24 * 7 + 4) }, registration: reg('registered'), check_ins: [], redemptions: [], results: [] },
+      { event: { event_id: 'E3', slug: 'past-claim', title: 'Past Claim', state: 'completed', starts_at: future(-48), ends_at: future(-40) }, registration: reg('checked_in'), check_ins: [], redemptions: [{ status: 'reserved' }], results: [] },
+      { event: { event_id: 'E4', slug: 'past-done', title: 'Past Done', state: 'completed', starts_at: future(-96), ends_at: future(-90) }, registration: reg('checked_in'), check_ins: [], redemptions: [], results: [{ rank: 3 }] },
+      { event: { event_id: 'E5', slug: 'cancelled', title: 'Cancelled', state: 'published', starts_at: future(24), ends_at: future(30) }, registration: reg('cancelled'), check_ins: [], redemptions: [], results: [] },
+    ] });
+    await render(<EventsScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('my-events')).toBeTruthy());
+    expect(screen.getByTestId('my-events-today')).toBeTruthy();
+    expect(screen.getByTestId('my-events-upcoming')).toBeTruthy();
+    expect(screen.getByTestId('my-events-toClaim')).toBeTruthy();
+    expect(screen.getByTestId('my-events-done')).toBeTruthy();
+    expect(screen.queryByText('Cancelled')).toBeNull();
+    await fireEvent.press(screen.getByTestId('my-event-today-run'));
+    expect(mockNavigate).toHaveBeenCalledWith('EventDetail', { idOrSlug: 'today-run', showCode: true });
   });
 });

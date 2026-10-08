@@ -13,7 +13,7 @@ import { APP_CONFIG } from '@/config/app';
 import { apiClient, type MintIntent } from '@/services/api/ApiClient';
 import { WalletError } from '@/services/wallet/WalletService';
 
-import { accountExists, sendWithWallet } from './ChainClient';
+import { accountExists, isInsufficientSol, sendWithWallet } from './ChainClient';
 import { ClaimError } from './StarterShoeService';
 
 export type MintOutcome = { kind: 'minted'; asset: string; signature: string | null; alreadyMinted: boolean } | { kind: 'pending_registry' | 'revoke_pending' | 'revoked'; intent: MintIntent };
@@ -30,8 +30,12 @@ export const achievementService = {
   eventBadgeIntent(eventId: string, kind: 'check_in' | 'finish', publicConsent: boolean) {
     return apiClient.eventBadgeMintIntent(eventId, kind, publicConsent);
   },
+  /** PG-SEASON-04：節日收藏（每玩家每屆一枚；鏈上整個系列共用 category 14，主題／年份在 metadata） */
+  seasonalIntent(campaignId: string, publicConsent: boolean) {
+    return apiClient.seasonalMintIntent(campaignId, publicConsent);
+  },
 
-  async mint(wallet: PublicKey, intent: MintIntent): Promise<MintOutcome> {
+  async mint(wallet: PublicKey, intent: MintIntent, onPhase?: (phase: 'wallet' | 'confirming') => void): Promise<MintOutcome> {
     if (!APP_CONFIG.chainConfigured) throw new ClaimError('NOT_AVAILABLE', 'Onchain program is not configured for this build');
     if (!intent.proof) return { kind: intent.status === 'approved' || intent.status === 'minted' ? 'pending_registry' : (intent.status as 'pending_registry' | 'revoke_pending' | 'revoked'), intent };
     const id = Buffer.from(intent.achievement.achievement_id, 'hex');
@@ -42,9 +46,10 @@ export const achievementService = {
       const message = new Uint8Array(Buffer.from(intent.proof.message_b64, 'base64'));
       const signature = new Uint8Array(Buffer.from(intent.proof.signature_b64, 'base64'));
       const attestor = bs58.decode(intent.proof.attestor);
-      const sent = await sendWithWallet(wallet, [ed25519Instruction(message, signature, attestor), claimAchievementInstruction(wallet, message)]);
+      const sent = await sendWithWallet(wallet, [ed25519Instruction(message, signature, attestor), claimAchievementInstruction(wallet, message)], onPhase);
       return { kind: 'minted', asset, signature: sent.signature, alreadyMinted: false };
     } catch (e) {
+      if (isInsufficientSol(e)) throw new ClaimError('INSUFFICIENT_SOL', e instanceof Error ? e.message : String(e)); // 沒送出：不用再查帳戶
       if (e instanceof WalletError) {
         if (e.code === 'REJECTED') throw new ClaimError('REJECTED', e.message);
         if (e.code === 'NETWORK_ERROR') throw new ClaimError('NETWORK_ERROR', e.message);

@@ -53,8 +53,10 @@ const OFF_NONCE: usize = 148;
 
 /// 任務種類：步數。
 pub const TASK_STEPS: u8 = 1;
-/// 任務種類：睡眠。
+/// 任務種類：睡眠（維持規則 v2 起退役，鏈上 clock_in 拒收；歷史 receipt 保留）。
 pub const TASK_SLEEP: u8 = 2;
+/// 任務種類：運動 session（維持規則 v2，DEC-04：App 內 GPS 記錄、伺服器審核通過的跑步／健走）。
+pub const TASK_WORKOUT: u8 = 3;
 
 /// Cluster 識別碼。跨環境重用會在鏈上被擋下（BR-14、錯誤碼 6004）。
 pub const CLUSTER_DEVNET: u8 = 1;
@@ -78,7 +80,7 @@ pub enum AttestationError {
         /// 收到的版本。
         got: u8,
     },
-    /// task_type 不是 1 或 2。
+    /// task_type 不是 1、2 或 3。
     BadTaskType {
         /// 收到的值。
         got: u8,
@@ -121,7 +123,7 @@ pub struct Attestation {
     pub wallet: [u8; 32],
     /// UTC 日序，`floor(unix_seconds / 86400)`。
     pub task_date: u32,
-    /// 任務種類，`TASK_STEPS` 或 `TASK_SLEEP`。
+    /// 任務種類，`TASK_STEPS`、`TASK_SLEEP`（已退役）或 `TASK_WORKOUT`。
     pub task_type: u8,
     /// 判定時使用的規則版本。
     pub rules_version: u16,
@@ -179,7 +181,7 @@ impl Attestation {
             return Err(AttestationError::BadVersion { got: version });
         }
         let task_type = bytes[OFF_TASK_TYPE];
-        if task_type != TASK_STEPS && task_type != TASK_SLEEP {
+        if task_type != TASK_STEPS && task_type != TASK_SLEEP && task_type != TASK_WORKOUT {
             return Err(AttestationError::BadTaskType { got: task_type });
         }
 

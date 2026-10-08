@@ -2,7 +2,7 @@
  * SensorModule 的 JS 門面（PG-A-05）。負責：啟動 20 秒引導式取樣、進度訂閱、
  * 轉成 SD 4.3 的 `sensor_summary` 欄位。不做風險判定（後端 PG-B-08／09）。
  */
-import { NeonshiftSensors, type LiveMotionProgress, type LiveMotionSummary } from '../../../modules/neonshift-sensors';
+import { NeonshiftSensors, type LiveMotionOptions, type LiveMotionProgress, type LiveMotionSummary } from '../../../modules/neonshift-sensors';
 
 /** SD 5.1：前景 50 Hz、20 秒、兩個 10 秒視窗 */
 export const LIVE_MOTION_DEFAULTS = { durationSeconds: 20, windowSeconds: 10, sampleRateHz: 50 } as const;
@@ -55,7 +55,7 @@ export const liveMotion = {
    * 執行一次 live motion check。`onProgress` 供 UI 倒數（Style 7.3 Verifying）。
    * 只回傳摘要；原始序列不會離開原生層。
    */
-  async run(onProgress?: (p: LiveMotionProgress) => void, options = LIVE_MOTION_DEFAULTS): Promise<LiveMotionSummary> {
+  async run(onProgress?: (p: LiveMotionProgress) => void, options: LiveMotionOptions = LIVE_MOTION_DEFAULTS): Promise<LiveMotionSummary> {
     const sub = onProgress ? NeonshiftSensors.addListener('onLiveMotionProgress', onProgress) : null;
     try {
       return await NeonshiftSensors.startLiveMotionCheck(options);

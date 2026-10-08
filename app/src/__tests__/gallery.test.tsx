@@ -79,7 +79,7 @@ describe('GalleryPlayerScreen', () => {
     api.galleryPlayer.mockResolvedValue({ player: player(B, 1, { shoe_level: 3, xp: '1600' }), is_you: false, collectibles: [{ kind: 1, asset: 'A', signature: 's', claimed_at: '2026-09-10T00:00:00Z' }, { kind: 102, asset: 'B', signature: 's2', claimed_at: '2026-09-12T00:00:00Z' }] });
     await render(<GalleryPlayerScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('gallery-player-hero')).toBeTruthy());
-    expect(screen.getByText('Lv.3 · Phase')).toBeTruthy();
+    expect(screen.getByText('Lv.3 · Hawksbill')).toBeTruthy();
     expect(screen.getByText('1,600')).toBeTruthy();
     expect(screen.getByText('3d')).toBeTruthy();
     expect(screen.getByText('7d')).toBeTruthy();
@@ -185,5 +185,80 @@ describe('GalleryScreen → GalleryPlayer', () => {
     await waitFor(() => expect(screen.getByTestId(`gallery-row-${B}`)).toBeTruthy());
     await fireEvent.press(screen.getByTestId(`gallery-row-${B}`));
     expect(mockNavigate).toHaveBeenCalledWith('GalleryPlayer', { wallet: B });
+  });
+});
+
+jest.mock('@/services/chain/CollectibleService', () => ({ collectibleService: { fetchEdition: jest.fn(async () => ({ kind: 1, edition: 3, total: 9 })), fetchClaimed: jest.fn(async () => new Set()), claim: jest.fn() } }));
+
+describe('2026-09-19 review：藝廊競態、舊資料清除、入口與空狀態、收藏詳情', () => {
+  const deferred = <T,>() => { let resolve!: (v: T) => void; let reject!: (e: unknown) => void; const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; }); return { promise, resolve, reject }; };
+
+  test('搜尋去抖＋序號：慢的舊回應不會蓋掉新結果；搜尋失敗顯示錯誤而非「找不到」', async () => {
+    api.galleryPlayers.mockResolvedValue({ generated_at: '2026-09-14T00:00:00Z', total: 1, next_cursor: null, players: [player(B, 1)], you: null });
+    const slow = deferred<{ players: unknown[] }>();
+    api.gallerySearch.mockImplementationOnce(() => slow.promise).mockResolvedValueOnce({ players: [player('CCCC3333CCCC3333CCCC3333CCCC3333CCCC3333CCCC', 9)] });
+    await render(<GalleryScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId(`gallery-row-${B}`)).toBeTruthy());
+    await fireEvent.changeText(screen.getByTestId('gallery-search'), 'BB');
+    await waitFor(() => expect(api.gallerySearch).toHaveBeenCalledWith('BB'));
+    await fireEvent.changeText(screen.getByTestId('gallery-search'), 'CCC');
+    await waitFor(() => expect(api.gallerySearch).toHaveBeenCalledWith('CCC'));
+    await waitFor(() => expect(screen.getByText('CCCC…CCCC')).toBeTruthy());
+    await act(async () => { slow.resolve({ players: [player(B, 1)] }); });
+    expect(screen.getByText('CCCC…CCCC')).toBeTruthy(); // 舊的 BB 結果被忽略
+    expect(screen.queryByText('BBBB…BBBB')).toBeNull();
+    // 去抖：快速輸入三次只發一次（前面兩次已計，這裡再確認新輸入只多一次）
+    api.gallerySearch.mockRejectedValueOnce(new ApiError(503, 'NETWORK_ERROR', 'offline'));
+    await fireEvent.changeText(screen.getByTestId('gallery-search'), 'DD');
+    await fireEvent.changeText(screen.getByTestId('gallery-search'), 'DDD');
+    await fireEvent.changeText(screen.getByTestId('gallery-search'), 'DDDD');
+    await waitFor(() => expect(screen.getByTestId('gallery-search-error')).toBeTruthy());
+    expect(api.gallerySearch).toHaveBeenCalledTimes(3);
+    expect(screen.queryByTestId('gallery-empty')).toBeNull();
+    await act(async () => {});
+  });
+
+  test('切榜序號：舊榜慢回應不覆蓋新榜；切榜先清舊資料', async () => {
+    const slowActive = deferred<unknown>();
+    api.galleryPlayers.mockImplementationOnce(() => slowActive.promise).mockResolvedValueOnce({ generated_at: '2026-09-14T00:00:00Z', board: 'lifetime', total: 1, next_cursor: null, players: [player(B, 1, { shoe_level: 2, highest_level: 5 })], you: null });
+    await render(<GalleryScreen />, { wrapper: Wrapper });
+    await fireEvent.press(screen.getByTestId('gallery-board-lifetime'));
+    await waitFor(() => expect(screen.getByText('LV. 5')).toBeTruthy());
+    await act(async () => { slowActive.resolve({ generated_at: '2026-09-14T00:00:00Z', board: 'active', total: 1, next_cursor: null, players: [player('CCCC3333CCCC3333CCCC3333CCCC3333CCCC3333CCCC', 1)], you: null }); });
+    expect(screen.queryByText('CCCC…CCCC')).toBeNull();
+    expect(screen.getByText('LV. 5')).toBeTruthy();
+  });
+
+  test('頂部「我的收藏」入口 → 本人玩家頁', async () => {
+    api.galleryPlayers.mockResolvedValue({ generated_at: '2026-09-14T00:00:00Z', total: 1, next_cursor: null, players: [player(ME, 1)], you: { rank: 1 } });
+    await render(<GalleryScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByText('Active rank #1 · open your collection')).toBeTruthy());
+    await fireEvent.press(screen.getByTestId('gallery-mine'));
+    expect(mockNavigate).toHaveBeenCalledWith('GalleryPlayer', { wallet: ME });
+  });
+
+  test('玩家頁：重新整理收到 NOT_FOUND 時清除舊收藏；本人空收藏給下一步；跑鞋收藏可點開詳情', async () => {
+    api.galleryPlayer.mockResolvedValueOnce({ player: player(B, 1, { shoe_level: 2, xp: '900' }), is_you: true, collectibles: [{ kind: 2, asset: 'A2', signature: 's', claimed_at: '2026-09-10T00:00:00Z' }] });
+    await render(<GalleryPlayerScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('gallery-collectible-2')).toBeTruthy());
+    await fireEvent.press(screen.getByTestId('gallery-collectible-2'));
+    await waitFor(() => expect(screen.getByTestId('gallery-collectible-detail')).toBeTruthy());
+    expect(screen.getByText('Claimed after reaching Lv.2')).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId('collector-plate-no').props.children).toBe('No. 3'));
+    expect(screen.getByText(/in-app look/)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('gallery-collectible-detail-done'));
+    // 對方退出藝廊 → 404：舊收藏不留
+    api.galleryPlayer.mockRejectedValueOnce(new ApiError(404, 'NOT_FOUND', 'player not found'));
+    await act(async () => { useWalletStore.setState({ session: { address: 'DDDD4444DDDD4444DDDD4444DDDD4444DDDD4444DDDD', publicKey: {} as never, walletUriBase: '', label: 'Phantom' } } as never); });
+    await waitFor(() => expect(screen.getByTestId('gallery-player-missing')).toBeTruthy());
+    expect(screen.queryByTestId('gallery-collectible-2')).toBeNull();
+    expect(screen.queryByTestId('gallery-player-hero')).toBeNull();
+    // 本人空收藏：三個下一步
+    api.galleryPlayer.mockResolvedValueOnce({ player: player(ME, 5, { xp: '500' }), is_you: true, collectibles: [] });
+    await act(async () => { useWalletStore.setState({ session: { address: ME, publicKey: {} as never, walletUriBase: '', label: 'Phantom' } } as never); });
+    await waitFor(() => expect(screen.getByTestId('gallery-no-collectibles')).toBeTruthy());
+    expect(screen.getByText(/maintenance rules/)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('gallery-next-workout'));
+    expect(mockNavigate).toHaveBeenCalledWith('WorkoutStart');
   });
 });

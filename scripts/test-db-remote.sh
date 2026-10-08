@@ -2,8 +2,9 @@
 # 在 l1 的 PostgreSQL 上跑 backend PostgresStore 整合測試（本機 Docker 不可用時的替代）。
 # 會（重）建 neonshift_test 資料庫、套用 migrations 與約束測試，然後經 SSH tunnel 執行 vitest。
 set -euo pipefail
+[ -f "$HOME/.config/neonshift/hosts.env" ] && . "$HOME/.config/neonshift/hosts.env"  # 主機位址只放本機（見 deploy/README.md）
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-HOST="${DEPLOY_HOST:-root@l1.neonshift.cc}"
+HOST="${DEPLOY_HOST:-${NEONSHIFT_L1_SSH:?在 ~/.config/neonshift/hosts.env 設定 NEONSHIFT_L1_SSH}}"
 LOCAL_PORT="${LOCAL_PORT:-15432}"
 SSH="ssh -o BatchMode=yes -o ConnectTimeout=10 $HOST"
 

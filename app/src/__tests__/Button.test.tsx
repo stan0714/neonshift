@@ -23,4 +23,12 @@ describe('Button（Style 7.1）', () => {
     expect(screen.getByText('Submitting…')).toBeTruthy();
     expect(screen.getByRole('button').props.accessibilityState).toMatchObject({ busy: true, disabled: true });
   });
+
+  /** 2026-10-04 實機：按鈕高度固定，半寬的「Health Connect settings」換成三行，第三行被切掉 */
+  test('文字固定單行，放不下就縮字，不換行被切', async () => {
+    await render(<Button label="Health Connect settings" variant="secondary" />);
+    const label = screen.getByText('Health Connect settings');
+    expect(label.props.numberOfLines).toBe(1);
+    expect(label.props.adjustsFontSizeToFit).toBe(true);
+  });
 });

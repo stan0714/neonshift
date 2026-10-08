@@ -1,16 +1,26 @@
+import { ShoePreview } from '@/components/ShoePreview';
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
-import { useCallback, useEffect, useMemo } from "react";
-import { Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import type { RouteProp } from "@react-navigation/native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 
-import { Button, Chip, InlineState, Screen, Surface } from "@/components";
+import { Button, Chip, InlineState, Screen, Sheet, Surface } from "@/components";
+import { ShoeStory } from "@/components/ShoeStory";
+import { RevealCeremony } from "@/components/EvolutionReveal";
+import { formatEditionNo } from "@/components/CollectorPlate";
 import { ShoeHero } from "@/components/ShoeHero";
 import { Milestones } from "@/screens/workouts/Milestones";
+import { SeasonalFootprints } from "@/components/SeasonalFootprints";
+import { ShareImageBlock } from "@/components/ShareImageBlock";
+import { gearShareLayout, shareUrl } from "@/domain/shareImage";
 import { maintenanceView, nextSteps } from "@/domain/maintenance";
 import { freezeActive } from "@/chain/accounts";
-import { shoeSection } from "@/domain/collectibles";
+import { shoeSection, type ShoeSection } from "@/domain/collectibles";
+import type { PlayerProfile } from "@/chain/accounts";
 import { APP_CONFIG } from "@/config/app";
+import type { GearCategory, TabParamList } from "@/navigation/types";
+import { FEATURES } from "@/config/features";
 import { SHOE_PROGRESSION, type ShoeLevel } from "@/config/shoeProgression";
 import {
   COLLECTIBLES,
@@ -22,11 +32,16 @@ import {
   type Collectible,
   type CollectibleStatus,
 } from "@/domain/collectibles";
+import { shoeMileage } from "@/domain/appearance";
+import { useAppearance } from "@/hooks/useAppearance";
+import { workoutRecorder } from "@/services/workouts/WorkoutRecorder";
+import { useAppearanceStore } from "@/state/appearanceStore";
 import { useCollectibleStore } from "@/state/collectibleStore";
 import { useDashboardStore } from "@/state/dashboardStore";
 import { useWalletStore } from "@/state/walletStore";
 import { color, radius, space, Text } from "@/theme";
 import { useT, type TKey } from "@/i18n";
+import { apiErrorText } from '@/services/api/errorText';
 
 const RING = 132;
 const STROKE = 6;
@@ -36,11 +51,38 @@ const STROKE = 6;
  * 下段 My collection（Claimed／Claimable／Locked）。升級免費、自動發生在打卡交易內（2026-09-14 定案），
  * 這裡沒有升級 CTA；領取成就 NFT 免費，只付 devnet rent。
  */
-export function GearScreen() {
+/** `route` 由分頁 navigator 傳入；宣告成 optional 讓測試可以單獨渲染這個畫面
+    （用 useRoute 的話，沒有 navigation context 就會丟「Couldn't find a route object」） */
+export function GearScreen({ route }: { route?: RouteProp<TabParamList, "Gear"> }) {
   const { t, locale } = useT();
   const session = useWalletStore((s) => s.session);
   const d = useDashboardStore();
   const c = useCollectibleStore();
+  /** 點鞋子開詳情面板（2026-09-16 專案負責人指示）；記 kind 而非物件，資料變動時面板跟著更新 */
+  const [detailKind, setDetailKind] = useState<ShoeLevel | null>(null);
+  const [previewLevel, setPreviewLevel] = useState<ShoeLevel | null>(null);
+  const [gearShareOpen, setGearShareOpen] = useState(false);
+  /**
+   * PG-SEASON-03 收藏分類切換（設計 §5「不把每年卡片全部塞到首頁」）。
+   * 預設 all——這一頁本來就同時顯示四塊，改成預設只顯示一塊會讓現有使用者找不到東西；
+   * 分類是用來收斂那條很長的捲軸，不是用來藏內容。個人最佳仍在「運動」分頁，這裡不搬也不複製。
+   */
+  /**
+   * 收藏分類。R4：核准通知可直接帶 `category` 進來（里程碑／節日的領取入口都在這一頁），
+   * 使用者不必落地後再自己找一次分類。之後手動切換照舊。
+   */
+  const routeCategory = route?.params?.category;
+  const [cat, setCat] = useState<GearCategory>(routeCategory ?? "all");
+  useEffect(() => { if (routeCategory) setCat(routeCategory); }, [routeCategory]);
+  /** PG-LINK-01：外觀（可切換的已取得跑鞋＋棲地背景）與有效等級分開 */
+  const ap = useAppearance();
+  // 每雙鞋的運動歷程（本機紀錄，依開始時鞋款快照歸組；recorder 變化時重算）
+  const [mileTick, setMileTick] = useState(0);
+  useEffect(() => workoutRecorder.subscribe(() => setMileTick((n) => n + 1)), []);
+  const mileage = useMemo(() => { void mileTick; return shoeMileage(workoutRecorder.localStore().list(), ap.owner); }, [mileTick, ap.owner]);
+  const selectShoe = useAppearanceStore((s) => s.selectShoe);
+  const setBackground = useAppearanceStore((s) => s.setBackground);
+  const dismissOffer = useAppearanceStore((s) => s.dismissOffer);
 
   const refresh = useCallback(async () => {
     if (!session) return;
@@ -55,10 +97,7 @@ export function GearScreen() {
     void refresh();
   }, [refresh]);
 
-  useEffect(() => {
-    if (c.outcome?.kind === "success" && !c.outcome.result.alreadyClaimed)
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [c.outcome]);
+
 
   const level = (d.profile?.coreLevel ?? d.profile?.shoeLevel ?? 1) as ShoeLevel; // PG-V-04：Hero 只展示 Active level
   const highest = Math.max(d.profile?.highestLevel ?? 1, level);
@@ -85,6 +124,7 @@ export function GearScreen() {
     if (!APP_CONFIG.chainConfigured) return t("common.reasonChain");
     if (!d.profile) return t("gear.reasonStarter");
     if (d.config?.paused) return t("common.reasonPaused");
+    if (FEATURES.demoLevel) return t("common.reasonDemo");
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, d.profile, d.config, locale]);
@@ -94,6 +134,8 @@ export function GearScreen() {
     status: collectibleStatus(d.profile, c.claimed, item.kind),
   }));
   const claimedCount = items.filter((i) => i.status === "claimed").length;
+  // 下拉重新整理原本只重讀收藏；里程碑／成就狀態（含 registry 核准）也要跟著重抓
+  const [refreshTick, setRefreshTick] = useState(0);
   const shoes = items.filter((i) => i.item.group === "shoe");
   const badges = items.filter((i) => i.item.group === "badge");
 
@@ -101,11 +143,12 @@ export function GearScreen() {
     <Screen
       scroll
       insideTabs
+      scene={ap.scene}
       testID="gear-screen"
       refreshControl={
         <RefreshControl
-          refreshing={c.loading}
-          onRefresh={() => void refresh()}
+          refreshing={c.loading || d.chainSyncing}
+          onRefresh={() => { setRefreshTick((n) => n + 1); void refresh(); }}
           tintColor={color.mint}
         />
       }
@@ -113,14 +156,21 @@ export function GearScreen() {
       <View style={styles.header}>
         <Text variant="heading1">{t("gear.title")}</Text>
         <Chip label={t("common.devnet")} kind="devnet" />
+        {FEATURES.demoLevel ? <Chip label={t("common.demoData")} kind="devnet" /> : null}
       </View>
 
       <Surface hero style={styles.heroCard} testID="gear-hero">
         <View style={styles.levelRow}>
           <Chip label={t("gear.activeLv", { n: level })} kind="level" />
           <Chip label={t("gear.highestLv", { n: highest })} kind={highest > level ? "synced" : "neutral"} />
+          {ap.differs ? <View testID="gear-appearance-chip"><Chip label={t("gear.lookLv", { n: ap.level })} kind="neutral" /></View> : null}
         </View>
-        <ShoeHero level={level} size={220} />
+        <ShoeHero level={ap.level} size={220} />
+        {ap.differs ? (
+          <Text variant="caption" tone="muted" style={styles.center} testID="gear-appearance-note">
+            {t("gear.lookNote", { look: ap.level, active: level })}
+          </Text>
+        ) : null}
         <View style={styles.heroRow}>
           <XpRing ratio={ratio} tint={stage.tint}>
             <Text variant="heading2" numeric>
@@ -230,6 +280,94 @@ export function GearScreen() {
         </Surface>
       ) : null}
 
+      {ap.offer ? (
+        <Surface active style={styles.maint} testID="gear-offer">
+          <Text variant="title">{t("gear.offer.title", { name: stageName(t, ap.offer) })}</Text>
+          <Text variant="bodySmall" tone="secondary" style={styles.mtXs}>{t("gear.offer.body")}</Text>
+          <View style={styles.rowBtns}>
+            <Button label={t("gear.offer.useNow")} style={styles.flex} onPress={() => void selectShoe(ap.offer)} testID="gear-offer-use" />
+            <Button label={t("gear.offer.later")} variant="secondary" style={styles.flex} onPress={dismissOffer} testID="gear-offer-later" />
+          </View>
+        </Surface>
+      ) : null}
+
+      <View style={styles.sectionHead}>
+        <Text variant="label" tone="muted" uppercase>
+          {t("gear.myShoes")}
+        </Text>
+        <Text variant="label" tone="secondary" numeric>
+          {ap.owned.length}
+        </Text>
+      </View>
+      <Text variant="caption" tone="muted" style={styles.sectionNote}>
+        {t(ap.owned.length === 0 ? "gear.myShoes.none" : ap.owned.length > 1 ? "gear.myShoes.note" : "gear.myShoes.single")}
+      </Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shoeRow} testID="gear-my-shoes">
+        {ap.owned.map((shoe) => {
+          const inUse = shoe.level === ap.level;
+          const when = ap.acquiredAt[shoe.level];
+          return (
+            <Pressable key={shoe.id} onPress={() => setDetailKind(shoe.level)} accessibilityRole="button" accessibilityLabel={`${stageName(t, shoe.level)}${inUse ? ` · ${t("gear.inUse")}` : ""}`} testID={`gear-shoe-${shoe.level}`}>
+              <Surface active={inUse} style={styles.shoeCard}>
+                <ShoeHero level={shoe.level} size={96} badge={false} active={false} />
+                <Text variant="title" numberOfLines={1}>{stageName(t, shoe.level)}</Text>
+                <Text variant="caption" tone="muted" numberOfLines={1}>
+                  {shoe.variant ? t(`wild.variant.${shoe.variant}` as TKey) : t("wild.series")}
+                </Text>
+                <Text variant="caption" tone="muted" numberOfLines={1}>
+                  {when ? t("gear.acquiredOn", { date: new Date(when).toLocaleDateString() }) : t("gear.acquiredUnknown")}
+                </Text>
+                <Text variant="caption" tone={mileage[shoe.id]?.count ? "secondary" : "muted"} numberOfLines={1} testID={`gear-shoe-${shoe.level}-mileage`}>
+                  {mileage[shoe.id]?.count
+                    ? `${t("gear.mileage", { n: mileage[shoe.id]!.count, km: (mileage[shoe.id]!.distanceMm / 1_000_000).toFixed(1) })}${mileage[shoe.id]!.review ? ` · ${t("gear.mileageReview", { n: mileage[shoe.id]!.review })}` : ""}`
+                    : t("gear.mileageNone")}
+                </Text>
+                {inUse ? <View style={styles.mtXs}><Chip label={t("gear.inUse")} kind="level" /></View> : null}
+              </Surface>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      {/* PG-SHARE-06 卡型 D：目前這雙鞋的累積里程；已領取紀念 NFT 才算鏈上資產並標示網路 */}
+      {(() => {
+        const inUseShoe = ap.owned.find((s) => s.level === ap.level);
+        const miles = inUseShoe ? mileage[inUseShoe.id] : undefined;
+        if (!inUseShoe || !miles?.count) return null;
+        const claimed = collectibleStatus(d.profile, c.claimed, ap.level) === "claimed";
+        return (
+          <Surface style={styles.mtXs} testID="gear-share-card">
+            <Button label={t("share.card.image")} variant="secondary" onPress={() => setGearShareOpen((o) => !o)} accessibilityState={{ expanded: gearShareOpen }} testID="gear-share-open" />
+            {gearShareOpen ? (
+              <ShareImageBlock
+                layout={gearShareLayout(
+                  {
+                    levelName: stageName(t, ap.level),
+                    level: ap.level,
+                    kmTotal: (miles.distanceMm / 1_000_000).toFixed(1),
+                    nextLabel: null,
+                    claimedOnChain: claimed,
+                  },
+                  {
+                    t: (k, p) => t(k as TKey, p),
+                    labels: { tagline: t("share.card.tagline"), site: "neonshift.cc", notice: APP_CONFIG.cluster === "mainnet-beta" ? t("share.card.net.mainnet") : t("share.card.net.devnet") },
+                    qr: shareUrl(APP_CONFIG.siteUrl, "gear", "levelup"),
+                  },
+                )}
+                caption={t("share.invite.gear", { level: stageName(t, ap.level), km: (miles.distanceMm / 1_000_000).toFixed(1), url: shareUrl(APP_CONFIG.siteUrl, "gear", "levelup") })}
+                prefix="gear-share"
+              />
+            ) : null}
+          </Surface>
+        );
+      })()}
+      <Surface style={styles.mtXs} testID="gear-bg-card">
+        <View style={styles.rowBetween}>
+          <Text variant="bodySmall" tone="secondary" style={styles.flex}>{t("gear.bg.follow")}</Text>
+          <Switch value={ap.backgroundEnabled} onValueChange={(v) => void setBackground(v)} disabled={!session} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t("gear.bg.follow")} testID="gear-bg-switch" />
+        </View>
+        <Text variant="caption" tone="muted" style={styles.mtXs}>{t(session ? "gear.bg.note" : "gear.bg.guest")}</Text>
+      </Surface>
+
       <View style={styles.sectionHead}>
         <Text variant="label" tone="muted" uppercase>
           {t("gear.myCollection")}
@@ -263,12 +401,16 @@ export function GearScreen() {
               ? t("gear.walletCancelled")
               : c.outcome.code === "NETWORK_ERROR"
                 ? t("gear.networkUnavailable")
-                : t("gear.claimFailed")
+                : c.outcome.code === "INSUFFICIENT_SOL"
+                  ? t("common.insufficientSol.title")
+                  : t("gear.claimFailed")
           }
           body={
             c.outcome.code === "REJECTED"
               ? t("gear.nothingSent")
-              : t("gear.failedBody", { message: c.outcome.message })
+              : c.outcome.code === "INSUFFICIENT_SOL"
+                ? t("common.insufficientSol.body")
+                : t("gear.failedBody", { message: apiErrorText(t, c.outcome.message) })
           }
           onDismiss={c.dismissOutcome}
           testID="collectible-error"
@@ -278,11 +420,32 @@ export function GearScreen() {
         <InlineState
           kind="warning"
           title={t("gear.outdated.title")}
-          body={t("gear.outdated.body", { error: c.error })}
+          body={t("gear.outdated.body", { error: apiErrorText(t, c.error) })}
           testID="collectible-outdated"
         />
       ) : null}
 
+      <View style={styles.cats} accessibilityRole="tablist" testID="gear-cats">
+        {(["all", "shoes", "milestones", "seasonal"] as const).map((k) => (
+          <Pressable
+            key={k}
+            onPress={() => setCat(k)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: cat === k }}
+            style={[styles.cat, cat === k && styles.catOn]}
+            testID={`gear-cat-${k}`}
+          >
+            <Text variant="caption" tone={cat === k ? undefined : "secondary"} style={cat === k && styles.catOnText}>
+              {t(`gear.cat.${k}` as TKey)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      {/* 個人最佳沒有搬過來，所以要說它在哪一頁，而不是讓人以為收藏頁少了一類 */}
+      <Text variant="caption" tone="muted" style={styles.subhead} testID="gear-cat-note">{t("gear.cat.note")}</Text>
+
+      {cat === "all" || cat === "shoes" ? (
+        <>
       <Text
         variant="label"
         tone="secondary"
@@ -312,12 +475,30 @@ export function GearScreen() {
                   onClaim={() =>
                     session && void c.claim(session.publicKey, item.kind)
                   }
+                  onPress={() => setDetailKind(item.kind as ShoeLevel)}
                 />
               ))}
             </View>
           </View>
         );
       })}
+      <ShoeDetailSheet
+        kind={detailKind}
+        onClose={() => setDetailKind(null)}
+        profile={d.profile}
+        status={detailKind ? collectibleStatus(d.profile, c.claimed, detailKind) : "locked"}
+        section={detailKind ? shoeSection(d.profile, detailKind) : "locked"}
+        xp={xp}
+        thresholds={thresholds}
+        multiplier={detailKind ? fmtX(multipliers[detailKind - 1]) : ""}
+        claiming={detailKind !== null && c.claiming === detailKind}
+        busy={c.claiming !== null}
+        disabledReason={claimDisabledReason}
+        onClaim={() => session && detailKind && void c.claim(session.publicKey, detailKind)}
+        onPreviewReveal={setPreviewLevel}
+        look={detailKind ? { owned: ap.owned.some((o) => o.level === detailKind), inUse: ap.owned.some((o) => o.level === detailKind) && detailKind === ap.level, active: level, onUse: () => { void selectShoe(detailKind); setDetailKind(null); } } : null}
+      />
+      {previewLevel ? <RevealCeremony from={(previewLevel - 1) as ShoeLevel} to={previewLevel} preview onClose={() => setPreviewLevel(null)} /> : null}
       <Text
         variant="label"
         tone="secondary"
@@ -342,7 +523,12 @@ export function GearScreen() {
         ))}
       </View>
 
-      <Milestones reloadKey={claimedCount} />
+        </>
+      ) : null}
+
+      {cat === "all" || cat === "milestones" ? <Milestones reloadKey={`${claimedCount}:${refreshTick}`} /> : null}
+      {/* PG-SEASON-03：收藏分三線（里程碑／個人最佳／節日）；節日只呈現資格，尚未開放領取 */}
+      {cat === "all" || cat === "seasonal" ? <SeasonalFootprints reloadKey={refreshTick} /> : null}
 
       <Text variant="caption" tone="muted" style={styles.disclaimer}>
         {t("common.testToken")}
@@ -449,6 +635,102 @@ function Outcome({
   );
 }
 
+type ShoeDetailProps = {
+  kind: ShoeLevel | null;
+  onClose: () => void;
+  profile: PlayerProfile | null;
+  status: CollectibleStatus;
+  section: ShoeSection;
+  xp: number;
+  thresholds: number[];
+  multiplier: string;
+  claiming: boolean;
+  busy: boolean;
+  disabledReason?: string;
+  onClaim: () => void;
+  /** 未解鎖的 Lv.2+：試拆盲盒（示意揭曉，Style 25.2） */
+  onPreviewReveal: (level: ShoeLevel) => void;
+  /** PG-LINK-01：外觀切換（已取得 → 可「使用這雙」；使用中／未取得分別標示） */
+  look: { owned: boolean; inUse: boolean; active: ShoeLevel; onUse: () => void } | null;
+};
+
+/**
+ * 跑鞋詳情面板：鞋階、所需 XP、倍率、解鎖條件，以及「裝備 vs 紀念 NFT」說明（實機回饋：領過初階跑鞋後
+ * 又看到「原點」可領，誤以為同一雙鞋要領兩次）。NFT 可領時 footer 直接領取。
+ */
+function ShoeDetailSheet({ kind, onClose, profile, status, section, xp, thresholds, multiplier, claiming, busy, disabledReason, onClaim, onPreviewReveal, look }: ShoeDetailProps) {
+  const { t } = useT();
+  const wallet = useWalletStore((s) => s.session?.publicKey ?? null);
+  const editionRow = useCollectibleStore((s) => (kind ? s.editions[kind] : undefined));
+  const editionLoading = useCollectibleStore((s) => (kind ? s.editionLoading[kind] : false));
+  useEffect(() => {
+    if (kind && status === "claimed" && wallet) void useCollectibleStore.getState().loadEdition(wallet, kind);
+  }, [status, wallet, kind]);
+  if (!kind) return null;
+  const item = COLLECTIBLES.find((x) => x.kind === kind)!;
+  const need = thresholds[kind - 1] ?? 0;
+  const editionValue = status !== "claimed" ? null : editionRow ? t("nft.editionShort", { no: formatEditionNo(editionRow.edition), total: editionRow.total }) : editionLoading || editionRow === undefined ? t("nft.editionLoading") : t("nft.editionUnavailable");
+  const remaining = Math.max(0, need - xp);
+  const rows: { label: string; value: string; testID?: string }[] = [
+    { label: t("gear.detail.stage"), value: `Lv.${kind} · ${stageName(t, kind)}` },
+    { label: t("gear.detail.xp"), value: kind === 1 ? "0 XP" : `${need.toLocaleString()} XP` },
+    { label: t("gear.detail.multiplier"), value: multiplier },
+    { label: t("gear.detail.unlock"), value: collectibleUnlock(t, item) },
+    { label: t("gear.detail.nft"), value: t(`gear.detail.nft.${status}` as TKey), testID: "shoe-detail-nft" },
+    ...(editionValue ? [{ label: t("gear.detail.edition"), value: editionValue, testID: "shoe-detail-edition" }] : []),
+    { label: t("gear.detail.look"), value: look?.inUse ? t("gear.inUse") : look?.owned ? t("gear.detail.look.available") : kind === 1 ? t("gear.detail.look.starter") : t("gear.detail.look.locked", { n: kind }), testID: "shoe-detail-look" },
+  ];
+  return (
+    <Sheet visible onClose={onClose} title={collectibleName(t, item)} testID="shoe-detail" footer={
+      status === "claimable" ? (
+        <>
+          <Button label={t("gear.claim")} loading={claiming} loadingLabel={t("gear.claiming")} onPress={onClaim} disabled={busy || Boolean(disabledReason)} disabledReason={disabledReason} style={styles.flex} testID="shoe-detail-claim" />
+          {look?.owned && !look.inUse ? <Button label={t("gear.useThis")} variant="secondary" onPress={look.onUse} style={styles.flex} testID="shoe-detail-use" /> : null}
+        </>
+      ) : look?.owned && !look.inUse ? (
+        <Button label={t("gear.useThis")} onPress={look.onUse} style={styles.flex} testID="shoe-detail-use" />
+      ) : (
+        <Button label={t("common.close")} variant="secondary" onPress={onClose} style={styles.flex} testID="shoe-detail-done" />
+      )
+    }>
+      <View style={styles.detailHero}>
+        {kind > 1 && section === "locked" ? <View style={{ padding: space.xl, alignItems: "center", gap: space.s }} testID="shoe-growth-box"><Feather name="package" size={80} color={color.violet} /><Text variant="title">{t("wild.sealed")}</Text><Button label={t("wild.previewReveal")} variant="secondary" onPress={() => onPreviewReveal(kind)} testID="shoe-detail-preview-reveal" /></View> : <ShoePreview level={kind} size={260} />}
+        <View style={styles.levelRow}>
+          <View testID={`shoe-detail-section-${section}`}><Chip label={t(`gear.section.${section}` as TKey)} kind={section === "equipped" ? "level" : section === "achieved" ? "synced" : "neutral"} /></View>
+          {status === "claimed" ? <Chip label={t("gear.claimed")} kind="synced" /> : null}
+        </View>
+        <Text variant="body" tone="secondary" style={styles.center}>
+          {stageDetail(t, kind)}
+        </Text>
+      </View>
+      <ShoeStory level={kind} locked={section === "locked"} />
+      {rows.map((r) => (
+        <View key={r.label} style={styles.detailRow}>
+          <Text variant="label" tone="muted" uppercase>
+            {r.label}
+          </Text>
+          <Text variant="body" numeric style={styles.detailValue} testID={r.testID}>
+            {r.value}
+          </Text>
+        </View>
+      ))}
+      {section === "locked" && profile ? (
+        <Text variant="caption" tone="secondary" style={styles.sectionNote} testID="shoe-detail-remaining">
+          {t("gear.detail.yourXp", { xp: xp.toLocaleString(), remaining: remaining.toLocaleString() })}
+        </Text>
+      ) : null}
+      <Text variant="caption" tone="muted" style={styles.sectionNote}>
+        {t(kind === 1 ? "gear.detail.starterNote" : "gear.detail.gearNote")}
+      </Text>
+      {look?.owned && kind !== look.active ? (
+        <Text variant="caption" tone="muted" style={styles.sectionNote} testID="shoe-detail-look-note">
+          {t("gear.lookNote", { look: kind, active: look.active })}
+        </Text>
+      ) : null}
+    </Sheet>
+  );
+}
+
 type TileProps = {
   item: Collectible;
   status: CollectibleStatus;
@@ -458,6 +740,8 @@ type TileProps = {
   onClaim: () => void;
   /** PG-V-04：曾經達成（History 標籤；保留完整作品與 Claim 入口） */
   history?: boolean;
+  /** 有給就整張可點（跑鞋 → 詳情面板） */
+  onPress?: () => void;
 };
 
 /** Style 12：Claimed 實圖、Claimable mint border＋Claim、Locked 灰階＋解鎖條件 */
@@ -469,16 +753,19 @@ function Tile({
   busy,
   disabledReason,
   onClaim,
+  onPress,
 }: TileProps) {
   const { t } = useT();
   const locked = status === "locked";
+  const Wrap = onPress ? Pressable : View;
+  const wrapProps = onPress ? { onPress, accessibilityRole: "button" as const, accessibilityLabel: t("gear.detail.a11y", { name: collectibleName(t, item) }), android_ripple: { color: color.borderSubtle }, testID: `collectible-open-${item.kind}` } : {};
   const tint = item.shoeLevel
     ? SHOE_PROGRESSION.stages[item.shoeLevel - 1].tint
     : item.icon === "award"
       ? color.warning
       : color.cyan;
   return (
-    <View style={styles.cell}>
+    <Wrap style={styles.cell} {...wrapProps}>
       <Surface
         active={status === "claimable"}
         level={status === "claimed" ? "elevated" : "surface"}
@@ -489,6 +776,7 @@ function Tile({
         <View style={styles.tileArt}>
           {item.shoeLevel ? (
             <ShoeHero
+              owner={locked ? null : undefined}
               level={item.shoeLevel}
               size={120}
               active={status !== "locked"}
@@ -518,9 +806,14 @@ function Tile({
             />
           ) : null}
         </View>
-        <Text variant="title" numberOfLines={1}>
+        <Text variant="title" numberOfLines={2}>
           {collectibleName(t, item)}
         </Text>
+        {item.shoeLevel ? (
+          <Text variant="caption" tone="muted">
+            {t("gear.nftTag")}
+          </Text>
+        ) : null}
         {history ? (
           <Text variant="label" tone="secondary" uppercase testID={`collectible-history-${item.kind}`}>
             {t("gear.history")}
@@ -549,7 +842,7 @@ function Tile({
           />
         ) : null}
       </Surface>
-    </View>
+    </Wrap>
   );
 }
 
@@ -590,7 +883,20 @@ const styles = StyleSheet.create({
     marginTop: space.xl,
   },
   sectionNote: { marginTop: space.xxs },
+  flex: { flex: 1 },
+  center: { textAlign: "center" },
+  rowBtns: { flexDirection: "row", gap: space.s, marginTop: space.s },
+  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.m },
+  shoeRow: { gap: space.s, paddingVertical: space.xs },
+  shoeCard: { width: 148, alignItems: "center", padding: space.s },
+  detailHero: { alignItems: "center", gap: space.xs, marginBottom: space.m },
+  detailRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.m, minHeight: 44, borderBottomWidth: 1, borderBottomColor: color.borderSubtle },
+  detailValue: { flexShrink: 1, textAlign: "right" },
   groupTitle: { marginTop: space.m, marginBottom: space.xs },
+  cats: { flexDirection: "row", flexWrap: "wrap", gap: space.xs, marginTop: space.m },
+  cat: { minHeight: 36, paddingHorizontal: space.s, borderRadius: radius.m, borderWidth: 1, borderColor: color.borderSubtle, alignItems: "center", justifyContent: "center" },
+  catOn: { backgroundColor: color.mint, borderColor: color.mint },
+  catOnText: { color: color.onMint },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",

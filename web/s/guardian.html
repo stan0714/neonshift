@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>跑鞋背後的野生動物故事 — NeonShift</title>
+<meta name="description" content="每一階跑鞋都對應一種野生動物與牠的棲地故事。這是學習里程碑，不代表已經捐款或救援動物。">
+<link rel="canonical" href="https://neonshift.cc/s/guardian">
+<link rel="icon" type="image/svg+xml" href="/brand-mark.svg">
+<!-- 社群預覽（social-share §6.2）：爬蟲不執行 JS，head 直接給絕對 HTTPS 圖片；og:url 為不含來源參數的 canonical -->
+<meta property="og:site_name" content="NeonShift">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://neonshift.cc/s/guardian">
+<meta property="og:title" content="跑鞋背後的野生動物故事 · Wildlife stories behind the shoes — NeonShift">
+<meta property="og:description" content="Each shoe stage is tied to a species and its habitat story. These are learning milestones, not donations or rescues.">
+<meta property="og:image" content="https://neonshift.cc/og/guardian-v1.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="NeonShift — Wildlife stories behind the shoes">
+<meta property="og:locale" content="zh_TW">
+<meta property="og:locale:alternate" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="跑鞋背後的野生動物故事 · Wildlife stories behind the shoes — NeonShift">
+<meta name="twitter:description" content="Each shoe stage is tied to a species and its habitat story. These are learning milestones, not donations or rescues.">
+<meta name="twitter:image" content="https://neonshift.cc/og/guardian-v1.png">
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #050711; color: #F4F8FF; font: 16px/1.6 Inter, Roboto, Helvetica, Arial, sans-serif; }
+  main { max-width: 620px; margin: 0 auto; padding: 48px 20px 80px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+  header img { width: 40px; height: 40px; }
+  header .name { font-size: 18px; font-weight: 700; letter-spacing: .02em; }
+  h1 { font-size: 28px; line-height: 1.2; margin: 0 0 6px; }
+  h2 { font-size: 18px; color: #AAB7CC; font-weight: 400; margin: 0 0 20px; }
+  p { color: #AAB7CC; }
+  .shot { width: 100%; border: 1px solid #26324A; border-radius: 14px; margin: 24px 0; }
+  .cta { display: flex; flex-direction: column; gap: 12px; margin: 28px 0; }
+  .btn { display: block; text-align: center; padding: 14px 20px; border-radius: 12px; font-weight: 700; text-decoration: none; border: 1px solid transparent; }
+  .btn.primary { background: #30EBC8; color: #041016; }
+  .btn.ghost { color: #F4F8FF; border-color: #26324A; background: #0B1020; }
+  .btn.off { background: #0B1020; border-color: #26324A; color: #718099; cursor: default; }
+  .note { color: #718099; font-size: 14px; }
+  .box { background: #0B1020; border: 1px solid #26324A; border-radius: 14px; padding: 16px 18px; margin-top: 24px; }
+  .box h3 { margin: 0 0 6px; font-size: 15px; color: #30EBC8; }
+  .box p { margin: 0; font-size: 14px; }
+  code { color: #24C8FF; font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
+  footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid #26324A; color: #718099; font-size: 14px; }
+  footer a { color: #24C8FF; text-decoration: none; margin-right: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="/brand-mark.svg" alt="">
+    <span class="name">NeonShift</span>
+  </header>
+
+  <h1>跑鞋背後的野生動物故事</h1>
+  <h2>Wildlife stories behind the shoes</h2>
+  <p>每一階跑鞋都對應一種野生動物與牠的棲地故事。這是學習里程碑，不代表已經捐款或救援動物。</p>
+  <p>Each shoe stage is tied to a species and its habitat story. These are learning milestones, not donations or rescues.</p>
+
+  <img class="shot" src="/og/guardian-v1.png" width="1200" height="630" alt="NeonShift — Wildlife stories behind the shoes">
+
+  <div class="cta">
+    <!-- 尚未在 Solana dApp Store 上架：標示「尚未開放下載」，不假裝可安裝（social-share §6.2） -->
+    <span class="btn off" id="store" aria-disabled="true">Get NeonShift — 尚未開放下載</span>
+    <a class="btn ghost" id="open" href="neonshift://s/guardian">Open in NeonShift</a>
+    <button class="btn ghost" id="copy" type="button">複製這個連結 / Copy link</button>
+  </div>
+  <p class="note" id="storeNote">NeonShift 正在準備上架 Solana dApp Store（Android／Solana Mobile Seeker）。上架前請先追蹤 <a href="https://neonshift.cc">neonshift.cc</a>。<br>NeonShift is preparing its Solana dApp Store listing for Android on Solana Mobile Seeker. Until then, follow <a href="https://neonshift.cc">neonshift.cc</a>.</p>
+
+  <div class="box">
+    <h3>裝置與網路 / Device &amp; network</h3>
+    <p>目前只支援 Android（Solana Mobile Seeker 為主要裝置）；鏈上功能跑在 Solana devnet，獎勵使用 tSKR 測試代幣，沒有金錢價值。<br>Android only (Solana Mobile Seeker is the primary device). On-chain features run on Solana devnet; rewards use tSKR test tokens with no monetary value.</p>
+  </div>
+
+  <div class="box">
+    <h3>你的資料 / Your data</h3>
+    <p>GPS 路線只保存在記錄它的手機上，不會上傳；分享圖片由手機自己合成，預設不含路線、精確時間與錢包位址。<br>GPS routes stay on the phone that recorded them. Share images are built on the device and by default carry no route, exact start time or wallet address.</p>
+  </div>
+
+  <footer>
+    <a href="/">首頁 / Home</a><a href="/privacy/">隱私 / Privacy</a><a href="/licenses/">Licenses</a>
+  </footer>
+</main>
+<script>
+  // source 採允許清單：只把已知值轉進 deep link，不順手轉送 tag、token 或其他 query（§6.2）
+  var ALLOWED = ['summary', 'mint', 'levelup', 'guardian', 'passport', 'invite', 'finish', 'seasonal'];
+  var raw = new URLSearchParams(location.search).get('source') || '';
+  var source = ALLOWED.indexOf(raw) >= 0 ? raw : '';
+  var open = document.getElementById('open');
+  open.href = 'neonshift://s/guardian' + (source ? '?source=' + encodeURIComponent(source) : '');
+  // 匿名彙總（social-share §6.3）：只送 kind／source／event 三個允許清單內的值。
+  // 用 sendBeacon＋text/plain（CORS 安全清單，不觸發 preflight、也讀不到回應）；
+  // 不送 referrer、不設 cookie、不帶任何識別碼。計數是非唯一事件數，重載與爬蟲都會加一。
+  var KIND = 'guardian';
+  function ping(event) {
+    if (!KIND || !navigator.sendBeacon) return;
+    try {
+      var body = JSON.stringify({ kind: KIND, source: source || 'direct', event: event });
+      navigator.sendBeacon('https://api.neonshift.cc/v1/metrics/share', new Blob([body], { type: 'text/plain' }));
+    } catch (e) { /* 量測失敗不影響頁面 */ }
+  }
+  ping('landing_view');
+  open.addEventListener('click', function () { ping('app_open'); });
+  document.getElementById('copy').addEventListener('click', function () {
+    var url = 'https://neonshift.cc/s/guardian' + (source ? '?source=' + encodeURIComponent(source) : '');
+    var done = function () { document.getElementById('copy').textContent = '已複製 / Copied'; };
+    if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, function () {});
+  });
+</script>
+</body>
+</html>

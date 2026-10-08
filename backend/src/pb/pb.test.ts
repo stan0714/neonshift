@@ -77,6 +77,44 @@ describe("PB 端到端", () => {
   const j = (r: { json: () => unknown }) => r.json() as Record<string, any>;
   const gps = (id: string, day: string, km: number, splitMs: number) => ({ sport: "run", origin: "gps", source_id: "cc.neonshift.app/gps", external_record_id: id, started_at: `${day}T00:00:00Z`, ended_at: new Date(Date.parse(`${day}T00:00:00Z`) + splitMs * km).toISOString(), distance_mm: String(km * 1_000_000), distance_method: "gps", extras: { splits: Array.from({ length: km }, (_, i) => ({ kind: "split", index: i + 1, distanceMm: 1_000_000, durationMs: splitMs, isPartial: false, uncertain: false })) } });
 
+  it("PG-LINK-03 晚到更早紀錄：先匯 09/18 → 5K PB／首次 5K 指向 09/18；再匯更早更快的 09/17 → 插回時間線：09/17 成 Baseline current、09/18 撤銷；首次 5K 改指 09/17、已建立的里程碑成就更正來源；同鍵重送冪等、舊 revision 409；ACK 附 accepted_revision 與 recompute", async () => {
+    const u = await login();
+    const r18 = j(await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [gps("d18", "2026-09-18", 5, 330_000)] } }));
+    expect(r18.recompute).toBe("confirmed");
+    expect(r18.results[0]).toMatchObject({ outcome: "created", accepted_revision: 1 });
+    let pb = j(await app.inject({ method: "GET", url: "/v1/me/personal-bests", headers: u.h }));
+    const g5 = () => pb.groups.find((g: { category: string; verification_class: string }) => g.category === "fastest_5k" && g.verification_class === "device");
+    expect(g5().current).toMatchObject({ value: String(330_000 * 5), is_baseline: true, achieved_at: expect.stringMatching(/^2026-09-18/) });
+    const pb18 = g5().current.pb_id;
+    // 里程碑：首次 5K 指向 09/18，並建立成就
+    let ms = j(await app.inject({ method: "GET", url: "/v1/me/milestones", headers: u.h }));
+    const m5 = () => ms.items.find((m: { category: string; verification_class: string; environment: string }) => m.category === "first_5k" && m.verification_class === "device" && m.environment === "unknown");
+    const id18 = j(await app.inject({ method: "GET", url: "/v1/me/workouts", headers: u.h })).items.find((x: { source: { external_record_id: string } }) => x.source.external_record_id === "d18").session_id;
+    expect(m5().first.source.id).toBe(id18);
+    const intent = j(await app.inject({ method: "POST", url: "/v1/me/milestones/mint-intent", headers: u.h, payload: { key: m5().key, public_consent: false } }));
+    expect(intent.achievement.source.id).toBe(id18);
+    // 晚到：09/17 更快的 5K
+    const r17 = j(await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [gps("d17", "2026-09-17", 5, 300_000)] } }));
+    expect(r17.recompute).toBe("confirmed");
+    const id17 = j(await app.inject({ method: "GET", url: "/v1/me/workouts", headers: u.h })).items.find((x: { source: { external_record_id: string } }) => x.source.external_record_id === "d17").session_id;
+    pb = j(await app.inject({ method: "GET", url: "/v1/me/personal-bests", headers: u.h }));
+    expect(g5().current).toMatchObject({ value: String(300_000 * 5), is_baseline: true, achieved_at: expect.stringMatching(/^2026-09-17/) });
+    expect(g5().current.pb_id).not.toBe(pb18);
+    expect(g5().history.map((h: { pb_id: string; status: string }) => [h.pb_id, h.status])).toEqual([[pb18, "invalidated"]]); // 09/18 不再是 PB（不是嚴格改善）
+    ms = j(await app.inject({ method: "GET", url: "/v1/me/milestones", headers: u.h }));
+    expect(m5().first.source.id).toBe(id17); // 首次 5K 改指更早的一筆
+    const ach = j(await app.inject({ method: "GET", url: "/v1/me/achievements", headers: u.h })).items.find((a: { milestone_key: string }) => a.milestone_key === m5().key);
+    expect([ach.achievement_id, ach.source.id]).toEqual([intent.achievement.achievement_id, id17]); // 同 id、來源更正
+    // 幂等：同鍵同 revision 重送回 same 不重複建立；舊 revision → 409 stale
+    const again = j(await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [gps("d17", "2026-09-17", 5, 300_000)] } }));
+    expect([again.results[0].outcome, again.recompute]).toEqual(["same", "unchanged"]);
+    const newer = j(await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [{ ...gps("d17", "2026-09-17", 5, 301_000), source_revision: 2 }] } }));
+    expect([newer.results[0].outcome, newer.results[0].accepted_revision, newer.recompute]).toEqual(["superseded", 2, "confirmed"]);
+    const stale = j(await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [gps("d17", "2026-09-17", 5, 300_000)] } }));
+    expect(stale.results[0].outcome).toBe("stale");
+    expect(j(await app.inject({ method: "GET", url: "/v1/me/workouts", headers: u.h })).items).toHaveLength(2);
+  });
+
   it("匯入兩次跑步：Baseline → 改善；刪除較快的一次 → 該 PB invalidated、舊 Baseline 回 current；主辦方成績另成一組；更正成 DNF 後撤銷", async () => {
     const u = await login();
     await app.inject({ method: "POST", url: "/v1/workouts/import", headers: u.h, payload: { sessions: [gps("w1", "2026-09-01", 5, 320_000)] } });

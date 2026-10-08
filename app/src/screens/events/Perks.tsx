@@ -7,6 +7,7 @@ import { Button, Chip, InlineState, Surface } from '@/components';
 import { useT, type TKey } from '@/i18n';
 import { ApiError, apiClient, type EventBenefit, type Redemption } from '@/services/api/ApiClient';
 import { color, radius, space, Text } from '@/theme';
+import { apiErrorText } from '@/services/api/errorText';
 
 type Props = { eventId: string; slug: string; registration: 'none' | 'registered' | 'checked_in'; signedIn: boolean };
 
@@ -55,7 +56,7 @@ export function Perks({ eventId, slug, registration, signedIn }: Props) {
       await load();
     } catch (e) {
       const code = e instanceof ApiError ? e.code : 'UNKNOWN';
-      setErr({ title: KNOWN.includes(code) ? t(`perk.err.${code}` as TKey) : t('perk.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+      setErr({ title: KNOWN.includes(code) ? t(`perk.err.${code}` as TKey) : t('perk.err.generic', { message: apiErrorText(t, e) }) });
       if (code !== 'UNKNOWN') await load();
     } finally {
       setBusy(null);

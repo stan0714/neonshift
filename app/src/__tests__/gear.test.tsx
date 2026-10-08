@@ -5,6 +5,7 @@ import type { PropsWithChildren } from 'react';
 
 import type { PlayerProfile } from '@/chain/accounts';
 import { GearScreen } from '@/screens/tabs/GearScreen';
+import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { useCollectibleStore } from '@/state/collectibleStore';
 import { useDashboardStore } from '@/state/dashboardStore';
 import { useWalletStore } from '@/state/walletStore';
@@ -13,8 +14,9 @@ import { ThemeProvider } from '@/theme';
 jest.mock('@/config/app', () => ({ APP_CONFIG: { ...jest.requireActual('@/config/app').APP_CONFIG, programId: '6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA', chainConfigured: true } }));
 const mockClaim = jest.fn(async (_w: PublicKey, kind: number) => ({ kind, asset: 'AssetAddr1111', signature: 'sig111', alreadyClaimed: false }));
 const mockFetchClaimed = jest.fn(async () => new Set([1]));
-jest.mock('@/services/chain/CollectibleService', () => ({ collectibleService: { claim: (w: PublicKey, k: number) => mockClaim(w, k), fetchClaimed: () => mockFetchClaimed() } }));
-jest.mock('expo-haptics', () => ({ notificationAsync: jest.fn(), NotificationFeedbackType: { Success: 'success' } }));
+const mockFetchEdition = jest.fn(async (_w: PublicKey, kind: number) => ({ kind, edition: 12, total: 34 }));
+jest.mock('@/services/chain/CollectibleService', () => ({ collectibleService: { claim: (w: PublicKey, k: number) => mockClaim(w, k), fetchClaimed: () => mockFetchClaimed(), fetchEdition: (w: PublicKey, k: number) => mockFetchEdition(w, k) } }));
+jest.mock('expo-haptics', () => ({ notificationAsync: jest.fn(), impactAsync: jest.fn(), ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' }, NotificationFeedbackType: { Success: 'success' } }));
 
 const wallet = new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
 const profile = (p: Partial<PlayerProfile>): PlayerProfile => ({ wallet, coreLevel: 2, shoeLevel: 2, xp: BigInt(600), lastTaskDate: 0, streakDays: 1, maxStreakDays: 1, claimedToday: BigInt(0), todayDate: 0, migrated: true, highestLevel: 2, epochAnchor: 0, lastSettledEpoch: 0, epochPoints: 0, epochBitmap: 0, maintenanceRulesVersion: 1, ...p });
@@ -30,24 +32,24 @@ beforeEach(() => {
   jest.clearAllMocks();
   useWalletStore.setState({ status: 'connected', session: { address: wallet.toBase58(), publicKey: wallet, walletUriBase: '', label: 'Phantom' }, error: null } as never);
   useDashboardStore.setState({ profile: profile({}), config, syncChain: jest.fn(async () => {}) } as never);
-  useCollectibleStore.setState({ claimed: new Set([1]), loading: false, error: null, claiming: null, outcome: null });
+  useCollectibleStore.setState({ claimed: new Set([1]), loading: false, error: null, claiming: null, outcome: null, editions: {}, editionLoading: {} });
 });
 
 describe('PG-A-14 Gear', () => {
   test('等級、倍率、距下一階 XP 與三種收藏狀態', async () => {
     await render(<GearScreen />, { wrapper: Wrapper });
-    expect(screen.getByText('Pulse')).toBeTruthy();
+    expect(screen.getAllByText('Asian Elephant').length).toBeGreaterThan(0); // hero＋「我的跑鞋」卡片
     expect(screen.getByText(/600 XP · 900 XP to Lv\.3/)).toBeTruthy();
     expect(screen.getByText('1.1×')).toBeTruthy(); // core level 2
     expect(screen.getByText('1.25×')).toBeTruthy();
     expect(screen.getByText('1,500 XP')).toBeTruthy();
     expect(screen.getByLabelText('Shoe · Origin, claimed')).toBeTruthy();
-    expect(screen.getByLabelText('Shoe · Pulse, claimable')).toBeTruthy();
-    expect(screen.getByLabelText('Shoe · Phase, locked')).toBeTruthy();
+    expect(screen.getByLabelText('Shoe · Asian Elephant, claimable')).toBeTruthy();
+    expect(screen.getByLabelText('Shoe · Hawksbill, locked')).toBeTruthy();
     expect(screen.getByText('Reach Lv.3')).toBeTruthy();
     expect(screen.getByLabelText('First Clock-In, claimable')).toBeTruthy();
     expect(screen.getByLabelText('7-Day Streak, locked')).toBeTruthy();
-    expect(screen.getByText(/only pay devnet rent/)).toBeTruthy();
+    expect(screen.getByText(/devnet rent only/)).toBeTruthy();
     await waitFor(() => expect(mockFetchClaimed).toHaveBeenCalled());
   });
 
@@ -65,8 +67,8 @@ describe('PG-A-14 Gear', () => {
     expect(screen.getByTestId('gear-shoes-achieved')).toBeTruthy();
     expect(screen.getByTestId('gear-shoes-locked')).toBeTruthy();
     expect(screen.getByTestId('collectible-history-4')).toBeTruthy(); // Lv4 曾經達成
-    expect(screen.getByLabelText('Shoe · Surge, claimable')).toBeTruthy(); // 依歷史最高可補領
-    expect(screen.getByLabelText('Shoe · Zenith, locked')).toBeTruthy();
+    expect(screen.getByLabelText('Shoe · Tiger, claimable')).toBeTruthy(); // 依歷史最高可補領
+    expect(screen.getByLabelText('Shoe · Amur Leopard, locked')).toBeTruthy();
     await waitFor(() => expect(mockFetchClaimed).toHaveBeenCalled());
   });
 
@@ -86,8 +88,52 @@ describe('PG-A-14 Gear', () => {
     await fireEvent.press(screen.getByTestId('claim-2'));
     await waitFor(() => expect(screen.getByTestId('collectible-success')).toBeTruthy());
     expect(mockClaim).toHaveBeenCalledWith(wallet, 2);
-    expect(screen.getByText(/Shoe · Pulse · AssetAdd…/)).toBeTruthy();
-    expect(screen.getByLabelText('Shoe · Pulse, claimed')).toBeTruthy();
+    expect(screen.getByText(/Shoe · Asian Elephant · AssetAdd…/)).toBeTruthy();
+    expect(screen.getByLabelText('Shoe · Asian Elephant, claimed')).toBeTruthy();
+  });
+
+  test('點鞋子開詳情面板：鞋階／XP／倍率／解鎖條件／NFT 狀態與裝備說明；可領時面板內可領取', async () => {
+    await render(<GearScreen />, { wrapper: Wrapper });
+    await fireEvent.press(screen.getByTestId('collectible-open-3')); // Hawksbill：locked（level 2，xp 600）
+    expect(screen.getByTestId('shoe-detail')).toBeTruthy();
+    expect(screen.getByText('Lv.3 · Hawksbill')).toBeTruthy();
+    expect(screen.getByText('Overlapping shell panels · flipper-shaped heel')).toBeTruthy();
+    expect(screen.getByTestId('shoe-detail-section-locked')).toBeTruthy();
+    expect(screen.getByTestId('shoe-growth-box')).toBeTruthy();
+    expect(screen.getByTestId('shoe-story-3')).toBeTruthy();
+    expect(screen.getByText(/Eretmochelys imbricata/)).toBeTruthy();
+    expect(screen.queryByText(/^Your finish/)).toBeNull();
+    expect(screen.getByTestId('shoe-detail-nft').props.children).toBe('Claimable once you reach this stage');
+    expect(screen.getByTestId('shoe-detail-remaining').props.children).toBe('You have 600 XP · 900 XP to go');
+    expect(screen.getByText(/Gear and NFT are separate/)).toBeTruthy();
+    // 試拆盲盒（示意）：DEMO 標籤、盒子層、系列展示樣式、無交易連結；關閉後不改任何狀態
+    await fireEvent.press(screen.getByTestId('shoe-detail-preview-reveal'));
+    expect(screen.getByTestId('evolution-reveal')).toBeTruthy();
+    expect(screen.getByTestId('reveal-preview')).toBeTruthy();
+    expect(screen.getByTestId('unbox-stage')).toBeTruthy(); // 盒子層本身由 unboxStage.test 驗證；整個檔案跑時 5.2 s 儀式可能已結束（settled）
+    expect(screen.getByText('Lv.2 → Lv.3')).toBeTruthy();
+    // 2026-09-21 reward-animation-refinement：物種故事在拆盒揭曉後才渲染；儀式可能已自行結束（skip 鈕消失）
+    const skip = screen.queryByTestId('unbox-skip');
+    if (skip) await fireEvent.press(skip);
+    await waitFor(() => expect(screen.getByText('Collection preview')).toBeTruthy());
+    expect(screen.queryByTestId('reveal-tx')).toBeNull();
+    await fireEvent.press(screen.getByTestId('reveal-ok'));
+    expect(screen.queryByTestId('evolution-reveal')).toBeNull();
+    expect(screen.getByTestId('shoe-detail')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('shoe-detail-done'));
+    expect(screen.queryByTestId('shoe-detail')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('collectible-open-1')); // Origin：claimed → 初階跑鞋說明＋NFT 編號（鏈上領取順序）
+    await waitFor(() => expect(screen.getByTestId('shoe-detail-edition').props.children).toBe('No. 12 · 34 claimed · open edition'));
+    expect(mockFetchEdition).toHaveBeenCalledWith(wallet, 1);
+    expect(screen.getByText(/Your starter shoe was granted/)).toBeTruthy();
+    expect(screen.getByTestId('shoe-detail-nft').props.children).toBe('Already in your wallet');
+    await fireEvent.press(screen.getByTestId('shoe-detail-close'));
+
+    await fireEvent.press(screen.getByTestId('collectible-open-2')); // Asian Elephant：claimable → footer 領取
+    await fireEvent.press(screen.getByTestId('shoe-detail-claim'));
+    await waitFor(() => expect(mockClaim).toHaveBeenCalledWith(wallet, 2));
+    await waitFor(() => expect(screen.getByTestId('shoe-detail-nft').props.children).toBe('Already in your wallet'));
   });
 
   test('拒簽顯示 warning，不改變狀態', async () => {
@@ -107,11 +153,106 @@ describe('PG-A-14 Gear', () => {
     expect(screen.queryByTestId('claim-1')).toBeNull(); // 無 profile → 全部 locked
   });
 
+  /**
+   * 2026-10-02 實機（0 SOL、沒領起始鞋的錢包）：「我的跑鞋」顯示原點「使用中」，
+   * 同一頁下方收藏卻寫原點要「建立玩家檔案」才解鎖。原點就是起始鞋，沒領就不算擁有。
+   */
+  test('沒有 profile 時「我的跑鞋」是空的，不會出現原點「使用中」', async () => {
+    useDashboardStore.setState({ profile: null } as never);
+    await render(<GearScreen />, { wrapper: Wrapper });
+    expect(screen.queryByTestId('gear-shoe-1')).toBeNull();
+    expect(screen.queryByText('In use')).toBeNull();
+    expect(screen.getByText(/Claim your starter shoe \(Origin\)/)).toBeTruthy();
+  });
+
   test('Lv.5 顯示 Max level、五階皆可領', async () => {
     useDashboardStore.setState({ profile: profile({ shoeLevel: 5, coreLevel: 5, xp: BigInt(9000) }) } as never);
     await render(<GearScreen />, { wrapper: Wrapper });
     expect(screen.getByText(/9,000 XP · Max level/)).toBeTruthy();
     expect(screen.getByText('1.6×')).toBeTruthy();
-    expect(screen.getByLabelText('Shoe · Zenith, claimable')).toBeTruthy();
+    expect(screen.getByLabelText('Shoe · Amur Leopard, claimable')).toBeTruthy();
+  });
+
+  test('PG-LINK-01：我的跑鞋列出已取得鞋款、目前使用；詳情「使用這雙」切換 hero 外觀並標示有效等級；背景開關持久化並依錢包分區', async () => {
+    const { useAppearanceStore } = jest.requireActual('@/state/appearanceStore') as typeof import('@/state/appearanceStore');
+    useAppearanceStore.setState({ owner: null, loaded: false, selectedShoeId: null, shoeBackgroundEnabled: true, acquiredAt: {}, offer: null });
+    useDashboardStore.setState({ profile: profile({ coreLevel: 2, shoeLevel: 2, highestLevel: 4, xp: BigInt(4000) }), config, syncChain: jest.fn(async () => {}) } as never);
+    const store = workoutRecorder.localStore();
+    const mk = async (id: string, o: Record<string, unknown>) => {
+      const m = await store.create({ sessionId: id, sport: 'run', intent: 'run', goal: null, environment: 'outdoor', autoLapMm: null, splitLengthMm: 1_000_000, status: 'saved', startedAtUtc: Date.UTC(2026, 8, 10), startedMonoMs: 0, processId: 'p', owner: wallet.toBase58(), shoeSnapshot: { shoeId: 'wild-guardians-v1:2', level: 2, variant: 'dawn' } } as never);
+      m.summary = { distanceMm: 4_000_000, elapsedMs: 1_500_000, movingMs: 1_500_000, movingAvgPaceSPerKm: 375, avgPaceSPerKm: 375, movingAvgSpeedKmh: null, avgSpeedKmh: null, splits: [], laps: [] } as never;
+      Object.assign(m, o);
+      await store.writeMeta(m);
+    };
+    await mk('m1', {});
+    await mk('m2', {});
+    await mk('m3', { status: 'needs_review' });
+    await render(<GearScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(useAppearanceStore.getState().loaded).toBe(true));
+    // 已取得 Lv.1–4（highest 4），Lv.5 不在列
+    expect(screen.getByTestId('gear-shoe-1')).toBeTruthy();
+    // 每雙鞋的運動歷程（LINK-10）：依開始時鞋款快照歸組；待審另計；沒穿過 → 提示
+    expect(screen.getByTestId('gear-shoe-2-mileage').props.children).toBe('2 workouts · 8.0 km · 1 under review');
+    expect(screen.getByTestId('gear-shoe-1-mileage').props.children).toBe('No workouts in these shoes yet');
+    expect(screen.getByTestId('gear-shoe-4')).toBeTruthy();
+    expect(screen.queryByTestId('gear-shoe-5')).toBeNull();
+    expect(screen.queryByTestId('gear-appearance-chip')).toBeNull(); // 跟隨有效等級 Lv.2
+    await waitFor(() => expect(screen.getByTestId('habitat-scene-forest', { includeHiddenElements: true })).toBeTruthy()); // Lv.2 森林
+    // 切到 Lv.4 老虎外觀
+    await fireEvent.press(screen.getByTestId('gear-shoe-4'));
+    expect(screen.getByTestId('shoe-detail-look').props.children).toBe('Available');
+    await fireEvent.press(screen.getByTestId('shoe-detail-use'));
+    await waitFor(() => expect(screen.getByTestId('gear-appearance-chip')).toBeTruthy());
+    expect(screen.getByText('Look Lv.4')).toBeTruthy();
+    expect(screen.getByTestId('gear-appearance-note').props.children).toContain('active level is Lv.2');
+    expect(screen.getByTestId('habitat-scene-jungle', { includeHiddenElements: true })).toBeTruthy();
+    expect(useAppearanceStore.getState().selectedShoeId).toBe('wild-guardians-v1:4');
+    // 關背景：場景消失、選擇保留
+    fireEvent(screen.getByTestId('gear-bg-switch'), 'valueChange', false);
+    await waitFor(() => expect(screen.queryByTestId('habitat-scene-jungle', { includeHiddenElements: true })).toBeNull());
+    expect(useAppearanceStore.getState().selectedShoeId).toBe('wild-guardians-v1:4');
+    // 持久化：以錢包分區
+    const SecureStore = jest.requireMock('expo-secure-store') as { getItemAsync: (k: string) => Promise<string | null> };
+    const raw = await SecureStore.getItemAsync(`neonshift.appearance.v1.${wallet.toBase58()}`);
+    expect(JSON.parse(raw!)).toMatchObject({ selectedShoeId: 'wild-guardians-v1:4', shoeBackgroundEnabled: false });
+    // 換成另一個錢包：不沿用上一人的選擇
+    const other = new PublicKey('11111111111111111111111111111112');
+    useWalletStore.setState({ status: 'connected', session: { address: other.toBase58(), publicKey: other, walletUriBase: '', label: 'Phantom' }, error: null } as never);
+    await waitFor(() => expect(useAppearanceStore.getState().owner).toBe(other.toBase58()));
+    expect(useAppearanceStore.getState()).toMatchObject({ selectedShoeId: null, shoeBackgroundEnabled: true });
+  });
+
+  test('PG-LINK-01：未取得的鞋款不能套用（詳情無「使用這雙」）；訪客無場景', async () => {
+    const { useAppearanceStore } = jest.requireActual('@/state/appearanceStore') as typeof import('@/state/appearanceStore');
+    useAppearanceStore.setState({ owner: null, loaded: false, selectedShoeId: null, shoeBackgroundEnabled: true, acquiredAt: {}, offer: null });
+    await render(<GearScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(useAppearanceStore.getState().loaded).toBe(true));
+    await fireEvent.press(screen.getByTestId('collectible-open-3'));
+    expect(screen.getByTestId('shoe-detail-look').props.children).toBe('Available after Lv.3');
+    expect(screen.queryByTestId('shoe-detail-use')).toBeNull();
+    await fireEvent.press(screen.getByTestId('shoe-detail-done'));
+    useWalletStore.setState({ status: 'disconnected', session: null, error: null } as never);
+    await waitFor(() => expect(screen.queryByTestId('habitat-scene-forest', { includeHiddenElements: true })).toBeNull());
+  });
+  test('PG-SEASON-03：收藏分類切換——預設全部都在，選一類只留那一類；個人最佳在哪一頁要寫清楚', async () => {
+    await render(<GearScreen />, { wrapper: Wrapper });
+    await waitFor(() => expect(screen.getByTestId('gear-cats')).toBeTruthy());
+    // 預設 all：這一頁本來同時顯示四塊，分類是收斂捲軸，不是藏內容
+    expect(screen.getByTestId('gear-shoes-equipped')).toBeTruthy();
+    expect(screen.getByTestId('seasonal-footprints')).toBeTruthy();
+    // 個人最佳沒有搬來這頁，所以要說它在哪裡
+    expect(screen.getByTestId('gear-cat-note')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('gear-cat-seasonal'));
+    await waitFor(() => expect(screen.queryByTestId('gear-shoes-equipped')).toBeNull());
+    expect(screen.getByTestId('seasonal-footprints')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('gear-cat-shoes'));
+    await waitFor(() => expect(screen.getByTestId('gear-shoes-equipped')).toBeTruthy());
+    expect(screen.queryByTestId('seasonal-footprints')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('gear-cat-all'));
+    await waitFor(() => expect(screen.getByTestId('seasonal-footprints')).toBeTruthy());
+    expect(screen.getByTestId('gear-shoes-equipped')).toBeTruthy();
   });
 });

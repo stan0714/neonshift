@@ -92,10 +92,12 @@ android {
         applicationId 'cc.neonshift.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        versionCode 22
         versionName "0.1.0"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+        // Runbook 8.5：release 預設禁止明文 HTTP；後端只有 http://（例如 dev 直連 l1:6080）時由 build.sh 以 -PcleartextTraffic=true 開啟；debug manifest 一律 true
+        manifestPlaceholders = [cleartextTraffic: (findProperty('cleartextTraffic') ?: 'false').toString()]
     }
     // PG-D-01（Runbook 8.2）：android/keystore.properties（gitignore）存在時使用 release 簽章；否則退回 debug 簽章並在 build.sh 擋下
     def keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -112,7 +114,9 @@ android {
         }
         release {
             if (keystorePropertiesFile.exists()) {
-                storeFile rootProject.file("app/" + keystoreProperties['storeFile'])
+                // storeFile 可為絕對路徑（金鑰放 ~/.config/neonshift/<env>/，不進 repo）或相對 app/android/app/
+                def ksFile = new File(keystoreProperties['storeFile'])
+                storeFile ksFile.isAbsolute() ? ksFile : rootProject.file("app/" + keystoreProperties['storeFile'])
                 storePassword keystoreProperties['storePassword']
                 keyAlias keystoreProperties['keyAlias']
                 keyPassword keystoreProperties['keyPassword']

@@ -70,7 +70,7 @@ impl World {
 // ---------------------------------------------------------------- 正常路徑
 
 #[test]
-fn happy_path_steps_then_sleep_same_day() {
+fn happy_path_steps_then_workout_same_day() {
     let mut w = world();
     let vault_before = token_balance(&w.env.svm, &w.init.tokens.reward_vault);
     let args = w.args(TASK_STEPS);
@@ -86,12 +86,12 @@ fn happy_path_steps_then_sleep_same_day() {
     assert_eq!((p.xp, p.shoe_level, p.core_level, p.streak_days, p.claimed_today), (100, 1, 1, 1, 10 * TSKR_UNIT));
     assert_eq!(p.last_task_date, args.task_date);
 
-    // 同日睡眠：另一張 receipt，streak 不重複增加
+    // 同日運動任務（維持規則 v2）：另一張 receipt，XP +100、獎勵基礎沿用第二任務欄位 5 tSKR，streak 不重複增加
     advance_time(&mut w.env.svm, 60);
-    let sleep = w.args(TASK_SLEEP);
+    let sleep = w.args(TASK_WORKOUT);
     w.clock_in(sleep).unwrap();
     let p = w.profile();
-    assert_eq!((p.xp, p.streak_days, p.claimed_today), (150, 1, 15 * TSKR_UNIT));
+    assert_eq!((p.xp, p.streak_days, p.claimed_today), (200, 1, 15 * TSKR_UNIT));
     assert_eq!(w.balance(), 15 * TSKR_UNIT);
 }
 
@@ -107,7 +107,7 @@ fn replay_same_attestation_is_rejected_6009_and_other_task_unaffected() {
     again.nonce = [9; 16];
     assert_eq!(custom_error(&w.clock_in(again)), Some(6009));
     // 另一任務不受影響
-    w.clock_in(w.args(TASK_SLEEP)).unwrap();
+    w.clock_in(w.args(TASK_WORKOUT)).unwrap();
 }
 
 // ---------------------------------------------------------------- PG-C-04 完成定義
@@ -182,7 +182,7 @@ fn wrong_attestor_key_6002_and_rotation_grace() {
     send(&mut w.env.svm, &[admin_ix(&admin.pubkey(), ix::RotateAttestor { new_attestor: attestor_pubkey(&other), grace_seconds: 120 }.data())], &admin, &[]).unwrap();
     w.clock_in(args).unwrap(); // 舊鑰（w.attestor）在寬限期內
     advance_time(&mut w.env.svm, 121);
-    let sleep = w.args(TASK_SLEEP);
+    let sleep = w.args(TASK_WORKOUT);
     assert_eq!(custom_error(&w.clock_in(sleep)), Some(6002));
     let ixs = [ed25519_ix(&other, &canonical(&sleep)), clock_in_ix(&w.wallet(), &w.player.accts, sleep)];
     let res = send(&mut w.env.svm, &ixs, &player, &[]);
@@ -266,18 +266,18 @@ fn daily_cap_partial_then_exhausted_6010() {
     // cap 12 tSKR：步數 10 → 睡眠只發剩餘 2；隔日再 cap 10：步數 10 後睡眠 0 → 6010
     let mut w = world_with(|p| p.daily_cap = 12 * TSKR_UNIT);
     w.clock_in(w.args(TASK_STEPS)).unwrap();
-    let sleep = w.args(TASK_SLEEP);
+    let sleep = w.args(TASK_WORKOUT);
     w.clock_in(sleep).unwrap();
-    let r: ClaimReceipt = read(&w.env.svm, &receipt_pda(&w.wallet(), sleep.task_date, TASK_SLEEP));
+    let r: ClaimReceipt = read(&w.env.svm, &receipt_pda(&w.wallet(), sleep.task_date, TASK_WORKOUT));
     assert_eq!(r.amount, 2 * TSKR_UNIT, "額度部分剩餘只發剩餘量");
     assert_eq!(w.profile().claimed_today, 12 * TSKR_UNIT);
 
     let mut w = world_with(|p| p.daily_cap = 10 * TSKR_UNIT);
     w.clock_in(w.args(TASK_STEPS)).unwrap();
-    let sleep = w.args(TASK_SLEEP);
+    let sleep = w.args(TASK_WORKOUT);
     assert_eq!(custom_error(&w.clock_in(sleep)), Some(6010));
     // 6010 時不得留下 receipt
-    assert!(w.env.svm.get_account(&receipt_pda(&w.wallet(), sleep.task_date, TASK_SLEEP)).is_none());
+    assert!(w.env.svm.get_account(&receipt_pda(&w.wallet(), sleep.task_date, TASK_WORKOUT)).is_none());
 }
 
 #[test]
@@ -306,9 +306,9 @@ fn streak_bonus_applies_on_seventh_consecutive_day() {
         assert_eq!(r.amount, expected, "day {day}");
         if day == 7 {
             // 同日第二項任務：沿用 streak 7，加成套用但不再累加
-            let s = w.args(TASK_SLEEP);
+            let s = w.args(TASK_WORKOUT);
             w.clock_in(s).unwrap();
-            let r: ClaimReceipt = read(&w.env.svm, &receipt_pda(&w.wallet(), s.task_date, TASK_SLEEP));
+            let r: ClaimReceipt = read(&w.env.svm, &receipt_pda(&w.wallet(), s.task_date, TASK_WORKOUT));
             assert_eq!(r.amount, 5_500_000);
             assert_eq!(w.profile().streak_days, 7);
         }
@@ -325,16 +325,16 @@ fn level_changes_only_at_epoch_settlement_and_multiplier_applies_after() {
     let p = w.profile();
     assert_eq!((p.xp, p.shoe_level, p.core_level, p.highest_level), (100, 1, 1, 1));
     assert_eq!((p.epoch_points, p.epoch_bitmap, p.last_settled_epoch), (100, 0b1, 0));
-    let s = w.args(TASK_SLEEP);
-    w.clock_in(s).unwrap(); // 同日睡眠：仍 Lv1 1.0x → 5；點數 150、活躍日仍 1
-    let r: ClaimReceipt = read(&w.env.svm, &receipt_pda(&w.wallet(), s.task_date, TASK_SLEEP));
+    let s = w.args(TASK_WORKOUT);
+    w.clock_in(s).unwrap(); // 同日運動：仍 Lv1 1.0x → 5；點數 200（v2 日上限）、活躍日仍 1
+    let r: ClaimReceipt = read(&w.env.svm, &receipt_pda(&w.wallet(), s.task_date, TASK_WORKOUT));
     assert_eq!(r.amount, 5 * TSKR_UNIT);
-    assert_eq!((w.profile().epoch_points, w.profile().epoch_bitmap), (150, 0b1));
-    // 第 2 日步數 → 250 點／2 活躍日（Lv2 門檻 200／2）
+    assert_eq!((w.profile().epoch_points, w.profile().epoch_bitmap), (200, 0b1));
+    // 第 2 日步數 → 300 點／2 活躍日（Lv2 門檻 200／2、Lv3 450／3 不到）
     advance_time(&mut w.env.svm, SECONDS_PER_DAY);
     w.clock_in(w.args(TASK_STEPS)).unwrap();
-    assert_eq!((w.profile().epoch_points, w.profile().epoch_bitmap, w.profile().core_level), (250, 0b11, 1));
-    // 第 8 日（新期）打卡：先結算第 0 期 → XP 250 上限 Lv4、成績 250／2 只撐 Lv2 → Lv2；本筆以 Lv2 1.2x 計算並計入第 1 期
+    assert_eq!((w.profile().epoch_points, w.profile().epoch_bitmap, w.profile().core_level), (300, 0b11, 1));
+    // 第 8 日（新期）打卡：先結算第 0 期 → XP 300 上限 Lv4、成績 300／2 只撐 Lv2 → Lv2；本筆以 Lv2 1.2x 計算並計入第 1 期
     advance_time(&mut w.env.svm, 6 * SECONDS_PER_DAY);
     let a8 = w.args(TASK_STEPS);
     w.clock_in(a8).unwrap();
@@ -346,14 +346,14 @@ fn level_changes_only_at_epoch_settlement_and_multiplier_applies_after() {
 
 #[test]
 fn absence_demotes_one_level_per_epoch_and_settle_is_bounded_and_idempotent() {
-    // 用低門檻讓 XP 上限不擋：第 0 期 3 日雙任務（450 點／3 日）→ Lv3；接著缺席 4 期
+    // 用低門檻讓 XP 上限不擋：第 0 期 3 日雙任務（v2：600 點／3 日）→ Lv3（Lv4 需 700／5）；接著缺席 4 期
     let mut w = world_with(|p| p.shoe_xp_thresholds = [0, 100, 150, 250, 400]);
     for _ in 0..3 {
         w.clock_in(w.args(TASK_STEPS)).unwrap();
-        w.clock_in(w.args(TASK_SLEEP)).unwrap();
+        w.clock_in(w.args(TASK_WORKOUT)).unwrap();
         advance_time(&mut w.env.svm, SECONDS_PER_DAY);
     }
-    assert_eq!((w.profile().epoch_points, w.profile().epoch_bitmap.count_ones()), (450, 3));
+    assert_eq!((w.profile().epoch_points, w.profile().epoch_bitmap.count_ones()), (600, 3));
     // 跳到第 5 期開頭（缺席第 1～4 期）：任何 payer 可結算；max 2 → 只結算 2 期
     advance_time(&mut w.env.svm, (7 * 5 - 3) * SECONDS_PER_DAY);
     w.settle(2).unwrap();
@@ -362,17 +362,17 @@ fn absence_demotes_one_level_per_epoch_and_settle_is_bounded_and_idempotent() {
     // 其餘 3 期：每期最多降一階 → Lv1；highest 不變；XP 不扣
     w.settle(64).unwrap();
     let p = w.profile();
-    assert_eq!((p.last_settled_epoch, p.core_level, p.shoe_level, p.highest_level, p.xp), (5, 1, 1, 3, 450));
+    assert_eq!((p.last_settled_epoch, p.core_level, p.shoe_level, p.highest_level, p.xp), (5, 1, 1, 3, 600));
     // 冪等：已追平再結算不改變（換 blockhash 避免同筆交易去重）
     w.env.svm.expire_blockhash();
     w.settle(64).unwrap();
     assert_eq!(w.profile().last_settled_epoch, 5);
-    // 回歸：第 5 期 2 日雙任務（300／2）→ 第 6 期打卡結算後恢復 Lv2（XP 上限允許，不逐階等待亦不自動回 Lv3）
+    // 回歸：第 5 期 2 日雙任務（v2：400／2）→ 第 6 期打卡結算後恢復 Lv2（XP 上限允許，不逐階等待亦不自動回 Lv3）
     w.clock_in(w.args(TASK_STEPS)).unwrap();
-    w.clock_in(w.args(TASK_SLEEP)).unwrap();
+    w.clock_in(w.args(TASK_WORKOUT)).unwrap();
     advance_time(&mut w.env.svm, SECONDS_PER_DAY);
     w.clock_in(w.args(TASK_STEPS)).unwrap();
-    w.clock_in(w.args(TASK_SLEEP)).unwrap();
+    w.clock_in(w.args(TASK_WORKOUT)).unwrap();
     advance_time(&mut w.env.svm, 6 * SECONDS_PER_DAY);
     w.clock_in(w.args(TASK_STEPS)).unwrap();
     let p = w.profile();
@@ -397,9 +397,9 @@ fn far_behind_requires_explicit_settlement_6041_then_clock_in_succeeds() {
 #[test]
 fn migrate_player_upgrades_v1_layout_keeps_levels_and_starts_new_epoch() {
     let mut w = world_with(|p| p.shoe_xp_thresholds = [0, 100, 150, 250, 400]);
-    // 先到 Lv2（第 0 期 250／2 → 第 1 期結算）
+    // 先到 Lv2（第 0 期 300／2 → 第 1 期結算）
     w.clock_in(w.args(TASK_STEPS)).unwrap();
-    w.clock_in(w.args(TASK_SLEEP)).unwrap();
+    w.clock_in(w.args(TASK_WORKOUT)).unwrap();
     advance_time(&mut w.env.svm, SECONDS_PER_DAY);
     w.clock_in(w.args(TASK_STEPS)).unwrap();
     advance_time(&mut w.env.svm, 6 * SECONDS_PER_DAY);
@@ -410,20 +410,32 @@ fn migrate_player_upgrades_v1_layout_keeps_levels_and_starts_new_epoch() {
     let wallet = w.wallet();
     downgrade_profile_to_v1(&mut w.env.svm, &wallet);
     advance_time(&mut w.env.svm, 3 * SECONDS_PER_DAY);
-    assert!(w.clock_in(w.args(TASK_SLEEP)).is_err());
+    assert!(w.clock_in(w.args(TASK_WORKOUT)).is_err());
     let payer_key = w.env.deployer.pubkey();
     let payer_before = w.env.svm.get_balance(&payer_key).unwrap();
     w.migrate().unwrap();
     assert!(w.env.svm.get_balance(&payer_key).unwrap() < payer_before, "payer 付 rent 差額");
     let p = w.profile();
     assert_eq!((p.core_level, p.shoe_level, p.highest_level, p.xp, p.streak_days), (2, 2, 2, before.xp, before.streak_days));
-    assert_eq!((p.epoch_anchor, p.last_settled_epoch, p.epoch_points, p.epoch_bitmap, p.maintenance_rules_version), (task_date_of(now(&w.env.svm)), 0, 0, 0, 1));
+    assert_eq!((p.epoch_anchor, p.last_settled_epoch, p.epoch_points, p.epoch_bitmap, p.maintenance_rules_version), (task_date_of(now(&w.env.svm)), 0, 0, 0, 2));
     // 再遷移 → 6042；遷移後打卡正常並計入新期
     w.env.svm.expire_blockhash();
     let res = w.migrate();
     assert_eq!(custom_error(&res), Some(6042));
-    w.clock_in(w.args(TASK_SLEEP)).unwrap();
-    assert_eq!((w.profile().epoch_points, w.profile().epoch_bitmap), (50, 0b1));
+    w.clock_in(w.args(TASK_WORKOUT)).unwrap();
+    assert_eq!((w.profile().epoch_points, w.profile().epoch_bitmap), (100, 0b1));
+}
+
+#[test]
+fn sleep_task_is_retired_in_rules_v2_6045_and_profile_marks_v2() {
+    // DEC-04 方案 B：睡眠 attestation 結構仍可解析（歷史相容），但 clock_in 拒收；步數／運動照常並把 profile 標為 v2
+    let mut w = world();
+    assert_eq!(custom_error(&w.clock_in(w.args(TASK_SLEEP))), Some(6045));
+    assert!(w.env.svm.get_account(&receipt_pda(&w.wallet(), w.args(TASK_SLEEP).task_date, TASK_SLEEP)).is_none());
+    w.clock_in(w.args(TASK_STEPS)).unwrap();
+    w.clock_in(w.args(TASK_WORKOUT)).unwrap();
+    let p = w.profile();
+    assert_eq!((p.xp, p.epoch_points, p.maintenance_rules_version), (200, 200, 2));
 }
 
 #[test]
@@ -501,7 +513,7 @@ fn receipt_pda_must_match_args() {
     let args = w.args(TASK_STEPS);
     let mut ix2 = clock_in_ix(&w.wallet(), &w.player.accts, args);
     // 把 receipt 換成睡眠任務的 PDA
-    let wrong = receipt_pda(&w.wallet(), args.task_date, TASK_SLEEP);
+    let wrong = receipt_pda(&w.wallet(), args.task_date, TASK_WORKOUT);
     ix2.accounts[3].pubkey = wrong;
     let player = w.player.key.insecure_clone();
     let ixs = [ed25519_ix(&w.attestor, &canonical(&args)), ix2];
@@ -517,7 +529,7 @@ fn incident_freeze_blocks_demotion_and_promotion_only_for_overlapping_epochs_and
     // 第 0 期 3 日雙任務 → 第 1 期打卡結算升 Lv3
     for _ in 0..3 {
         w.clock_in(w.args(TASK_STEPS)).unwrap();
-        w.clock_in(w.args(TASK_SLEEP)).unwrap();
+        w.clock_in(w.args(TASK_WORKOUT)).unwrap();
         advance_time(&mut w.env.svm, SECONDS_PER_DAY);
     }
     advance_time(&mut w.env.svm, 4 * SECONDS_PER_DAY);
@@ -547,18 +559,18 @@ fn incident_freeze_blocks_demotion_and_promotion_only_for_overlapping_epochs_and
     send(&mut w.env.svm, &[set_freeze_ix(&admin.pubkey(), t4, t4 + 7 * SECONDS_PER_DAY, [8; 32])], &admin, &[]).unwrap();
     for _ in 0..7 {
         w.clock_in(w.args(TASK_STEPS)).unwrap();
-        w.clock_in(w.args(TASK_SLEEP)).unwrap();
+        w.clock_in(w.args(TASK_WORKOUT)).unwrap();
         advance_time(&mut w.env.svm, SECONDS_PER_DAY);
     }
     w.clock_in(w.args(TASK_STEPS)).unwrap(); // 第 5 期打卡 → 結算第 4 期（凍結）
     assert_eq!((w.profile().last_settled_epoch, w.profile().core_level), (5, 2));
-    // 清除（0,0）後第 5 期全勤（1050／7、XP 充足）→ 第 6 期結算跨階升 Lv5
+    // 清除（0,0）後第 5 期全勤（v2：1400／7、XP 充足）→ 第 6 期結算跨階升 Lv5
     w.env.svm.expire_blockhash();
     send(&mut w.env.svm, &[set_freeze_ix(&admin.pubkey(), 0, 0, [0; 32])], &admin, &[]).unwrap();
     for _ in 0..6 {
         advance_time(&mut w.env.svm, SECONDS_PER_DAY);
         w.clock_in(w.args(TASK_STEPS)).unwrap();
-        w.clock_in(w.args(TASK_SLEEP)).unwrap();
+        w.clock_in(w.args(TASK_WORKOUT)).unwrap();
     }
     advance_time(&mut w.env.svm, SECONDS_PER_DAY);
     w.clock_in(w.args(TASK_STEPS)).unwrap();

@@ -1,3 +1,4 @@
+import { apiErrorText } from '@/services/api/errorText';
 import { Buffer } from 'buffer';
 import * as SecureStore from 'expo-secure-store';
 
@@ -50,6 +51,53 @@ describe('PG-A-07 ApiClient', () => {
     expect(await api.hasSession()).toBe(true);
   });
 
+  test('signIn 實機：簽完 verify 遇網路錯誤 → 短暫重試；仍失敗保留已簽訊息，下次 signIn 不再開錢包直接 verify；非網路錯誤則重新走完整流程', async () => {
+    jest.useFakeTimers();
+    try {
+      let verifyMode: 'down' | 'ok' | 'bad' = 'down';
+      const { f, calls } = fakeFetch((c) => {
+        if (c.url.endsWith('/auth/nonce')) return { status: 200, body: { nonce: 'n', request_id: 'r', issued_at: 'i', expires_at: new Date(1_000_000 + 300_000).toISOString(), message: 'msg-1' } };
+        if (c.url.endsWith('/auth/verify')) {
+          if (verifyMode === 'down') throw new TypeError('fetch failed: UnknownHostException');
+          if (verifyMode === 'bad') return { status: 401, body: { error: { code: 'NONCE_EXPIRED', message: 'x' } } };
+          return { status: 200, body: { wallet: 'W', access_token: 'A', token_type: 'Bearer', expires_in: 900, refresh_token: 'R', refresh_expires_in: 86400 } };
+        }
+        return { status: 404 };
+      });
+      const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+      const signer = jest.fn(async () => Buffer.alloc(64, 9));
+      const first = api.signIn('W', signer);
+      const settle = expect(first).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
+      await jest.advanceTimersByTimeAsync(10_000); // 1.5 s＋3 s 重試
+      await settle;
+      expect(calls.filter((c) => c.url.endsWith('/auth/verify'))).toHaveLength(3);
+      expect(signer).toHaveBeenCalledTimes(1);
+      expect(api.hasPendingSignIn('W')).toBe(true);
+      // 網路恢復：不取 nonce、不再簽，直接 verify 成功
+      verifyMode = 'ok';
+      const pair = await api.signIn('W', signer);
+      expect(pair.access_token).toBe('A');
+      expect(signer).toHaveBeenCalledTimes(1);
+      expect(calls.filter((c) => c.url.endsWith('/auth/nonce'))).toHaveLength(1);
+      expect(api.hasPendingSignIn('W')).toBe(false);
+      // 非網路錯誤（nonce 過期）：清掉保留，下一次重新取 nonce 並簽
+      verifyMode = 'down';
+      const second = api.signIn('W', signer);
+      const settle2 = expect(second).rejects.toMatchObject({ code: 'NETWORK_ERROR' });
+      await jest.advanceTimersByTimeAsync(10_000);
+      await settle2;
+      expect(signer).toHaveBeenCalledTimes(2);
+      verifyMode = 'bad';
+      await expect(api.signIn('W', signer)).rejects.toMatchObject({ code: 'NONCE_EXPIRED' });
+      expect(api.hasPendingSignIn('W')).toBe(false);
+      verifyMode = 'ok';
+      await api.signIn('W', signer);
+      expect(signer).toHaveBeenCalledTimes(3);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   test('帶 Bearer；401 UNAUTHORIZED 時 refresh 一次並重試；refresh 失敗清 session', async () => {
     let refreshed = 0;
     const { f, calls } = fakeFetch((c) => {
@@ -77,19 +125,35 @@ describe('PG-A-07 ApiClient', () => {
     expect(await api.hasSession()).toBe(false);
   });
 
-  test('authorizeClaim：challenge → 簽 domain||nonce||request_hash||expiry_le', async () => {
+  /**
+   * 2026-10-06 實機：V1 簽二進位 bytes，Seed Vault 警告「contains characters that can't be safely displayed」。
+   * V2 簽可讀 ASCII 文字；向量與 backend/src/auth/challenge.test.ts 相同（兩邊逐字一致才驗得過）。
+   */
+  test('authorizeClaim：challenge → 簽 V2 可讀文字（錢包取自 session），與後端向量逐字相同', async () => {
     const nonce = Buffer.alloc(32, 1).toString('base64');
-    const { f } = fakeFetch((c) => (c.url.endsWith('/auth/challenge') ? { status: 200, body: { challenge_b64: nonce, expires_at: 1_789_000_300, purpose: 'claim' } } : { status: 404 }));
-    await SecureStore.setItemAsync('neonshift.api.tokens.v1', JSON.stringify({ accessToken: 'A', refreshToken: 'R', accessExpiresAt: 2_000_000, wallet: 'W' }));
+    const wallet = '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU';
+    const { f } = fakeFetch((c) => (c.url.endsWith('/auth/challenge') ? { status: 200, body: { challenge_b64: nonce, expires_at: 1_791_296_177, purpose: 'claim' } } : { status: 404 }));
+    await SecureStore.setItemAsync('neonshift.api.tokens.v1', JSON.stringify({ accessToken: 'A', refreshToken: 'R', accessExpiresAt: 2_000_000, wallet }));
     const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
-    const rh = new Uint8Array(32).fill(2);
-    const a = await api.authorizeClaim('claim', rh, 20_710, 1);
+    const a = await api.authorizeClaim('claim', new Uint8Array(32).fill(2), 20_732, 1);
     expect(a.challenge_b64).toBe(nonce);
-    const signed = (walletService.signMessage as jest.Mock).mock.calls.at(-1)![0] as Uint8Array;
-    expect(Buffer.from(signed.subarray(0, 18)).toString('ascii')).toBe('NEONSHIFT_CLAIM_V1');
-    expect(Buffer.from(signed.subarray(18, 50))).toEqual(Buffer.alloc(32, 1));
-    expect(Buffer.from(signed.subarray(50, 82))).toEqual(Buffer.alloc(32, 2));
-    expect(new DataView(signed.buffer, signed.byteOffset + 82, 8).getBigInt64(0, true)).toBe(1_789_000_300n);
+    const signed = Buffer.from((walletService.signMessage as jest.Mock).mock.calls.at(-1)![0] as Uint8Array).toString('ascii');
+    expect(signed).toBe(
+      [
+        'NeonShift daily claim',
+        "Approve in your wallet to claim today's mission reward.",
+        '',
+        `Wallet: ${wallet}`,
+        'Mission: Steps',
+        'Day (UTC): 2026-10-06',
+        `Request: ${'02'.repeat(32)}`,
+        `Nonce: ${'01'.repeat(32)}`,
+        'Expires (UTC): 2026-10-06T14:16:17Z',
+        'Domain: neonshift.cc',
+        'Version: NEONSHIFT_CLAIM_V2',
+      ].join('\n'),
+    );
+    expect(signed).toMatch(/^[\x20-\x7e\n]+$/); // 錢包能完整顯示：只有可列印 ASCII 與換行
   });
 
   test('統一錯誤：422 拒絕帶 rules_version', async () => {
@@ -97,5 +161,199 @@ describe('PG-A-07 ApiClient', () => {
     await SecureStore.setItemAsync('neonshift.api.tokens.v1', JSON.stringify({ accessToken: 'A', refreshToken: 'R', accessExpiresAt: 2_000_000, wallet: 'W' }));
     const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
     await expect(api.claim({}, 'k')).rejects.toMatchObject({ status: 422, code: 'TASK_NOT_MET', rulesVersion: 3 });
+  });
+});
+
+describe('2026-09-19 review：refresh 區分憑證失效與暫時失敗；請求逾時', () => {
+  const TOK = 'neonshift.api.tokens.v1';
+  const expiredTokens = { accessToken: 'A', refreshToken: 'R', accessExpiresAt: 1_000_000 + 10_000, wallet: 'W' }; // 10 s 內到期 → 觸發 refresh
+
+  test('review 5：refresh 遇 5xx → SERVER_ERROR、token 保留、不是 NO_SESSION', async () => {
+    const { f } = fakeFetch((c) => (c.url.endsWith('/auth/refresh') ? { status: 503, body: { error: { code: 'UNAVAILABLE', message: 'maintenance' } } } : { status: 200, body: {} }));
+    await SecureStore.setItemAsync(TOK, JSON.stringify(expiredTokens));
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    const err = await api.history().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).code).toBe('SERVER_ERROR');
+    expect((err as ApiError).status).toBe(503);
+    expect(await api.hasSession()).toBe(true); // 之前的 bug：這裡會被清掉，畫面顯示成需要登入
+  });
+
+  test('review 5：refresh 遇 429 → RATE_LIMITED、token 保留', async () => {
+    const { f } = fakeFetch((c) => (c.url.endsWith('/auth/refresh') ? { status: 429, body: { error: { code: 'RATE_LIMITED', message: 'slow down' } } } : { status: 200, body: {} }));
+    await SecureStore.setItemAsync(TOK, JSON.stringify(expiredTokens));
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    const err = await api.history().catch((e: unknown) => e);
+    expect((err as ApiError).code).toBe('RATE_LIMITED');
+    expect(await api.hasSession()).toBe(true);
+  });
+
+  test('review 5：refresh 時離線（fetch 拋錯）→ NETWORK_ERROR、token 保留', async () => {
+    const f = (async (url: string) => {
+      if (String(url).endsWith('/auth/refresh')) throw new TypeError('Network request failed');
+      return new Response('{}', { status: 200 });
+    }) as unknown as typeof fetch;
+    await SecureStore.setItemAsync(TOK, JSON.stringify(expiredTokens));
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    const err = await api.history().catch((e: unknown) => e);
+    expect((err as ApiError).code).toBe('NETWORK_ERROR');
+    expect((err as ApiError).message).toMatch(/Network request failed/);
+    expect(await api.hasSession()).toBe(true);
+  });
+
+  test('review 5：refresh 回 401 REFRESH_EXPIRED → 清 session、NO_SESSION', async () => {
+    const { f } = fakeFetch((c) => (c.url.endsWith('/auth/refresh') ? { status: 401, body: { error: { code: 'REFRESH_EXPIRED', message: 'expired' } } } : { status: 200, body: {} }));
+    await SecureStore.setItemAsync(TOK, JSON.stringify(expiredTokens));
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    const err = await api.history().catch((e: unknown) => e);
+    expect((err as ApiError).code).toBe('NO_SESSION');
+    expect(await api.hasSession()).toBe(false);
+  });
+
+  test('review 5：401 重試路徑上 refresh 暫時失敗 → 丟暫時錯誤而非 NO_SESSION；token 保留', async () => {
+    const { f } = fakeFetch((c) => {
+      if (c.url.endsWith('/auth/refresh')) return { status: 502, body: { error: { code: 'BAD_GATEWAY', message: 'upstream' } } };
+      return { status: 401, body: { error: { code: 'UNAUTHORIZED', message: 'expired' } } };
+    });
+    await SecureStore.setItemAsync(TOK, JSON.stringify({ ...expiredTokens, accessExpiresAt: 2_000_000 })); // access 未到期 → 直接打 → 401 → refresh
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    const err = await api.history().catch((e: unknown) => e);
+    expect((err as ApiError).code).toBe('SERVER_ERROR');
+    expect(await api.hasSession()).toBe(true);
+  });
+
+  test('review 3：請求逾時 → NETWORK_ERROR（message 含 timeout），fetch 收到 abort 訊號', async () => {
+    jest.useFakeTimers();
+    try {
+      let aborted = false;
+      const f = ((_url: string, init: RequestInit) => new Promise<Response>((_res, rej) => {
+        init.signal?.addEventListener('abort', () => { aborted = true; rej(new Error('The operation was aborted')); });
+      })) as unknown as typeof fetch;
+      await SecureStore.setItemAsync(TOK, JSON.stringify({ ...expiredTokens, accessExpiresAt: 2_000_000 }));
+      const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000, 500);
+      const pending = api.history().catch((e: unknown) => e);
+      await jest.advanceTimersByTimeAsync(600); // 第一次逾時 → GET 自動重試一次
+      await jest.advanceTimersByTimeAsync(600); // 第二次逾時 → 才回錯
+      const err = await pending;
+      expect(aborted).toBe(true);
+      expect((err as ApiError).code).toBe('NETWORK_ERROR');
+      expect((err as ApiError).message).toMatch(/timeout after 500 ms/);
+      expect((err as ApiError).netReason).toBe('timeout');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('實機 2026-09-22：AbortController 不帶 signal.reason 時，逾時仍判定為 timeout（不是 "aborted"）', async () => {
+    jest.useFakeTimers();
+    const Orig = globalThis.AbortController;
+    try {
+      // 模擬 RN 的 AbortController：abort(reason) 忽略 reason
+      globalThis.AbortController = class extends Orig { abort() { super.abort(); } } as typeof AbortController;
+      const f = ((_url: string, init: RequestInit) => new Promise<Response>((_res, rej) => {
+        init.signal?.addEventListener('abort', () => rej(new Error('Aborted')));
+      })) as unknown as typeof fetch;
+      await SecureStore.setItemAsync(TOK, JSON.stringify({ ...expiredTokens, accessExpiresAt: 2_000_000 }));
+      const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000, 500);
+      const pending = api.history().catch((e: unknown) => e);
+      await jest.advanceTimersByTimeAsync(600);
+      await jest.advanceTimersByTimeAsync(600); // GET 重試一次後仍逾時
+      const err = await pending;
+      expect((err as ApiError).code).toBe('NETWORK_ERROR');
+      expect((err as ApiError).netReason).toBe('timeout');
+      expect((err as ApiError).message).toMatch(/timeout after 500 ms/);
+      expect(apiErrorText((k, p) => `${k}:${p?.s ?? ''}`, err)).toBe('common.net.timeout:1');
+    } finally {
+      globalThis.AbortController = Orig;
+      jest.useRealTimers();
+    }
+  });
+
+  test('實機 2026-09-22：GET 逾時自動重試一次（第二次成功就不報錯）；POST 不重試', async () => {
+    jest.useFakeTimers();
+    try {
+      let calls = 0;
+      const f = ((_url: string, init: RequestInit) => {
+        calls++;
+        if (calls === 1) return new Promise<Response>((_res, rej) => { init.signal?.addEventListener('abort', () => rej(new Error('Aborted'))); });
+        return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200, headers: { 'content-type': 'application/json' } }));
+      }) as unknown as typeof fetch;
+      await SecureStore.setItemAsync(TOK, JSON.stringify({ ...expiredTokens, accessExpiresAt: 2_000_000 }));
+      const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000, 500);
+      const pending = api.request<{ items: unknown[] }>('GET', '/me/workouts');
+      await jest.advanceTimersByTimeAsync(600);
+      expect(await pending).toEqual({ items: [] });
+      expect(calls).toBe(2);
+      // POST 逾時不重試（可能已送達）
+      calls = 0;
+      const f2 = ((_url: string, init: RequestInit) => { calls++; return new Promise<Response>((_res, rej) => { init.signal?.addEventListener('abort', () => rej(new Error('Aborted'))); }); }) as unknown as typeof fetch;
+      const api2 = new ApiClient('https://api-dev.neonshift.cc/v1', f2, () => 1_000_000, 500);
+      const p2 = api2.request('POST', '/workouts/import', { sessions: [] }).catch((e: unknown) => e);
+      await jest.advanceTimersByTimeAsync(600);
+      expect((await p2 as ApiError).netReason).toBe('timeout');
+      expect(calls).toBe(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('review 3：外部 AbortSignal 可取消請求', async () => {
+    const f = ((_url: string, init: RequestInit) => new Promise<Response>((_res, rej) => {
+      init.signal?.addEventListener('abort', () => rej(new Error('aborted')));
+    })) as unknown as typeof fetch;
+    await SecureStore.setItemAsync(TOK, JSON.stringify({ ...expiredTokens, accessExpiresAt: 2_000_000 }));
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000, 0);
+    const ctrl = new AbortController();
+    const pending = api.request('GET', '/player/history?days=30', undefined, { signal: ctrl.signal }).catch((e: unknown) => e);
+    ctrl.abort(new Error('user left screen'));
+    const err = await pending;
+    expect((err as ApiError).code).toBe('NETWORK_ERROR');
+    expect((err as ApiError).message).toMatch(/user left screen/);
+  });
+});
+
+/**
+ * 2026-09-29 實機事故的回歸測試。
+ *
+ * 收藏頁顯示「could not load seasonal windows」，而**伺服器日誌裡一筆請求都沒有**——
+ * 因為 `requestRaw` 在 `auth !== false` 時會先取 access token，取不到就丟 `NO_SESSION`
+ * 且不發請求。`seasonal()` 的註解寫著「未登入也能看」卻漏了 `auth: false`，
+ * 所以那個公開端點對未登入的人永遠失敗。`eventResults()`（後端「公開成績榜」，沒掛
+ * requireAuth）同一個毛病。
+ *
+ * 為什麼之前沒抓到：元件測試都是 mock `apiClient.seasonal` 本身，完全繞過 `request`，
+ * 所以 auth 選項錯了也看不出來。這一組刻意測到 fetch 層。
+ */
+describe('公開端點在未登入時仍然會送出請求（不得先丟 NO_SESSION）', () => {
+  beforeEach(async () => {
+    await SecureStore.deleteItemAsync('neonshift.api.tokens.v1');
+  });
+
+  test('seasonal()：有送出請求，且不帶 authorization', async () => {
+    const { f, calls } = fakeFetch((c) =>
+      c.url.endsWith('/seasonal') ? { status: 200, body: { items: [] } } : { status: 404 },
+    );
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    await expect(api.seasonal()).resolves.toEqual({ items: [] });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe('https://api-dev.neonshift.cc/v1/seasonal');
+    expect((calls[0]!.init.headers as Record<string, string>).authorization).toBeUndefined();
+  });
+
+  test('eventResults()：同上（後端那條路由沒掛 requireAuth）', async () => {
+    const { f, calls } = fakeFetch((c) =>
+      c.url.includes('/events/spring/results') ? { status: 200, body: { results: [], non_finishers: [] } } : { status: 404 },
+    );
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    await api.eventResults('spring');
+    expect(calls).toHaveLength(1);
+    expect((calls[0]!.init.headers as Record<string, string>).authorization).toBeUndefined();
+  });
+
+  test('對照組：需要登入的端點未登入時仍應丟 NO_SESSION 且不發請求', async () => {
+    const { f, calls } = fakeFetch(() => ({ status: 200, body: {} }));
+    const api = new ApiClient('https://api-dev.neonshift.cc/v1', f, () => 1_000_000);
+    await expect(api.mySeasonal()).rejects.toMatchObject({ code: 'NO_SESSION' });
+    expect(calls).toHaveLength(0);
   });
 });

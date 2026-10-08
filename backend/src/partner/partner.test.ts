@@ -60,7 +60,7 @@ describe("PG-E-02 partner API", () => {
   it("組織建立需 OPS_TOKEN；owner 建活動、樂觀鎖編輯、規則版本、發布（需 revision_id 與時間）、公開讀取不含內部欄位", async () => {
     expect((await app.inject({ method: "POST", url: "/v1/partner/orgs", payload: {} })).statusCode).toBe(401);
     const { owner, orgId } = await orgWithOwner();
-    expect(j(await app.inject({ method: "GET", url: "/v1/partner/me", headers: owner.h })).organizations).toEqual([{ org_id: orgId, role: "owner", name: "Taipei Run Club" }]);
+    expect(j(await app.inject({ method: "GET", url: "/v1/partner/me", headers: owner.h })).organizations).toEqual([{ org_id: orgId, role: "owner", name: "Taipei Run Club", slug: "taipei-run" }]);
 
     let res = await app.inject({ method: "POST", url: "/v1/partner/events", headers: owner.h, payload: draft(orgId) });
     expect(res.statusCode).toBe(201);

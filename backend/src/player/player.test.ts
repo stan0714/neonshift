@@ -4,6 +4,8 @@ import nacl from "tweetnacl";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { buildApp } from "../app.js";
+import { StaticChainReader } from "../chain/reader.js";
+import { weekIdOf, type TournamentView } from "../chain/tournament.js";
 import { loadConfig } from "../config.js";
 import type { Db } from "../db.js";
 import { LocalKeypairSigner } from "../signer/index.js";
@@ -13,11 +15,30 @@ const db: Db = { pool: null, ping: async () => false, close: async () => {} };
 let app: ReturnType<typeof buildApp>;
 let store: MemoryStore;
 let clock: Date;
+/**
+ * 鏈上讀取一律注入 StaticChainReader。
+ *
+ * `DELETE /player/data` 會問 `tournaments.activeStakedUntil()`（質押事實在鏈上），
+ * 設了 PROGRAM_ID 又不注入 chain 的話那一步會打真的 RPC——測試就變成「有沒有網路」的測試，
+ * 在離線或 RPC 慢的機器上逾時失敗，而且失敗原因跟這支端點無關。
+ */
+let chain: StaticChainReader;
+
+const ENDS = Math.floor(Date.parse("2026-09-15T00:00:00Z") / 1000);
+const tournament = (over: Partial<TournamentView> = {}): TournamentView => ({
+  address: "7Vb2s5wmE3sGqcNNpfkqz3jmA4sm3uyE1DK2TDeR6vE8", weekId: weekIdOf(new Date("2026-09-14T06:00:00Z")), status: "running", vault: "V",
+  stakeAmount: 50_000_000n, totalStaked: 500_000_000n, treasuryInjectionCap: 0n, treasuryInjection: 0n,
+  entrantCount: 10, validEntrantCount: 10, forfeitedCount: 0, groupASize: 1, groupBSize: 2, distributablePool: 0n, distributed: 0n, totalRefund: 0n, totalPrize: 0n, treasuryRemainder: 0n,
+  resultsSubmitted: 0, resultsHash: Buffer.alloc(32), resultsRollingHash: Buffer.alloc(32), minEntrants: 10,
+  registrationEndsAt: ENDS - 2 * 86_400, startsAt: ENDS - 86_400, endsAt: ENDS, rulesVersion: 3, prizeABps: 6000, prizeBBps: 4000, loserRefundBps: 5000, createdAt: ENDS - 3 * 86_400,
+  ...over,
+});
 
 beforeEach(async () => {
   store = new MemoryStore();
   clock = new Date("2026-09-14T06:00:00Z"); // task_date 20710
-  app = buildApp({ config: loadConfig({ NODE_ENV: "test", PROGRAM_ID: "5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf" }), db, store, now: () => clock, signer: LocalKeypairSigner.random() });
+  chain = new StaticChainReader();
+  app = buildApp({ config: loadConfig({ NODE_ENV: "test", PROGRAM_ID: "5vTs2vGPuADyCLtxkXpWQpuK25XoTihJ41drGKmfBjAf" }), db, store, now: () => clock, signer: LocalKeypairSigner.random(), chain });
   await app.ready();
 });
 afterEach(async () => app.close());
@@ -97,6 +118,18 @@ describe("PG-B-13 DELETE /player/data（BR-25）", () => {
     expect(v.statusCode).toBe(200);
     const hist = await app.inject({ method: "GET", url: "/v1/player/history", headers: { authorization: `Bearer ${v.json().access_token}` } });
     expect(hist.json().items).toHaveLength(0);
+  });
+
+  it("鏈上有進行中的質押：延後到賽事 ends_at，不是一律 30 天", async () => {
+    const u = await login();
+    const weekId = weekIdOf(clock);
+    chain.tournaments.set(weekId, tournament({ weekId }));
+    chain.entries.add(`${weekId}:${u.wallet}`);
+    const res = await app.inject({ method: "DELETE", url: "/v1/player/data", headers: { authorization: `Bearer ${u.token}` } });
+    expect(res.statusCode).toBe(202);
+    // 質押鎖到賽事結束就好；30 天是上限不是預設值
+    expect(res.json().deletion_due_at).toBe(new Date(ENDS * 1000).toISOString());
+    expect((await app.inject({ method: "GET", url: "/v1/player/history", headers: { authorization: `Bearer ${u.token}` } })).statusCode).toBe(401);
   });
 
   it("有進行中已質押賽事：202 與 deletion_due_at（≤ 30 天），session 仍立即撤銷", async () => {

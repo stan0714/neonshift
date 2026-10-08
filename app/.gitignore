@@ -46,3 +46,5 @@ yarn-error.*
 /android/.gradle/
 /android/.kotlin/
 /android/local.properties
+/modules/*/android/build/
+/modules/*/android/.cxx/

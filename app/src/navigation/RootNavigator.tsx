@@ -1,12 +1,27 @@
-import { NavigationContainer, type LinkingOptions } from '@react-navigation/native';
+import { ApprovalNotice } from '@/components/ApprovalNotice';
+import { approvalTarget } from '@/navigation/approvalTarget';
+import { SessionNotice } from '@/components/SessionNotice';
+import { useBackendSessionStore } from '@/state/backendSessionStore';
+import { SeasonalNotice } from '@/components/SeasonalNotice';
+import { useEffect, useState } from 'react';
+import { CommonActions, useNavigation, useRoute, StackActions, type RouteProp } from '@react-navigation/native';
+import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
+import { GameGuideScreen } from '@/screens/GameGuideScreen';
+import { NavigationContainer, useNavigationContainerRef, type LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+import { HomeHeaderButton } from '@/components/HomeHeaderButton';
+import { shareLandingTarget } from './shareLanding';
 import { color, motion } from '@/theme';
 import { ActivityHistoryScreen } from '@/screens/ActivityHistoryScreen';
+import { ExploreScreen } from '@/screens/ExploreScreen';
 import { AchievementDetailScreen } from '@/screens/gallery/AchievementDetailScreen';
 import { WorkoutsScreen } from '@/screens/WorkoutsScreen';
+import { ActivityScreen } from '@/screens/activity/ActivityScreen';
+import { ActivityDetailScreen } from '@/screens/activity/ActivityDetailScreen';
 import { WorkoutRecordScreen } from '@/screens/workouts/WorkoutRecordScreen';
 import { WorkoutStartScreen } from '@/screens/workouts/WorkoutStartScreen';
+import { PassportScreen } from '@/screens/PassportScreen';
 import { WorkoutSummaryScreen } from '@/screens/workouts/WorkoutSummaryScreen';
 import { EventDetailScreen, EventsScreen } from '@/screens/events/EventScreens';
 import { StaffCheckInScreen } from '@/screens/events/StaffCheckInScreen';
@@ -33,6 +48,8 @@ const linking: LinkingOptions<RootParamList> = {
   config: {
     screens: {
       Landing: 'landing',
+      WorkoutReturn: 'workout-return',
+      ShareLanding: { path: 's/:kind', parse: { kind: String, source: String } },
       DemoPreview: 'preview',
       EventDetail: { path: 'e/:idOrSlug', parse: { idOrSlug: String, source: String, tag: String } },
       ...(__DEV__ ? { DevHealth: 'dev/health' } : {}),
@@ -42,9 +59,13 @@ const linking: LinkingOptions<RootParamList> = {
 
 /** Root：Bootstrap → Landing → Onboarding → Main（SD 5.2）。頁面 transition ≤ 320ms（Style 15）。 */
 export function RootNavigator() {
+  const navRef = useNavigationContainerRef<RootParamList>();
+  const [approvalVisible, setApprovalVisible] = useState(false);
+  const updateApprovalVisibility = () => setApprovalVisible(['Main', 'Home', 'ActivityTab', 'Gear', 'Arena', 'Profile', 'Workouts', 'Events', 'EventDetail', 'Gallery', 'Activity'].includes(navRef.getCurrentRoute()?.name ?? ''));
   const { t } = useT();
+  const sessionExpired = useBackendSessionStore((st) => st.state) === 'expired';
   return (
-    <NavigationContainer theme={navigationTheme} linking={linking}>
+    <NavigationContainer ref={navRef} onReady={updateApprovalVisibility} onStateChange={updateApprovalVisibility} theme={navigationTheme} linking={linking}>
       <Stack.Navigator
         initialRouteName="Bootstrap"
         screenOptions={{
@@ -55,10 +76,12 @@ export function RootNavigator() {
         }}
       >
         <Stack.Screen name="Bootstrap" component={BootstrapScreen} options={{ animation: 'none' }} />
+        <Stack.Screen name="GameGuide" component={GameGuideScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="Landing" component={LandingScreen} />
         <Stack.Screen name="DemoPreview" component={DemoPreviewScreen} options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
         <Stack.Screen name="Main" component={MainTabs} />
+        <Stack.Screen name="Explore" component={ExploreScreen} options={{ headerShown: true, title: t('nav.explore'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen
           name="ActivityHistory"
           component={ActivityHistoryScreen}
@@ -73,15 +96,76 @@ export function RootNavigator() {
         <Stack.Screen name="Gallery" component={GalleryScreen} options={{ headerShown: true, title: t('nav.gallery'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="GalleryPlayer" component={GalleryPlayerScreen} options={{ headerShown: true, title: t('nav.player'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="AchievementDetail" component={AchievementDetailScreen} options={{ headerShown: true, title: t('nftd.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
-        <Stack.Screen name="Workouts" component={WorkoutsScreen} options={{ headerShown: true, title: t('nav.workouts'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
-        <Stack.Screen name="WorkoutStart" component={WorkoutStartScreen} options={{ headerShown: true, title: t('rec.start.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="Activity" component={ActivityScreen} options={{ headerShown: true, title: t('actv.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="ActivityDetail" component={ActivityDetailScreen} options={{ headerShown: true, title: t('actv.detail.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary, headerRight: () => <HomeHeaderButton /> }} />
+        <Stack.Screen name="Passport" component={PassportScreen} options={{ headerShown: true, title: t('pass.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="Workouts" component={WorkoutsScreen} options={{ headerShown: true, title: t('nav.workouts'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary, headerRight: () => <HomeHeaderButton /> }} />
+        <Stack.Screen name="WorkoutStart" component={WorkoutStartScreen} options={{ headerShown: true, title: t('rec.start.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary, headerRight: () => <HomeHeaderButton /> }} />
+        <Stack.Screen name="WorkoutReturn" component={WorkoutReturnScreen} />
+        <Stack.Screen name="ShareLanding" component={ShareLandingScreen} />
         <Stack.Screen name="WorkoutRecord" component={WorkoutRecordScreen} options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }} />
-        <Stack.Screen name="WorkoutSummary" component={WorkoutSummaryScreen} options={{ headerShown: true, title: t('sum.title'), headerBackVisible: false, animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
+        <Stack.Screen name="WorkoutSummary" component={WorkoutSummaryScreen} options={{ headerShown: true, title: t('sum.title'), headerBackVisible: false, animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary, headerRight: () => <HomeHeaderButton /> }} />
         <Stack.Screen name="Events" component={EventsScreen} options={{ headerShown: true, title: t('nav.events'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="EventDetail" component={EventDetailScreen} options={{ headerShown: true, title: t('nav.event'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         <Stack.Screen name="StaffCheckIn" component={StaffCheckInScreen} options={{ headerShown: true, title: t('staff.title'), animation: 'slide_from_right', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} />
         {__DEV__ ? <Stack.Screen name="DevHealth" component={HealthDiagnosticsScreen} options={{ headerShown: true, title: 'Health Connect (dev)', headerStyle: { backgroundColor: color.surface }, headerTintColor: color.textPrimary }} /> : null}
       </Stack.Navigator>
+      {/*
+        R4：依 kind 導到**真的有領取入口**的頁面。修正前 event 以外一律推 Workouts，
+        但里程碑（首次 5K／10K）與節日章的領取都在 Gear 的收藏區——跑完一趟最常見的
+        那種核准，點下去會落在沒有按鈕的畫面上。去向由 `approvalTarget` 決定（純函式、可測）。
+      */}
+      {/*
+        session 失效時只顯示這一個：核准通知與節日提醒點下去都不會成功（每個請求都會在
+        送出前被擋下），先解決登入才有意義。
+      */}
+      <SessionNotice visible={approvalVisible} />
+      <ApprovalNotice visible={approvalVisible && !sessionExpired} onOpen={(item, markRead) => {
+        if (!navRef.isReady()) return; // 導航還沒準備好就不標已讀，通知留著下次再點
+        const target = approvalTarget(item);
+        if (target.screen === 'Main') navRef.dispatch(StackActions.push('Main', { screen: target.tab, params: { category: target.category } }));
+        else if (target.screen === 'EventDetail') navRef.dispatch(StackActions.push('EventDetail', { idOrSlug: target.idOrSlug }));
+        else navRef.dispatch(StackActions.push(target.screen));
+        markRead();
+      }} />
+      {/* PG-SEASON-05：節日資格核准通知。沒有領取按鈕——核准的是資格，不是 NFT */}
+      <SeasonalNotice visible={approvalVisible && !sessionExpired} onOpen={() => {
+        if (!navRef.isReady()) return;
+        navRef.dispatch(CommonActions.navigate({ name: 'Main', params: { screen: 'Gear' } }));
+      }} />
     </NavigationContainer>
   );
+}
+
+
+/**
+ * 分享連結落地（PG-SHARE-04）：從 `/s/<kind>` 進來時轉到對應畫面，不停在一個空白頁。
+ * 去向由 navigation/shareLanding 的純函式決定；不因為分享連結就要求登入。
+ */
+function ShareLandingScreen() {
+  const navigation = useNavigation();
+  const { params } = useRoute<RouteProp<RootParamList, 'ShareLanding'>>();
+  useEffect(() => {
+    const target = shareLandingTarget(params?.kind);
+    if (target.screen === 'Main') {
+      navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'Main', params: target.tab ? { screen: target.tab } : undefined }] }));
+      return;
+    }
+    // 由連結冷啟動時這頁是堆疊唯一一頁：replace 之後沒有上一頁，返回鍵會消失。改成在下面墊一層首頁。
+    const alone = navigation.getState()?.routes.length === 1;
+    navigation.dispatch(alone ? CommonActions.reset({ index: 1, routes: [{ name: 'Main' }, { name: target.screen }] }) : StackActions.replace(target.screen));
+  }, [navigation, params?.kind]);
+  return null;
+}
+
+// A stale notification never starts a new recording or resumes GPS automatically.
+function WorkoutReturnScreen() {
+  const navigation = useNavigation();
+  useEffect(() => {
+    const target = workoutRecorder.active() ? 'WorkoutRecord' : 'Workouts';
+    // 由通知冷啟動時這頁是堆疊唯一一頁：replace 之後沒有上一頁，返回鍵會消失。改成在下面墊一層首頁。
+    const alone = navigation.getState()?.routes.length === 1;
+    navigation.dispatch(alone ? CommonActions.reset({ index: 1, routes: [{ name: 'Main' }, { name: target }] }) : StackActions.replace(target));
+  }, [navigation]);
+  return null;
 }

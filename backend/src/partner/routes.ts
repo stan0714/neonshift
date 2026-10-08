@@ -530,7 +530,7 @@ export async function partnerRoutes(app: FastifyInstance, opts: { auth: AuthServ
     const memberships = await store.listMemberships(req.auth!.wallet);
     const roles = await store.listEventRolesForWallet(req.auth!.wallet);
     return {
-      organizations: await Promise.all(memberships.map(async (m) => ({ org_id: m.orgId, role: m.role, name: (await store.getOrganization(m.orgId))?.name ?? null }))),
+      organizations: await Promise.all(memberships.map(async (m) => { const o = await store.getOrganization(m.orgId); return { org_id: m.orgId, role: m.role, name: o?.name ?? null, slug: o?.slug ?? null }; })),
       event_roles: roles.map((r) => ({ event_id: r.eventId, role: r.role, checkpoint_id: r.checkpointId })),
     };
   });

@@ -89,7 +89,7 @@ test('最高速度：單點跳點不計；不足 5 秒窗顯示 —；正常窗�
   expect(e.currentPaceSPerKm()).toBeNull();
   run(track({ speedMs: 3, seconds: 10, startSec: 4, startLat: 25 + 12 / M_PER_DEG_LAT, seqStart: 100 }), e);
   expect(e.currentSpeedMs()).toBeCloseTo(3, 1);
-  expect(e.currentPaceSPerKm()).toBe(333);
+  expect(e.currentPaceSPerKm()).toBe(335); // 顯示用配速取到 5 秒
   // 跳點：1 秒內位移 50 m → 拒絕，不進最高速度
   expect(e.addPoint({ seq: 500, monotonicMs: 15_000, utcMs: 0, lat: 25 + (42 + 50) / M_PER_DEG_LAT, lon: 121.5, accuracyM: 5 })).toMatchObject({ accepted: false, reason: 'speed_spike' });
   const s = e.finish(15_000);
@@ -127,7 +127,7 @@ test('拒絕：非有限座標、精度 > 20 m、seq 重複、時間倒序；未
   expect(e.addPoint({ seq: 0, monotonicMs: 0, utcMs: 0, lat: 25, lon: 121.5, accuracyM: 5 })).toMatchObject({ accepted: false, reason: 'not_recording' });
   e.start(0);
   expect(e.addPoint({ seq: 0, monotonicMs: 0, utcMs: 0, lat: NaN, lon: 121.5, accuracyM: 5 }).reason).toBe('not_finite');
-  expect(e.addPoint({ seq: 1, monotonicMs: 1000, utcMs: 0, lat: 25, lon: 121.5, accuracyM: 35 }).reason).toBe('low_accuracy');
+  expect(e.addPoint({ seq: 1, monotonicMs: 1000, utcMs: 0, lat: 25, lon: 121.5, accuracyM: 65 }).reason).toBe('low_accuracy');
   expect(e.addPoint({ seq: 2, monotonicMs: 2000, utcMs: 0, lat: 25, lon: 121.5, accuracyM: 5 }).accepted).toBe(true);
   expect(e.addPoint({ seq: 2, monotonicMs: 3000, utcMs: 0, lat: 25, lon: 121.5, accuracyM: 5 }).reason).toBe('duplicate');
   expect(e.addPoint({ seq: 3, monotonicMs: 1500, utcMs: 0, lat: 25, lon: 121.5, accuracyM: 5 }).reason).toBe('out_of_order');
@@ -168,4 +168,183 @@ test('PG-R-12 跑道等效圈：記錄中即時 floor＋餘數、與摘要一致
   expect(e.finish(125_000).trackEquivalent).toEqual(live);
   expect(new GpsMetricsEngine('run').trackEquivalent()).toBeNull();
   expect(new GpsMetricsEngine('run', { trackLapMm: 0 }).trackEquivalent()).toBeNull();
+});
+
+describe('完整性／防弊（GPS_RULES_VERSION 2）', () => {
+  test('模擬定位點一律拒絕並標 mock_location；正常點不受影響', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    const t = track({ speedMs: 3, seconds: 20 });
+    t[5] = { ...t[5]!, mocked: true };
+    t[6] = { ...t[6]!, mocked: true };
+    const r = run(t, e);
+    expect(r.filter((x) => x.reason === 'mock_location')).toHaveLength(2);
+    const s = e.finish(20_000);
+    expect(s.integrity).toMatchObject({ mockPoints: 2, flags: ['mock_location'] });
+    expect(s.quality.rejected.mock_location).toBe(2);
+  });
+
+  test('持續超速：跑步 60 秒滑動窗平均 > 6.5 m/s 記一次 episode（單點跳點另計）；3 m/s 不記', () => {
+    const ok = new GpsMetricsEngine('run');
+    ok.start(0);
+    run(track({ speedMs: 3, seconds: 180 }), ok);
+    expect(ok.finish(180_000).integrity).toMatchObject({ sustainedSpeedEpisodes: 0, flags: [] });
+    const fast = new GpsMetricsEngine('run');
+    fast.start(0);
+    run(track({ speedMs: 8, seconds: 180 }), fast); // 8 m/s < 12 m/s 跳點上限，但持續 3 分鐘 ≈ 29 km/h
+    const s = fast.finish(180_000);
+    expect(s.integrity.sustainedSpeedEpisodes).toBe(1);
+    expect(s.integrity.flags).toEqual(['sustained_speed']);
+    // 走路 3 m/s（10.8 km/h）持續也超過 2.8 m/s
+    const walk = new GpsMetricsEngine('walk');
+    walk.start(0);
+    run(track({ speedMs: 3, seconds: 120 }), walk);
+    expect(walk.finish(120_000).integrity.flags).toEqual(['sustained_speed']);
+  });
+
+  test('缺口瞬移：10 秒缺口內位移 500 m（50 m/s）記 gap_teleport；缺口內位移合理則只算缺口', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    run(track({ speedMs: 3, seconds: 10 }), e);
+    run(track({ speedMs: 3, seconds: 10, startSec: 20, startLat: 25 + 530 / M_PER_DEG_LAT, seqStart: 100 }), e);
+    const s = e.finish(30_000);
+    expect(s.quality.gaps).toBe(1);
+    expect(s.integrity).toMatchObject({ gapTeleports: 1, flags: ['gap_teleport'] });
+    const fine = new GpsMetricsEngine('run');
+    fine.start(0);
+    run(track({ speedMs: 3, seconds: 10 }), fine);
+    run(track({ speedMs: 3, seconds: 10, startSec: 20, startLat: 25 + 60 / M_PER_DEG_LAT, seqStart: 100 }), fine);
+    expect(fine.finish(30_000).integrity.flags).toEqual([]);
+  });
+
+  test('時鐘漂移：utc − monotonic 偏移量變化 > 30 s 記 clock_drift', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    const t = track({ speedMs: 3, seconds: 20 });
+    for (let i = 10; i < t.length; i++) t[i] = { ...t[i]!, utcMs: t[i]!.utcMs + 60_000 }; // 中途系統時鐘被調快 60 s
+    run(t, e);
+    const s = e.finish(20_000);
+    expect(s.integrity.clockDriftMs).toBe(60_000);
+    expect(s.integrity.flags).toEqual(['clock_drift']);
+  });
+
+  test('感測器探測：≥ 2 次且過半不一致才記 motion_mismatch', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    run(track({ speedMs: 3, seconds: 10 }), e);
+    e.recordMotionProbe(true);
+    expect(e.integrity().flags).toEqual([]); // 1 次不足
+    e.recordMotionProbe(false);
+    e.recordMotionProbe(false);
+    expect(e.integrity().flags).toEqual([]); // 1/3 不過半
+    e.recordMotionProbe(true);
+    e.recordMotionProbe(true);
+    expect(e.integrity()).toMatchObject({ motionProbes: { total: 5, mismatched: 3 }, flags: ['motion_mismatch'] });
+  });
+});
+
+describe('靜止漂移抑制（GPS_RULES_VERSION 3）', () => {
+  const prng = (seed: number) => () => { seed = (seed * 1_664_525 + 1_013_904_223) % 4_294_967_296; return seed / 4_294_967_296; };
+  test('放在桌上 30 分鐘：位置在 ±12 m 內隨機漂移、OS 速度 0 → 距離 < 30 m（v2 會累積數百公尺）', () => {
+    const rnd = prng(7);
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    for (let i = 0; i <= 1800; i++) {
+      const acc = 8 + rnd() * 12; // 8～20 m
+      e.addPoint({ seq: i, monotonicMs: i * 1000, utcMs: i * 1000, lat: 25 + ((rnd() - 0.5) * 24) / M_PER_DEG_LAT, lon: 121.5 + ((rnd() - 0.5) * 24) / (M_PER_DEG_LAT * Math.cos((25 * Math.PI) / 180)), accuracyM: acc, speedMs: rnd() * 0.2 });
+    }
+    const s = e.finish(1_800_000);
+    expect(s.distanceMm).toBeLessThan(30_000);
+    expect(s.quality.stationary).toBeGreaterThan(1000); // 其餘為速度跳點拒絕（隨機跳 > 12 m/s）
+  });
+  test('真的在走：1.4 m/s、OS 速度 1.3、精度 12 m → 距離仍正確累積（≈ 168 m／2 min）', () => {
+    const e = new GpsMetricsEngine('walk');
+    e.start(0);
+    for (let i = 0; i <= 120; i++) e.addPoint({ seq: i, monotonicMs: i * 1000, utcMs: i * 1000, lat: 25 + (1.4 * i) / M_PER_DEG_LAT, lon: 121.5, accuracyM: 12, speedMs: 1.3 });
+    const s = e.finish(120_000);
+    expect(s.distanceMm / 1000).toBeGreaterThan(155);
+    expect(s.distanceMm / 1000).toBeLessThanOrEqual(168);
+  });
+  test('OS 速度永遠 0 的裝置：位移超過 3 × 精度仍信位置（跑 3 m/s、精度 5 m）', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    for (let i = 0; i <= 60; i++) e.addPoint({ seq: i, monotonicMs: i * 1000, utcMs: i * 1000, lat: 25 + (3 * i) / M_PER_DEG_LAT, lon: 121.5, accuracyM: 5, speedMs: 0 });
+    expect(e.finish(60_000).distanceMm / 1000).toBeGreaterThan(165);
+  });
+});
+
+test('顯示配速保持（實機：主數字每秒跳動）：GPS 抖動下 5 秒窗每秒變、顯示配速一分鐘內只換少數次且落在 5 s 格', () => {
+  const e = new GpsMetricsEngine('run');
+  e.start(0);
+  // 每秒交替 2.4／3.6 m/s（平均 3 m/s）的抖動軌跡 70 s
+  let lat = 25;
+  const rawSeen = new Set<number>();
+  const shownSeen: (number | null)[] = [];
+  for (let i = 0; i <= 70; i++) {
+    e.addPoint({ seq: i, monotonicMs: i * 1000, utcMs: i * 1000, lat, lon: 121.5, accuracyM: 5 });
+    lat += (i % 2 === 0 ? 2.4 : 3.6) / M_PER_DEG_LAT;
+    if (i >= 20) {
+      rawSeen.add(Math.round((e.windowSpeedMs() ?? 0) * 100));
+      const p = e.currentPaceSPerKm();
+      if (shownSeen[shownSeen.length - 1] !== p) shownSeen.push(p);
+    }
+  }
+  expect(rawSeen.size).toBeGreaterThan(1); // 原始 5 秒窗確實在跳
+  expect(shownSeen.length).toBeLessThanOrEqual(4); // 顯示值 50 s 內最多換幾次
+  for (const p of shownSeen) expect(p! % 5).toBe(0);
+  expect(Math.abs(e.currentPaceSPerKm()! - 335)).toBeLessThanOrEqual(15); // 接近 3 m/s ≈ 5:33
+  // 前 10 s 窗未滿 → 顯示 —；5 秒窗（最高速度）仍照舊
+  const f = new GpsMetricsEngine('run');
+  f.start(0);
+  run(track({ speedMs: 3, seconds: 8 }), f);
+  expect(f.windowSpeedMs()).not.toBeNull();
+  expect(f.currentPaceSPerKm()).toBeNull();
+});
+
+test('顯示速度平滑（EMA τ 15 s）：速度驟變時顯示值漸進、原始 5 秒窗即時；恢復後重設', () => {
+  const e = new GpsMetricsEngine('run');
+  e.start(0);
+  run(track({ speedMs: 3, seconds: 12 }), e);
+  expect(e.currentSpeedMs()).toBeCloseTo(3, 1);
+  // 突然變 1.5 m/s：5 秒窗約 6 秒後到 1.5，EMA 應仍明顯高於窗值
+  run(track({ speedMs: 1.5, seconds: 6, startSec: 13, startLat: 25 + 36 / M_PER_DEG_LAT, seqStart: 100 }), e);
+  const raw = e.windowSpeedMs()!;
+  const shown = e.currentSpeedMs()!;
+  expect(raw).toBeLessThan(2);
+  expect(shown).toBeGreaterThan(raw + 0.2);
+  expect(shown).toBeLessThan(3);
+  expect(e.currentPaceSPerKm()! % 5).toBe(0);
+  e.pause(20_000);
+  e.resume(30_000);
+  expect(e.currentSpeedMs()).toBeNull();
+});
+
+/**
+ * 2026-10-03 實機：平均 7:24/km（≈8 km/h）的跑步，分享文字寫「Top speed 29.2 km/h」。
+ * 精度差（50 m）時遲滯門檻是 30 m：位移先凍結、超過門檻才一次補進來，塞進 5 秒窗就成了假峰值。
+ */
+describe('最高速度不被 GPS 補帳與跳點灌高', () => {
+  test('精度 50 m、等速 2.2 m/s：靜止補回的整段位移不算進最高速度', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    run(track({ speedMs: 2.2, seconds: 300, accuracy: 50 }), e);
+    const s = e.finish(300_000);
+    expect(s.distanceMm / 1_000_000).toBeGreaterThan(0.55); // 距離照算
+    if (s.maxSpeed5sKmh !== null) expect(s.maxSpeed5sKmh).toBeLessThan(2.2 * 3.6 * 1.5);
+  });
+
+  test('超過跑步可信上限（7 m/s ≈ 25 km/h）的 5 秒窗不列入；距離照算', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    const a = track({ speedMs: 2.2, seconds: 60 });
+    const lastA = a[a.length - 1]!;
+    const lurch = track({ speedMs: 8.1, seconds: 6, startSec: 61, startLat: lastA.lat + 2.2 / M_PER_DEG_LAT, seqStart: a.length }); // 29.2 km/h，低於跳點上限 12 m/s
+    const lastL = lurch[lurch.length - 1]!;
+    const b = track({ speedMs: 2.2, seconds: 60, startSec: 68, startLat: lastL.lat + 2.2 / M_PER_DEG_LAT, seqStart: a.length + lurch.length });
+    run([...a, ...lurch, ...b], e);
+    const s = e.finish(128_000);
+    expect(s.maxSpeed5sKmh).not.toBeNull();
+    expect(s.maxSpeed5sKmh!).toBeLessThanOrEqual(25.2);
+    expect(s.distanceMm / 1_000_000).toBeGreaterThan(0.3);
+  });
 });

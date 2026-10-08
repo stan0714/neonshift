@@ -3,6 +3,7 @@
  * 只做：UTC 任務日區間換算、權限狀態整理、錯誤分類。達標判定在 TaskEngine（PG-A-08）。
  */
 import { NeonshiftHealth, type CachedHealthSummary, type HealthStatus, type SleepResult, type StepsResult } from '../../../modules/neonshift-health';
+import { FEATURES } from '@/config/features';
 
 export const SECONDS_PER_DAY = 86_400;
 
@@ -26,7 +27,7 @@ export type HealthPermissionSummary = {
   backgroundGranted: boolean;
 };
 
-export const REQUIRED_PERMISSIONS = () => [NeonshiftHealth.PERMISSION_READ_STEPS, NeonshiftHealth.PERMISSION_READ_SLEEP];
+export const REQUIRED_PERMISSIONS = () => (FEATURES.sleep ? [NeonshiftHealth.PERMISSION_READ_STEPS, NeonshiftHealth.PERMISSION_READ_SLEEP] : [NeonshiftHealth.PERMISSION_READ_STEPS]);
 export const OPTIONAL_PERMISSIONS = () => [NeonshiftHealth.PERMISSION_READ_BACKGROUND];
 
 export function summarizePermissions(granted: string[]): HealthPermissionSummary {
@@ -128,6 +129,7 @@ export const healthConnect = {
 
   /** 結束時間落在任務日內的睡眠 session（BR-05） */
   async readSleepForTaskDate(taskDate: number): Promise<SleepResult> {
+    if (!FEATURES.sleep) return { sessions: [] };
     const { startUnix, endUnix } = taskDateRange(taskDate);
     try {
       return await NeonshiftHealth.readSleepSessions(startUnix, endUnix);

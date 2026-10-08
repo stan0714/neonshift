@@ -1,5 +1,7 @@
 # 跑鞋維持挑戰模擬（PG-V-01，shoe-gameplay 3～4、8）
 
+> 2026-09-20 現況：App 睡眠已停用讀取與入口；下文睡眠／雙任務內容屬保留協議或舊規則，不代表目前 App 提供此功能。鏈上與後端仍保留，Lv5 維持門檻影響見 [停用盤點](../activity-sleep-review.md)；候選規則 v2 與建議見 [maintenance-v2.md](./maintenance-v2.md)。
+
 2026-09-15｜規則 v1｜`node tools/maintenance-sim/simulate.mjs --days 98` → `maintenance-sim.csv`；規則純函式 `tools/maintenance-sim/rules.mjs`（`node --test tools/maintenance-sim/rules.test.mjs`），鏈上（PG-V-02）與 App 預覽須沿用同版參數。
 
 ## 參數（v1，設計預設）

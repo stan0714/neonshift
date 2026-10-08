@@ -52,7 +52,7 @@ describe('語言切換', () => {
   test('Landing 以 zh-TW 渲染；Profile 切換語言會持久化', async () => {
     useLocaleStore.setState({ setting: 'zh-TW', locale: 'zh-TW' });
     await render(<LandingScreen />, { wrapper: Wrapper });
-    expect(screen.getByText('連接錢包')).toBeTruthy();
+    expect(screen.getByText('開始冒險')).toBeTruthy();
     expect(screen.getByText('先看看 App')).toBeTruthy();
 
     await render(<ProfileScreen />, { wrapper: Wrapper });

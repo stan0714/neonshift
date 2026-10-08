@@ -12,7 +12,7 @@ import { createAtaIdempotentInstruction } from '@/chain/txBuilder';
 import { APP_CONFIG } from '@/config/app';
 import { apiClient, type TournamentStepsResponse, type TournamentView } from '@/services/api/ApiClient';
 import { requestHashOf, type Json } from '@/services/api/canonical';
-import { accountExists, getConnection, sendWithWallet } from '@/services/chain/ChainClient';
+import { accountExists, getConnection, isInsufficientSol, sendWithWallet } from '@/services/chain/ChainClient';
 import { ClaimError } from '@/services/chain/StarterShoeService';
 import { healthConnect } from '@/services/health/HealthConnectService';
 import { WalletError } from '@/services/wallet/WalletService';
@@ -20,6 +20,7 @@ import { WalletError } from '@/services/wallet/WalletService';
 import { collectTournamentSteps } from './TournamentStepsCollector';
 
 const mapError = (e: unknown): never => {
+  if (isInsufficientSol(e)) throw new ClaimError('INSUFFICIENT_SOL', e instanceof Error ? e.message : String(e));
   if (e instanceof WalletError) {
     if (e.code === 'REJECTED') throw new ClaimError('REJECTED', e.message);
     if (e.code === 'NETWORK_ERROR') throw new ClaimError('NETWORK_ERROR', e.message);
