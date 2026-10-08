@@ -14,7 +14,10 @@ export const VERSION = 1;
 export const MAX_TTL_SECONDS = 600;
 
 export const TASK_STEPS = 1;
+/** 維持規則 v2 起退役（鏈上 6045）；解析仍接受以相容歷史 */
 export const TASK_SLEEP = 2;
+/** 維持規則 v2（DEC-04）：運動 session 任務 */
+export const TASK_WORKOUT = 3;
 export const CLUSTER_DEVNET = 1;
 export const CLUSTER_LOCALNET = 2;
 
@@ -108,7 +111,7 @@ export function decode(bytes: Buffer): Attestation {
     throw new AttestationFormatError(`不支援的版本 ${version}`);
   }
   const taskType = bytes.readUInt8(OFF.taskType);
-  if (taskType !== TASK_STEPS && taskType !== TASK_SLEEP) {
+  if (taskType !== TASK_STEPS && taskType !== TASK_SLEEP && taskType !== TASK_WORKOUT) {
     throw new AttestationFormatError(`無效的 taskType ${taskType}`);
   }
 

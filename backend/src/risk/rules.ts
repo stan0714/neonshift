@@ -8,13 +8,18 @@ import { z } from "zod";
 
 import { type Json, sha256Canonical } from "../claim/canonical.js";
 
-const taskEnum = z.enum(["steps", "sleep"]);
+const taskEnum = z.enum(["steps", "sleep", "workout"]);
 
 export const ruleSetSchema = z
   .object({
     rules_version: z.number().int().min(0).max(65_535),
     description: z.string().optional(),
-    goals: z.object({ steps: z.number().int().positive(), sleep_minutes: z.number().int().positive() }),
+    goals: z.object({
+      steps: z.number().int().positive(),
+      sleep_minutes: z.number().int().positive(),
+      /** 維持規則 v2（DEC-04）：運動 session 任務門檻；缺 → 不開放運動任務（TASK_NOT_MET） */
+      workout: z.object({ min_distance_mm: z.number().int().positive(), min_moving_ms: z.number().int().positive() }).optional(),
+    }),
     hard_reject: z.array(
       z.discriminatedUnion("id", [
         z.object({ id: z.literal("SRC_UNATTRIBUTED"), task: taskEnum }),

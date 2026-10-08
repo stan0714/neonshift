@@ -5,11 +5,23 @@
 
 BREW_PREFIX="$(brew --prefix 2>/dev/null || echo /opt/homebrew)"
 
-# Node.js 24：優先 nvm，其次 Homebrew node
+# Node.js 24：優先 nvm，其次 Homebrew node。
+#
+# 找 node 不能只看一個 BREW_PREFIX：同一台 Mac 上 /opt/homebrew 與 /usr/local 可能都有
+# Homebrew，而 node 只裝在其中一邊（這台就是 openjdk 在 /opt/homebrew、node 在 /usr/local）。
+# 而且 nvm 是 shell function，非互動、非登入 shell（scripts/test-all.sh、scripts/ops/*.sh）
+# 讀不到它——兩件事湊起來的結果是「測試默默用系統上的舊版 node 跑」，而舊版 node 的
+# jest 沙箱沒有 crypto.getRandomValues，會讓用到 Keypair.generate() 的套件失敗。
+# 所以這裡逐一試已知位置，挑第一個真的存在的。
 if command -v nvm >/dev/null 2>&1 && nvm ls 24 >/dev/null 2>&1; then
   nvm use 24 >/dev/null
-elif [ -x "$BREW_PREFIX/opt/node/bin/node" ]; then
-  export PATH="$BREW_PREFIX/opt/node/bin:$PATH"
+else
+  for node_bin in "$BREW_PREFIX/opt/node/bin" /opt/homebrew/opt/node/bin /usr/local/opt/node/bin; do
+    if [ -x "$node_bin/node" ]; then
+      export PATH="$node_bin:$PATH"
+      break
+    fi
+  done
 fi
 
 # JDK 17

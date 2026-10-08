@@ -31,7 +31,8 @@ export function Chip({ label, kind = 'neutral', style, accessibilityLabel }: Chi
       accessibilityLabel={accessibilityLabel ?? label}
       style={[styles.chip, { borderColor: k.border }, style]}
     >
-      <Text variant="label" tone={k.text} uppercase>
+      {/* 徽章一律單行：Android highQuality 斷行與量測差一點就會換行，第二行被圓角裁掉（10/2 Workouts 篩選實機） */}
+      <Text variant="label" tone={k.text} uppercase numberOfLines={1} textBreakStrategy="simple">
         {label}
       </Text>
     </View>

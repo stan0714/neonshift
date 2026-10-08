@@ -2,6 +2,7 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import bs58 from "bs58";
 
@@ -10,11 +11,20 @@ import { PublicKey } from "@solana/web3.js";
 import { ChallengeService } from "./auth/challenge.js";
 import { RpcChainReader, StaticChainReader, type ChainReader } from "./chain/reader.js";
 import { galleryRoutes } from "./gallery/routes.js";
+import { metricsRoutes } from "./metrics/routes.js";
+import { loadCampaignsFile, type SeasonalCampaign } from "./seasonal/campaigns.js";
+import { SeasonalService, seasonalRoutes } from "./seasonal/service.js";
 import { partnerRoutes } from "./partner/routes.js";
 import { AchievementService, achievementRoutes } from "./pb/achievements.js";
 import { EventBadgeService } from "./milestones/eventBadges.js";
 import { MilestoneService, milestoneRoutes } from "./milestones/service.js";
+import { opsFunnelRoutes } from "./ops/funnel.js";
+import { opsPlayerRoutes } from "./ops/player.js";
+import { passportRoutes, PassportService } from "./passport/service.js";
 import { PersonalBestService, pbRoutes } from "./pb/service.js";
+import { QuestService, questRoutes } from "./quests/service.js";
+import { defaultRpcUrl, RpcSkrChain, type SkrChain } from "./skr/chain.js";
+import { SkrService, skrRoutes, skrSettingsFrom } from "./skr/service.js";
 import { workoutRoutes } from "./workouts/routes.js";
 import { tournamentRoutes } from "./tournament/routes.js";
 import { TournamentService } from "./tournament/service.js";
@@ -34,7 +44,7 @@ import { MemoryStore } from "./store/memory.js";
 import { PostgresStore } from "./store/postgres.js";
 import type { Store } from "./store/types.js";
 
-export type AppDeps = { config: AppConfig; db: Db; store?: Store; now?: () => Date; signer?: AttestorSigner; rules?: RuleSet; alertFetch?: typeof fetch; chain?: ChainReader };
+export type AppDeps = { config: AppConfig; db: Db; store?: Store; now?: () => Date; signer?: AttestorSigner; rules?: RuleSet; alertFetch?: typeof fetch; chain?: ChainReader; skrChain?: SkrChain };
 
 export const API_PREFIX = "/v1";
 
@@ -44,7 +54,7 @@ export const API_PREFIX = "/v1";
  * - body 上限、統一錯誤格式、`/healthz`（liveness）與 `/readyz`（DB）
  * - 業務路由掛在 `/v1`，由後續 PG-B 項目以 plugin 註冊
  */
-export function buildApp({ config, db, store, now, signer, rules, alertFetch, chain }: AppDeps): FastifyInstance {
+export function buildApp({ config, db, store, now, signer, rules, alertFetch, chain, skrChain }: AppDeps): FastifyInstance {
   const dataStore: Store = store ?? (db.pool ? new PostgresStore(db.pool) : new MemoryStore());
   const auth = new AuthService(
     dataStore,
@@ -64,6 +74,10 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch, ch
   const chainReader: ChainReader = chain ?? (config.PROGRAM_ID ? new RpcChainReader(config.RPC_URL, new PublicKey(config.PROGRAM_ID)) : new StaticChainReader());
   const tournaments = new TournamentService(dataStore, chainReader, challenge, now);
   const ruleSet = rules ?? loadRuleSetFile(resolve(process.cwd(), config.RULES_FILE));
+  // 節日收藏設定：檔案不存在就是「沒有任何屆次」（安全的預設，不會誤發資格）；
+  // 檔案存在但內容有問題（窗口顛倒、時區打錯、同主題同年兩屆）則直接啟動失敗，不帶著壞設定上線。
+  const seasonalPath = resolve(process.cwd(), config.SEASONAL_FILE);
+  const seasonalCampaigns: SeasonalCampaign[] = existsSync(seasonalPath) ? loadCampaignsFile(seasonalPath) : [];
   const attestorSigner = signer ?? createSigner(config);
   const app = Fastify({
     bodyLimit: config.BODY_LIMIT_BYTES,
@@ -90,6 +104,8 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch, ch
     now,
     { metrics, alerts },
   );
+  const skr = new SkrService(dataStore, skrChain ?? new RpcSkrChain(config.SKR_RPC_URL ?? defaultRpcUrl(config.SKR_NETWORK), config.SKR_COMMITMENT), skrSettingsFrom(config), now ?? (() => new Date()), app.log);
+  app.decorate("skr", skr);
   app.decorate("metrics", metrics);
   app.decorate("alerts", alerts);
   app.decorate("config", config);
@@ -171,18 +187,30 @@ export function buildApp({ config, db, store, now, signer, rules, alertFetch, ch
     const pbs = new PersonalBestService(dataStore, now ?? (() => new Date()));
     const milestones = new MilestoneService(dataStore);
     const eventBadges = new EventBadgeService(dataStore);
-    const achievements = new AchievementService(dataStore, config, attestorSigner, now ?? (() => new Date()), milestones, eventBadges);
-    pbs.onRecomputed = async (w, rows) => { await achievements.reconcile(w, rows); await achievements.reconcileMilestones(w); await achievements.reconcileEventBadges(w); }; // PG-M-02／M-04：來源變動同步里程碑／活動章
+    // PG-SEASON-01／02／04：節日收藏。mintEnabled 代表「鏈上程式已支援 seasonal 且已部署」，預設關
+    const seasonal = new SeasonalService(dataStore, now ?? (() => new Date()), seasonalCampaigns, config.QUEST_GPS_MIN_RULES_VERSION ?? null, config.SEASONAL_MINT_ENABLED);
+    const achievements = new AchievementService(dataStore, config, attestorSigner, now ?? (() => new Date()), milestones, eventBadges, seasonal);
+    pbs.onRecomputed = async (w, rows) => { await achievements.reconcile(w, rows); await achievements.reconcileMilestones(w); await achievements.reconcileEventBadges(w); await achievements.reconcileSeasonal(w); }; // PG-M-02／M-04／SEASON-04：來源變動同步里程碑／活動章／節日
     await v1.register(partnerRoutes, { auth, store: dataStore, now: now ?? (() => new Date()), pbs, onParticipationChanged: (w) => achievements.reconcileEventBadges(w) });
-    await v1.register(workoutRoutes, { auth, store: dataStore, now: now ?? (() => new Date()), pbs });
+    const quests = new QuestService(dataStore, now ?? (() => new Date()), config.QUEST_GPS_MIN_RULES_VERSION ?? null); // PG-U-04
+    await v1.register(workoutRoutes, { auth, store: dataStore, now: now ?? (() => new Date()), pbs, onWorkoutsChanged: (w) => quests.reevaluate(w).then(() => undefined) });
+    await v1.register(questRoutes, { auth, store: dataStore, quests });
     await v1.register(pbRoutes, { auth, store: dataStore, pbs });
     await v1.register(achievementRoutes, { auth, store: dataStore, achievements, pbs, now: now ?? (() => new Date()), eventBadges });
     await v1.register(milestoneRoutes, { auth, milestones });
+    await v1.register(opsPlayerRoutes, { store: dataStore, pbs, milestones, now: now ?? (() => new Date()) }); // ops 診斷摘要（OPS_TOKEN）
+    await v1.register(passportRoutes, { auth, passport: new PassportService(dataStore, pbs, milestones, eventBadges, quests) }); // XD-03 成就護照
+    await v1.register(opsFunnelRoutes, { store: dataStore, now: now ?? (() => new Date()) }); // XD-07 漏斗／留存（OPS_TOKEN）
+    await v1.register(metricsRoutes, { store: dataStore, now: now ?? (() => new Date()), publicLimit: config.RATE_LIMIT_PER_MINUTE }); // PG-SHARE-05 分享彙總（匿名回報＋OPS_TOKEN 讀取）
+    await v1.register(seasonalRoutes, { auth, seasonal, achievements }); // PG-SEASON-01／02／04 節日收藏（領取由 SEASONAL_MINT_ENABLED 控制）
+    // SKR-02～06：官方 SKR 外觀付款（獨立 RPC／網路，與 devnet 程式無關）
+    await v1.register(skrRoutes, { auth, skr, sensitiveLimit: config.RATE_LIMIT_SENSITIVE_PER_MINUTE });
     v1.get("/rules/version", async () => ({ rules_version: ruleSet.version, rules_hash: `sha256:${ruleSet.hash.toString("hex")}`, description: ruleSet.config.description ?? null }));
   }, { prefix: API_PREFIX });
 
   app.addHook("onReady", async () => {
     await claim.init();
+    await skr.init();
     if (attestorSigner.kind === "local") app.log.warn("ATTESTOR_SIGNER 為 local：私鑰在 API process 內，只允許本機 dev");
     app.log.info({ attestor: bs58.encode(await attestorSigner.publicKey()), rules_version: ruleSet.version }, "attestor ready");
   });
@@ -210,6 +238,7 @@ declare module "fastify" {
     challenge: ChallengeService;
     claim: ClaimService;
     tournaments: TournamentService;
+    skr: SkrService;
     metrics: Metrics;
     alerts: Alerts;
   }

@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "note": "每屆一列；日期來源核對通過才可 enabled。窗口一律寫成明確 UTC 瞬間，display_timezone 只供 UI 呈現，expect_local_days 讓 loader 反算驗證（DST／時區打錯會被擋下）。",
+  "campaigns": [
+    {
+      "campaign_id": "genesis-stride-2027",
+      "theme_id": "genesis_stride",
+      "year": 2027,
+      "art_version": 1,
+      "rules_version": 1,
+      "enabled": false,
+      "starts_at": "2027-03-16T00:00:00.000Z",
+      "ends_at": "2027-03-17T00:00:00.000Z",
+      "display_timezone": "UTC",
+      "expect_local_days": [
+        "2027-03-16"
+      ],
+      "min_moving_ms": 1200000,
+      "grace_ms": 604800000,
+      "source": {
+        "fact": {
+          "zh-TW": "Solana 官方回顧記載 Mainnet Beta 於 2020-03-16 啟動。",
+          "en": "Solana's own retrospective records Mainnet Beta going live on 2020-03-16."
+        },
+        "url": "https://solana.com/ar/news/may-newsletter",
+        "checked_on": "2026-09-25"
+      }
+    },
+    {
+      "campaign_id": "seeker-horizon-2027",
+      "theme_id": "seeker_horizon",
+      "year": 2027,
+      "art_version": 1,
+      "rules_version": 1,
+      "enabled": false,
+      "starts_at": "2027-08-04T00:00:00.000Z",
+      "ends_at": "2027-08-05T00:00:00.000Z",
+      "display_timezone": "UTC",
+      "expect_local_days": [
+        "2027-08-04"
+      ],
+      "min_moving_ms": 1200000,
+      "grace_ms": 604800000,
+      "source": {
+        "fact": {
+          "zh-TW": "Solana Mobile 公告 Seeker 自 2025-08-04 開始出貨。這是紀念日，不等於你收到手機的日期。",
+          "en": "Solana Mobile announced that Seeker started shipping on 2025-08-04. This marks the announcement, not the day your own device arrived."
+        },
+        "url": "https://solanamobile.com/blog/solana-seeker-to-start-shipping-august-4-2025",
+        "checked_on": "2026-09-25"
+      }
+    },
+    {
+      "campaign_id": "moonlit-steps-2026-demo",
+      "theme_id": "moonlit_steps",
+      "year": 2026,
+      "art_version": 1,
+      "rules_version": 1,
+      "enabled": false,
+      "prototype": true,
+      "starts_at": "2026-09-24T16:00:00.000Z",
+      "ends_at": "2026-09-25T16:00:00.000Z",
+      "display_timezone": "Asia/Taipei",
+      "expect_local_days": [
+        "2026-09-25"
+      ],
+      "min_moving_ms": 1200000,
+      "grace_ms": 604800000,
+      "source": {
+        "fact": {
+          "zh-TW": "中秋節依農曆而定，每年的西曆日期都不同；本屆採用 2026-09-25，依中央氣象署的天文資料。",
+          "en": "Mid-Autumn Festival follows the lunar calendar, so its Gregorian date differs every year. This edition uses 2026-09-25, per the Central Weather Administration almanac."
+        },
+        "url": "https://www.cwa.gov.tw/V8/C/K/astronomy_day.html",
+        "checked_on": "2026-09-25",
+        "internal_note": "示範屆：窗口會被測試改動。正式排程前必須逐年以權威曆法重新核對，不可當成每年固定日期。"
+      }
+    }
+  ]
+}

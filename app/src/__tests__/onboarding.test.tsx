@@ -40,7 +40,7 @@ const Wrapper = ({ children }: PropsWithChildren) => (
 beforeEach(() => {
   mockNavigate.mockClear();
   mockReset.mockClear();
-  useWalletStore.setState({ status: 'idle', session: null, error: null });
+  useWalletStore.setState({ status: 'idle', session: null, error: null, phase: null, loginIncomplete: false });
   useOnboardingStore.setState({ healthGranted: false, activityGranted: false, healthDeferred: false, activityDeferred: false, shoeMinted: false });
 });
 
@@ -76,7 +76,7 @@ describe('10.2 Health Access', () => {
 
     await act(async () => await fireEvent.press(screen.getByText('Allow health access')));
     await waitFor(() => expect(screen.getByTestId('health-denied')).toBeTruthy());
-    expect(screen.getByText(/Only some data types/)).toBeTruthy();
+    expect(screen.getByText(/Some required access is missing/)).toBeTruthy();
     expect(screen.getByText('Open Health Connect settings')).toBeTruthy();
     expect(screen.getByText('Not now')).toBeTruthy();
     expect(mockNavigate).not.toHaveBeenCalled();
@@ -144,4 +144,16 @@ describe('10.4 Starter Shoe Claim（免費贈與，不鑄 NFT）', () => {
     expect(useOnboardingStore.getState().shoeMinted).toBe(false);
     expect(mockReset).not.toHaveBeenCalled();
   });
+});
+
+
+test('wallet connected with incomplete app sign-in explains the issue before continuing', async () => {
+  useWalletStore.setState({ status: 'connected', session: { address: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU', publicKey: {} as never, walletUriBase: '' }, loginIncomplete: true });
+  await render(<WalletConnectScreen />, { wrapper: Wrapper });
+  expect(screen.getByTestId('wallet-login-incomplete')).toBeTruthy();
+  expect(mockNavigate).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByText(/Continue as/));
+  // 2026-09-30：去哪一步改由實際狀態決定（權限 flags＋鏈上 profile），所以是非同步的。
+  // 這裡仍是全新狀態，答案照舊是 HealthAccess——改的是「怎麼決定」，不是「決定成什麼」。
+  await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('Onboarding', { screen: 'HealthAccess' }));
 });

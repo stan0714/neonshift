@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.48（PG-V-05 完成） |
+| 文件版本 | v0.61（自動暫停、漂移抑制） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[SD v0.4](./sd.md) |
 | 建置流程 | [Build & Test Runbook](./build-and-test.md) |
@@ -131,7 +131,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-I-04 | CI：lint、單元測試、debug APK 產出 | SD 7 | — | 1.0 | WIP | .github/workflows/ci.yml：Rust／backend＋schema／app typecheck+jest／debug APK artifact；尚未在 GitHub 跑過 |
 | PG-I-05 | 後端骨架與 PostgreSQL docker compose | SD 2.2 | — | 0.5 | WIP | package.json、docker-compose、vitest 已建；未合併 dev；2026-09-14 PostgresStore 整合測試（12，含 E-03～E-09 全流程）於 l1 PostgreSQL 17 通過（`scripts/test-db-remote.sh`），修正 2 個既有測試資料錯誤 |
 | PG-I-06 | Anchor 專案骨架與 localnet 測試環境 | SD 3 | — | 0.5 | WIP | programs/ Anchor 1.2 workspace＋neonshift-core 骨架＋LiteSVM 測試；anchor build 待驗證 |
-| PG-I-07 | dev／demo 分離部署腳本與 build-time 環境參數管理 | SD 8 | BR-14 | 1.5 | WIP | deploy/{dev,demo,local}.env、scripts/chain/{keys,build,deploy,token}.sh、tools/chain-admin（init-config／status／set-paused／rotate-attestor）；尚未實際部署 devnet；App／後端 build-time 參數接線待做；2026-09-14 chain-admin 新增 `tournament` 子指令（create／open／lock／start／forfeit／begin／submit／settle／cancel／show，manifest 驅動，Runbook 7.6）；2026-09-14 後端已部署至 `root@l1.neonshift.cc`（port 6080、`/healthz`、隔離 signer 127.0.0.1:6081、PostgreSQL 17、systemd；`deploy/l1/`）。待：另一台 nginx 設定 `api.neonshift.cc`（範本已給）、Cloudflare Pages 指向 `web/`；2026-09-14 21:45 dev program `6MhVo…` 已部署 devnet（slot 498266589，upgrade authority=admin；on-chain IDL 上傳因餘額不足略過，IDL 以 repo 檔為準）、tSKR mint `2itshf7…`、reward vault `335bF9…`（owner=Config PDA）、treasury `3EjLT6…`、`initialize_config` 完成（attestor `TuqQMs…` 與 l1 signer 同把）。`token.sh dev fund` 已於 21:50 執行（負責人確認）：供給 1,000,000、reward vault 200,000、mint authority 已撤銷（tx `3xbok3…`） |
+| PG-I-07 | dev／demo 分離部署腳本與 build-time 環境參數管理 | SD 8 | BR-14 | 1.5 | WIP | 2026-09-21：第二台 API 主機 l2 bootstrap＋部署（共用外部 DB、同 JWT_SECRET／SKR 設定、indexer／retention 只在 l1），deploy.sh／bootstrap.sh 支援 DEPLOY_HOST 與 NEONSHIFT_DATABASE_URL；明日前端 nginx 導流至 l2。deploy/{dev,demo,local}.env、scripts/chain/{keys,build,deploy,token}.sh、tools/chain-admin（init-config／status／set-paused／rotate-attestor）；尚未實際部署 devnet；App／後端 build-time 參數接線待做；2026-09-14 chain-admin 新增 `tournament` 子指令（create／open／lock／start／forfeit／begin／submit／settle／cancel／show，manifest 驅動，Runbook 7.6）；2026-09-14 後端已部署至 `$NEONSHIFT_L1_SSH`（port 6080、`/healthz`、隔離 signer 127.0.0.1:6081、PostgreSQL 17、systemd；`deploy/l1/`）。待：另一台 nginx 設定 `api.neonshift.cc`（範本已給）、Cloudflare Pages 指向 `web/`；2026-09-14 21:45 dev program `6MhVo…` 已部署 devnet（slot 498266589，upgrade authority=admin；on-chain IDL 上傳因餘額不足略過，IDL 以 repo 檔為準）、tSKR mint `2itshf7…`、reward vault `335bF9…`（owner=Config PDA）、treasury `3EjLT6…`、`initialize_config` 完成（attestor `TuqQMs…` 與 l1 signer 同把）。`token.sh dev fund` 已於 21:50 執行（負責人確認）：供給 1,000,000、reward vault 200,000、mint authority 已撤銷（tx `3xbok3…`） |
 | PG-I-08 | 經典 SPL Token tSKR（6 decimals）建立、固定供給、撤銷 authority | Runbook 7.4, SD 1.2 | BR-22 | 1.0 | WIP | token.sh：mint 6 decimals、reward vault owner=Config PDA、固定供給 1,000,000／預撥 200,000、撤銷 mint authority；尚未在 devnet 執行；2026-09-14 mint／vault 已建於 devnet；2026-09-14 完成鑄造 1,000,000（admin ATA `3EjLT6…`）、撥 200,000 至 reward vault、mint authority 撤銷（`spl-token display`：Mint authority (not set)，tx `3xbok3…`）；BR-22 驗收證據齊 |
 
 ---
@@ -197,7 +197,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-A-04 | HealthConnectModule：來源歸因、aggregate 與速率摘要 | SD 5.1 | BR-05, BR-07, BR-08 | 2.5 | WIP | modules/neonshift-health Kotlin（status／extension／SPN 反射、權限、aggregate＋DataOriginFilter、來源四分類、step-rate、睡眠 end-time 歸屬）；Seeker 實測權限與讀取通過；四種來源測資與跨午夜測試待補 |
 | PG-A-05 | SensorModule：20 秒引導式 live motion check 與特徵摘要 | SD 5.1 | BR-09 | 2.0 | WIP | modules/neonshift-sensors Kotlin（50 Hz、2×10 s、自相關主頻、RMS／ZCR／freq_variance、TYPE_STEP_COUNTER 增量，原始序列不出原生層）；JUnit 7＋JS 4 測試；Seeker 靜置實測 49.5 Hz；步行實測與引導 UI 待 A-13 |
 | PG-A-06 | WalletModule：MWA 授權與 token 保存 | SD 5.1 | — | 1.5 | WIP | WalletService：MWA 2.0 authorize／deauthorize、SecureStore token、signMessage／signAndSendTransaction；啟動只讀本機 session（不開錢包），reauthorize 延後到首次簽章；Seeker＋Phantom 實測 |
-| PG-A-07 | ApiClient、JWT 續期、challenge 簽署 | SD 4.2, 5.1 | — | 1.0 | WIP | ApiClient：SIWS signIn（MWA signMessage）、SecureStore token、401 單飛 refresh 重試、authorizeClaim（request_hash＋challenge 簽章 bytes 與後端一致）、claim／history／deleteData、統一 ApiError；6 測試 |
+| PG-A-07 | ApiClient、JWT 續期、challenge 簽署 | SD 4.2, 5.1 | — | 1.0 | WIP | 2026-09-21 實機：Phantom 26.6 在 Seeker 簽完 SIWS 訊息後不回傳（Phantom 端 `sol_mwa_sign_messages` 內部錯誤，三次重現；Seed Vault 已簽、後端只收到 nonce）→ App 新增 `WALLET_NO_REPLY`（登入卡／打卡失敗指引改用 Seeker Wallet、Phantom 事前提醒）、Arena 改用共用 SignInState；評審指南與商店描述加已知問題；Seeker Wallet 驗收待做。ApiClient：SIWS signIn（MWA signMessage）、SecureStore token、401 單飛 refresh 重試、authorizeClaim（request_hash＋challenge 簽章 bytes 與後端一致）、claim／history／deleteData、統一 ApiError；6 測試 |
 | PG-A-08 | TaskEngine：達標判定與 UTC 日界線 | SD 5.3 | BR-01, BR-05 | 1.0 | WIP | domain/taskEngine：任務日 floor(unix/86400)、UTC 換日倒數、8,000／420 達標、SA 6.3 狀態機 reduce＋Style 7.3 CTA；8 測試；實機改時區測試待 A-12 |
 | PG-A-09 | TxBuilder：ed25519 前置指令與 Anchor 指令 | SD 3.5, 5.1 | BR-14 | 2.0 | WIP | chain/attestation（164B 解析→Borsh AttestationArgs，20 組向量對得起來）、txBuilder（ed25519 自我引用 offsets、ATA idempotent、clock_in 帳戶順序、大小 <1232）；4 測試；鏈上實測待 devnet 部署 |
 | PG-A-10 | ChainClient：簽章／blockhash 保存、確認與 ClaimReceipt 冪等輪詢 | SD 5.3 | — | 1.5 | WIP | ClaimSubmitter：送前查 receipt、保存 signature／blockhash／lastValidBlockHeight、逾時先查 receipt 與簽章狀態、超過高度才 expired 需新 attestation、resumePending；7 測試；飛航模式實機測試待 A-13 |
@@ -207,7 +207,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-A-14 | Gear 頁與成就收藏領取 | Style 12 | FR-05.2 | 1.0 | WIP | 2026-09-14 完成：`GearScreen`（跑鞋 hero＋Level＋XP ring、current／next multiplier、距下一階 XP、My collection 2 欄網格 Claimed／Claimable／Locked、Claim 走 MWA 簽 `claim_collectible`、成功／拒簽／失敗 inline 狀態）；`domain/collectibles.ts`（目錄＋與鏈上 eligible() 一致的資格）、`CollectibleService`（單一 RPC 查 receipt、冪等領取）、`collectibleStore`；Jest 15 案例；Seeker 版面驗證（docs/evidence/2026-09-14-seeker-gear-*.png，程式未部署故全為 Locked）。`EXPO_PUBLIC_DEV_ROUTE=Main` 供未部署時看 tabs |
 | PG-A-15 | Arena 頁三種狀態 | Style 13 | FR-06.1, FR-06.2 | 1.5 | WIP | 2026-09-14 完成：`ArenaScreen`（13.1 UTC／當地時段、質押、人數、規則、最差損失確認框；13.2 名次／步數／回報、排行榜遮罩與本人強調、Settling 標「not final」；13.3 final rank／group／領取、沒收顯示規則版本與申訴管道；Cancelled 退款；無賽事／後端錯誤／需登入三種狀態）；`chain` join／claim_prize／refund_all 指令與 Entry 解碼；`TournamentStepsCollector`（窗口逐日讀 Health Connect → 小時桶）、`TournamentService`（MWA 簽章、冪等）、`arenaStore`；ApiClient tournament 方法；Jest 12；Seeker 版面（需登入狀態）截圖。端到端待 devnet 部署 |
 | PG-A-16 | 錯誤、離線與空狀態 | Style 14 | NFR 可用性 | 1.0 | WIP | 2026-09-14 完成：`OfflineBanner`（expo-network `useOnline`，tabs 頂部「offline · showing cached data」）；Home inline 狀態：Health access is off → Review access、Health data unavailable → Try again、Devnet is taking a break → Retry（說明資料／資金安全）；`InlineState` 新增 `action`／`referenceId`；後端錯誤一律帶 `request_id`，App `ApiError.requestId` → 打卡／刪除失敗顯示 Ref；Arena／Gear 空／錯誤／需登入狀態於 A-14／A-15。Jest 3（共 143）。需重建 dev client（expo-network 原生模組） |
-| PG-A-17 | 跑鞋視覺五階與進化動畫 | Style 16.2 | FR-04.4 | 1.0 | WIP | 2026-09-14：五階向量 `ShoeHero`（Origin／Pulse／Phase／Surge／Zenith，各階有可辨識結構，非只換色；懸浮動畫尊重 Reduce Motion）沿用；新增 `EvolutionReveal`（舊鞋淡出／新鞋放大、motion.celebration 800ms、success haptic 一次、View transaction）與 `levelRevealStore`（記住已看過的等級，重啟不重播；第一次觀察不播）；打卡確認後立即重讀 profile 觸發。Jest 2。精修靜態素材／Lottie 依 SD 12 後續 |
+| PG-A-17 | 跑鞋視覺五階與進化動畫 | Style 16.2 | FR-04.4 | 1.0 | WIP | 2026-09-16 更新：`RewardStage`／`EvolutionReveal`／`NftReveal`＋`nftRevealStore`；NFT 翻卡、光環、粒子與掃光（2.8 s），升等能量擴散、降等冷色收縮（1.8 s）；觀察 coreLevel，涵蓋裝備／PB／里程碑／活動 NFT，新領取成功才排隊揭曉，Reduce Motion 靜態呈現。17 項相關測試通過（2026-09-15）；待實機視覺、低階裝置流暢度及無障礙驗收。Style §25。 |
 | PG-A-18 | App 測試：單元、原生、E2E | SD 7 | — | 1.5 | WIP | 2026-09-14：Jest 148（TaskEngine／UTC、attestation 向量、TxBuilder、ClaimFlow 狀態機、ClaimSubmitter 冪等、WalletService、ApiClient 續期、Health 服務、Bootstrap、onboarding、Home／Gear／Arena／Profile／Activity 畫面、離線／錯誤狀態、reveal）。待補：Android instrumented（四種 dataOrigin、權限撤銷）、Maestro E2E（需 devnet 部署） |
 | PG-A-19 | Health Connect 背景同步（WorkManager）與前景補同步 | SD 5.1 | FR-02.3 | 1.0 | WIP | Kotlin HealthReader 共用＋HealthSyncWorker（WorkManager 15 分鐘、電量限制、背景權限缺失靜默結束）＋HealthCache；JS enable／disable／cache／readCached；啟動有背景權限即排程；Dashboard 先讀快取再前景同步、離線標示；4 測試；實機背景觸發待驗證 |
 | PG-A-20 | Activity history 畫面與歷史 API 串接 | Style 2, 19.1 | FR-03.5 | 0.5 | WIP | 2026-09-14 完成：`/player/history` 併入 finalized ClockedIn 事件的 amount／xp／簽章與 `total_earned`；`ActivityHistoryScreen`（30 天累計收益、筆數、Onchain 比、逐筆 Onchain／Not redeemed 與 explorer 連結；空／錯誤／需登入狀態）；Home「Activity ›」次要入口；Jest 3、vitest 更新；Seeker 截圖 |
@@ -221,12 +221,12 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
-| PG-D-01 | keystore、簽章設定、Release APK 流程 | Runbook 8 | — | 0.5 | WIP | 2026-09-14：build.gradle 自動讀 `keystore.properties`（gitignore）切換 release 簽章；`scripts/app/build.sh <env> release` 無 keystore 即拒絕、apksigner 驗證非 debug 簽章、輸出 release-notes.txt；Runbook 8.2 更新。待：專案負責人離線產生正式 keystore（8.1）並跑一次 demo release |
-| PG-D-02 | dApp Store 素材、描述、隱私政策 | BRD 14 | NFR 隱私 | 1.5 | WIP | 2026-09-14：`web/privacy/index.html`（與實作一致：裝置端原始資料、30 天保留、刪除流程、鏈上公開資料、權限）；`docs/store/listing.md`（短／長描述、截圖清單、圖示、送審檢查表）。待：部署 neonshift.cc、正式截圖、Publisher Portal 流程 |
-| PG-D-03 | Demo 影片（3 分鐘內） | BRD 14 | — | 1.5 | WIP | 2026-09-14：`docs/store/demo-video.md` 分鏡與旁白（8 段、≤ 3 分鐘）。待 devnet 部署後錄製 |
-| PG-D-04 | Pitch 簡報 | BRD 14 | — | 1.0 | WIP | 2026-09-14：`docs/store/pitch.md` 十頁大綱（問題／方案／產品／SM 整合／技術／防作弊／代幣經濟／測試／路線圖／Ask）。待製作投影片 |
+| PG-D-01 | keystore、簽章設定、Release APK 流程 | Runbook 8 | — | 0.5 | WIP | 2026-09-27：Seeker 測試包 versionCode 2（demo release、arm64-v8a、git eea77e0、SHA-256 `c23debb8295e93748550377fd864052e37ce0e5704f4d53fc4d05812cf6554b5`），內容含 PG-SHARE-06/07/09、PG-SEASON-04/05/06 與鏈上讀取批次／退避；簽章沿用 dev keystore，與裝置上 versionCode 1 同一把，可 `adb install -r` 保留資料。注意：線上後端尚未更新（`/v1/seasonal` 仍 404），收藏頁節日足跡會顯示讀取失敗警示，其餘功能不受影響。2026-09-22 決定：demo.env 沿用 dev 鏈上部署（program `6MhVoQ…`、tSKR `2itshf7…`、vault 同 dev），理由：api.neonshift.cc 單一後端／attestor、鏈上 config 與金庫已就緒、免重做；正式上架再分離。專案 LICENSE 採 MIT（品牌／美術／文件保留）。2026-09-22：`scripts/release/clean-build.sh` 乾淨 clone 重建 release APK 並產 `docs/evidence/<日期>-clean-build-<env>.md`（COMP-07／R01）。2026-09-21：build.sh demo release 強制 demoLevel=0／無 DEV_ROUTE／https，release-notes 加 SHA-256／versionCode／ABI／demoLevel；`scripts/release/evidence.sh` 產證據骨架（參賽計畫 §6／§8）；demo.env PROGRAM_ID 未回填待 9/23 決定。2026-09-14：build.gradle 自動讀 `keystore.properties`（gitignore）切換 release 簽章；`scripts/app/build.sh <env> release` 無 keystore 即拒絕、apksigner 驗證非 debug 簽章、輸出 release-notes.txt；Runbook 8.2 更新。待：專案負責人離線產生正式 keystore（8.1）並跑一次 demo release |
+| PG-D-02 | dApp Store 素材、描述、隱私政策 | BRD 14 | NFR 隱私 | 1.5 | WIP | 2026-09-22：正式截圖 1080×2400 已備 4／7（Dashboard、Activity、Gear×2、Profile；docs/store/screenshots），Landing／打卡 sheet／Arena／Gallery 待實機；長描述加 SKR Known issue（Phantom）。2026-09-14：`web/privacy/index.html`（與實作一致：裝置端原始資料、30 天保留、刪除流程、鏈上公開資料、權限）；`docs/store/listing.md`（短／長描述、截圖清單、圖示、送審檢查表）。待：部署 neonshift.cc、正式截圖、Publisher Portal 流程 |
+| PG-D-03 | Demo 影片（3 分鐘內） | BRD 14 | — | 1.5 | WIP | 2026-09-22：`demo-video.md` §8 v4 依參賽計畫 170 秒配置重排（A–E 五段，D 段 SKR 45 秒含旁白／畫面標示／No-go 替代稿）。2026-09-14：`docs/store/demo-video.md` 分鏡與旁白（8 段、≤ 3 分鐘）。待 devnet 部署後錄製 |
+| PG-D-04 | Pitch 簡報 | BRD 14 | — | 1.0 | WIP | 2026-09-16：更新 （已移出公開 repo）`output/fundraising/NeonShift_募資簡報_中文草稿_v1.pptx`（23 頁）、產生程式、HTML 預覽、講稿與來源；加入新手指南／三種動畫、STEPN 教訓、庫存壓力與經濟保護規劃。商業實績、團隊與募資條件仍待補齊；見 `docs/store/pitch.md`。 |
 | PG-D-05 | README 與架構圖 | BRD 14 | — | 0.5 | WIP | 2026-09-14：README 重寫（mermaid 架構圖、信任邊界、repo 結構、快速開始、防作弊摘要） |
-| PG-D-06 | 代幣經濟模擬試算表 | BRD 8.5 | BR-02, BR-16 | 1.0 | WIP | 2026-09-14：`tools/tokenomics/simulate.mjs` → `docs/economics/sim.csv`＋`README.md`；**結論：升級免費後消耗／產出比 ≈ 0，未達 BRD 8.5 ≥ 0.6，列為待決（四個方案）** |
+| PG-D-06 | 代幣經濟模擬試算表 | BRD 8.5 | BR-02, BR-16 | 1.0 | WIP | 2026-09-16：`economics/stepn-risk-review.md`＋`tools/tokenomics/stress.mjs`／`stress.csv`，九組庫存試算與預算／守恆斷言通過；更正降低退款不等於消耗、固定供給不等於永續。未改合約與獎勵配置；經濟保護實作另見 PG-EC，DEC-03 仍 OPEN。 |
 
 ### 7.1 範圍變更規則
 
@@ -257,11 +257,12 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | 編號 | 關聯項目 | 決策內容 | 決策人 | 到期日 | 狀態 |
 |---|---|---|---|---|---|
 | DEC-01 | 全部 | 團隊人數、角色與至少 5 FTE 的容量安排（BRD Q-01） | 專案負責人 | 2026-09-10 | OPEN |
-| DEC-02 | PG-I-08、PG-D-02 | SKR integration track 是否接受 tSKR（BRD Q-08） | 專案負責人 | 2026-09-10 | OPEN |
-| DEC-03 | PG-D-06、SD 6.2 | 升級免費後 tSKR 消耗／產出比 ≈ 0（BRD 8.5 目標 ≥ 0.6）：獎金池抽成、退款比例、外觀消耗或改以 runway 為指標（docs/economics/README.md） | 專案負責人 | 2026-09-21 | OPEN |
-| DEC-04 | PG-V-01、PG-V-02 | 睡眠不可用者最高只能 Lv4（步數 700 < Lv5 900）：(a) 接受並明示、(b) 全體一致替代挑戰（跑步 session +50）、(c) Lv5 改 700／7 日（docs/economics/maintenance-sim.md） | 專案負責人 | 2026-09-22 | OPEN |
+| DEC-02 | PG-I-08、PG-D-02 | SKR integration track 是否接受 tSKR（BRD Q-08） | **主辦方**（非專案負責人） | 2026-09-10 | **CLOSED 2026-09-29**：主辦方回覆 devnet＋tSKR 可參加評審與 SKR 獎，條件是「整合邏輯健全且清楚呈現」；但**得獎後要領 USDC，App 與 SKR 整合都必須在主網運作**。詳見當日條目 |
+| DEC-03 | PG-D-06、SD 6.2 | 改以遊戲／獎勵解耦、全站已撥款預算、現金與代幣庫存分帳評估（economics/stepn-risk-review.md）；比例／結算週期／切換方案待決。降低輸家退款不是總消耗來源 | 專案負責人 | 2026-09-21 | OPEN |
+| DEC-04 | PG-V-01、PG-V-02 | 睡眠停用後所有玩家被鎖 Lv4（步數 700 < Lv5 900）。2026-09-20 提案規則 v2（docs/economics/maintenance-v2.md，模擬 `simulate-v2.mjs`）：**建議 B**＝第二任務改「運動 session」+100、日上限 200、門檻不變 → Lv5＝每日步數＋每週 2～3 次運動（可留一天休息），只走步數最高 Lv4；A（運動 +50）Lv5 需每週 4 次運動；C（Lv5 改 700／7）不運動也能 Lv5。採用後需鏈上 TASK_WORKOUT=3／後端 claim 驗證／App 任務卡（估 3.0 人天） | 專案負責人 | 2026-09-22 | **DECIDED 2026-09-20：採 B**（運動 +100、上限 200、門檻不變；session ≥ 1 km 且移動 ≥ 10 分、只認 App 內 GPS 記錄）；實作見 PG-V-06 |
 
-DEC-02 若判定必須整合主網官方 SKR，PG-I-08 的 tSKR 路線、SA 5.4 與鏈上金庫設計都必須重估；不得在現有四週估算內直接替換。
+~~DEC-02 若判定必須整合主網官方 SKR，PG-I-08 的 tSKR 路線、SA 5.4 與鏈上金庫設計都必須重估；不得在現有四週估算內直接替換。~~
+（2026-09-29 已不適用：主辦方明示提交階段不需要主網。主網改為**得獎後**的前置，工作包見當日條目。）
 
 ### 8.2 Review 發現與補充完成條件（2026-09-14）
 
@@ -530,7 +531,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-E-01 | 合作組織、角色與活動權限模型／migration | SD 11.1、11.3 | BR-26 | 2.0 | WIP | 2026-09-14 完成：migration 0006（18 表、複合 FK、約束、樂觀鎖）、`PartnerStore`（Memory／PG）、`PartnerAuthz`（DB 推導角色、checkpoint 限定、404 防枚舉、近期登入、audit）；auth 新增 `loginAt`；vitest 4＋PG 整合 1 |
 | PG-E-02 | 合作管理介面、活動生命週期與規則版本 | SD 11.1～11.3 | FR-09、BR-27、BR-33 | 3.0 | WIP | 2026-09-14 API 完成：組織（ops）／成員／活動草稿與樂觀鎖／規則版本（只增、hash）／發布與取消／活動角色／稽核；公開活動讀取不含內部資料；vitest 3（端到端）。待：合作方網頁管理介面（目前以 API 操作） |
 | PG-E-03 | App 活動列表／詳情、宣傳連結與報名容量 | SD 11.1、11.2 | FR-09、FR-10、BR-28 | 3.0 | WIP | 2026-09-14 完成：後端報名／取消／隱私／歷史／宣傳彙總（原子容量、規則版本同意、來源統計；vitest 1）；App `EventsScreen`／`EventDetailScreen`（Arena 入口、App Links `/e/<slug>?source=`、Jest 4）。待實機：後端上線後走一次報名 |
-| PG-E-04 | NFC／App Links、QR 備援與可選卡片綁定 | SD 11.4 | FR-11.1、FR-11.3、BR-29 | 2.5 | WIP | 2026-09-14 完成：後端 checkpoints／nfc_tags 登記、停用、補發與參加者查詢（opaque ref、不含憑證）；Manifest App Links（autoVerify）＋NDEF intent-filter＋NFC optional；`web/.well-known/assetlinks.json`（debug 指紋；release 待填）；App `?tag=` → TagBanner（active／revoked／not_yours／unknown／需登入）；vitest 9、Jest 162。待實機：部署 assetlinks 後以 NFC 標籤與 QR 驗證（今日 Seeker 由另一工作階段使用中，未實機驗證） |
+| PG-E-04 | NFC／App Links、QR 備援與可選卡片綁定 | SD 11.4 | FR-11.1、FR-11.3、BR-29 | 2.5 | WIP | 2026-09-14 完成：後端 checkpoints／nfc_tags 登記、停用、補發與參加者查詢（opaque ref、不含憑證）；Manifest App Links（autoVerify）＋NDEF intent-filter＋NFC optional；`web/.well-known/assetlinks.json`（2026-09-27 修正，見下）；App `?tag=` → TagBanner（active／revoked／not_yours／unknown／需登入）；vitest 9、Jest 162。2026-09-27 修正 assetlinks：原本列的 `FA:C6:17:…` 對不上任何一把金鑰（本機 debug keystore 是 `41:2F:13:DE:…`，release 是 `C6:B8:BB:B3:…:4B:04`），第二筆還是字面佔位字串 `<RELEASE_CERT_SHA256 …>`，所以 Android 驗證一直是失敗狀態（`pm get-app-links` 顯示 `neonshift.cc: 1024`）。已改為只列 release 憑證實際指紋（由 apksigner 從 APK 取出，非手抄）；不放 debug 指紋——那等於把網址處理權委派給一把開發機上的金鑰。正式 keystore（Runbook 8.1）產出後要把它的指紋一併加入（此檔支援多筆）。部署後在裝置上 `adb shell pm verify-app-links --re-verify cc.neonshift.app` 再查狀態。待實機：部署 assetlinks 後以 NFC 標籤與 QR 驗證 |
 | PG-E-05 | 現場 staff 報到、challenge 與補登稽核 | SD 11.2～11.4 | FR-10、BR-28、BR-29 | 2.0 | WIP | 2026-09-14 完成：後端報到 challenge（8 碼＋QR payload、120 秒、只存 hash、單次消耗）、staff 報到（代碼／手動補登需近期登入與理由、限授權站點、冪等、稽核）、報到清單、event-history 附報到；App `CheckInCode`（QR＋代碼＋倒數）、`StaffCheckIn`（授權站點、代碼／手動、結果）、EventDetail 入口；vitest 10、Jest 166（修正 RNTL 14 `fireEvent` 需 `await` 的既有測試）。待：相機掃描 QR（目前輸入代碼）、實機驗證 |
 | PG-E-06 | 品項庫存、原子核銷、實體交付及數位徽章 | SD 11.3、11.4 | FR-11、BR-30、BR-33 | 3.5 | WIP | 2026-09-14 完成：migration 0007（claim_code）；品項建立／公開投影／對帳；原子預留（鎖 event→benefit→participant、名單／報到／截止／每人上限／庫存、冪等 key、15 分鐘保留）、數位徽章同交易發放憑證、staff 交付（只交付 reserved、重試 already、逾期 410、取消 409、稽核）、lazy 逾期釋放、活動取消釋放預留（BR-33）、對帳分狀態計數（FR-11.4）、event-history 附核銷；App `Perks`（EventDetail）與 StaffCheckIn「權益交付」模式；vitest 11、Jest 170。待：相機掃描、實機驗證、checkpoint 限定 staff 的交付站點約束 |
 | PG-E-07 | CSV 成績 staging、發布與更正歷史 | SD 11.2、11.5 | FR-12.1、FR-12.2、BR-31 | 3.0 | WIP | 2026-09-14 完成：CSV v1 解析／逐列驗證（表頭、名單、狀態、單位、重複、大小上限）、staging（版本遞增、hash、預覽、錯誤）、publisher 發布（近期登入、無錯誤、更正需原因、previous_revision 鏈、稽核）；vitest csv 3＋端到端 1。待：合作方網頁介面（目前 API）、FR-12.4 webhook（S） |
@@ -567,6 +568,19 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | v0.2 | 2026-09-09 | 對齊 BRD v0.4、SA／SD v0.2 與 Style：修正 attestation、ClaimReceipt、16 步 `clock_in`、settlement 與 signer 契約；補齊 Loading／Landing、背景同步、歷史、Profile 與 NFT 顯示；重算 73 項／80.5 人天並重整範圍與阻塞治理 |
 | v0.3 | 2026-09-14 | 新增 review 缺口、補充完成條件與逾期決策提醒；不將文件修正冒充程式完成或正式產品決議 |
 | v0.4 | 2026-09-14 | 新增 PG-E 10 項／24 人天；總計 83 項／104.5 人天，補活動依賴、決策與驗收，交付日期另排 |
+| v0.61 | 2026-09-16 | 自動暫停（可選）＋ GPS 規則 v3 靜止漂移抑制（實機桌上 1h48 累積 4.39 km 的修正）；摘要運動／暫停時間格（Style 23.7、walk-run-tracking 4.2） |
+| v0.60 | 2026-09-16 | 記錄頁：計圈零距離回饋、即時軌跡、速度曲線、GPS 精度／總時間列、可捲動（Style 23.6） |
+| v0.59 | 2026-09-16 | GPS 防弊分層（模擬定位／持續超速／缺口瞬移／時鐘漂移／步態探測；後端旗標二線、自報極值、重疊與單日上限；SD 16.1）＋ 軌跡底圖趣味圖層（格線／火星／區塊鏈／太空；Style 23.5） |
+| v0.58 | 2026-09-16 | 三模式動作回饋動畫（倒數／暫停／繼續／結束；Style 23.4）併入並整理（token、匯入順序、i18n 位置、模式名 key 修正） |
+| v0.57 | 2026-09-16 | 三模式運動樣態（domain/modes：主指標／目標預設／自動圈／區間／配色；Style 24.6） |
+| v0.56 | 2026-09-16 | 實機回饋：記錄頁運動時間（不含暫停）＋四格＋分段列表；摘要軌跡預覽（本機折線、預設開啟）；GPS 品質說明；3–2–1 倒數（Style 23.3／24.5） |
+| v0.55 | 2026-09-15 | Seeker 實機：MWA／Phantom 相容修正（minContextSlot、token 撤銷重授權）；開始頁改為 NRC 版面、Home 入口區改版（Style 24.5）；起始鞋 claim 實機通過 |
+| v0.54 | 2026-09-15 | devnet 程式升級至含 claim_achievement／維持週期／凍結版本（slot 498753143，649 KB，extend +120,000 bytes；鏈上位元組與本機建置 sha256 一致；舊版 PlayerProfile 0 個、registry pending 0 筆；on-chain IDL 上傳仍失敗，以 repo IDL 為準） |
+| v0.53 | 2026-09-15 | PG-U-05 後端撤銷／多裝置測試（WIP，實機待驗收） |
+| v0.52 | 2026-09-15 | PG-U-04 完成（WIP）：探索冊任務、領取與外觀 |
+| v0.51 | 2026-09-15 | PG-U-03 完成（WIP）：模式篩選、週回顧、同類比較、分享預覽 |
+| v0.50 | 2026-09-15 | PG-U-02 完成（WIP）：操作鎖、讀屏、語音／震動提示 |
+| v0.49 | 2026-09-15 | PG-U-01 完成（WIP）：三模式、目標快照與開始／摘要流程 |
 | v0.48 | 2026-09-15 | PG-V-05 完成（WIP）：事故凍結治理與攻擊測試 |
 | v0.47 | 2026-09-15 | PG-V-04 完成（WIP）：維持儀表、收藏分區、雙榜 |
 | v0.46 | 2026-09-15 | PG-V-03 完成（WIP）：歷史等級與 PB 能力快照 |
@@ -688,7 +702,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-R-08 | PB eligibility registry、簽發、claim_achievement／receipt | activity-running-gallery 7；SD 13 | FR-15.2、BR-39、40 | 5.0 | WIP | 2026-09-14 完成：attestation-core `achievement`（NEONSHIFT_ACHIEVEMENT_V1、194 bytes、TTL 900 s、向量 10 組；TS 逐 byte一致）；鏈上 `AchievementEligibility`／`AchievementReceipt`、`set_achievement_eligibility`（admin）、`claim_achievement`（ed25519 證明＋registry revision／metadata_hash＋唯一 receipt＋Core 鑄造）、錯誤 6037～6040、LiteSVM 3；後端 migration 0011、mint-intent（穩定 ID、canonical metadata／hash、逐次公開同意、費用揭露、簽章）、ops registry 端點、撤銷同步（invalidated → revoke_pending → revoked）、indexer minted、metadata 端點、signer service 接受 194；chain-admin `sync-achievements`；App `claimAchievementInstruction`、`achievementService`、PB 區塊鑄造流程（同意 → 待核准／費用確認 → 錢包）；vitest 2＋PG 整合 1、Jest 3。**待：devnet 程式升級（600 KB，需 ≈ 3.05 SOL buffer rent；admin 1.2 SOL）**、實機鑄造、藝廊 PB 卡（R-09） |
 | PG-R-09 | PB 櫃／藝廊／公開同意與保留刪除整合 | activity-running-gallery 6；Style 20 | FR-13.5、13.6 | 2.5 | WIP | 2026-09-15 完成：migration 0012 `gallery_prefs`（退出只停止展示；排行／計數／搜尋／名次排除、他人 404、本人可見；player 刪除自動隱藏）；玩家頁 `achievements` 公開投影（系列、類別、來源、Current／Historical／Invalidated、公開同意才有值）、`GET /gallery/achievements/{asset}` NFT 詳情（原達成者、鑄造日期、network、Explorer）、`/me/gallery-privacy`；12 張 PB 作品（Speed 計時環／Distance 里程弧，`web/nft/achievements/`）；App PbCard、Gallery 篩選 All／Shoes／Events／Personal best、PB 櫃連結、NFT 詳情頁、Profile 藝廊開關與「跑步歷程與 PB 櫃」入口；vitest 1＋PG 整合 1、Jest 4。待：Events 篩選（活動 NFT 未實作）、現持有人（需鏈上查詢） |
 | PG-R-10 | 距離／速度／圈數、NFT 重放與實機長時間驗收 | walk-run-tracking 7；activity-running-gallery 8 | FR-14、15、18 | 4.0 | TODO | 待指派 |
-| PG-R-11 | MET 熱量估算與模型／體重同意 | activity-running-gallery 4.1 | FR-14.3 | 2.0 | TODO | 待指派；模型定案後開發 |
+| PG-R-11 | MET 熱量估算與模型／體重同意 | activity-running-gallery 4.1 | FR-14.3 | 2.0 | WIP | 2026-09-22（負責人指示「提醒使用者填體重才有數據」）：App 端 `domain/energy.ts`（2024 Adult Compendium 走路 7 級／跑步 17 級 MET 表 `compendium-2024/v1`，條目代碼與來源列於程式；總／活動熱量公式；分段優先、暫停不計）、`bodyStore`（體重只存手機 SecureStore，不上傳）、Profile「熱量估算（選填）」卡、摘要頁與 Activity 詳情無裝置熱量時顯示「≈N · 估算」，沒體重顯示 — 並提示到 Profile 填；估算不上傳、不作 PB／XP／排名。Jest 458（energy 5）。MET 數值 2026-09-22 依 pacompendium.com 核對（2024 版）；後端 `energy_method=estimated` 暫不使用 |
 | PG-R-12 | 400m 跑道等效圈模式與提示 | walk-run-tracking 5 | FR-18.6 | 1.5 | WIP | 2026-09-15：開始頁跑道模式 Off／400 m／200 m／自訂（100～2000 m 整數），需「我已核對圈長」開關才可開始；`trackLapMm` 寫入 session meta、恢復沿用；引擎 `trackEquivalent()` 記錄中即時「第 N 圈＋餘數」與摘要共用，皆標「依距離估算、非實體過線」；extras `track_equivalent` 上傳。不含實體過線偵測（需實機另開）；App 206 測試 |
 
 ### 18.2 PG-M 首次與紀念 NFT
@@ -696,7 +710,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
 | PG-M-01 | 首 5K／10K／半馬／全馬、First Finish 資格判定 | commemorative-nfts 1、2 | FR-17.1、BR-46 | 2.0 | WIP | 2026-09-15：`milestones/compute.ts`（整數毫米門檻、單次不累加、裝置 5K／10K 開放、半馬／全馬 device_pending、待審／估算／手動不合格、主辦方 FINISHED＋賽事時間、同筆全馬解鎖四章同一來源、首次＝最早）；`GET /me/milestones`；vitest 5（含 §6 邊界 4,999.999／5,000…42,194.999／42,195） |
-| PG-M-02 | 首次 stable key、registry／receipt、更正及終身防重領 | commemorative-nfts 4 | FR-17.3、BR-47 | 2.5 | WIP | 2026-09-15：migration 0013（achievements kind／milestone_key 唯一／source_*）；`achievement_id = sha256("neonshift-milestone\|wallet\|key")`；`POST /me/milestones/mint-intent`；Rust／TS category 7–11、向量 12 組、LiteSVM 通過；`reconcileMilestones`（失效撤銷、重新達標同 id 恢復、更早回填／更正不重發；已鑄造只更新來源）；藝廊投影 kind＝milestone；vitest 2＋PG 整合。待：devnet 程式升級後 sync-achievements |
+| PG-M-02 | 首次 stable key、registry／receipt、更正及終身防重領 | commemorative-nfts 4 | FR-17.3、BR-47 | 2.5 | WIP | 2026-09-22：ops 診斷端點 `GET /ops/players/:wallet`＋`scripts/ops/player.sh`（運動資格原因／PB／里程碑／成就／SKR 一次看；真機驗收用）；vitest 2。2026-09-15：migration 0013（achievements kind／milestone_key 唯一／source_*）；`achievement_id = sha256("neonshift-milestone\|wallet\|key")`；`POST /me/milestones/mint-intent`；Rust／TS category 7–11、向量 12 組、LiteSVM 通過；`reconcileMilestones`（失效撤銷、重新達標同 id 恢復、更早回填／更正不重發；已鑄造只更新來源）；藝廊投影 kind＝milestone；vitest 2＋PG 整合。待：devnet 程式升級後 sync-achievements |
 | PG-M-03 | 四款紀念作品、Milestones 收藏／鑄造預覽 | commemorative-nfts 5；Style 22 | FR-17.4 | 3.0 | WIP | 2026-09-15：9 張作品（`web/nft/achievements/milestones/`，四距離 × 官方／裝置＋First Finish）；App `Milestones` 區塊（Gear 收藏；狀態 7 種、涵蓋起點、逐枚領取提示、同意 → 領取預覽逐項列出公開內容＋費用 → MWA）；藝廊「首次」篩選、首次區與 PB 分列、卡片／詳情支援里程碑；ApiClient `milestones／milestoneMintIntent`；Jest 208／208。待：實機驗證、devnet 程式升級 |
 | PG-M-04 | 活動 First Finish／專屬紀念章權限與端到端驗收 | commemorative-nfts 2、3、6 | FR-17.2、BR-48 | 2.0 | WIP | 2026-09-15：migration 0014（events.badges、level_at_registration、achievements kind=event）；`eventBadges.ts`（報到章／完賽章分開、Lv2 報名快照承諾、取消／更正撤銷、同 id 恢復）；`/me/event-badges`＋mint-intent；category 12／13（Rust／TS／向量、LiteSVM 通過）；2 張通用作品；App 活動詳情 `EventBadges` 區塊與藝廊 Events 篩選；vitest 2、PG 整合、Jest 210／210。待：實機 NFC／報到／鑄造端到端驗收、主辦方 UI 設定 badges（目前僅 API） |
 | PG-M-05 | 回歸／週年章、歷史涵蓋及保留政策 | commemorative-nfts 2 | FR-17.2、BR-49 | 2.0 | TODO | 待指派；第二階段 |
@@ -709,6 +723,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-V-02 | Active／Highest／週期帳戶、結算及 migration | shoe-gameplay 7；SD 14 | BR-41～43 | 5.0 | WIP | 2026-09-15：PlayerProfile ＋6 欄位（71→85）、`maintenance.rs` 純規則（與 rules.mjs 同版）、`settle_player_epochs`（任何 payer、≤ 64 期、冪等）、`migrate_player`（保留等級、當日起新週期）、clock_in 順帶結算 ≤ 8 期／6041、獎勵用結算後等級、期內點數／bitmap、`EpochSettled`／`PlayerMigrated` 事件、鞋階 NFT 依 highest；App 解碼／前置指令；indexer 投影；chain-admin migrate／settle；Rust 100 測試、Jest 211、vitest 193。待：devnet 升級＋migrate-players、實機 |
 | PG-V-03 | 倍率與歷史鑄造／活動／PB 能力快照 | shoe-gameplay 5、7 | FR-16.4、BR-44 | 3.0 | WIP | 2026-09-15：migration 0015 `level_history`＋`gallery_players.highest_level`；投影 init／migrate／epoch；PB NFT 需達成日 Lv3（`LEVEL_REQUIRED`／`LEVEL_HISTORY_UNKNOWN`，回填無歷史只留私人 PB）、能力快照寫入 metadata（簽章綁定）；`/me/personal-bests.nft_eligibility`；App 顯示原因；鞋階依 highest、活動章 Lv2 快照、首次章 Lv1；vitest、PG 整合 17、Jest 211。待：實機 |
 | PG-V-04 | Gear 維持儀表、歷史收藏、現役／歷史榜 | shoe-gameplay 6；Style 21 | FR-16.1～3 | 3.0 | WIP | 2026-09-15：App `domain/maintenance.ts`＋4 測試；Gear Active／Highest Chip、本期維持區塊（倒數、點數／活躍日、維持／升階／回歸差額、未遷移／待結算狀態）、收藏三區與 History 標籤（鞋階資格依歷史最高）；藝廊「現役排行／歷史成就」雙榜（後端 `board=lifetime`）；Jest 218、vitest 193。待：實機、48／24 小時提醒（通知權限未實作） |
+| PG-V-06 | 維持規則 v2：運動任務取代睡眠（DEC-04 方案 B） | shoe-gameplay 3；SD 3、14；economics/maintenance-v2 | FR-16 | 3.0 | WIP | 2026-09-20：鏈上 TASK_WORKOUT=3／6045／v2 常數（LiteSVM＋單元 121 全過）、後端 claim workout＋rules v4＋migration 0018（vitest 207）、App 運動任務卡／ClaimFlow／dashboard（Jest）；2026-09-20 晚：devnet 程式已升級（slot 501254860，IDL 上鏈仍略過）、l1 已部署（migration 0018、RULES_FILE=v4、`/v1/rules/version`=4）；待實機打卡驗收（步數＋運動同日、睡眠 6045 不再出現於 UI） |
 | PG-V-05 | 凍結治理、版本遷移、結算／撤銷攻擊與實機驗收 | shoe-gameplay 4、8 | FR-16.5、BR-45 | 3.0 | WIP | 2026-09-15：`IncidentFreeze` PDA＋`set_incident_freeze`（admin、視窗檢查 6044、(0,0) 清除、事件）；結算凍結期不升不降、`EpochSettled.frozen`；規則版本寫入 profile／事件、遷移保留等級；LiteSVM 攻擊／邊界（非 admin、非法視窗、重疊／非重疊期、清除後恢復、錯誤 freeze 帳戶、重送、6041、6042／6043）Rust 101；App freeze 帳戶讀取／指令帶入／Gear 提示；chain-admin `set-freeze`。待：實機驗收、devnet 升級（含 migrate-players） |
 
 ### 18.4 依賴、批次及排程狀態
@@ -732,10 +747,1210 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 
 | 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
 |---|---|---|---|---|---|---|
-| PG-U-01 | 三模式、intent 相容、目標快照與開始／摘要流程 | sport-experience-gameplay 1、2、4 | FR-19.1、BR-55 | 3.0 | TODO | 待指派 |
-| PG-U-02 | 操作鎖、大字／讀屏、可選語音與震動 | sport-experience-gameplay 3；Style 24 | FR-19.2 | 3.0 | TODO | 待指派 |
-| PG-U-03 | 模式篩選、週回顧、同類比较及分享預覽 | sport-experience-gameplay 4 | FR-19.3、BR-59 | 3.0 | TODO | 待指派 |
-| PG-U-04 | 任務模板、接受／領取、去重與探索冊外觀 | sport-experience-gameplay 5；SD 17 | FR-19.4、BR-56、57 | 5.0 | TODO | 待指派 |
-| PG-U-05 | 刪除／更正撤銷、多裝置重試及實機體驗驗收 | sport-experience-gameplay 7 | FR-19.5、BR-58 | 3.0 | TODO | 待指派 |
+| PG-U-01 | 三模式、intent 相容、目標快照與開始／摘要流程 | sport-experience-gameplay 1、2、4 | FR-19.1、BR-55 | 3.0 | WIP | 2026-09-15：migration 0016 intent／goal_snapshot、匯入 schema 檢查（模式與分類一致、舊資料 null、跑步推導）；App 三模式＋目標開始頁、最近模式偏好與 Home 快速開始、session 固定 intent／goal、達標一次提醒不自動停止、摘要目標結果與模式標籤、歷程「走路（未指定模式）」；vitest 194、PG 整合 17、Jest 218。2026-09-15 實機：開始頁改為 NRC 版面（大目標數字／圓形 START／目標與設定底部面板）、Home 入口改主按鈕＋四格快捷（Style 24.5）；Jest 236。2026-09-16：3–2–1 倒數（可點一下略過、返回取消；震動／語音依偏好） |
+| PG-U-02 | 操作鎖、大字／讀屏、可選語音與震動 | sport-experience-gameplay 3；Style 24 | FR-19.2 | 3.0 | WIP | 2026-09-15：記錄頁操作鎖（鎖定後控制列只剩長按 1.2 s 解鎖、鎖定時放行系統返回）、讀屏標籤（狀態、數字含單位、按鈕用途）、主數字 maxFontSizeMultiplier 1.6、定位失效不展示舊速度＋缺口提示；`WorkoutCues`（每公里／自訂圈語音 expo-speech／震動，預設關閉、手動圈不播、背景／通話不搶播不補播）與開始頁開關；Jest 220。待：實機（TalkBack、通話中斷、大字） 2026-09-16 動作動畫第二輪精修：三種 SVG 人物姿態、模式專屬完成徽記／跑步衝線帶、分段光暈、繼續文案、2.2s 回饋及淡出；Style 23.4，型別與相關 22 測試通過；實機驗收未完成。 |
+| PG-U-03 | 模式篩選、週回顧、同類比较及分享預覽 | sport-experience-gameplay 4 | FR-19.3、BR-59 | 3.0 | WIP | 2026-09-15：`domain/review.ts`（走路＋健走合看 walking、本地週一週回顧標時區且與鏈上 UTC 週期分開、同類比較同 sport／環境／來源等級且 < 3 筆不比、分享文字預設無日期／精確時間／錢包／座標）；Workouts 清單篩選＋週回顧卡；摘要頁同類回顧卡與分享預覽（模式／配速／日期開關）；Jest 225。待：實機分享面板 |
+| PG-U-04 | 任務模板、接受／領取、去重與探索冊外觀 | sport-experience-gameplay 5；SD 17 | FR-19.4、BR-56、57 | 5.0 | WIP | 2026-09-15：migration 0017（模板／enrollment／contribution／receipt／外觀權限）、`QuestService`（接受快照與週界、10 分鐘／待審／GPS 版本門檻、同日去重、拆分不累加、48h 晚到、撤銷／恢復、錢包刪除）、`/me/quests` 三端點；App 探索冊畫面與 Home 入口；vitest 200（quests 6）、PG 整合 18、Jest 230。GPS 活動獎勵由 `QUEST_GPS_MIN_RULES_VERSION` 開關（R-10 定案後設定） |
+| PG-U-05 | 刪除／更正撤銷、多裝置重試及實機體驗驗收 | sport-experience-gameplay 7 | FR-19.5、BR-58 | 3.0 | WIP | 2026-09-15（後端部分）：刪除／更正撤銷與同 receipt 恢復、同來源重送與第二裝置同 external_record_id 不重複、revision 更正沿用貢獻（vitest quests 7）；離線保存與重試沿用 R-03；歷史收藏與鞋階權限分開（外觀非 NFT）。待：實機體驗驗收（開始到保存成功率、誤觸率、任務參與率） |
 
 新增 5 項，初估 17.0 人天（未含緩衝），需負責人確認；尚無交付日期，不加入原四週承諾。U-01 依賴 R-01／R-03／R-06，U-02／03 接 U-01；U-04 在 R-10 品質規則定案後才可開放獎勵，U-05 驗收全流程後發布。三模式與目標可先交付，探索獎勵由獨立功能開關控制。小隊／跑走交替／走路 NFT 不在本次估算內，另行拆項。
+
+## 20. 新手導覽、揭曉動畫與經濟保護增量（2026-09-16）
+
+本節同步 2026-09-15 的程式與分析成果。WIP 表示尚未通過完整實機驗收；TODO 為規劃，未部署。既有獎勵規則未因分析而變更。追溯：Style §25、SD §18、BRD「2026-09-16 增量」、[經濟風險評估](./economics/stepn-risk-review.md)。
+
+| 編號 | 名稱 | 優先序 | 狀態 | 已完成／驗收與依賴 |
+|---|---|---|---|---|
+| PG-UX-01 | 首次遊戲說明與重看入口 | P1 | WIP | GameGuideScreen：歡迎頁開始冒險 → 指南 → 錢包設定，可直接略過；Profile 重看返回原頁。四大玩法＋首次四步、繁中／英文。型別檢查及指南／i18n／onboarding／profile／launch／smoke 共 23 測試通過（2026-09-15）；待小螢幕、大字、TalkBack 與首次理解度實測 |
+| PG-EC-01 | STEPN 對照、庫存與預算模型 | P0 | WIP | 分析與九組試算完成；現金／留存／作弊與流動性情境待取得資料。現有 30 天模擬不代表長期保證 |
+| PG-EC-02 | 打卡成長與經濟獎勵拆分 | P0 | TODO | 金庫為零仍可記 XP／維持點／streak；獨立領獎 receipt；需合約、attestation、App、防重放及舊紀錄切換共同設計 |
+| PG-EC-03 | 全站期間預算與公平分配 | P0 | TODO | 期前撥款、版本快照、期末合格分數、個人封頂、餘數留庫、逾期／撤銷規則；10 倍帳號及併發下總發放不超預算；依賴 EC-02 與 DEC-03 |
+| PG-EC-04 | 對帳、準備金與告警 | P0 | TODO | 區分可用庫存／承諾未領／回流／再發／永久燒毀／現金支出；不得將自家幣市值當獎品足額準備；依賴 EC-03 |
+| PG-EC-05 | 反作弊、收入及無獎金留存驗證 | P1 | TODO | Sybil 與誤判申訴、D7／D30 對照、收入歸零與獎品集中兌換壓力、贊助實收後承諾獎品；不可撤回既有承諾 |
+| PG-EC-06 | SKR 質押加成與保育提撥（Roadmap） | P2 | TODO | 2026-10-06：參賽投影片第 10 頁加入規劃說明；依跑鞋等級的質押加成（示意 Lv.1 +1%～Lv.5 +10%）與加成獎勵的 10% 撥入獨立追蹤的保育基金，比率未定案。依賴 PG-EC-02～05 與主網決策（DEC-02）；設計見 [skr-staking-boost.md](design/skr-staking-boost.md) |
+
+未提供新增人天、負責人及交付日期；不併入原四週工期。動畫沿用 PG-A-17，不重算一份交付。主網與可交易收益方案須在經濟保護與真實需求驗收後另行評估。
+
+## 21. 歷屆得獎作品借鏡與行動差異化（2026-09-16）
+
+規格與官方來源：[行動差異化設計](./mobile-differentiation.md)。主張為「真實運動 → 可操作任務卡 → 有來源的成就護照 → 現場權益」，不是複製押幣或產幣遊戲。以下全部 **TODO**；研究／規劃完成不等於功能完成。
+
+| 編號 | 名稱 | 對應設計 | 規則 | 預估 | 狀態 | 負責人 |
+|---|---|---|---|---|---|---|
+| PG-XD-01 | 可操作任務卡與目標續接 | mobile-differentiation 4.1 | FR-20.1 | 3.0 | WIP | 2026-09-22：後端 `/me/quests` 加 `card`（來源／難度／要求／獎勵／開始目標）與 `card_state`（accepted／in_progress／pending_verification／claimable…；待審筆數 `pending_review_count`）；App `QuestCard`（Style 24.7）、「以這個目標開始」→ `WorkoutStart` preset（不覆寫進行中 session，改「回到記錄」）、離線快照 `questCacheStore`；重複接受回既有 enrollment（原 U-04）。vitest 8（quests）、Jest 446（questCard 5、workoutScreens 2）；待實機：大字／TalkBack、真實接受→開始→同步→可領 |
+| PG-XD-02 | 運動不中斷與跨入口錢包恢復 | mobile-differentiation 4.2 | FR-20.2 | 3.0 | WIP | 2026-09-22：程式面確認——所有錢包操作皆由使用者按鈕觸發（bootstrap 只 `peekStoredSession`、outbox 遇 NO_SESSION 停在 blocked 不開錢包；`walletService.restore()` 無呼叫端）；新增 `walletTimeline`（每次 MWA 操作分開記 App 等待／錢包等待／回來後等待、結果、是否在運動記錄中；不含地址／簽章）由 `guardWalletOp` 自動寫入，Profile「錢包互動紀錄」卡＋摘要（運動中 N 次、無回覆 N 次、錢包時間中位數）作驗收證據；Jest 449（walletTimeline 3）。待實機：兩款 MWA 錢包拒簽／逾時／鎖屏恢復／換帳號矩陣（證據包 §6） |
+| PG-XD-03 | 跨任務／活動成就護照與來源投影 | mobile-differentiation 4.3 | FR-20.3 | 3.0 | WIP | 2026-09-22：後端 `GET /me/passport`（`PassportService`：PB／里程碑／活動章／探索任務只讀彙整，每項 source_class organizer／device／pending、rules_version、validity valid／pending／revoked／locked、reason、public、nft；needs_review 不標 valid；撤銷後 NFT 留歷史；不含健康數字／路線）；App `PassportScreen`（Style 24.9：計數、篩選、來源／狀態 chip、原因、NFT 詳情連結、信任邊界說明）＋ Profile 入口。公開投影仍為既有藝廊（需 public_consent）。vitest 223（passport 2）、Jest 453（passport 4）；待實機 |
+| PG-XD-04 | 活動主題任務與權益資格關聯 | mobile-differentiation 4.4 | FR-20.4 | 5.0 | TODO | 待指派；首批 P1。沿用 E-02～06、U-04／05；新增任務與 benefit 版本快照，核銷重驗资格；最後一件競態、撤銷、無 NFC／斷線／跨站點／取消驗收；限量資格與保證獎品分開，須有合作方／庫存 |
+| PG-XD-05 | 邀請制小隊非同步接力 | mobile-differentiation 5 | FR-20.5 | 5.0 | TODO | 待指派；第二批 P2。依賴 U-04／05、R-10、XD-06；2～4 人、每人每日封頂、固定名單／時區、退出與來源撤銷；僅鏈下共同外觀，不押幣、不比速度、不新增好友圖譜 |
+| PG-XD-06 | 可接受任務邀請與安裝前唯讀頁 | mobile-differentiation 5 | FR-20.6 | 3.0 | TODO | 待指派；第二批 P2。沿用 U-03、E-03／04，新增 opaque invite／有效期／撤銷／接受同意；未安裝可看規則與重開連結／短碼；不自動發訊息或上傳通訊錄 |
+| PG-XD-07 | 演示主線、實機矩陣與非獎金留存量測 | mobile-differentiation 6 | FR-20.7 | 3.0 | WIP | 2026-09-22：量測端 `GET /ops/metrics/funnel`（任務接受→開始→合格完成→領取每步分母分開、撤銷／過期；玩家數／7 天新增／活躍；cohort D7／D30 以 first_seen／last_seen 觀察，不作成效宣稱；只回計數無錢包；曝光不計，自接受起算）＋`scripts/ops/funnel.sh`；SQL 版與 memory 版一致（vitest 1）。演示主線／實機矩陣：demo-video §8 v4 與 evidence.sh；5 人試測與試辦活動待負責人。依賴 XD-01～04、A-17、UX-01、R-10、E-09；5 人理解度探索試測、10 人合作／內部試辦分標、漏斗分母與去重、90 秒演示標示預錄／測試資料；D7／D30 實測前不得宣稱成果 |
+
+### 21.1 批次與完成閘門
+
+- 首批 17 人天增量：XD-01／02 → XD-03／04 → XD-07。可先用個人系統任務及一個測試活動，不依賴小隊或真實代幣獎勵；既有 WIP 需先達對應驗收。
+- 第二批 8 人天增量：XD-06 → XD-05，再由 XD-07 擴充錄影及實測；獨立功能開關，不能讓小隊／分享耽誤首批。
+- 合計 25 人天為粗估，未含既有 WIP、合作等待、素材精修、部署與風險緩衝；日期／負責人待排，不加入原四週承諾。
+- GPS 探索資格由 `QUEST_GPS_MIN_RULES_VERSION` 控制，**2026-09-22 起 l1／l2 設為 2（＝`WORKOUT_RULES_VERSION`）＝App 內 GPS 計入**；品質防線（待審／估算排除、完整性旗標、速度上限、取樣密度、重疊與單日上限）照常運作，任務獎勵僅帳號綁定外觀、不寫鏈上。手機簽署不證明健康資料真實、NFC 不證明本人到場。
+- 無代幣探索可先做；任何新增金錢性獎勵须先完成 EC-02～04。不改既有 tSKR、XP、維持規則或已領資產。
+- 規則快照、去重／重放、來源撤銷、個資公開、邀請撤銷、原子核銷、無障礙及實機復原的證據齐備才可依 PG §12 判定 DONE。
+
+### 21.2 範圍與決策
+
+本次將原 sport-experience-gameplay §6 的小隊候選正式拆為第二批 TODO，優先序依本節；僅限邀請制合作，BRD 原排除的公開社交動態牆、聊天、好友網路仍不納入。小隊試辦預設為 2～4 人／7 天／各 3 活躍日，參數可在試辦前版本化調整；不得追溯改當期已接受契約。權益首版採明示限量資格，保證獎品模式需先完成接受時庫存預留。
+
+資料核對：DeStreet 是 Renaissance DAOs & Communities 第二名；SolPlay 的 Radar 得獎說法未獲官方名單確認；首屆活動年份與得獎頁現有日期呈現不一致。正式文案採已核對來源，不宣稱「所有得獎作品都無彈窗」或「零抽成等於免審查」。
+
+
+## 2026-09-17：保育跑鞋與成長盲盒
+
+| ID | 工作 | 狀態 | 證據／後續 |
+|---|---|---|---|
+| PG-WILD-01 | Level 2–5 動物 SVG 元素、雙語名稱、保育故事 | WIP | ShoeHero／WildlifeShoePattern／ShoeStory；待實機美術驗收 |
+| PG-WILD-02 | 固定外觀分配、成長盲盒展示、系列識別 | WIP | shoeCollection；未包含鏈上隨機抽取、NFT 獨立款式 metadata 或系列切換 |
+
+完整範圍、來源與驗收：[荒野守護設計](design/wild-guardian-shoes.md)。
+
+### PG-D-04 更新（2026-09-17）
+
+募資簡報另存 （已移出公開 repo）`output/fundraising/NeonShift_募資簡報_中文草稿_v2.pptx`，共 26 頁；第 13–15 頁新增荒野守護鞋款示意、三款盲盒細節與保育／聯名路線。同步更新 HTML、講稿、來源與 `docs/store/pitch.md`。v1 保留；區分 App 外觀已實作和未完成的 NFT 獨立款式、系列切換。
+
+### Demo 文件與拆盒體驗更新（2026-09-17；腳本 09-18 同步）
+
+| 工作 | 狀態 | 證據／後續 |
+|---|---|---|
+| Demo v3 英文主片、評審入口、活動參與手冊 | WIP | [主影片分鏡](store/demo-video.md)、[評審指南](store/judges-guide.md)、[活動手冊](store/event-demo-playbook.md)；2026-09-18：六段英文稿 288 字、2:50 目標／3:00 上限與 AI 配音指南；待語音試聽、錄影、fixture 與實機驗收 |
+| 拆盒蓄能、獨立盒蓋、守護剪影、跳過與背景停止 | WIP | UnboxStage／WildlifeSilhouette；待 Android 真機確認剪影辨識、遮擋、幀率與震動強度 |
+
+
+## 22. 跑鞋連動、有序同步與 Activity（2026-09-19）
+
+設計見 [整合規格](shoe-sync-activity.md)。本次完成文件及簡報，不標記 App DONE。
+
+| ID | 工作 | 狀態 | 驗收 |
+|---|---|---|---|
+| PG-LINK-01 | 多鞋選擇與可關閉場景 | WIP | 取得資格、降級外觀、持久化與換帳號隔離；2026-09-19 App 實作（Style 23.13：我的跑鞋卡片＋使用這雙、外觀 vs 有效等級標示、HabitatScene 四場景、背景開關 Gear／Profile 共用、錢包分區偏好、新鞋立即使用／稍後、session 鞋款快照）；Jest 367；待實機驗收 |
+| PG-LINK-02 | opt-in 自動同步與統一佇列 | WIP | 全入口同鎖、舊到新、重試／幂等、關閉不發新請求；2026-09-19 App 實作（Style 23.14：syncPrefsStore 預設關、WorkoutOutbox 單 worker 舊到新、退避／blocked／排除、結束／啟動／回前景／網路恢復入口、單筆同步不跳過、訪客歸屬、Profile 資料與同步區）；Jest 373；待實機驗收（三筆離線 17→18→19） |
+| PG-LINK-03 | 晚到、修正、刪除重算 | WIP | PB／首次章／等級歷史、跨裝置、tombstone；2026-09-19：後端晚到更早紀錄端到端測試（PB 重排／撤銷、首次章換來源、成就來源更正、幂等／stale、ACK accepted_revision＋recompute）、App tombstone 刪除走佇列（Style 23.15）；vitest 26（pb／workouts／milestones）、Jest 374；待部署與實機 |
+| PG-LINK-04 | Activity 月曆、篩選與詳情 | WIP | 本機遠端合併、分頁、缺值、離線與保留範圍；2026-09-19 App＋後端實作（Style 23.16：domain/activity 合併去重／時區日曆日／篩選排序／月總覽、ActivityScreen 月曆清單、ActivityDetail、Home 最近運動、Profile 入口、/me/workouts 查詢擴充）；Jest 381、vitest 27；待實機驗收 |
+| PG-LINK-05 | 實機驗收與 Demo 素材 | WIP | 2026-09-20 下午：USB 截圖 20 張（真實 Lv.1）＋展示版覆寫 `EXPO_PUBLIC_DEMO_LEVEL=3` 22 張（揭曉／切鞋／棲地／關背景／路線底圖，標 DEMO DATA）→ output/hackathon-flexclip-en/captures/2026-09-20；擷取工具 scripts/demo/capture.sh。三條新流程實錄；目前簡報為設計預覽。2026-09-20 Seeker 裝 `aeacff4`（LINK-01～04）初檢：Home 最近運動卡、Gear 我的跑鞋／背景開關、Profile 資料與同步（預設關、歸屬 7 筆訪客紀錄）、我的運動清單／月曆／篩選皆正常；修正 Activity 頁缺歸屬按鈕、待審核未明示、按鈕擠壓文字（1bfa21c／aeacff4）。待：Lv.2+ 錢包切鞋→關背景、三筆離線依序同步、詳情頁；Demo 錄影 |
+| PG-LINK-06 | Activity 儀表板（週／月／年／全部、長條圖、最近活動卡） | WIP | 2026-09-20 晚：改為底部第五分頁「運動」（Style 2.2）；2026-09-20 負責人參考 Nike Run Club 提出；App 實作（Style 23.17：期間 Segmented＋‹ ›、大數字公里／次數／平均配速／時間、ActivityChart 每桶長條＋平均虛線＋點桶篩選、篩選收合、最近活動卡 RouteThumb＋自動命名、首頁按鈕在線待同步先問、歸屬訪客紀錄）；Jest activityScreen 7／activityJournal 4；待實機驗收 |
+| PG-LINK-07 | 路線底圖跟隨跑鞋棲地 | WIP | 2026-09-20 負責人提出；App 實作（Style 23.18：traceLayer 預設 `shoe`、`resolveTraceLayer`、HabitatArt 底圖、棲地未取得鎖定、記錄頁／摘要／縮圖一致）；待實機驗收 |
+| PG-LINK-08 | Workouts 匯入按鈕只在有新紀錄時出現；睡眠先隱藏 | WIP | 2026-09-20 負責人提出；`previewHealthConnect` 對照伺服器 (source_id, external_record_id, revision) 不提示權限、全部已匯入改一行說明；`FEATURES.sleep=false`（Style 23.19：Home 步數卡全寬、只要求步數權限、上手／Profile 文案）；鏈上／後端睡眠規則保留 |
+
+新增工期與負責人待排，與 PG-R／V／WILD 既有基礎整合，不重複計完成度。
+
+
+## 2026-09-20 Activity 與睡眠清理
+
+PG-LINK-09：Activity 視覺與篩選一致性修正、睡眠停用讀取／權限與對外文案清理，WIP（待實機）。鏈上／後端保留；DEC-04 的 Lv5 900 點與本版僅步數 700 點上限需定案。
+
+
+## PG-LINK-10：跑鞋連動與路線外觀固定（2026-09-20）
+
+WIP：運動前預覽／選擇、開始頁鞋款一致、本機不可改寫快照、記錄／摘要／Activity 一致、同步 extras 與後端更正版保留原背景。新增測試涵蓋保存後換偏好、重啟及 source revision；待實機與 PostgreSQL 整合驗收。每鞋里程已實作（2026-09-20，Style 23.20，Gear 卡片 `gear-shoe-<lv>-mileage`）；升階首次運動紀念已實作（Style 23.21，摘要頁 `sum-first-wear`）；社群圖片分享列候選，尚未實作（需 react-native-view-shot／expo-sharing 原生依賴，另立工作）。詳見 [設計](design/shoe-route-linkage.md)。
+
+
+## 2026-09-20 特殊圖案路線挑戰（新增開發內容）
+
+新增 FR-22.1～22.5 與 PG-ROUTE-01～07，全部 TODO。R1：模板編輯、GPX 本機匯出／分享、匯入收藏、原地路線挑戰；R2：可撤銷分享連結與固定外觀成果卡；R3：異地仿畫研究。驗收涵蓋真實新運動比對、交叉路段／缺口、位置揭露同意及版本固定。工期／負責人待排，不改既有交付承諾。
+
+完整流程、資料與驗收：[特殊路線挑戰規格](design/pattern-route-challenges.md)。
+
+## 2026-09-21 SKR 獨立獎評估
+
+[活動查核與 SKR-01～07 工作包](store/skr-integration-assessment.md)：建議成就資格連動的官方 SKR 外觀付款；全部 TODO。DEC-02 保持 OPEN，未取得主辦方對 devnet 替代 token 的確認；既有 tSKR 不代表官方 SKR 整合。無主網部署或交易。
+
+## 2026-09-21 參賽開發計畫
+
+執行依據：[參賽開發與驗收計畫](store/competition-development-plan.md)。新增 COMP-W01／W02、COMP-R01／R02 與 SKR-01～07 全部 TODO；規則追蹤 COMP-01～11。P0 優先錢包恢復、真實運動／成就流程與可安裝交付；P1 首款 SKR 成就收藏卡外觀付款，10/1 Go／No-go，10/7 內部提交。單人容量與外部資格尚待確認；估算 14–21 人日不作完成承諾。P2 延後 3D、完整特殊路線平台與真實資金 Arena。
+
+人力補充：使用者確認本次僅本人參賽、無 VC 投資；依單人容量順序推進 W01／W02 → SKR，保留至少最後 4 天回歸與素材，不能以角色欄位假設多人平行。
+
+## 2026-09-21 SKR 獨立獎工作包（負責人指示 Go）
+
+| 編號 | 名稱 | 狀態 | 備註 |
+|---|---|---|---|
+| SKR-01 | 獨立 SKR 網路配置、mint owner／decimals 驗證、單位運算、環境隔離 | WIP | backend config 守門（主網限官方 mint、devnet 需測試 mint）、啟動核對 mint；App `OFFICIAL_SKR_MINT` 雙重核對、主網 RPC 與 MWA `solana:mainnet` 獨立授權；`formatBaseUnits` 不用浮點 |
+| SKR-02 | SKU／版本、資格、wallet、價格、期限與訂單參照由服務端決定；SIWS owner 綁定 | WIP | `skr/catalog.ts`、`service.ts`；資格＝first_5k achievement approved/minted；訂單不可變欄位＋reference；migration 0019 |
+| SKR-03 | 購買預覽、SOL／SKR 不足、取消、確認中；每次交易可理解且不重扣 | WIP | App `SkrService.purchase`、`GenesisFrameCard`（確認框列金額／網路／收款人）；餘額預檢；送出後只確認不重送 |
+| SKR-04 | 確認付款、唯一 receipt、交易鎖內授權；錯 mint／收款人／網路拒絕 | WIP | `verify.ts`＋`fulfillSkrOrder`（FOR UPDATE＋signature 主鍵）；他人付款／錯 mint／金額不足／逾期 → needs_review |
+| SKR-05 | 訂單恢復、晚到付款、過期／異常付款處理、關 App 重開不重扣 | WIP | `recover`（signature／reference 反查）、寬限 600 s、confirming 取消規則、App pending 按 network＋wallet 持久化 |
+| SKR-06 | Genesis Mint 邊框在收藏卡／詳情選用、換帳戶隔離、重裝恢復 | WIP | 權限以伺服器為準、`useGenesisFrame` 按錢包；Gear 里程碑卡與 Gallery 本人頁「首次」卡套邊框（他人頁不顯示付費外觀）；真機驗收待 |
+| SKR-07 | 付款對抗測試、真機成功及失敗證據；官方 SKR 小額測試前完成審查 | WIP | 自動測試 backend 11／app 12 通過；真機（devnet TEST mint 或主網小額）待負責人決定價格／收款人後執行 |
+
+DEC-02 已於 2026-09-29 由主辦方回覆結案（devnet＋tSKR 可參加評審與 SKR 獎）；本實作仍以主網官方 mint 為**得獎後**的正式路徑、devnet TEST mint 供提交階段展示並在 App 標示。
+
+
+## 2026-09-25 社群分享規劃（新增開發內容）
+
+新增 PG-SHARE-01～07，全部 TODO：裝置端合成的運動／成就／活動／里程／故事圖卡（1080×1350，第二階段 9:16）、`/s/` 落地頁與全站 OG 標籤、`Get NeonShift` 安裝按鈕、非活動分享的彙總歸因。第一批可交付＝01＋02＋03＋04（＋建議同批 05，否則無法量測成效）。
+
+紅線：圖卡必須在裝置端合成，GPS 與路線資料不上傳；路線形狀為預設關閉的獨立開關並裁去起終點；欄位開關沿用 `ShareCardFields`，NFT 數值公開同意不等於社群分享同意；含代幣圖卡必標 `DEVNET · Test Token · No monetary value`；歸因只記彙總、不產生個人分享識別碼。
+
+需新增原生依賴 `react-native-view-shot`／`expo-sharing`（須重新出包），此即 PG-LINK-10 所記「社群圖片分享列候選，另立工作」。工期／負責人待排，不改既有交付承諾。
+
+完整規劃、圖卡規格與驗收：[社群分享規劃](social-share/README.md)。
+
+
+## 2026-09-25 社群分享實作（PG-SHARE-01～05／08 部分）
+
+WIP（碼完、自動測試通過、**實機與部署未驗收**）：
+
+| 編號 | 內容 | 狀態 |
+|---|---|---|
+| PG-SHARE-01 | `domain/shareImage.ts` 版面資料層；關掉的欄位不出現、路線預設 null、`sharePublishable` 擋掉缺網路標示的成就卡 | WIP |
+| PG-SHARE-02 | `components/ShareCard.tsx` 單一 SVG（1080×1350）；A／B 卡型、程序繪製徽章、QR 疊成單一 Path | WIP |
+| PG-SHARE-03 | `services/share/shareImage.ts`：`Svg.toDataURL` 出圖（**不用 react-native-view-shot**）、TTL 延後刪檔、失敗只回原因不自動改發文字、複製文案 | WIP |
+| PG-SHARE-04 | `web/s/{workout,achievement,gear,guardian,passport}` ＋ `/s/`；首頁／`/en/`／`/e/` 補 OG；`web/og/<kind>-v1.png`；App `/s/` routing 與 App Link intent filter | WIP |
+| PG-SHARE-05 | migration 0020 `share_aggregates`、匿名 `POST /v1/metrics/share`、`GET /v1/ops/metrics/share`（JSON／CSV）、`scripts/ops/share.sh` | WIP |
+| PG-SHARE-08 | 凍結 `ShareRenderSpec`（來源 ID 只留本機）、成就狀態門檻（只有已鑄造能出收藏卡）、A 卡標「個人紀錄／尚未驗證」、獨立分享同意（精確值與月份預設關） | WIP |
+
+新依賴：`expo-sharing`、`expo-clipboard`、`qrcode`（純 JS）。前兩者是原生模組，**必須重新出包**才會生效；`/s/` App Link 也需新 APK 才會驗證網域。
+
+**2026-09-27 部署實測（線上 `neonshift.cc` 尚未更新）**：`/s/*`、`/og/*`、`/licenses/*` 全部不存在，
+Cloudflare Pages 把找不到的路徑一律回**首頁且狀態碼 200**（`/s/zzznotexist` 也是 200），所以
+「連得上」不等於「頁面在」——這次是用 `<title>` 與 `Content-Type` 才驗出來的。線上首頁仍是
+2026-09-20 之前的內容（還有睡眠字樣、沒有 OG head）。影響：App 分享出去的
+`https://neonshift.cc/s/<kind>` 落到首頁，沒有分屆文案、沒有「Open in NeonShift」、
+`/v1/metrics/share` 的匿名計數（PG-SHARE-05）永遠不會被觸發，社群預覽也只會拿到通用首頁卡。
+修法：`npx wrangler pages deploy web --project-name neonshift --branch main`（見 deploy/README）。
+另建議補 `web/404.html`，否則缺檔會繼續假裝成首頁。
+
+延後：PG-SHARE-06（C／D／E 卡型）、07（story 9:16）、09（路線形狀匯出——裁切規則未驗收前開關不露出）。
+
+驗收表：[2026-09-25 分享驗收](evidence/2026-09-25-share.md)。規格與紅線：[社群分享規劃](social-share/README.md)。
+
+
+## 2026-09-25 節日收藏後端（PG-SEASON-01／02）
+
+WIP（後端碼完、264 項後端測試通過；App 未接、無鑄造路徑）：
+
+- 每屆設定在 `backend/seasonal/campaigns.json`（可 review、可 diff，附來源 URL 與核對日期）。窗口**一律寫明確 UTC 瞬間**，地方節日不在伺服器做「當地日期→UTC」換算；改由 `display_timezone` ＋ `expect_local_days` 讓 loader 反算驗證，時區或 DST 打錯會直接啟動失敗。同主題同年兩屆、窗口顛倒、缺來源 URL 一律拒絕。
+- 目前三屆（genesis-stride-2027、seeker-horizon-2027、moonlit-steps-2026-demo）**全部 `enabled:false`**：設定檔進倉庫不等於活動上線。
+- 資格（`src/seasonal/compute.ts`，純函式）：嚴格單筆——同一筆運動的開始與結束都要落在 `[starts_at, ends_at)`，moving time（elapsed − paused）≥ 20 分；多筆不能拼滿、跨午夜不算。窗口依運動發生時間，7 天寬限只放寬上傳時間。GPS 沿用 `QUEST_GPS_MIN_RULES_VERSION` 同一道門檻。每屆一枚取最早開始那筆，重匯入不換來源。
+- API：`GET /v1/seasonal`（公開目錄）、`GET /v1/me/seasonal`（本人狀態與進度）。**刻意不含任何 mintable／achievement 欄位、`mint_enabled:false`**，不讓 App 把「已達標」誤當成「已取得 NFT」。
+- PG-SEASON-03（App，同日）：`SeasonalBadge` 程序繪製五種主題徽章（圓角盾牌＋雙層軌道、年份置底、上鎖用輪廓＋鎖圖示不只灰色）；`SeasonalFootprints` 掛在 Gear 收藏頁，顯示窗口狀態（即將開始／進行中／仍可補同步／已結束）、活動時區與使用者本地時間兩行、單筆 20 分規則、進度分鐘數與「看這次運動」。**達標只寫「已達標、尚未開放領取」，畫面上沒有任何領取按鈕**。未登入顯示公開目錄。
+- 尚未做：PG-SEASON-03 的年份篩選與收藏頁分類切換、04 registry／mint（`achievements_kind_ck` 還沒有 `seasonal`）、05 通知與分享、06 提醒訂閱。
+
+規格：[節日與生態紀念 NFT](design/seasonal-achievement-nfts.md)。
+
+
+## 2026-09-26 分享卡型補齊（PG-SHARE-06 部分）
+
+WIP（碼完、App 全套 78 suites／537 tests 通過、實機未驗）：
+
+- 新增三種卡型：**C 活動邀請**（活動詳情頁按「邀請朋友」才產圖；圖上只有活動名、時間與「名額請看活動頁」，不寫死名額、不含報名資料與報到碼）、**D 跑鞋里程**（Gear 分頁；主數字是這雙鞋的累積里程，**只有已領取紀念 NFT 才算鏈上資產並標示網路**，沒領取就寫「里程記錄在這支手機上」）、**E Guardian 故事**（Guardian 卡；物種、一句族群依據、共同進度，必附「這是學習里程碑，不代表已捐款或救援動物」）。
+- `sharePublishable` 的判斷從「卡型是成就」改為「這張圖是否描繪鏈上資產」（`chainAsset`），未領取的跑鞋就不會被硬掛 DEVNET。
+- 版面改為自動收斂：行數多時先縮徽章、必要時縮行距，四行文字加徽章也不會壓到分隔線與產品線索。
+- 共用 `components/ShareImageBlock.tsx`：預覽 → 分享圖片／複製文案、失敗給「重試／改成分享文字」、返回只說「已返回分享頁」。既有的運動摘要與成就入口沿用各自實作，未一併改寫。
+- Guardian 與活動的**純文字分享保持原樣**（既有測試與行為不動），圖片是另一個入口。
+
+規格：[社群分享規劃 §4.3](social-share/README.md)。
+
+
+## 2026-09-26 護照卡與完賽卡（PG-SHARE-06 完成）
+
+WIP（碼完、App 全套 79 suites／547 tests 通過、實機未驗）：
+
+- **S3 成就護照卡（卡型 B 多格）**：掛在護照頁計數之後，`counts.valid > 0` 才出現入口。主數字是**目前有效**的枚數，與畫面上的 valid 計數同一個來源——待核准、已撤銷與上鎖都不計入，也不進格子；圖上另寫一行計數規則，看圖的人才知道這個數字不含待核准。**「有效」不等於「鏈上有」**：網路標示看的是已鑄造（`nft.status === 'minted'`）的枚數，一枚都沒鑄造就不掛 DEVNET。格子最多 8 格、同一種類不佔兩格；達成日期、成績與 asset id 完全不進版面資料。
+- **S5 完賽卡**：掛在活動成績頁的「我的成績」之後，`finish_status === 'finished'` 才出現——DNF／DNS／DQ 不產生「完賽」圖。第一行先說這筆成績**主辦方公布了沒有**（`published_at`），而不是先把時間放大。**完賽時間與名次預設關閉**（`FINISH_SHARE_DEFAULT`）：這是本次社群分享的獨立同意，與成績榜的 `public_consent` 是兩件事，成績榜已公開也不預先勾選；名次另外要求主辦方已公布，否則沒有可引用的來源。主辦方更正過的成績在圖上明寫。完賽章 NFT 是另一枚收藏（由成就卡呈現），這張卡不宣稱任何鏈上資產。
+- `ShareImageLayout` 加 `grid: string[]`（多格徽章），`ShareCard` 的縮放階梯補 200 px 徽章與 46 px 行距，六行文字加徽章也不壓到分隔線。
+- 環境備註：App 測試要 Node 24（`source scripts/env.sh`）。系統預設的 Node 18 下 jest 沙箱沒有 `crypto.getRandomValues`，`Keypair.generate()` 會讓 `milestoneApproval`、`mintTransactionPhases` 兩個套件失敗——與程式無關。
+
+規格：[社群分享規劃 §3.2／§4.3／§4.5／§5.4](social-share/README.md)。
+
+
+## 2026-09-26 收藏頁年份篩選與分類切換（PG-SEASON-03 完成）
+
+WIP（碼完、App 全套 79 suites／551 tests 通過、實機未驗）：
+
+- **年份篩選**（`SeasonalFootprints`）：只有跨年份才出現這排按鈕——一個年份時它只是雜訊。年份新的在前，同年依窗口開始時間排（設計 §7 的「收藏年份排序」）。選定年份只留那一年，`全部年份` 回到不篩。
+- **收藏頁分類切換**（`GearScreen`）：全部／跑鞋／里程碑／節日，`accessibilityRole="tab"`。**預設「全部」**——這一頁本來就同時顯示四塊，改成預設只顯示一塊會讓現有使用者找不到東西；分類是用來收斂那條很長的捲軸，不是用來藏內容。
+- **個人最佳沒有搬進收藏頁**（仍在「運動」分頁），所以分類列下面直接寫一行說它在哪裡，而不是讓人以為收藏頁少了一類。設計 §5 列的「已收藏／可領取／未解鎖」狀態篩選要等 PG-SEASON-04 有領取路徑才有意義，這次不做。
+
+尚未做：PG-SEASON-04 registry／mint（`achievements_kind_ck` 還沒有 `seasonal`；鏈上 `category` 只到 1..=13，需程式改版與重新部署——格式待決）、05 通知與分享、06 提醒訂閱。
+
+規格：[節日與生態紀念 NFT §5](design/seasonal-achievement-nfts.md)。
+
+
+## 2026-09-26 story 9:16（PG-SHARE-07）
+
+WIP（碼完、App 全套 79 suites／556 tests 通過、實機未驗）：
+
+- `SHARE_IMAGE` 加 `story: 1080×1920`。做法是**把同一塊 1080×1350 的內容垂直置中**在 9:16 畫布上（`<G>` 位移 285 px），不為 story 重算一套版面：上下各 285 px ＞ 規格要求的 250 px 安全區，而且使用者預覽到的那張圖與實際輸出的內容必然相同（§4.6「送出同一份已預覽內容」）。測試直接比對 post 與 story 的文字內容完全一致。
+- `shareLayout` 的 `toDataURL` 尺寸改成**依所選格式**，不再寫死 post——輸出錯尺寸等於裁掉內容。
+- `ShareImageBlock` 加尺寸切換（貼文 4:5／限時動態 9:16，`accessibilityRole="tab"`），預覽本身就是那個尺寸的同一個 SVG，不是另外畫一張示意圖；選 story 時多一行說明上下留白。`ShareRenderSpec.format` 隨切換寫入。
+- 運動摘要與成就（`Milestones`）沿用各自的分享實作，目前仍只出 post；要一起支援 story 需把那兩處也改走 `ShareImageBlock`，本次沒動。
+- 仍待實機：IG／FB 限時動態的實際裁切與上下安全區是否夠。
+
+規格：[社群分享規劃 §4.1](social-share/README.md)。
+
+
+## 2026-09-26 路線形狀裁切規則（PG-SHARE-09；開關仍未露出）
+
+WIP（規則碼完、App 全套 79 suites／560 tests 通過、實機未驗）。新模組 `app/src/domain/gps/shareRoute.ts`，把 §9.1「路線第二階段的發布門檻」逐條實作成可測的規則，每條各有一個測試：
+
+1. **按距離裁，不按點數裁**（兩端各 200 m）。慢走與快跑的每點間距差好幾倍，刪固定點數等於刪不定長度。
+2. **全程再次進入起終點保護區（半徑 200 m）的點一併移除**。折返、繞圈、住家附近起跑的路線中段會再次經過出發點——只裁頭尾的話，家門口還留在圖的中間。測試用「東行 3 km 後折返」的課程證明去程經過終點附近的那一段真的消失，並以 `zoneM: 0` 的對照組證明斷開是這條規則造成的。
+3. **裁掉的區段與 GPS 缺口都不補連線**；單段不足 4 點整段丟掉，不硬畫兩點一條線。
+4. **裁完才正規化**：比例與位置只看留下來的點，否則畫面上的留白會透露被裁掉多長。
+5. **裁切後仍需 1 km 有效長度**，不足就沒有形狀，**不調小保護距離來湊圖**（1.39 km 差 10 m 也不給）。
+
+另外：精度超過引擎接受門檻（50 m）的點不進形狀；`keptM` 只留在本機，不進圖卡版面。`domain/gps/trace.ts` 的舊 `trimEnds` 已移除——畫面縮圖與「可以交出去的形狀」是兩種東西，不共用一套裁切，留著只會讓人誤用較弱的那一套。
+
+**這些公尺數是本專案取值，不是匿名保證**（§9.1 最後一句）：折返／繞圈的實際效果與「足夠剩餘長度」仍待實機驗收，**驗收前 App 不露出這個開關**（目前也沒有任何畫面呼叫 `routeShapeOf`，i18n 的 `share.card.route*` 三個 key 先備好）。
+
+規格：[社群分享規劃 §5.2／§9.1](social-share/README.md)。
+
+
+## 2026-09-26 節日核准通知與收藏卡（PG-SEASON-05；揭曉與領取仍等 04）
+
+WIP（碼完、App 全套 80 suites／569 tests 通過、backend metrics 11 項通過、實機未驗）：
+
+- **資格核准通知**（`app/src/components/SeasonalNotice.tsx`，掛在 RootNavigator 與成就核准通知並列）：只在 `status: 'eligible'` 時出現，文案跟著後端 `mint_enabled`——目前一律 false，所以說的是「本屆尚未開放領取，達標紀錄會留著」，**沒有領取按鈕、沒有揭曉動畫**。伺服器核准的是資格不是 NFT（設計 §4.3）。`pending_review` 刻意不彈通知：還沒核准就先報喜會被讀成已經拿到。輪詢 5 分鐘（成就那邊是 30 秒）——一屆的資格一生只轉一次，回到前景時會立刻檢查。
+- **節日收藏卡**（`seasonalShareLayout` ＋ `ShareImageLayout.badge`）：徽章用**與 App 畫面同一份** `SeasonalBadgeArt`（從 `SeasonalBadge` 抽出不含 `<Svg>` 外框的版本，因為分享圖卡是單一 `<Svg>`），不是分享時另畫兩個字母的代號。狀態如實三分：待驗證／已達標但本屆尚未開放領取／已達標可領取；**`chainAsset` 一律 false**，所以不掛網路標示，也不可能出現「已鑄造」——那要等 04 有 registry／mint 路徑。
+- **同意模型**：活動窗口（公開的節日日期）必出現；**使用者自己達標的時間預設關閉**，勾選後也只到月份，畫面上另寫一行說明這兩者的差別（設計 §4.5）。
+- **落地與歸因**：新 kind `seasonal` 一路打通——`SHARE_KINDS`／`SHARE_SOURCES`、`shareLanding` 去向（Gear 分頁）、`web/s/seasonal.html`、`web/og/seasonal-v1.png`、後端 `share_aggregates` 允許清單。Android intent filter 是 `pathPrefix="/s/"`，不需要改。落地頁明寫「還沒有任何一屆開放、領取尚未開放」。
+- `tools/og-assets/verify.mjs` 多三道檢查：`/s/<kind>.html` 的 deep link、計數 `KIND` 與複製連結的 URL 都要與檔名一致。這幾頁是互相複製出來的，這次就漏改了一處 deep link，靜態檢查當場擋下。
+- **仍未做（等 PG-SEASON-04）**：揭曉動畫、「可領取 → 錢包確認 → confirmed」流程、`minted` 狀態與網路標示、撤銷語意。沒有 mint 路徑就沒有可揭曉的東西，硬做等於演一段假的。
+
+環境備註：`backend/src/player/player.test.ts` 的 3 項在本機逾時失敗，是**既有**問題（在乾淨的 backend 上同樣失敗）——`DELETE /player/data` 會呼叫 `tournaments.activeStakedUntil()` 走鏈上讀取，本機連不到 RPC 就卡住。與本次修改無關。
+
+規格：[節日與生態紀念 NFT §4.3／§4.5／§6](design/seasonal-achievement-nfts.md)、[社群分享規劃 §3.2 S8](social-share/README.md)。
+
+
+## 2026-09-26 節日提醒訂閱與年度營運工具（PG-SEASON-06；推播仍未做）
+
+WIP（碼完、實機未驗）：
+
+- **提醒訂閱**（`app/src/state/seasonalReminderStore.ts`）：存在**本機、不分錢包、不上傳**。訂閱的是公開活動不是個人資料，未登入看得到公開目錄就該能訂閱；而且在沒有推播通道的情況下，把「誰在等哪一屆」收到後端只是多存一份沒有用途的資料。取消訂閱會把這一屆的已讀提醒一起清掉，重新訂閱的人收得到。
+- **提醒判定**（純函式 `app/src/domain/seasonalReminder.ts`）：依「最該現在做什麼」排序——`open`（還能出門走一趟）＞ `grace`（只能把窗口內那一筆**同步上來**，寬限放寬的是上傳時間不是運動時間）＞ `soon`（開始前 7 天內）。已達標或待驗證的一屆不提醒（提醒只會讓人以為還沒完成）；同一屆每個階段各提醒一次，關掉 `soon` 之後窗口真的開了還是會再提醒。8 項單元測試。
+- **提醒的出口**：與資格核准共用 `SeasonalNotice` 那一個浮層，**核准優先**（已經發生的事先講）。兩個浮層互相蓋住才是真正的問題。未登入也會提醒（改查公開目錄），但**沒有訂閱任何一屆時完全不發請求**。
+- **文案說實話**（當時）：這支 App 沒有推播也沒有本機排程通知（`modules/neonshift-notify` 只負責運動中的前景服務頻道）。**2026-09-28 已補上本機排程通知，見下方當日條目**，所以開關旁邊直接寫「NeonShift 只會在你打開 App 時提醒，沒有背景推播、也不會把這個訂閱上傳」。**系統推播是這一項還沒做的部分**，不因為有提醒就宣稱有通知。
+- **年度營運工具**：`backend/src/seasonal/check.ts`（`npm run seasonal:check`，可加 `--now`／`--json`）把設定檔驗一次並印成表——重點是印出**換算回活動時區之後真正涵蓋的當地日期**，因為每年加下一屆真正容易錯的是 UTC 窗口算錯一小時或 DST 讓當地日期跑掉。`scripts/ops/seasonal.sh` 包一層，`--remote` 再跟線上 `/v1/seasonal` 對帳（窗口、時區、門檻、寬限、來源核對日與 `mint_enabled` 全比一次），確認部署上去的設定與 repo 同一版。不需要 OPS_TOKEN（公開目錄），不連資料庫。已加進 `scripts/test-all.sh`。
+
+順手修掉一個會誤導測試結果的環境問題：`scripts/env.sh` 原本只用單一 `BREW_PREFIX` 找 node，而 nvm 是 shell function、非登入 shell 讀不到，於是 `scripts/test-all.sh` 與 `scripts/ops/*.sh` 會默默用系統上的舊版 node 跑——舊版 node 的 jest 沙箱沒有 `crypto.getRandomValues`，`Keypair.generate()` 相關套件就會失敗。這台 Mac 同時有 `/opt/homebrew`（openjdk）與 `/usr/local`（node），所以改成逐一試已知位置挑第一個存在的。
+
+尚未做：PG-SEASON-04 registry／mint（`achievements_kind_ck` 還沒有 `seasonal`；鏈上 `category` 只到 1..=13，需程式改版與重新部署——格式待決）、PG-SEASON-05 的揭曉動畫與「可領取」流程（等 04）、PG-SEASON-06 的系統推播。（三項皆已於 2026-09-27／28 完成，見後續條目。）
+
+規格：[節日與生態紀念 NFT §4／§6](design/seasonal-achievement-nfts.md)。
+
+
+## 2026-09-27 測試基礎設施修正（讓週末回歸的結果可信）
+
+不是功能，但會直接影響 9/28–9/30「完整端到端與安全回歸」的判讀：
+
+- **`scripts/test-all.sh` 的 `docker info` 加逾時**（20 秒，優先用 coreutils `timeout`／`gtimeout`，沒有就自己顧一個子行程，bash 3.2 也能跑）。Docker Desktop 的 CLI 偶爾掛住不回（backend process 還活著，但 socket 不回應），沒有逾時的話整份測試會**停在資料庫那一段**而不是按設計 SKIP——2026-09-26 實際遇到一次，卡了十幾分鐘。
+- **`backend/src/player/player.test.ts` 不再依賴網路**：`DELETE /player/data` 會問 `tournaments.activeStakedUntil()`（質押事實在鏈上），而測試設了 `PROGRAM_ID` 又沒注入 `chain`，那一步就打真的 RPC——離線或 RPC 慢時 3 項逾時失敗，失敗原因還跟這支端點無關。改成注入 `StaticChainReader`（與 `tournament.test.ts` 同一個做法）：187 秒 3 項失敗 → 3.5 秒 5 項通過。順便補一項之前沒被涵蓋的案例：**鏈上有進行中的質押時，延後期限是賽事 `ends_at` 而不是一律 30 天**（30 天是上限）。
+- 提交前檢查：9/25 新增的 `expo-sharing`／`expo-clipboard` 經 `expo-modules-autolinking resolve -p android` 確認會被已提交的 `app/android/` 自動連結，`expo-sharing` 自帶的 FileProvider 路徑也涵蓋 App 私有 cache，所以**不需要重跑 prebuild**。分享功能仍必須重新出包才會出現，且實機驗收仍為 TODO（見 [提交追蹤](store/clock-in-submission.md) 2026-09-27 條）。
+
+
+## 2026-09-27 節日收藏鑄造（PG-SEASON-04；待重新部署程式才能開啟）
+
+WIP（碼完，實機與鏈上未驗）：程式 105 案例（attestation-core 17＋neonshift-core 23 單元／82 整合）、backend 277 通過、App 81 suites／587 tests 通過。
+
+**鏈上格式定案（原本待你決定的那一題）：整個系列共用一個 `CATEGORY_SEASONAL = 14`，主題與年份寫在鏈下 metadata。**
+
+依據是讀完 `claim_achievement.rs` 之後的一個事實：唯一性本來就由 32-byte `achievement_id` 提供——它同時是 `AchievementReceipt` PDA、asset PDA 與 metadata URI（`{BASE_URI}{id}.json`）三者的 seed。所以「每玩家每屆一枚」「同一主題不同年份是兩枚」不需要 category 的粒度就成立（LiteSVM 有一個測試專門釘住這件事）。反過來每個主題各給一個 category，每年新增主題都要升級並重新部署程式，而且換不到任何唯一性——對一個逐年成長的系列來說那是錯的軸。代價是鏈上名稱只到系列層級（`NeonShift Seasonal Footprints`），「哪一屆」要看那一枚的 metadata；要把主題寫進鏈上名稱得改 194-byte canonical 訊息格式（連帶 signer、20 組跨語言向量、App 交易組裝），不值得。
+
+- **鏈上**：`CATEGORY_SEASONAL = 14`、`CATEGORY_MAX` 13→14（TS `CATEGORY_CODE` 與向量同步，向量純新增、既有 13 組位元組不動）。`achievement_metadata` 補系列名。**順手修一個錯誤命名**：原本只列 1..=5，7..=13 的里程碑與活動留念章全部落到 `_ => "Longest Run"`，也就是首次 5K 的收藏會被命名成「NeonShift PB · Longest Run」。名稱寫進鏈上改不了，所以這是必須修的錯誤標示；已鑄造的資產保留當時名稱，新測試把四個系列的名稱各釘一個。
+- **後端**：migration 0021（`achievements_kind_ck` 加 `seasonal`）；key＝`seasonal|<campaign_id>`，沿用既有 `(wallet, milestone_key)` 唯一索引就是「每屆一枚」；`achievement_id = sha256("neonshift-seasonal|wallet|campaign_id")`。`buildSeasonalMetadata` 預設只寫公開資訊（主題、年份、窗口、門檻、驗證、美術／規則版本、日期依據），**自己哪天達標要逐次同意**。`ensureSeasonal`／`reconcileSeasonal`／`POST /v1/me/seasonal/:id/intent` 走與 PB／里程碑／活動章**同一條** registry → proof → receipt 路徑，不是另一套鑄造流程。
+- **App**：只在 `mint_enabled && eligible` 才掛出領取（同意 → 預覽會公開的內容與 rent → MWA → 揭曉）；關著時畫面仍是「已達標、尚未開放領取」。
+- **開關**：`SEASONAL_MINT_ENABLED` 預設 false，代表「程式已支援 seasonal 且已部署到**這個 cluster**」，不是活動熱度。後端關著時 intent 回 409 `SEASONAL_MINT_NOT_OPEN` 且**不留下任何成就列**。
+
+### 要真的開放領取，需要你做三件事（順序不能顛倒）
+
+1. **重新部署程式**（`cd programs && anchor build --arch v0`，再用 `scripts/chain/deploy.sh dev` 升級）。舊版的 `CATEGORY_MAX = 13` 會拒絕 category 14。**這是不可逆的鏈上操作，我沒有執行**。
+2. 在 l1／l2 套用 `backend/migrations/0021_seasonal_achievements.sql`（同時還有沒套的 0020）。
+3. 確認 1 完成後，才把 `/etc/neonshift/api.env` 的 `SEASONAL_MINT_ENABLED` 設為 `true`。順序顛倒會讓玩家拿到鏈上必定失敗的交易。
+
+另外：要有任何一屆真的能領，還得把 `backend/seasonal/campaigns.json` 裡某一屆的 `enabled` 打開——目前三屆全部 `false`，那是另一個決定（每屆要先人工核對日期來源）。
+
+尚未做：撤銷語意的實機驗證。（節日徽章揭曉已於 2026-09-27 補完、系統通知 2026-09-28 補完，見下。）
+
+規格：[節日與生態紀念 NFT §5／§6](design/seasonal-achievement-nfts.md)、[SD 2026-09-27 實作註記](sd.md)。
+
+
+## 2026-09-27 鏈上讀取：批次、退避與人話錯誤（實機 504 的後續）
+
+實機首頁出現「Devnet is taking a break」並把整段 `{"jsonrpc":"2.0","error":{"code":504,…}}` 貼在正文裡。當天對公用端點 `https://api.devnet.solana.com` 量測：`getHealth`／`getVersion`／`getSlot`／`getBalance`（同一個帳號，餘額 1,082,040 lamports）都在 0.3 秒內回 200，但 `getAccountInfo`／`getMultipleAccounts` 連續多次 20–30 秒**完全沒有回應**——帳號、程式與當時的改動都沒有問題，是端點對「回傳帳號資料」的方法不回應，手機端 gateway 把它變成 504。App 端做了三件事：
+
+1. **一次 `getMultipleAccounts` 讀完**（`fetchAccountsInfo`）。原本一次 `syncChain` 要 6～7 個 `getAccountInfo`（config／profile／freeze ＋ 今日各任務 receipt），而 Home 與 Gear 每次 focus 都同步——打在限流端點上最容易換來 429／504。餘額仍是第二個請求（要先有 config 才知道 mint）。7 → 2。
+2. **逾時＋退避重試**（`rpcRead`）。每個 HTTP 請求 15 秒上限（`Connection` 的 `fetch` 包 AbortController）——**沒有上限的話重試沒有意義**，因為觀測到的行為是「不回應」而不是回錯誤。重試 2 次（400／1200 ms ＋抖動），**只對暫時性失敗**：限流（429／`-32005`）、逾時、5xx、連不上；「帳號不存在」這種再試也一樣的結果歸為 `unknown`，不重試。**只包讀取**——交易送出不重試，仍走 `claimSubmitter` 的 pending 判定（SD 5.3）。
+3. **錯誤訊息改人話**。`chainError` 從整段例外字串改成 `{ reason, ref }`；正文依原因分五句（限流／逾時／故障／連不上／未知），技術細節只出現在 `InlineState` 的 `Ref`（例如 `504 · getMultipleAccounts`），**原始 payload 與帳號位址不再進畫面**。狀態碼從 web3.js 固定格式 `Error: <ddd> :` 取，不對整段訊息抓三位數（base58 位址裡也有數字）。
+
+新增 `rpcRead.test.ts`（7 項，含實機那段原文的分類）與 `chainSync.test.ts`（3 項，釘住「只打一次批次讀」與「錯誤不含 payload」）；`states.test.tsx` 的首頁錯誤卡改成驗人話文案＋Ref＋**畫面上不得出現 jsonrpc 字樣**。App 83 suites／597 tests 通過。
+
+未做（要你決定）：換一個有 API key 的 devnet RPC。`EXPO_PUBLIC_*` 是 build-time 內嵌，key 會留在 APK 裡，正規做法是網域／套件名限制的 key 或走自己的後端代理——牽涉金鑰政策，不自行決定。`ClaimSubmitter.receiptExists` 仍是單筆 `getAccountInfo`（它注入自己的 connection 供測試用），只吃到逾時、沒有退避；那在送交易前的檢查上是刻意保守。
+
+
+## 2026-09-27 節日章的揭曉畫的是那一屆的徽章（PG-SEASON-04 收尾）
+
+**翻面本身早就有了**：`RewardStage` 的 `mode="nft"` 已經是 2200 ms 的翻卡——背面封印 → `rotateY` →
+單次掃光，而且已經處理 Reduce Motion（直接顯示結果）與背景化（立即完成、不重播）。
+所以這裡沒有另外發明一套節奏，也沒有為節日章加第二種動畫時間（[style §25.2](style.md) 的
+「一般 NFT 翻卡 2.2 秒」照用）。
+
+**缺的是翻過來以後那一面**。原本 `SeasonalClaim` 只把鏈上 metadata 的 `name` 丟進揭曉佇列，
+於是畫面畫的是通用金色 `award` 圖示，標題是整個系列共用的
+「NeonShift Seasonal Footprints (Device)」——剛拿到的人看不出這是哪一屆，也看不到自己
+在收藏頁上熟悉的那枚徽章。這正是 PG-SEASON-04 把主題與年份放在鏈下 metadata 的代價，
+要在 App 端補回來。
+
+- `nftRevealStore` 的 `Reward` 加 `seasonal?: { themeId, year }`——帶的是**主題與年份，不是圖檔位址**，
+  因為節日徽章是程序繪製的（`SeasonalBadge`），揭曉時不連網也畫得出來，翻過來就是收藏頁上同一枚。
+- `NftReveal` 在 `seasonal` 時把正面換成 `SeasonalBadge state="earned"`（148 px），標題改成
+  **本地化屆名＋年份**（`season.name.<theme_id>`，查不到譯名退回 `theme_id`，不顯示 i18n key、不顯示空字串）。
+- 文案三句（`reveal.seasonal{Eyebrow,Title,Body}`，兩份字典同 key）：說的是「每年一屆、每屆一枚，
+  這個年份不會再出現第二枚」，**不談價值也不談稀有度**——它是免費收藏，不是商品。
+
+測試 3 項（`nftReveal.test.tsx`）：節日章顯示徽章與屆名且**畫面上不得出現共用系列名**、
+未知主題退回 `theme_id` 而非 i18n key、非節日獎勵仍走通用獎章（回歸防護）。App 83 suites／600 tests 通過。
+
+要實機看到這段揭曉，仍需先完成上一節那三件事（鏈上程式重新部署 → migration 0021 →
+`SEASONAL_MINT_ENABLED=true`），並把某一屆的 `enabled` 打開；在那之前領取按鈕不會出現。
+
+
+## 2026-09-28 節日提醒的本機排程通知（PG-SEASON-06 的「系統推播」）＋ 網站 404 頁
+
+### 為什麼是本機排程，不是遠端推播
+
+PG-SEASON-06 當初把訂閱清單留在裝置上、不上傳，理由寫在 `seasonalReminderStore`：
+訂閱的是**公開活動**，而且沒有推播通道時把「誰在等哪一屆」收到後端只是多存一份沒用途的資料。
+要改走 push 就得推翻那個決定——後端得保存每台裝置的 token 與它訂閱了哪幾屆，
+一個公開活動的訂閱就變成一筆個人資料，還要多一個 FCM 專案與伺服器金鑰。
+
+**而那是不必要的**：每一屆的日期在 `backend/seasonal/campaigns.json` 裡本來就是公開且事先已知的，
+手機拿到公開目錄之後自己就算得出「什麼時候該提醒」。所以這次引入 `expo-notifications`
+（`~57.0.21`）**只用它的本機 API**：channel、權限、`scheduleNotificationAsync` 的 DATE trigger。
+沒有 token、沒有伺服器、什麼都不上傳。
+
+### 做了什麼
+
+- **排程計畫是純函式**（`domain/seasonalNotificationPlan.ts`）：訂閱的一屆排三個時刻，
+  與畫面上那三個階段語意一致——`soon`（開始前 7 天，還有時間安排一次 20 分鐘健走）、
+  `open`（窗口開啟）、`grace`（窗口結束，只剩把那一筆**同步上來**）。
+  只排未來的時刻；已達標／待驗證的一屆完全不排（在節日當天被叫去「快走」只會讓人以為漏了什麼）；
+  `grace_days` 為 0 時沒有補同步期限，那一則不排；上限 12 則，砍掉的是最遠的那些。
+- **差異同步**（`services/notifications/seasonalNotifications.ts`）：不是「全部取消再全部重排」——
+  那會在每次前景切換與每 5 分鐘無謂地重建鬧鐘。比對存在通知自己 `data` 裡的
+  `fireAt` 與 `locale`：**換語言會重排**，讓還沒響的通知跟著換語言。id 固定為
+  `seasonal:<phase>:<campaign_id>`，所以重複同步不會排出第二份，取消時也不會誤殺其他通知。
+- **不靜默要求權限**：開畫面只「查詢」權限狀態，真正的要求發生在使用者打開某一屆的提醒開關時
+  （Android 13 的系統詢問在沒有任何 channel 時不會出現，所以先建 channel 再要求）。
+  被拒絕時**不假裝會通知**：開關旁邊的文案換成「系統通知目前是關閉的，所以只會在你打開 App 時提醒」。
+- **兩個出口都留著**：排程通知負責「不必打開 App」，`SeasonalNotice` 浮層負責「打開 App 當下」——
+  後者仍有存在意義，因為權限可能被關掉，也可能使用者訂閱時那一屆已經開始了。
+- **通知內容不含個人資料**：`data` 只有活動代號、階段、時刻、語言（通知內容會留在系統的通知紀錄裡）。
+  測試直接斷言序列化結果不含 wallet／base58 位址。
+
+### 原生層：手動維護的 android/ 要自己補 plugin 的產出
+
+`expo-notifications` 經 `expo-modules-autolinking resolve -p android` 確認會被已提交的 `app/android/`
+自動連結，**不需要重跑 prebuild**；模組自己的 manifest 已宣告 `POST_NOTIFICATIONS` 與
+`RECEIVE_BOOT_COMPLETED`（後者用來在重開機後重建排程，正是我們要的）。
+
+但 config plugin 不會執行，所以照它的產出手工補上 `colors.xml` 的 `notification_icon_color`
+與 AndroidManifest 的四個 meta-data。
+
+**圖示沿用既有的 `@drawable/notification_icon`**——`a1331e7` 早就為運動中的前景服務畫了一張
+單色脈衝向量圖（而且已在 Seeker 實機驗過狀態列圖示），`expo-location` 也是按這個名字取圖，
+一個單色小圖示兩邊共用剛好。這裡踩過一次坑值得記下：我原本照 plugin 的做法生成了
+`drawable-{mdpi..xxxhdpi}/notification_icon.png`，但**密度限定的 PNG 會在每個密度桶蓋掉那張
+無密度的向量圖**，等於把已驗收的運動通知圖示換成縮小的啟動圖示——是個回歸，已移除。
+同理 `app.json` 的 plugin 只宣告 `color` 不宣告 `icon`：宣告了的話日後跑 prebuild 會再生成那些 PNG。
+
+**一個要知道的代價**：`expo-notifications` 固定依賴 `firebase-messaging`，所以它會進 APK。
+本專案**沒有套用 google-services 外掛也沒有 `google-services.json`**，沒有設定檔它不會初始化、
+不會有推播連線；但 APK 會變大一些，而且 manifest 裡會多一個 FCM 的 service（由模組宣告）。
+
+### 順手做的重複整理
+
+同一句提醒現在有兩個出口，文案再各寫一份遲早漂移，而提醒說的是期限這種「說錯就害人白跑一趟」的事。
+抽出 `domain/seasonalCopy.ts`（`seasonalThemeName`／`seasonalEditionName`／`seasonalReminderBody`），
+`SeasonalNotice`、排程通知與 `NftReveal` 共用同一份；屆名查不到譯名一律退回 `theme_id`，
+不顯示 i18n key、不顯示空字串。
+
+### 網站 404 頁
+
+`web/404.html`（中英雙語）。這件事的意義不只是美觀：在此之前 Cloudflare Pages 把找不到的路徑
+**一律回首頁＋HTTP 200**，所以「網站停在 9/20、`/s/*` 與 `/og/*` 根本沒部署」看起來像一切正常，
+兩個星期沒被發現。404 頁刻意**不放 OG／Twitter 標籤**（它不是可分享的頁面）並標 `noindex`；
+顯示的路徑用 `textContent` 寫入，所以網址裡的任何內容都不會被當成標記執行。
+如果部署後缺檔仍然回首頁，那就是 Pages 專案開了 SPA fallback，要在儀表板關掉。
+
+測試：`seasonalNotifications.test.ts` 16 項（排程計畫 8、差異同步 8，含「沒權限不偷偷要求」、
+「重複同步不排第二份」、「換語言會重排」、「不誤殺別人的通知」、「模組不存在或丟例外不炸掉」）。
+App 84 suites／616 tests 通過，typecheck 乾淨。
+
+**要實機生效必須重新出包**（原生模組）。文件同步：設計文件 §5 與 PG-SEASON-06 格、
+隱私政策第 5 節新增通知權限揭露（生效日改 2026-09-28）、`build-and-test.md` 冷啟動重置腳本
+加 `POST_NOTIFICATIONS`、`app.json` 權限與 plugin。
+
+
+## 2026-09-28 兩個自己造成／自己留下的破口
+
+不是新功能，是把前兩天留下的兩個缺口補掉。
+
+**一、關掉最後一屆的提醒後，已排的通知還是會響。** `SeasonalNotice` 的早退條件是
+「沒登入又沒訂閱任何一屆就不發請求」——而使用者把最後一屆的提醒關掉時剛好走到這裡，
+於是排程不再被對齊，通知留在系統裡照樣會響。`cancelAllSeasonalNotifications` 當時寫了
+卻沒有任何呼叫點（等於死碼），現在接在那個早退分支上。登入時走另一條路徑，空的計畫本來就會取消。
+補兩項元件測試（關掉最後一屆會清排程且仍不發請求；有訂閱時以活動資料對齊）。
+
+**二、`ClaimSubmitter.receiptExists` 沒有退避，而它是「這筆到底有沒有上鏈」的判準。**
+9/27 做 RPC 退避時我把它當成「送出前的保守檢查」而跳過，這個判斷不對：它有三個呼叫點，
+其中兩個在 `resolvePending` 的逾時分支——那個讀取一旦丟例外，整個冪等判定就以例外收場，
+pending 紀錄還在（不會遺失），但使用者看到的是錯誤而不是結論，而那往往只要 400 ms 後
+重試一次就有答案。現在走 `rpcRead`（只對限流／逾時／5xx／連不上重試；「帳號不存在」不重試）。
+讀取重試沒有冪等問題，**送出交易仍然不重試**。`rpcRead` 多接一個連線提供者參數，
+讓注入自己 connection 的呼叫端也能用同一套退避。
+
+同分支後面的 `getSignatureStatus`／`getBlockHeight` 刻意保留 `.catch(() => null)`：
+它們失敗時會落到「仍在有效期內、保留 pending、稍後再查」，那是安全的結論，不需要重試。
+
+`claimSubmitter.test.ts` 改成只替換 `buildTransaction`／`getConnection`、`rpcRead` 用真實作，
+所以新增的兩項（504 重試後成功仍判 already_claimed 且不送交易；非暫時性錯誤只呼叫一次）
+是真的跑過退避的。App 84 suites／620 tests 通過。
+
+
+## 2026-09-28 待測項目重排
+
+實機待測的項目散在三個地方（提交候選版 31 項、提交追蹤的 APK／DEMO 系列、各功能的 evidence 檔），
+誰該先做看不出來。[測試排程與步驟](evidence/2026-09-28-test-plan.md) 把它們依**三道閘門**重排：
+
+| 閘門 | 現況 | 開了解鎖 |
+|---|---|---|
+| ① 部署後端（migration 0019／0020／0021） | `/v1/seasonal` 仍 404 | 節日全部、分享計數、活動流程 |
+| ② 鏈上程式升級（不可逆，負責人執行） | 已部署程式 `CATEGORY_MAX = 13` | 節日鑄造與揭曉 |
+| ③ 外出實跑 ≥5 km | — | COMP-W02、GPS 長時間 |
+
+排序原則：不需要任何閘門的先做完（A 組，今天就能做）→ 開閘門①（一次解鎖三組，最划算）→ ② → ③；
+提交影片排最後，因為它錄的是前面已通過的畫面，先錄會白錄。
+
+同時記下今天已驗、不必重測的：release 簽章、升級安裝與資料保留、冷啟動無例外、通知權限、
+**App Links 網域驗證由 `1024` 變 `verified` 且深層連結直接開 App**、網站 `/s/*`／`/og/*`／`/licenses/` 上線、
+`/s/<不存在>` 回 404。
+
+計畫裡也標了兩件目前無解的事：`806867e` 之後的兩個修正不在受測 APK 裡（B-2／A-8 的部分判準要等重新出包）、
+RPC 端點仍是公用 devnet（偶發的慢來自端點本身，換有 key 的端點牽涉金鑰政策，是負責人的決定）。
+
+
+## 2026-09-29 主辦方回覆：devnet 可評審，主網改為得獎後的前置（DEC-02 結案）
+
+### 原文（主辦方電子郵件，未改寫）
+
+> 1. Regarding Devnet: Yes, a fully functional app demonstrating real wallet signing and onchain
+>    transactions on Devnet is eligible for judging. You do not need to move to Mainnet by the
+>    submission deadline.
+> 2. SKR Integration Prize: A demonstration on Devnet with your test token (tSKR) is acceptable
+>    for the prize, provided the integration logic is sound and clearly presented.
+> 3. Post-award publication: The version published on the Solana dApp Store must be on Mainnet,
+>    as this is the requirement for public availability. So both the above would have to be working
+>    and implemented on main net to receive the USDC prize.
+
+### 這改變了什麼
+
+**解除的壓力**：提交期限前不必上主網。原本 `DEC-02` 的風險敘述是「若必須整合主網官方 SKR，
+PG-I-08 的 tSKR 路線、SA 5.4 與鏈上金庫設計都必須重估」——那個情境不會發生了。
+devnet＋tSKR 的現行實作就是可提交、可參加 SKR 獎的形態。
+
+**新增的條件，而且不輕**：
+1. SKR 獎的門檻從「有沒有整合」變成「整合邏輯健全且**清楚呈現**」。主辦方特別寫了
+   *clearly presented*，所以影片 D 段（1:35–2:20）與 pitch 不再是可選素材——那一段沒把
+   整合邏輯講清楚，就等於沒整合。`demo-video.md` §8 的 Go／No-go 已改為確定 Go，替代稿作廢。
+2. **得獎後要領 USDC，App 與 SKR 整合都必須在主網運作。** 這不是把設定從 devnet 換成
+   mainnet-beta 就好，下面列出真正的工作包。
+
+### 得獎後的主網工作包（**不在本次衝刺內**，先列出來以免臨時才發現）
+
+| # | 內容 | 真正的難處 |
+|---|---|---|
+| MN-1 | 鏈上程式部署到 mainnet-beta | 新的 program keypair、部署 SOL、`cluster_id` 與 config／金庫重新初始化。已鑄造的 devnet 資產不會跟著過去，收藏要重新開始或明確說明 |
+| MN-2 | 獎勵代幣 | 目前是 tSKR 測試代幣、`TSKR_TOTAL_SUPPLY=1000000` 是 BRD 8.5 的**假設**。主網要發真的代幣＝真的價值，**這條直接撞上 `DEC-03` 與 `PG-EC-02`～`05`**（打卡獎勵拆分、期間預算、對帳與準備金、反作弊）——那四項現在是 P0／TODO，主網之前必須完成，不是可選 |
+| MN-3 | SKR 官方付款 | mint 已知（`SKRbvo6Gf7Gon…`），但**價格與收款錢包仍待你決定**（sd.md 已列為未決）；SKR-07 的主網小額實測涉及真實金額，要你核准後才執行 |
+| MN-4 | RPC | 主網公用端點的限流比 devnet 更嚴。`EXPO_PUBLIC_*` 是 build-time 內嵌，帶 key 的端點會把 key 留在 APK 裡——**這個問題在主網不能再繞過**，要嘛用網域／套件名限制的 key，要嘛走自己的後端代理 |
+| MN-5 | 金鑰與簽章 | 正式 keystore（`APK-01`；換了要同步更新 `assetlinks.json` 並重新部署）、`~/.config/neonshift/main/` 的 admin／attestor、主機上的 signer service |
+| MN-6 | 揭露與文案 | App 內所有「devnet／tSKR／無金錢價值」的標示要改成主網語意；隱私政策與商店素材同步 |
+
+**排序判斷**：MN-2 是關鍵路徑，因為它依賴 `PG-EC-02`～`05`；其餘五項都是設定與金鑰層面，
+可以並行。所以「得獎後 30 天內公開 listing」（`COMP-10`）真正的風險不在上架流程，而在經濟設計——
+那是得獎後第一件要動的事，不是最後一件。
+
+**本次衝刺不動主網**：主辦方明示不需要，而且 M3 功能凍結是 09-30。現在改設定只會讓提交版變不穩。
+
+
+## 2026-09-29 後端部署（測試計畫閘門①已開）
+
+l1 與 l2 依 `deploy/l1/deploy.sh`（l2 以 `DEPLOY_HOST` 指定）部署完成，02:18–02:19 UTC。
+實際套用 **0020_share_metrics** 與 **0021_seasonal_achievements**；`0019_skr_orders` 早已套過
+（`schema_migrations` 已有紀錄，腳本正確跳過）。l2 的 migration 也跳過——兩台共用外部 DB，
+這是預期行為，不是漏做。
+
+`https://api.neonshift.cc/v1/seasonal` 從 **404 變 200**，回 `{"items":[]}`——正確，
+因為三屆 `enabled` 全是 `false`。`POST /v1/metrics/share` 回 **202**，證明 0020 的表真的可寫。
+兩台的 `healthz`／`readyz`（含 `db: ok`）都通過。
+
+**部署前先確認過的風險，記下來供下次參考**：
+- `0021` 是 `DROP CONSTRAINT IF EXISTS` 後重建兩個 CHECK，看起來有破壞性，但新約束是舊的**嚴格超集**
+  （只把 `'seasonal'` 加進允許清單），既有資料不可能違反。
+- 真正的風險是「`schema_migrations` 若為空，腳本會從 0001 重跑，而 0001～0003 非冪等」。
+  無法事前查（DB 查詢被工具政策擋下），但確認過這是**失敗即安全**：每個 migration 包在
+  `BEGIN…COMMIT` 且 `ON_ERROR_STOP`，失敗會回滾並在 `systemctl restart` **之前** `exit 1`，
+  所以最壞情況是「新程式碼在磁碟上、舊程序仍在跑、DB 未變」。實際執行時該表本來就存在。
+
+**解鎖的測試**：B-1（節日足跡讀取，那個「讀取失敗」警示應該消失）、B-3（分享計數）、
+B-3b（SKR devnet，需先在 api.env 開 `SKR_ENABLED`）、B-4（活動雙角色）。
+
+**還缺一個決定才能測 B-2**（節日提醒與本機排程通知）：三屆 `enabled` 全 false，
+目前沒有可訂閱的屆別、提醒開關不會出現。打開哪一屆要先人工核對該屆的日期依據，
+那是負責人的決定。
+
+
+## 2026-09-29 兩個現在就能修的缺口（評審路徑可達性、健康資料錯誤文案）
+
+閘門①開了之後盤點「還能實作什麼」：TODO 清單裡剩下的要嘛是實機驗收（卡閘門②③），
+要嘛是 `PG-EC-02`～`05`／`PG-XD-04`～`06` 這種需要合約改版的大項目——凍結前一天開一個做不完的
+大項目比不開更糟。所以挑了兩個確定做得完、而且都是既有缺口的：
+
+### 一、沒有健康資料的評審找不到唯讀預覽（`APK-05`）
+
+評審指南寫的是「沒有合格 Health Connect 紀錄就用公開預覽」，但 `DemoPreview` **只掛在登入前的
+`LandingScreen`** 上。評審會連錢包（這是 Solana 黑客松，指南也叫他們連），連了之後就再也回不去——
+那句話對已登入的評審是死路。這正是 `APK-05` 備註警告的「不默認已具備」。
+
+已在 Profile 補入口（`profile-demo-preview`），並在指南寫出確切路徑
+**Profile → Read-only preview**。放 Profile 而不是首頁：首頁的健康資料警示該指向「檢查權限」
+（那是真正的修法），預覽是替代路徑而不是修法，兩者混在一張卡上會讓人以為預覽能解決權限問題。
+文案明說預覽不儲存任何東西、不建立錢包／NFT／健康資料——否則評審會以為自己在操作真的帳號。
+
+仍待實機：請一位**沒有** Health Connect 紀錄的人試走（`DEMO-07` 是同一件事）。
+
+### 二、`home.healthErr.body` 把原生例外插進使用者文案
+
+這是 9/27 修的 504 那張卡的**同一個錯誤重演**：
+`'Health Connect 沒有回應。…{error}'`，而 `{error}` 是 `e.message`——Health Connect SDK／Kotlin
+丟出來的字串。而且那句話本身就說錯了：**只有一種失敗是「沒有回應」**，權限被撤、
+Health Connect 沒安裝或版本太舊都不是。
+
+新增 `domain/healthFailure.ts`：判成 `permission｜unavailable｜timeout｜unknown` 四種
+（先看 Expo `CodedException` 的 `code`——那個穩定；再退回訊息比對——那個會隨 SDK 版本變），
+原始訊息只留在 `detail` 供診斷，畫面上只出現一行 Ref（`InlineState` 的 `referenceId`）。
+四種原因各一句文案，每句都講「發生什麼、資料是否安全、下一步」；四句都明說
+「顯示的是上次同步的數值；沒有任何資料被送出」。
+
+測試 7 項，含「原始訊息不進 ref」「有 code 時用 code」「空訊息也要有 ref」。
+`dashboardStore.test.ts` 的斷言從比對原始字串改成比對分類，**並確認 `detail` 仍保留原文**——
+不進文案不等於可以弄丟。App 85 suites／628 tests 通過。
+
+
+## 2026-09-29 實機事故：公開端點少了 `auth: false`，未登入永遠讀不到
+
+實機收藏頁顯示「could not load seasonal windows, pull to refresh」。診斷的關鍵是
+**伺服器日誌裡一筆請求都沒有**——`/v1/seasonal` 我用 curl 驗過是 200，l1／l2 的
+access log 在那段時間只有我自己那筆與 healthz。請求根本沒送出。
+
+原因在 `ApiClient.requestRaw`：`auth !== false` 時會先 `ensureAccessToken`，
+**取不到就直接丟 `ApiError(401, 'NO_SESSION')`，不發請求**。而
+
+```ts
+/** 公開目錄（未登入也能看「即將開始／進行中」） */
+seasonal() { return this.request('GET', '/seasonal'); }   // ← 少了 { auth: false }
+```
+
+註解明寫「未登入也能看」，實際上未登入一定失敗。對照 `events()`／`event()` 都正確帶了。
+掃過同類寫法後發現**第二個實例**：`eventResults()`，後端那條路由註解是「公開成績榜」
+且沒掛 `requireAuth`，所以未登入看成績榜也會拿到 `NO_SESSION`。兩個都修了。
+
+**為什麼自動測試沒抓到**：元件測試一律 mock `apiClient.seasonal` 本身，完全繞過 `request`，
+所以 auth 選項錯了也看不出來。補的三項測試刻意打到 fetch 層（`apiClient.test.ts`）：
+公開端點要**真的送出請求且不帶 authorization**，並加一個對照組確認需要登入的端點
+仍然丟 `NO_SESSION` 且不發請求——否則這個修法可能變成「把所有端點都改成不需登入」。
+
+順帶補一個相鄰的降級：`SeasonalFootprints` 在「錢包連著但後端 session 已失效」時
+退回公開目錄。那種情況不是「活動讀不到」而是「個人資格讀不到」，公開目錄本來就不需要登入，
+窗口、規則與提醒訂閱照樣可用，比整段顯示錯誤好得多。
+
+App 85 suites／631 tests 通過。versionCode 6。
+
+
+## 2026-09-29 英文介面印出中文：`source.fact` 沒有分語言
+
+實機截圖顯示英文介面的節日卡底下是：
+
+> **Date reference:** 使用者提供的畫面列 2026-09-25 中秋；正式排程前需逐年以權威曆法核對…
+
+兩個問題疊在一起：
+
+**一、`source.fact` 是單一字串。** 它由後端設定檔提供、在畫面上原樣顯示，而後端不知道
+使用者的語言、前端也無從翻譯，所以三屆的中文 fact 在英文介面下照樣印出來。
+改成 `{ "zh-TW": …, "en": … }` 兩語必填（缺一邊由 `seasonal:check` 擋下，不是上線後才發現），
+App 依當下語言挑（`seasonalSourceFact`，找不到退回英文、再退回任一有值的——
+**寧可顯示另一種語言也不要空白**，這一行的用途是讓人可以自己去查依據）。
+
+**二、那句話根本是工程備註。** 「正式排程前需逐年以權威曆法核對，不可當成每年固定日期」
+是寫給我們自己的提醒，不該出現在使用者畫面上。新增 `source.internal_note`：schema 收，
+但**不進 `SeasonalCampaign` 型別，所以連被回給前端的機會都沒有**。三屆的 fact 全部改寫成
+使用者看得懂的日期依據。
+
+**順帶擋掉一個會永久留存的錯誤**：`buildSeasonalMetadata` 把 `source.fact` 嵌進 NFT metadata 的
+英文 description，而 metadata 鑄造後不可更改。照原樣上線的話，那段中文工程備註會被永久寫進
+NFT。現在鏈上固定取 `fact.en`。
+
+### 同時修正一個我自己犯的錯
+
+`seasonal.test.ts` 有一項守門測試「設定檔進倉庫不等於活動上線」，斷言所有 `enabled` 都是
+`false`。我 9/29 為了 B-2 驗收把測試窗口與 `enabled: true` **提交進版控**，正好撞上它——
+那個測試是對的。測試窗口只該存在於工作區與伺服器上。已還原並在
+`scripts/ops/seasonal-test-window.mjs` 寫上正確流程：改工作區 → check → 部署 → 測 →
+`git checkout` → 再部署還原。
+
+App 85 suites／636 tests、後端 277 tests 通過。
+
+
+## 2026-09-29 語言與錯誤文案的全面盤點
+
+你在實機看到的「英文介面印出中文」屬於一類問題：**伺服器或例外給的字串直接進使用者文案**。
+既然已經踩到兩次（504 的 RPC payload、健康資料的原生例外）加這一次，就把同類掃完。
+
+### 掃描結果：英文介面沒有其他中文外漏
+
+- `en.ts` 的值裡只有一筆中文：`profile.language.zh-TW` = 「繁體中文」——**那是對的**，
+  語言名稱本來就該用該語言顯示。
+- 元件裡的中文字串字面值，扣掉型別定義裡的單行註解後只剩 `WorkoutCues.ts` 的語音提示，
+  而那支從頭到尾都依 `locale` 分支（距離、配速、時間、自動暫停都有兩語），沒有問題。
+- 分享管線也一致：`SHARE_KINDS` 六個與 `web/s/` 的六頁完全對應；`finish` 是 **source** 不是 kind，
+  走 `/s/workout?source=finish`，所以不會指到不存在的頁面。`shareLandingTarget` 是
+  `Record<ShareKind, …>`，少對應一個 kind 會編譯失敗。
+
+### 修掉兩個還在把技術字串塞進句子的地方
+
+- **`ProfileScreen` 的刪除資料**：原本是 `` `${e.code}: ${e.message}` ``，畫面會出現
+  「VALIDATION: body/wallet must be string 沒有刪除任何資料。」改成正文走 `apiErrorText`、
+  錯誤碼與 request id 合併成參考碼（`VALIDATION · req-9`）。這個畫面本來就接了 `referenceId`，
+  只是沒用對。刪除資料是評審一定會點的隱私功能，不該在那裡露出 schema 錯誤。
+- **`WorkoutsScreen` 的匯入失敗**：原本直接塞 `e.message`，改走 `apiErrorText`。
+
+`apiErrorText` 對非網路錯誤仍沿用後端 message——那是 2026-09-22 實機後的刻意取捨
+（原本顯示 `aborted Nothing changed.` 更難懂），這次不動它；要改成逐碼本地化是另一個工作包，
+凍結前一天不適合動那麼大。
+
+App 85 suites／637 tests 通過。
+
+
+## 2026-09-29 兩個小缺口：重複顯示的時間、沒被真正組過的通知文案
+
+**一、窗口時間顯示兩次。** 實機截圖上是：
+
+```
+Sep 29, 7:15 PM – Sep 29, 8:35 PM (Asia/Taipei)
+Your time: Sep 29, 7:15 PM – Sep 29, 8:35 PM
+```
+
+裝置時區與活動時區相同時這兩行一模一樣。顯示兩次同樣的時間不只是雜訊，還會讓人以為
+兩者有差別而去比對。改成只有真的不同才顯示——那時它才有用（活動在 Asia/Taipei，而你人在別的時區）。
+
+**二、通知文案從來沒被真正組過。** 先前那組差異同步測試傳的是**假的 `t`**（回傳 `key|params`），
+所以少一個插值參數、用錯 key 都驗不出來。而 `translate` 對缺少的參數是**把 `{when}` 原樣留著**——
+那會直接印在系統通知上。補 13 項用真實字典的測試：兩種語言 × 三個階段，
+斷言句子含屆名與年份、**不留 `{…}` 佔位**、不吐出 i18n key；另外釘住兩件語意——
+截止時刻以**活動時區**顯示（`2026-03-10T16:00Z` 在 Asia/Taipei 是 3/11，誤用 UTC 會顯示 3/10），
+以及 `open` 那一則必須講出 20 分鐘門檻，否則提醒等於沒說要做什麼。
+
+App 85 suites／645 tests 通過。
+
+
+## 2026-09-29 鏈上程式升級完成（閘門②已開）
+
+**這是不可逆操作，由負責人明確指名後執行。**
+
+| 項目 | 值 |
+|---|---|
+| Program Id | `6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA`（devnet） |
+| 升級交易 | `3n9ADFSzwcd4Z7ufN5ooiz7aaXvQTMfUm8RW7QqiidFVbNSNijXd6EkxYYt78eLRRtPvVJHS87vLe12BLq7ndddU` · **Finalized** |
+| Last Deployed In Slot | 501254860 → **505562678** |
+| upgrade authority | `2nyBJ5LCqGzRatLVk9SihNKkRw1f3ibf5cWWbAb1Gdz1`（未變，仍為 admin） |
+| 目的 | `CATEGORY_MAX` 13 → 14，鏈上開始接受 `CATEGORY_SEASONAL` |
+
+### 升級前逐項驗過的四件事
+
+1. **新 `.so` 651,568 bytes < 鏈上已配置 660,824** → 不需要 `solana program extend`（配置不夠時升級會失敗並卡在半途）。
+2. **admin 仍是 upgrade authority**，餘額 5.40 SOL（升級只花手續費，資料帳戶 rent 已存在）。
+3. **備份已存在**：升級前先 `solana program dump` 成
+   `programs/target/deploy/neonshift_core.PREV-20260929.so`（660,824 bytes），
+   必要時可用同一把 admin 金鑰回寫。`programs/target` 在 gitignore 裡。
+4. **LiteSVM 測試對著即將上鏈的那份 `.so` 跑過一次**（`cargo test -p neonshift-core`，全過）。
+   不可逆的操作值得多花這幾分鐘。
+
+### 升級後的驗證
+
+`solana program dump` 回來與本地 `.so` **逐位元組相同**（前 651,568 bytes 完全一致，
+其餘 9,256 bytes 全為 0，是配置空間的填充）。也就是說**鏈上跑的就是測過的那份**，
+不是「看起來應該一樣」。
+
+### 一個非阻塞的失敗
+
+`anchor deploy` 在程式升級成功之後，寫 **IDL metadata 帳戶**時失敗
+（`Failed to initialize IDL`）。不影響運作：App、後端與 `tools/chain-admin` 全都讀本地的
+`idl/neonshift_core.json`（三份已由 `build.sh` 同步更新），**沒有任何程式碼讀鏈上 IDL**。
+它只影響第三方瀏覽器／工具自動解析指令的便利性，之後可單獨補
+（`anchor idl init/upgrade`），不需要再動程式本身。
+
+### 還沒做的最後一步
+
+`SEASONAL_MINT_ENABLED` 仍是 `false`。依原訂順序，那是**確認升級完成之後**才能開的第三步
+（順序顛倒會讓玩家拿到鏈上必定失敗的交易）。現在順序上的前提已經成立，但開啟它等於對外
+開放領取，是另一個決定。migration 0021 已於 9/29 套用，所以三件事只剩這一件。
+
+
+## 2026-09-30 R4：核准通知導到沒有領取入口的頁面（比 review 描述的更嚴重）
+
+[9/29 review](design/implementation-review-2026-09-29.md) 的 R4 說 seasonal 會被導到 Workouts。
+實際對照「領取 UI 掛在哪個畫面」之後，**`milestone` 也是錯的**：
+
+| kind | 領取 UI 實際位置 | 修正前導向 | |
+|---|---|---|---|
+| `pb` | `PersonalBests`（WorkoutsScreen） | Workouts | ✅ |
+| `milestone` | `Milestones`（**GearScreen** 收藏區） | Workouts | ❌ |
+| `seasonal` | `SeasonalFootprints`（**GearScreen**） | Workouts | ❌ |
+| `event` | `EventDetail` | EventDetail | ✅ |
+
+`milestone` 就是「首次 5K／10K」——**跑完一趟最常見的核准**，也正是 10/1 實機主線要驗的那一段。
+核准通知跳出來、點下去，落在一個沒有領取按鈕的畫面上。
+
+修法：
+- 去向抽成純函式 `navigation/approvalTarget.ts`，用 `Record<AchievementKind, …>` 宣告，
+  **之後後端多一種 kind 而這裡沒決定去哪會直接編譯失敗**。R4 會發生的原因之一，就是
+  `AchievementView['kind']` 裡根本沒有 `'seasonal'`（後端早就會產生），於是它靜悄悄落進 `else`。已補上型別。
+- 收藏頁接受 `category` 參數，核准通知直接落在對應分類（里程碑／節日），不必自己再點一次。
+  用 navigator 傳入的 `route` prop 而不是 `useRoute`——後者在沒有 navigation context 時會丟
+  「Couldn't find a route object」，那會讓既有的 Gear 測試無法單獨渲染這個畫面（實際踩到了）。
+- **導航成功才標已讀**。原本是 `onOpen(item); dismiss();`，導航沒成功（例如 navRef 還沒 ready）
+  通知照樣消失，那枚核准就再也不會提醒第二次。現在 `onOpen(item, markRead)` 由呼叫端決定。
+
+測試：`approvalTarget.test.ts` 6 項（四種 kind 各自的去向、event 缺 id 退到列表、未知 kind 不亂猜）；
+`approvalNotice.test.tsx` 補一項「呼叫端沒標已讀時通知要留著」。App 86 suites／652 tests 通過。
+
+R1 現況（供 10/1 SKR 判斷）：`purchase()` **只擋了一半**——它在 `order.status === 'confirming' && signature`
+時會轉去查詢而不重付，但 review 講的情境是「錢包已廣播、伺服器沒收到 signature」，那時訂單仍是
+`awaiting_payment`，守衛不會觸發。要真正擋住得在開錢包前持久化 payment_attempt，屬於 R1 本身的工作。
+
+
+## 2026-09-30 實機主線第一個阻礙：「立即同步」按了沒有任何反應
+
+實機狀況：首頁顯示 `Run · 5.80 km · 36:35 · Saved on this phone · not synced yet`，
+到「我的運動」按 **Sync now** 完全沒有反應，而伺服器端**一筆請求都沒有**。
+
+### 兩件事疊在一起
+
+**一、後端 session 已失效。** 錢包在本機還連著（首頁看得到位址、`ob.owner` 有值），
+但沒有有效的後端 token。判斷依據不是猜的：畫面上那句
+「Sign in to merge workouts from your account」是 `actv.remoteSignin`，
+它**只在 `remoteErr.code === 'NO_SESSION'` 時**才會出現。這同時解釋了遠端歷史刷不出來、
+同步立刻失敗、以及 9/29 那次節日讀取失敗——`ob.owner` 有值只代表錢包連著，不代表後端還認得你。
+
+**二、失敗被靜默吞掉（真正的 bug）。** `ActivityScreen` 的按鈕是
+
+```tsx
+onPress={() => void workoutOutbox.run(ob.owner!, { manual: true })}
+```
+
+**回傳值直接丟掉**——成功不講送出幾筆，失敗不講原因。同一個 App 裡
+`WorkoutsScreen.syncLocal` 與 `ProfileScreen` 都會顯示結果，只有這裡漏了。
+使用者看到的就是「按了沒反應」，完全無從判斷該做什麼。
+
+改成與 ProfileScreen 同一套處理：成功說送出幾筆，失敗說原因（`sync.err.<code>`，
+`NO_SESSION` 就會明說要重新登入）。補兩項測試釘住「成功要說、失敗更要說」。
+
+App 86 suites／654 tests 通過。
+
+### 這一類 bug 的共同點
+
+這是這幾天第五個同型問題：**失敗發生了，但畫面不說**（504 貼原始 payload、健康資料貼原生例外、
+公開端點少 `auth: false` 連請求都不發、刪除資料把錯誤碼塞進句子、這次是整個吞掉）。
+共同教訓是自動測試抓不到——因為測試都在斷言「成功路徑」，而失敗路徑的 UI 沒有人看。
+所以這幾次補的測試一律是**斷言畫面上「必須出現什麼」或「不得出現什麼」**，不是只斷言不崩潰。
+
+
+## 2026-09-30 錢包過期與「第一次」判定（實機主線帶出來的兩件事）
+
+### 一、後端 session 過期沒有任何出口
+
+實機狀況：錢包連著、首頁照常顯示位址，但同步、成就、節日全部在**送出之前**就被擋下，
+而畫面上沒有任何地方說要重新連結。使用者的原話是「點擊 sync now 沒有任何動作」。
+
+問題在於**沒有人知道 session 沒了**：各畫面只能從自己那支請求的錯誤去猜，
+`ApiClient` 才是唯一知道 token 還在不在的地方。所以改成由它通知：
+
+- `onBackendSessionLost`／`onBackendSessionOk` 兩個訊號，分別在「沒有 token」「refresh 確定失效」
+  與「需要登入的請求成功」時發出。
+- `state/backendSessionStore.ts` 保存 `unknown｜active｜expired`。
+- `components/SessionNotice.tsx`：**只在錢包連著時**出現（沒連錢包時「請登入」是理所當然的），
+  一鍵重新連結**只做 SIWS、不重走新手流程**，而且**蓋過**核准通知與節日提醒——
+  session 沒了的時候那兩個點下去都不會成功。
+
+一個設計上的細節值得記下來：`check()` **不能**把已知的 `expired` 升回 `active`。
+`hasSession()` 只回答「本機有沒有 token」，而今天實機就是「token 在、但伺服器不認」。
+解除 `expired` 只有兩條路——重新登入成功，或某支需要登入的請求真的成功。
+（第一版寫錯成可以升回去，是測試把它抓出來的。）
+
+### 二、「第一次」判定：斷線重連被迫重走四步
+
+`WalletConnectScreen` 原本連上就無條件 `navigate('HealthAccess')`，後面每頁也各自寫死下一頁。
+於是斷線重連的人權限早就給了、起始鞋也早就有了，還是要再走一次。
+
+`domain/onboardingStep.ts` 依**實際狀態**決定，而且把兩種依據分開——這是關鍵：
+
+- **權限是裝置層的**：換錢包不會讓權限消失 → 看本機 flags。
+- **起始鞋是錢包層的**：同一支手機換錢包就是新玩家 → 看**鏈上 profile**，
+  不是本機的 `shoeMinted`（那個 flag 不分錢包，會把新錢包誤判成已領過）。
+
+`profileExists` 查不到時回 `StarterShoe` 而不是 `Main`：那一頁自己會再查一次、已存在也不會送交易；
+反過來誤判成「已經有了」就會讓真正的新使用者永遠拿不到起始鞋。
+
+順帶修掉 `StarterShoeService.quote()`：原本不看帳戶存不存在，照樣算出 rent＋手續費顯示給使用者，
+但按下去 `claim()` 走 `alreadyClaimed` 分支、**一毛都不會花**。對重連的評審來說，
+那等於系統要他為已經擁有的東西再付一次錢。
+
+### 過程中自己踩的兩個坑
+
+- **無窮迴圈**：effect 依賴 `useOnboardingStore()` 整個 store，而 `load()` 內部 `set()` 會改變
+  物件識別 → effect 重跑 → 再 load()。症狀是 jest worker 被 OOM 殺掉。改成只取 `load` action。
+- **同步 throw 逃出 `.catch`**：`accountExists(playerPda(pk)).catch(...)` 裡，`playerPda()` 是同步
+  throw，參數求值時 `.catch` 還沒接上，整個 effect 會死掉、使用者卡在錢包頁。改成整段 try／catch。
+
+「Continue as …」按鈕也共用同一套判定，不能是 no-op——它存在的情境是「錢包連上但後端登入未完成」，
+畫面先說明問題、使用者仍可選擇照樣前進。
+
+App 88 suites／667 tests 通過。
+
+## 2026-09-30｜熱量估算：體重設了卻永遠讀不到（實機）
+
+負責人跑完 3.89 km，摘要頁 `Active kcal` 是「—」，底下還寫著「Want a calorie estimate?
+Add your weight in Profile」——**但體重早就設過了**。
+
+原因不在估算模型，在載入時機。`bodyStore.weightKg` 要等 `load()` 從 SecureStore 讀回來才有值，
+而 `load()` 全專案只有一個呼叫點：Profile 的 `BodyWeightCard`。也就是說——
+
+> 冷啟動之後，只要沒有先進過 Profile，運動畫面讀到的體重永遠是 `null`。
+
+值一直好好地存在 SecureStore 裡，只是沒有人去讀它。
+
+修法是**把載入綁在讀取上**，而不是再補一次 `load()`：新增 `useWeightKg()`，消費端一律用它，
+`load()` 收斂成單一呼叫點（`BodyWeightCard` 也改用同一條路徑）。下一個要用體重的畫面
+不可能再忘記，因為拿值的唯一方式就會順便載入。
+
+順帶：hook 另外回傳 `loaded`，摘要頁的「請去設定體重」提示改成 `weightLoaded && weightKg === null`
+才顯示——否則每次進畫面都會先閃一下那句話，而它正是這次誤導負責人的那句。
+
+測試補在真正出事的情境上：**記憶體沒有、SecureStore 有**（冷啟動且沒進過 Profile）。
+先確認拿掉 hook 裡的載入該測試會紅，再確認修完變綠。原本的測試抓不到這個 bug，
+因為它們都直接 `useBody.setState()` 灌值，跳過了載入這一段。
+
+App 88 suites／668 tests 通過。
+
+## 2026-09-30｜R1：結果不明時不得重付
+
+Review（2026-09-29）的 R1 是本次清單裡唯一會讓使用者**真的損失錢**的缺口，所以先做。
+
+情境：錢包已經廣播，但回覆沒有回到 App（或第一個 confirm 請求沒送達）。
+伺服器完全不知道有那筆交易，訂單停在 `awaiting_payment`，畫面照樣給「Pay now」。
+相同 order／reference 只幫助**查找**，SPL 轉帳本身不會據此去重——再批准一次就是再轉一次帳。
+
+原本的文案其實寫對了（「do not pay again」「tap Check status before paying again」），
+但按鈕還在。**那是建議，不是保護。** 這次把它變成保護。
+
+### 知情的是本機，不是伺服器
+
+關鍵在於：回覆遺失時，唯一知道「錢包曾經拿到一筆可廣播的交易」的，是這支手機。
+所以 `payment_attempt`（訂單 id、network、blockhash、lastValidBlockHeight）在**開錢包之前**
+就寫進 SecureStore。順序不能反——一旦錢包開了就可能廣播，而沒記下來的廣播就是缺口本身。
+
+之後只要該筆嘗試未結清：`purchase()` 先 recover，不建新交易；UI 只給「查看狀態」，
+付款與取消都不顯示（取消一筆可能已在鏈上的付款同樣會誤導人）。
+
+### 「可以再付」的門檻
+
+這是整個修正最需要小心的地方。**recover 查不到交易，不代表沒付成功**——
+RPC 可能只是還沒看到，而那正好是這個 bug 最容易發生的時間窗。
+
+真正能證明的只有一件事：Solana 只在 blockhash 有效期內接受交易，
+超過 `lastValidBlockHeight` 之後它永遠不會上鏈。所以門檻訂為
+
+> 先查一次 → 等到有效期失效 → **再查一次**仍查無 → 才允許再付。
+
+查不到區塊高度時一律擋住：寧可讓使用者多等一會，也不要冒重複扣款。
+
+一個刻意的例外：錢包回報 `REJECTED` 時清掉嘗試。那是錢包給的**確定否定答案**
+（沒簽名、沒廣播），與「沒有回覆」性質不同；不清掉的話，使用者按一次取消
+就得等交易有效期過才能再付。
+
+另外 signature 在錢包一回傳就持久化，不等 confirm——原本 confirm 的網路錯誤會把它弄丟，
+那筆付款就沒人記得了。
+
+### 修的過程中發現的第二個洞
+
+`refreshCatalog` 會直接覆寫 pending 記錄，而它**每次卡片掛載都跑**。
+照原樣寫下去，attempt 會在使用者回到畫面的瞬間被洗掉——保護當場失效。
+伺服器的 `open_order` 不知道有沒有付過，知情的只有本機那筆 attempt，所以必須保留。
+
+### 測試
+
+6 個 service 案例（回覆遺失後不開錢包、已履約／需人工照結果走、證明失效後才放行、
+RPC 查不到高度擋住、signature 不遺失）＋ 3 個 store／UI 案例（卡片不給付款鍵、
+attempt 撐過重啟、REJECTED 清除而 NO_REPLY 保留）。
+
+先確認拿掉守門後其中 5 個會紅，再確認修完全綠。App 88 suites／677 tests。
+
+R1 修好之前不做 SKR 付款失敗回復的實機測試——這條限制現在解除。
+
+## 2026-09-30｜R2：換帳號不得沿用上一個帳號的資料
+
+SKR 目錄不是共用資料——價格、資格、未完成訂單、收款人全綁在**某一個錢包**上。
+舊版沒有任何隔離：卡片直接用 `st.catalog`，`refreshCatalog` 的回應也沒有版次檢查。
+
+三個面向分別修：
+
+**晚回的請求**。`refreshCatalog` 每次遞增 generation，回應對不上就整包丟掉。
+「先發的先回」在網路上從來不成立——A 的請求晚於 B 回來就會覆蓋 B 的目錄。
+特別要連 entitlements 快取一起丟，否則 B 會在離線顯示時「擁有」A 買的東西。
+
+**切換瞬間的殘留**。換帳號時先把 catalog／phase／outcome／error 清乾淨。
+那些是「那個帳號」的事實，留在畫面上就是在對 B 說 A 的事。
+卡片也改成 `catalogWallet === wallet` 才渲染，對不上顯示載入——
+不是顯示 A 的價格與資格。
+
+**付款前的再核對**。`purchase()` 拒絕目錄不屬於該錢包的請求（拿 A 的資格替 B 買東西）。
+確認框的 onPress 改用**當下**的 session，不用 render 時捕捉到的那個——
+確認框是非同步的，從按下購買到按下確認之間可以換帳號。
+
+### 一個差點混過去的假測試
+
+「確認框開著時換帳號」那個案例，第一版在**沒有修**的情況下也是綠的。
+原因是 `pay!()` 同步回傳，而建單發生在 microtask——斷言在事情還沒發生時就先檢查了。
+加上 `await act()` 之後才真的會紅。
+
+紅燈檢查不是形式：這一個如果沒做，倉庫裡就會多一個永遠不會失敗的測試，
+而它守的正好是最難用手測到的那條路徑。
+
+App 88 suites／682 tests。
+
+## 2026-09-30｜R3：出圖期間失效的來源不得送出
+
+`shareLayout` 只在**第一個 await 之前**驗一次 `stillValid`。之後要等分享能力查詢、
+再等 SVG 產圖——實機上是好幾秒。這段期間刪掉紀錄或換帳號，圖照樣寫出來、面板照樣打開。
+
+改成把一次出圖當成一個 job，每個 await 之後都重驗：能力查詢後、產圖後（**寫檔前**）、
+交付前。沒交付出去的 PNG 在 finally 直接刪掉——§6.1 說「不在分享 API 返回時刪檔」
+是因為接收端可能還在讀，但**從沒交付出去的檔案沒有人在讀**，留著只是一張不該存在的圖。
+已交付的仍然不刪，那條規則沒有變。
+
+job 序號另外擋一種情況：`svg` 是畫面上**共用**的那個節點。使用者改了版面再按一次分享，
+前一次的 `toDataURL` 可能晚一點才回來，那張圖已經不是他當初預覽的內容。
+
+### 呼叫端的兩個洞
+
+摘要頁的判斷是 `!!store.readMeta(id)`——只問「紀錄還在嗎」。
+而 `spec.source.revision` 填的是 `rulesVersion`：那是**品質規則**的版本，
+紀錄被編輯過它不會變。兩個加起來等於：出圖期間把紀錄改掉，送出去的還是舊圖，
+而且系統認為一切正常。
+
+抽成 `workoutShareStillValid(spec, meta, currentAddress)`，檢查存在、tombstone、
+歸屬、換帳號與內容版本（`updatedAt`）。抽出來是為了讓這條規則可以被直接測——
+它原本是一個寫在參數裡的 closure。
+
+一個容易寫錯的地方：`spec.owner` 原本是 `meta.owner ?? 目前帳號`。
+照這樣比對，訪客紀錄（owner 為 null）會變成 `null !== 'AcBU…'`，**每次都判定失效**。
+改成 spec 只記紀錄自己的 owner；沒綁帳號的紀錄不因換帳號失效，綁定的才要求帳號一致。
+
+### 又一個測試假設錯了
+
+「第二次出圖接手」那個案例我原本假設第一次會走到產圖再被擋下。實際上它在
+**能力查詢之後那道檢查點**就停了，連 `toDataURL` 都沒呼叫——修得比我預期的更早。
+是我的假設錯，不是程式錯，測試照實際行為改寫。
+
+App 88 suites／691 tests。
+
+## 2026-09-30｜R5、R6：跨帳號殘留與分享快取的提前刪檔
+
+### R5：節日收藏的個人欄位改成渲染時判定
+
+換 session 會重抓，但沒先清空個人 rows，也沒有忽略過時請求。A 的資格會留在 B 的畫面上，
+A 的慢回應還能蓋掉 B。就算 mint 最後被後端擋下，使用者已經先看到了假資格。
+
+修法的重點不是「重抓時記得清掉」——那種寫法只要有一條路徑忘了清就破功。
+改成記錄「rows 裡的個人欄位屬於哪個錢包」，**渲染時**判定：`rowsOwner` 與目前帳號不符
+就只顯示公開目錄。這樣換帳號的空檔、載入失敗、慢回應，三種情況都被同一層擋住。
+
+載入加 generation，舊回應丟掉；載入失敗不再保留上一次的個人資料；
+換帳號也清掉上一個帳號的錯誤提示（那不是這個帳號的事）。
+公開目錄（窗口、規則、提醒訂閱）與帳號無關，維持顯示——不必整段消失。
+
+### R6：把「已交付」和「可以刪」分開
+
+`shareAsync` 返回只代表面板關了，**不代表接收 App 讀完了**——它可能還在背景複製。
+舊版一返回就解除保護，下一次分享的數量上限就能把它刪掉。連續快速分享時，
+對方拿到的是一張壞掉的圖。
+
+分成三種狀態：產圖中、已交付保護期（5 分鐘）、可淘汰。數量上限只吃可淘汰的檔，
+保護期內寧可超量也不刪。保護期內的檔佔滿上限時，**拒絕新的產圖**並說明原因——
+使用者等幾分鐘再分享就好，對方拿到壞圖是修不回來的。
+
+保護期用**檔名裡的建立時間**判定，不是記憶體狀態：這樣 App 重啟後保護仍然成立。
+我們重啟不代表接收端讀完了。
+
+### 一個名字在說謊的測試
+
+原本那個「超過數量上限時連未到期的最舊檔一起清」在新規則下**仍然是綠的**——
+但不是因為它測的行為還在，而是因為新產圖被 `cache_full` 擋下，根本沒機會超量。
+
+留著它等於在倉庫裡記錄一條不存在的規則。改寫成三個案例：保護期內不刪而是拒絕產圖、
+保護期過後才淘汰最舊的、保護期過後不再擋新的產圖。
+
+App 88 suites／697 tests。R1～R6 全部處理完畢。
+
+## 2026-10-01｜實機：SKR happy path 的 blockhash 過期，以及 R1 自己造出來的死結
+
+### 現場
+
+Genesis Mint 卡片正常（`TEST SKR · DEVNET`、2.5 SKR、資格通過），按下付款後錢包回：
+「Blockhash expired because too much time passed between transaction creation and signing」。
+鏈上收款與付款餘額完全不動——交易從未廣播。
+
+logcat 的時間軸：
+
+| 時間 | 事件 |
+|---|---|
+| 15:32:12.7 | 送出 `solana-wallet:` intent → 錢包**選擇器** |
+| 15:32:15.9 | 選定錢包（選擇器 3.1 s） |
+| 15:32:34.0 | 按核准 → Seed Vault（錢包畫面 17.8 s） |
+| 15:32:44.7 | Seed Vault 驗證完成（10.5 s） |
+
+開錢包到簽名約 32 秒。量測當下的 devnet：**4.32 blocks/秒**，所以 150 blocks 的有效期
+只有 **約 35 秒**——不是常說的 60–90 秒（那是 mainnet 約 2.5 blocks/秒的數字）。
+加上建單／查餘額／取 blockhash 的數秒，剛好越線。錢包的訊息是對的，App 沒有錯。
+
+RPC 節點沒有落後（margin 148/150），所以不是拿到舊 blockhash。
+
+### R1 的死結（這才是要修的）
+
+畫面接著顯示「Payment result unknown」、付款鍵停用——R1 如設計運作。
+但同一個保護被放在**兩個地方**：UI 停用付款鍵，service 的 `settleAttempt` 判斷能否放行。
+而 `settleAttempt` **只在按下付款時才跑**。付款鍵停用 → 永遠跑不到 → 嘗試永遠不會清掉。
+
+卡片上寫著「原交易不可能成立後，付款會自動重新開放」。**程式沒有任何路徑做這件事。**
+唯一的出口是等訂單 TTL（15 分鐘）過期，`recover` 才會因為終止狀態而清掉 pending——
+既慢，也不是文案承諾的行為。
+
+修法：新增 `skrService.attemptIsDead()`（判定條件與 `settleAttempt` 相同：查不到付款、
+已過有效期、失效後再查一次仍查無），由 `store.recover()` 在訂單仍開著時呼叫並清掉死掉的嘗試。
+「查看狀態」因此成為真正的出口。文案同步改成實話：是**按查看狀態**才重新開放，不是自動。
+
+教訓：把同一條規則實作兩次，就會有一次忘記。UI 那一層如果要停用入口，就必須
+確認還有別的路徑能走到解除封鎖的邏輯——否則保護會變成牢籠。
+
+App 88 suites／700 tests。
+
+### 實機操作上的結論（非程式問題）
+
+devnet 有效期只有約 35 秒，而 MWA 流程本身要花掉大半：錢包選擇器、錢包確認畫面、
+Seed Vault 生物辨識。要測 happy path 必須**先設定預設錢包**（省掉選擇器），並且
+不要在錢包畫面上停留閱讀。mainnet 約 60 秒會寬鬆得多，但這仍是真實的 UX 壓力，
+正式版若要穩，應考慮 durable nonce。
+
+## 2026-10-01｜SKR 付款實機主線走通（devnet）
+
+versionCode 11、真實錢包簽章、devnet 真實交易。證據：`docs/evidence/2026-10-01-skr-devnet-payment.md`。
+
+簽章 `5wqCxqKX…S7cEnF`，slot 506215245，err None。
+`7YX4Fwx8…` 付款人 10 → 7.5、收款人 0 → 2.5。
+指令是 `transferChecked`（decimals 由鏈上核對）＋ 收款 ATA 的 idempotent 建立。
+畫面顯示 OWNED、金色邊框、Payment confirmed——建單 → 預檢 → 簽送 → 查驗 → 權限整條走完。
+
+順帶確認了後端 `SKR_MINT` 是 `7YX4Fwx8…`（另一個候選 `8JgVMChv…` 完全沒動）。
+先前讀不到後端設定（Production Reads 被擋），當時的做法是兩個候選都補發測試代幣，
+讓哪一個是設定值都付得出來——這次證明補發的那個才是對的。
+
+第一次嘗試失敗的原因與修正另記於前一則（blockhash 30 秒窗口、R1 死結）。
+
+## 2026-10-01｜里程碑「分享圖卡」按了沒畫面
+
+實機回報：First 5K 卡片按「Share image」沒有任何反應。
+
+不是沒反應——分享預覽整塊渲染在**里程碑清單全部跑完之後**。First 5K 在最上面，
+預覽卻出現在 First 5K（Official）、First 10K⋯⋯之後的位置，而且畫面不會自動捲過去。
+狀態的確變了，變化在螢幕外。
+
+對照：節日卡片的分享是渲染在**自己那張卡裡面**，所以沒這個問題。里程碑是唯一的例外。
+改成一致——預覽放進被點的那張卡（`share?.key === m.key`）。
+
+這段完全沒有測試覆蓋（倉庫裡沒有任何測試引用 `ms-share-*`），所以沒人發現。
+補的測試斷言的是**位置**而不只是存在：
+
+```
+within(screen.getByTestId('ms-first_10k-device')).getByTestId('ms-share-preview')
+```
+
+並確認只有被點的那一張有預覽。放回舊位置會紅。
+
+順帶確認：剛買到的 Genesis 金框在里程碑卡上有正確套用（實機截圖可見）。
+
+App 88 suites／701 tests。
+
+## 2026-10-02｜「點了 Disconnect 會停住」——又一個沒有回饋的動作
+
+實機回報按下斷開錢包沒反應。查證：App 行程活著、**沒有 ANR**、logcat 無 JS 例外，
+而 `dumpsys window` 顯示 `mCurrentFocus=ResolverActivity`——錢包選擇器其實已經起來了。
+
+所以不是當掉，是**中間那段完全沒有回饋**：
+
+```
+await apiClient.signOut()        ← 網路請求，最長 15 秒，畫面毫無變化
+await wallet.disconnect()        ← 才去開錢包（MWA deauthorize 要開錢包撤銷授權）
+await healthConnect.clearCache()
+navigation.reset(Landing)
+```
+
+第一步最久 15 秒，期間沒有 spinner、按鈕沒停用、什麼都沒變。使用者唯一能得到的結論就是壞了。
+
+修：按鈕進入進行中（`Disconnecting…`）並停用，重複觸發直接 return；確認框文案補一句
+「錢包會瞬間開啟一下以正式撤銷授權，這段可能要幾秒」——因為會跳出錢包選擇器這件事
+原本完全沒有預告。
+
+這是今天第三個同一類缺陷：
+「立即同步」是結果被丟掉、「分享圖卡」是變化在螢幕外、這個是過程中沒有回饋。
+三者的共同點都是**動作沒有說出自己發生了什麼**，而且三者都是實機才看得出來——
+自動化測試會通過，因為狀態確實有變。
+
+App 88 suites／702 tests。
+
+## 2026-10-02｜deauthorize 不該等兩分鐘；「已過期」不該對剛拒簽的人說
+
+### deauthorize 的逾時獨立出來
+
+實機上 Solana Mobile Wallet 的 bottom sheet 起來卻**不畫內容**，又吃掉所有觸控，
+返回鍵也關不掉。NeonShift 這邊行為是對的——120 秒 hard timeout 觸發後錯誤被吞掉、
+本機狀態照樣清除、導回 Landing——但使用者對著一個動不了的畫面等了將近三分鐘。
+
+120 秒這個數字是給「使用者要讀、要想、要按指紋」的操作用的。`deauthorize` 不是：
+它是盡力而為的清理，真正重要的是本機狀態被清掉，錢包那邊的 auth token 留著頂多是殘留記錄。
+獨立成 `DEAUTHORIZE_TIMEOUT_MS = 15_000`。
+
+（錢包不畫內容是錢包端的問題，我們管不到；能管的是不要讓使用者陪它等。）
+
+### 「你的登入已過期」在拒簽後是假話
+
+實機：使用者在 SIWS 那一步拒簽，浮層卻說 *Your sign-in expired*。
+**它沒有過期——是幾秒前才拒簽的。**
+
+`ApiClient` 本來就分 `missing`（本機根本沒有 token：拒簽、登出）與 `invalid`
+（refresh 真的失效），但 `backendSessionStore` 的註解寫著「只作診斷用，不進使用者文案」，
+兩種共用同一段。現在依原因分開：`missing` 說「完成 NeonShift 登入」，
+`invalid` 才說「已過期」。兩種都保留「不會重走新手流程」那句——那是使用者最常問的。
+
+順帶修正 `check()`：本機查不到 token 時把原因記成 `missing`，而不是留著上一次的值。
+
+testID 維持 `session-notice` 不變——我一度把它改成帶後綴，打到既有測試。
+testID 是契約，不該為了加一個變體就換掉。
+
+App 88 suites／705 tests。

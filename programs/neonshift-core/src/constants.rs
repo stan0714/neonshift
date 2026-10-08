@@ -16,7 +16,7 @@ pub const TOURNAMENT_SEED: &[u8] = b"tournament";
 pub const ENTRY_SEED: &[u8] = b"entry";
 
 /// canonical attestation 的環境識別（SD 3.1 Config.cluster_id）；數值以 attestation-core 為準
-pub use attestation_core::{CLUSTER_DEVNET, CLUSTER_LOCALNET, TASK_SLEEP, TASK_STEPS};
+pub use attestation_core::{CLUSTER_DEVNET, CLUSTER_LOCALNET, TASK_SLEEP, TASK_STEPS, TASK_WORKOUT};
 
 /// tSKR 固定 6 decimals（BR-22）
 #[constant]
@@ -41,6 +41,8 @@ pub const DEFAULT_CORE_MULTIPLIER_BPS: [u16; 5] = [10_000, 12_000, 15_000, 18_00
 /// 每次成功打卡的 XP（SA BR-34）；與代幣數量獨立
 pub const XP_STEPS: u64 = 100;
 pub const XP_SLEEP: u64 = 50;
+/// 維持規則 v2（DEC-04）：運動 session 任務 XP 與維持點同數字
+pub const XP_WORKOUT: u64 = 100;
 /// 五階 XP 門檻預設值（SA BR-35）
 pub const DEFAULT_SHOE_XP_THRESHOLDS: [u64; 5] = [0, 450, 1_500, 3_600, 7_500];
 /// streak 加成生效所需連續任務日（BR-06）
@@ -95,16 +97,19 @@ pub mod tournament_status {
 }
 
 // ---- PG-V-02：跑鞋維持挑戰（shoe-gameplay 3、4；tools/maintenance-sim/rules.mjs 同版參數）----
-/// 維持規則版本
-pub const MAINTENANCE_RULES_VERSION: u16 = 1;
+/// 維持規則版本。v2（2026-09-20，DEC-04 方案 B）：第二任務由睡眠改為運動 session（+100），日上限 200；門檻／活躍日／結算順序不變，
+/// 故不需重新錨定週期——既有玩家於下一次 clock_in 直接標為 v2。睡眠 receipt 歷史保留、不再接受新申請。
+pub const MAINTENANCE_RULES_VERSION: u16 = 2;
 /// 每期任務日數
 pub const EPOCH_DAYS: u32 = 7;
 /// 每階每期維持點門檻（index＝level−1；Lv1 不要求）
 pub const MAINTENANCE_POINTS: [u16; 5] = [0, 200, 450, 700, 900];
 /// 每階每期至少活躍日
 pub const MAINTENANCE_ACTIVE_DAYS: [u8; 5] = [0, 2, 3, 5, 6];
-/// 維持點：步數／睡眠（與 XP 數字相同，但每期重算）
+/// 維持點：步數／運動（與 XP 數字相同，但每期重算）；每任務每日一張 receipt，v2 日上限＝100＋100＝200
 pub const MAINTENANCE_POINTS_STEPS: u16 = 100;
+pub const MAINTENANCE_POINTS_WORKOUT: u16 = 100;
+/// v1 睡眠維持點（僅供歷史說明；v2 不再接受睡眠申請）
 pub const MAINTENANCE_POINTS_SLEEP: u16 = 50;
 /// clock_in 內可順帶結算的最多期數；超過須先呼叫 `settle_player_epochs`（bounded，禁止無界迴圈）
 pub const MAX_INLINE_SETTLE_EPOCHS: u32 = 8;

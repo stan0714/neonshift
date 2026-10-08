@@ -1,0 +1,100 @@
+/** PG-LINK-01：外觀與有效等級分開——擁有清單、外觀等級回退、場景、鞋款快照；偏好依錢包分區、新鞋提示只在有明確選擇時出現。 */
+import { PublicKey } from '@solana/web3.js';
+
+import type { PlayerProfile } from '@/chain/accounts';
+import { appearanceLevel, highestOwnedLevel, ownedShoes, isFirstWear, resolveTraceLayer, sceneOf, shoeMileage, shoeSnapshotOf } from '@/domain/appearance';
+import { useAppearanceStore } from '@/state/appearanceStore';
+
+const wallet = new PublicKey('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
+const profile = (p: Partial<PlayerProfile>): PlayerProfile => ({ wallet, coreLevel: 2, shoeLevel: 2, xp: BigInt(600), lastTaskDate: 0, streakDays: 1, maxStreakDays: 1, claimedToday: BigInt(0), todayDate: 0, migrated: true, highestLevel: 2, epochAnchor: 0, lastSettledEpoch: 0, epochPoints: 0, epochBitmap: 0, maintenanceRulesVersion: 1, ...p });
+const owner = wallet.toBase58();
+
+beforeEach(() => {
+  useAppearanceStore.setState({ owner: null, loaded: false, selectedShoeId: null, shoeBackgroundEnabled: true, acquiredAt: {}, offer: null });
+});
+
+test('取得＝曾達到的最高階（highest／shoeLevel 取大者），XP 達門檻不算；Lv.1 要領過起始鞋才算', () => {
+  // 2026-10-02 實機：沒有 profile 卻顯示原點「使用中」，與收藏區「建立玩家檔案」矛盾
+  expect(ownedShoes(owner, null)).toEqual([]);
+  expect(ownedShoes(owner, profile({ xp: BigInt(99_999), coreLevel: 1, shoeLevel: 1, highestLevel: 1 })).map((s) => s.level)).toEqual([1]);
+  const list = ownedShoes(owner, profile({ coreLevel: 2, shoeLevel: 2, highestLevel: 4 }));
+  expect(list.map((s) => s.level)).toEqual([1, 2, 3, 4]);
+  expect(list[0]).toMatchObject({ id: 'wild-guardians-v1:1', variant: null, entitlementSource: 'starter' });
+  expect(list[3]).toMatchObject({ id: 'wild-guardians-v1:4', entitlementSource: 'chain_level' });
+  expect(list[3]!.variant).toBeTruthy();
+  expect(highestOwnedLevel(profile({ shoeLevel: 3, highestLevel: 2 }))).toBe(3);
+});
+
+test('外觀等級：明確選擇且仍擁有 → 該鞋（降級後沿用）；未選擇或選了未取得 → 跟隨有效等級', () => {
+  const p = profile({ coreLevel: 2, shoeLevel: 2, highestLevel: 4 });
+  expect(appearanceLevel(p, null)).toBe(2);
+  expect(appearanceLevel(p, 'wild-guardians-v1:4')).toBe(4);
+  expect(appearanceLevel(p, 'wild-guardians-v1:5')).toBe(2); // 未取得
+  expect(appearanceLevel(null, 'wild-guardians-v1:3')).toBe(1);
+  expect(sceneOf(1)).toBeNull();
+  expect([2, 3, 4, 5].map((l) => sceneOf(l as 2 | 3 | 4 | 5))).toEqual(['forest', 'ocean', 'jungle', 'snow']);
+});
+
+test('鞋款快照：未綁定玩家 → null（未指定，不推算）；有玩家 → 目前外觀', () => {
+  expect(shoeSnapshotOf(null, profile({}), null)).toBeNull();
+  expect(shoeSnapshotOf(owner, null, null)).toBeNull();
+  expect(shoeSnapshotOf(owner, profile({ highestLevel: 3 }), 'wild-guardians-v1:3')).toMatchObject({ shoeId: 'wild-guardians-v1:3', level: 3 });
+});
+
+test('偏好依錢包分區；訪客預設且不保存；新鞋只在有明確選擇時提示「立即使用／稍後」，不覆蓋原選擇', async () => {
+  const store = useAppearanceStore.getState();
+  await store.load(owner);
+  expect(useAppearanceStore.getState()).toMatchObject({ owner, loaded: true, selectedShoeId: null, shoeBackgroundEnabled: true });
+  // 跟隨有效等級時取得新鞋：不提示（外觀自然跟著有效等級）
+  await useAppearanceStore.getState().observeOwned(2);
+  expect(useAppearanceStore.getState().offer).toBeNull();
+  expect(useAppearanceStore.getState().acquiredAt[2]).toBeTruthy();
+  // 明確選擇 Lv.2 後取得 Lv.3 → 提示；稍後 → 選擇不變
+  await useAppearanceStore.getState().selectShoe(2);
+  await useAppearanceStore.getState().observeOwned(3);
+  expect(useAppearanceStore.getState().offer).toBe(3);
+  useAppearanceStore.getState().dismissOffer();
+  expect(useAppearanceStore.getState().selectedShoeId).toBe('wild-guardians-v1:2');
+  await useAppearanceStore.getState().setBackground(false);
+  // 訪客：回預設、不保存
+  await useAppearanceStore.getState().load(null);
+  expect(useAppearanceStore.getState()).toMatchObject({ owner: null, selectedShoeId: null, shoeBackgroundEnabled: true });
+  await useAppearanceStore.getState().setBackground(false);
+  // 回到同一錢包：讀回之前保存的選擇與關閉的背景
+  useAppearanceStore.setState({ loaded: false });
+  await useAppearanceStore.getState().load(owner);
+  expect(useAppearanceStore.getState()).toMatchObject({ owner, selectedShoeId: 'wild-guardians-v1:2', shoeBackgroundEnabled: false });
+  // 另一錢包：不沿用
+  useAppearanceStore.setState({ loaded: false });
+  await useAppearanceStore.getState().load('11111111111111111111111111111112');
+  expect(useAppearanceStore.getState()).toMatchObject({ selectedShoeId: null, shoeBackgroundEnabled: true });
+});
+
+test('PG-LINK-07 路線底圖跟隨跑鞋：shoe → 目前外觀的棲地（Lv.1 → 格線）；明確選棲地需曾取得該鞋階，否則退回跟隨；基本圖層不變', () => {
+  expect(resolveTraceLayer('shoe', 1, 1)).toBe('grid');
+  expect(resolveTraceLayer('shoe', 3, 3)).toBe('ocean');
+  expect(resolveTraceLayer('shoe', 2, 4)).toBe('forest'); // 降級外觀沿用 Lv.2 → 森林
+  expect(resolveTraceLayer('snow', 2, 5)).toBe('snow'); // 曾取得 Lv.5 → 可選雪林
+  expect(resolveTraceLayer('snow', 2, 2)).toBe('forest'); // 未取得 → 跟隨跑鞋
+  expect(resolveTraceLayer('mars', 5, 5)).toBe('mars');
+});
+
+test('LINK-10 每雙鞋歷程：依鞋款快照歸組、只算該玩家（訪客只算無 owner）、待審／刪除中另計、無快照不歸任何鞋', () => {
+  const s = (o: Record<string, unknown>) => ({ status: 'saved', owner, shoeSnapshot: { shoeId: 'wild-guardians-v1:2' }, summary: { distanceMm: 3_000_000 }, ...o });
+  const rows = [s({}), s({ summary: { distanceMm: 2_000_000 } }), s({ status: 'needs_review' }), s({ deletedAt: 1 }), s({ owner: 'other' }), s({ shoeSnapshot: null }), s({ owner: null, shoeSnapshot: { shoeId: 'wild-guardians-v1:1' } }), s({ status: 'recording' })];
+  expect(shoeMileage(rows, owner)).toEqual({ 'wild-guardians-v1:2': { count: 2, distanceMm: 5_000_000, review: 2 } });
+  expect(shoeMileage(rows, null)).toEqual({ 'wild-guardians-v1:1': { count: 1, distanceMm: 3_000_000, review: 0 } });
+});
+
+test('LINK-10 首次穿新鞋：同玩家同鞋款最早 saved 場次；待審／刪除／訪客／Lv.1 不算', () => {
+  const base = { status: 'saved', owner, shoeSnapshot: { shoeId: 'wild-guardians-v1:2', level: 2 } };
+  const rows = [
+    { sessionId: 'b', startedAtUtc: 2, ...base },
+    { sessionId: 'a', startedAtUtc: 1, ...base },
+    { sessionId: 'r', startedAtUtc: 0, ...base, status: 'needs_review' },
+    { sessionId: 'g', startedAtUtc: 0, ...base, owner: null },
+    { sessionId: 'l1', startedAtUtc: 0, ...base, shoeSnapshot: { shoeId: 'wild-guardians-v1:1', level: 1 } },
+  ];
+  expect(rows.map((r) => isFirstWear(rows, r.sessionId))).toEqual([false, true, false, false, false]);
+  expect(isFirstWear(rows.map((r) => (r.sessionId === 'a' ? { ...r, deletedAt: 1 } : r)), 'b')).toBe(true); // a 刪除後 b 成為第一場
+});

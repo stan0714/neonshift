@@ -1,0 +1,159 @@
+import { useEffect } from 'react';
+import { Alert, StyleSheet, Switch, View } from 'react-native';
+
+import { Button, Chip, InlineState } from '@/components';
+import { useT, type TKey } from '@/i18n';
+import type { SkrSkuView } from '@/services/api/ApiClient';
+import { skrService } from '@/services/skr/SkrService';
+import { useOnline } from '@/hooks/useOnline';
+import { genesisFrameActive, openAttemptFor, ownsGenesisFrame, pendingOrderFor, useSkrStore } from '@/state/skrStore';
+import { shortAddress, useWalletStore } from '@/state/walletStore';
+import { color, radius, space, Text } from '@/theme';
+
+/**
+ * SKR 獨立獎首款 SKU：已驗證首次 5 km 成就 → 可用官方 SKR 購買「Genesis Mint」收藏卡邊框（純外觀）。
+ * 狀態：未開放（隱藏）／未達成／待登錄／可購買（價格、網路、收款人預覽）／訂單進行中（查看狀態、取消）／需人工處理／已擁有（選用開關）。
+ * 規則（計畫 §1／§5）：成就不能買；SKR 不加 XP／排名；devnet 試跑一律標 TEST；付款送出後不重送、遺失回覆走 recover。
+ */
+export function GenesisFrameCard({ reloadKey = 0 }: { reloadKey?: number | string }) {
+  const { t } = useT();
+  const session = useWalletStore((s) => s.session);
+  const st = useSkrStore();
+  const wallet = session?.address ?? null;
+  const online = useOnline(); // hooks 一律在提早 return 之前
+  useEffect(() => { if (wallet) void st.refreshCatalog(wallet); }, [wallet, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!session || !wallet) return null;
+  /**
+   * R2：目錄是「某一個錢包」的資料——價格、資格、未完成訂單、收款人全綁在那個帳號上。
+   * 直接用 st.catalog 會在換帳號的空檔把 A 的內容顯示給 B。catalogWallet 對不上就當作還沒載入。
+   */
+  const cat = st.catalogWallet === wallet && st.catalog?.enabled ? st.catalog : null;
+  if (!cat) {
+    // 伺服器明確回「未開放」→ 整張卡不顯示（原行為）；其餘情況是還沒對上這個錢包 → 顯示載入。
+    if (st.catalogWallet === wallet && st.catalog && !st.catalog.enabled) return null;
+    return (
+      <View style={styles.card} testID="genesis-frame-loading">
+        <Text variant="title">{t('skr.title')}</Text>
+        <Text variant="caption" tone="muted" style={styles.mtXs}>{t('common.loading')}</Text>
+      </View>
+    );
+  }
+  const sku: SkrSkuView | undefined = cat.skus.find((s) => s.sku === 'genesis_mint_frame');
+  if (!sku) return null;
+  const owned = ownsGenesisFrame(st, wallet);
+  const active = genesisFrameActive(st, wallet);
+  const pending = pendingOrderFor(st, wallet);
+  // R1：本機記得對這張訂單開過錢包 → 結果不明，只給「查看狀態」。
+  // 文案早就寫著「do not pay again」，但按鈕還在——那是建議，不是保護。
+  const attempt = owned ? null : openAttemptFor(st, wallet);
+  const open = sku.open_order;
+  const isTest = cat.network !== 'mainnet-beta';
+  const busy = st.phase !== null;
+
+  const buy = () => {
+    Alert.alert(
+      t('skr.confirmTitle'),
+      t('skr.confirmBody', { amount: sku.price_display, network: isTest ? t('skr.networkTest') : t('skr.networkMainnet'), recipient: shortAddress(cat.recipient, 6) }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('skr.pay', { amount: sku.price_display }),
+          // R2：確認框是非同步的——從按下「購買」到在這裡按確認之間可能換過帳號。
+          // 用**現在的** session 核對，不用 render 當下捕捉到的那個。
+          onPress: () => {
+            const current = useWalletStore.getState().session;
+            if (!current || current.address !== wallet) return;
+            void st.purchase(current.publicKey, sku.sku);
+          },
+        },
+      ],
+    );
+  };
+
+  const errorBody = st.error ? t(`skr.err.${st.error.code}` as TKey) : null;
+  const outcome = st.outcome;
+  return (
+    <View style={[styles.card, active && styles.cardFramed]} testID="genesis-frame-card" accessible accessibilityLabel={t('skr.title')}>
+      <View style={styles.head}>
+        <View style={styles.flex}>
+          <Text variant="title">{t('skr.title')}</Text>
+          <Text variant="caption" tone="muted">{t('skr.subtitle')}</Text>
+        </View>
+        <Chip label={isTest ? t('skr.chipTest') : t('skr.chipMainnet')} kind={isTest ? 'devnet' : 'level'} />
+      </View>
+      <Text variant="bodySmall" tone="secondary" style={styles.mt}>{t('skr.rules')}</Text>
+
+      {owned ? (
+        <View style={styles.row} testID="genesis-frame-owned">
+          <View style={styles.flex}>
+            <Chip label={t('skr.owned')} kind="synced" />
+            <Text variant="caption" tone="muted" style={styles.mtXs}>{t('skr.ownedHint')}</Text>
+          </View>
+          <Switch value={active} onValueChange={(v) => void st.setUseGenesisFrame(wallet, v)} accessibilityLabel={t('skr.useFrame')} testID="genesis-frame-toggle" />
+        </View>
+      ) : open && (open.status === 'awaiting_payment' || open.status === 'confirming' || open.status === 'needs_review') ? (
+        <View style={styles.mt} testID={`genesis-frame-order-${open.status}`}>
+          <Chip label={t(`skr.order.${open.status}` as TKey)} kind={open.status === 'needs_review' ? 'devnet' : 'neutral'} />
+          <Text variant="caption" tone="secondary" style={styles.mtXs}>{t(`skr.orderHint.${open.status}` as TKey, { amount: open.amount_display })}</Text>
+          <View style={styles.actions}>
+            {open.status !== 'needs_review' ? <Button label={t('skr.checkStatus')} variant="secondary" onPress={() => void st.recover(wallet, open.order_id)} loading={busy} disabled={busy} testID="genesis-frame-recover" /> : null}
+            {open.status === 'awaiting_payment' && !attempt ? <Button label={t('skr.payNow')} onPress={buy} disabled={busy || !online} testID="genesis-frame-pay" /> : null}
+            {open.status === 'awaiting_payment' && !attempt ? <Button label={t('common.cancel')} variant="secondary" onPress={() => void st.cancel(wallet, open.order_id)} disabled={busy} testID="genesis-frame-cancel" /> : null}
+          </View>
+        </View>
+      ) : sku.eligibility === 'eligible' ? (
+        <View style={styles.mt} testID="genesis-frame-buy">
+          <Text variant="heading2" numeric>{t('skr.price', { amount: sku.price_display })}</Text>
+          <Text variant="caption" tone="muted">{t('skr.priceHint', { recipient: shortAddress(cat.recipient, 6) })}</Text>
+          <Button label={busy && st.phase ? t(`skr.phase.${st.phase}` as TKey) : t('skr.buy')} onPress={buy} loading={busy} disabled={busy || !online || !!attempt} style={styles.mt} testID="genesis-frame-buy-btn" />
+          {/* 建單就要連伺服器：離線時按下去必定在第一步失敗，不如先說清楚 */}
+          {!online ? <Text variant="caption" tone="muted" style={styles.mtXs} testID="genesis-frame-offline">{t('skr.offline')}</Text> : null}
+        </View>
+      ) : (
+        <View style={styles.mt} testID={`genesis-frame-${sku.eligibility}`}>
+          <Chip label={t(`skr.eligibility.${sku.eligibility}` as TKey)} kind="neutral" />
+          <Text variant="caption" tone="muted" style={styles.mtXs}>{t(`skr.eligibilityHint.${sku.eligibility}` as TKey)}</Text>
+        </View>
+      )}
+
+      {pending && !owned && !open ? (
+        <View style={styles.mt} testID="genesis-frame-pending-local">
+          <Text variant="caption" tone="secondary">{t('skr.pendingLocal')}</Text>
+          <Button label={t('skr.checkStatus')} variant="secondary" onPress={() => void st.recover(wallet, pending.orderId)} loading={busy} disabled={busy} style={styles.mtXs} testID="genesis-frame-recover-local" />
+        </View>
+      ) : null}
+
+      {attempt ? (
+        <InlineState
+          kind="warning"
+          title={t('skr.attempt.title')}
+          body={t('skr.attempt.body')}
+          action={{ label: t('skr.checkStatus'), onPress: () => void st.recover(wallet, attempt.orderId) }}
+          testID="genesis-frame-attempt"
+        />
+      ) : null}
+
+      {outcome?.kind === 'fulfilled' ? <InlineState kind="success" title={t('skr.done')} body={t('skr.doneBody')} testID="genesis-frame-success" /> : null}
+      {outcome?.kind === 'confirming' ? <InlineState kind="info" title={t('skr.order.confirming')} body={t('skr.orderHint.confirming', { amount: outcome.order.amount_display })} testID="genesis-frame-confirming" /> : null}
+      {outcome?.kind === 'needs_review' ? <InlineState kind="warning" title={t('skr.order.needs_review')} body={t('skr.orderHint.needs_review', { amount: outcome.order.amount_display })} testID="genesis-frame-review" /> : null}
+      {errorBody ? <InlineState kind={st.error?.code === 'REJECTED' ? 'warning' : 'error'} title={t('skr.failed')} body={errorBody} testID="genesis-frame-error" /> : null}
+      {st.catalogError ? <Text variant="caption" tone="muted" style={styles.mt}>{t('skr.catalogError')}</Text> : null}
+      <Text variant="caption" tone="muted" style={styles.mt}>{t('skr.footer')}</Text>
+    </View>
+  );
+}
+
+/** 供收藏卡套用的邊框樣式（擁有且選用時） */
+export const genesisFrameStyle = { borderColor: color.warning, borderWidth: 2 } as const;
+export { skrService };
+
+const styles = StyleSheet.create({
+  card: { borderWidth: 1, borderColor: color.borderSubtle, borderRadius: radius.m, padding: space.m, backgroundColor: color.surface, marginTop: space.s },
+  cardFramed: genesisFrameStyle,
+  head: { flexDirection: 'row', alignItems: 'flex-start', gap: space.s },
+  flex: { flex: 1 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.s },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.s },
+  mt: { marginTop: space.s },
+  mtXs: { marginTop: space.xs },
+});

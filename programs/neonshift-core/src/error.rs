@@ -60,7 +60,7 @@ pub enum ErrorCode {
     Unauthorized, // 6026
     #[msg("attestation 時間欄位不自洽（issued_at <= not_before <= expiry）")]
     InvalidAttestationWindow, // 6027
-    #[msg("task_type 不是 1（steps）或 2（sleep）")]
+    #[msg("task_type 不是 1（steps）、2（sleep）或 3（workout）")]
     InvalidTaskType, // 6028
     #[msg("尚未達成此成就的資格")]
     CollectibleNotEligible, // 6029
@@ -94,4 +94,6 @@ pub enum ErrorCode {
     InvalidProfileAccount, // 6043
     #[msg("凍結視窗無效：end 須大於 start、最長 28 天、start 不得早於 7 天前")]
     InvalidFreezeWindow, // 6044
+    #[msg("睡眠任務已於維持規則 v2 退役，不再接受申請")]
+    TaskTypeRetired, // 6045
 }

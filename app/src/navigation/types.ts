@@ -1,9 +1,15 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
+/** 收藏頁的分類（GearScreen 的分段控制） */
+export type GearCategory = 'all' | 'shoes' | 'milestones' | 'seasonal';
+
 /** 底部四分頁（Style 2.2 / SD 5.2） */
 export type TabParamList = {
   Home: undefined;
-  Gear: undefined;
+  /** 我的運動（PG-LINK-06；2026-09-20 改為分頁）；root 的 Activity（帶 month）保留給深連結／月份跳轉 */
+  ActivityTab: undefined;
+  /** R4：核准通知可直接落在對應的收藏分類（里程碑／節日），不必自己再點一次 */
+  Gear: { category?: GearCategory } | undefined;
   Arena: undefined;
   Profile: undefined;
 };
@@ -21,23 +27,34 @@ export type RootParamList = {
   Bootstrap: undefined;
   Landing: undefined;
   DemoPreview: undefined;
+  GameGuide: { onboarding?: boolean } | undefined;
   Onboarding: NavigatorScreenParams<OnboardingParamList>;
   Main: NavigatorScreenParams<TabParamList>;
   ActivityHistory: undefined;
+  Explore: undefined;
   /** 運動紀錄（PG-R-01，FR-14.1）：匯入的跑步／健走摘要 */
   Workouts: undefined;
+  WorkoutReturn: undefined;
+  /** PG-SHARE-04：分享連結 neonshift://s/<kind>（或 https://neonshift.cc/s/<kind>）進 App 後轉往對應畫面 */
+  ShareLanding: { kind?: string; source?: string };
+  /** PG-LINK-04 我的運動日誌；month＝YYYY-MM */
+  Activity: { month?: string } | undefined;
+  ActivityDetail: { serverId: string };
   /** GPS 記錄（PG-R-03／R-06，FR-18）：開始 → 記錄 → 摘要 */
-  WorkoutStart: undefined;
+  /** XD-01：任務卡「開始」帶入模式／目標（不覆寫進行中的 session；開始頁仍可改） */
+  WorkoutStart: { preset?: { goal: { kind: 'time'; minutes: number } | { kind: 'free' }; mode?: 'walk' | 'brisk' | 'run'; questId?: string } } | undefined;
   WorkoutRecord: undefined;
-  WorkoutSummary: { sessionId: string };
+  WorkoutSummary: { sessionId: string; celebrate?: boolean };
   /** 藝廊（FR-13，Style 12.1）：全站排行與任意玩家公開頁 */
   Gallery: undefined;
   GalleryPlayer: { wallet: string };
   /** PB 成就 NFT 詳情（R-09） */
   AchievementDetail: { asset: string };
+  /** XD-03 成就護照（本人只讀） */
+  Passport: undefined;
   /** 合作活動（FR-09～FR-12，SD 11）：列表與詳情；detail 可帶宣傳來源 */
   Events: undefined;
-  EventDetail: { idOrSlug: string; source?: string; /** NFC／QR 標籤 opaque reference（`?tag=`） */ tag?: string };
+  EventDetail: { idOrSlug: string; source?: string; /** NFC／QR 標籤 opaque reference（`?tag=`） */ tag?: string; /** 活動當天快捷：進頁直接展開報到碼 */ showCode?: boolean };
   /** 工作人員報到（E-05）：需該活動 staff 角色 */
   StaffCheckIn: { eventId: string; slug: string };
   /** __DEV__ 專用 */

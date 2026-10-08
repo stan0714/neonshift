@@ -35,6 +35,11 @@ jest.mock('./modules/neonshift-health/src/NeonshiftHealthModule', () => ({
   },
 }));
 
+jest.mock('./modules/neonshift-notify/src/NeonshiftNotifyModule', () => ({
+  __esModule: true,
+  default: { ensureChannel: jest.fn(() => ({ importance: 3, silenced: false, appNotificationsEnabled: true })) },
+}));
+
 jest.mock('./modules/neonshift-sensors/src/NeonshiftSensorsModule', () => ({
   __esModule: true,
   default: {
@@ -70,7 +75,13 @@ jest.mock('expo-network', () => ({
   NetworkStateType: { WIFI: 'WIFI', NONE: 'NONE' },
 }));
 
+// PG-SHARE-03：分享面板與剪貼簿是原生模組；預設可用，個別測試可覆寫
+jest.mock('expo-sharing', () => ({ isAvailableAsync: jest.fn(async () => true), shareAsync: jest.fn(async () => {}) }));
+jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(async () => true) }));
+
 // PG-R-03：定位／背景任務／檔案系統在 Jest 無原生實作；recorder 測試以注入替代
+jest.mock('expo-keep-awake', () => ({ useKeepAwake: () => {}, activateKeepAwakeAsync: jest.fn(async () => {}), deactivateKeepAwake: jest.fn(async () => {}) }));
+jest.mock('expo-speech', () => ({ speak: jest.fn(), stop: jest.fn() }));
 jest.mock('expo-task-manager', () => ({ defineTask: jest.fn(), isTaskDefined: jest.fn(() => true) }));
 jest.mock('expo-location', () => ({
   Accuracy: { BestForNavigation: 6 },
@@ -79,6 +90,7 @@ jest.mock('expo-location', () => ({
   startLocationUpdatesAsync: jest.fn(async () => {}),
   stopLocationUpdatesAsync: jest.fn(async () => {}),
   hasStartedLocationUpdatesAsync: jest.fn(async () => true),
+  watchPositionAsync: jest.fn(async () => ({ remove: jest.fn() })),
 }));
 jest.mock('expo-file-system', () => {
   // 記憶體檔案系統：只實作 LocalWorkoutStore 用到的 File／Directory API
@@ -92,14 +104,24 @@ jest.mock('expo-file-system', () => {
     get name() { return this.uri.split('/').pop()!; }
     create() { dirs.add(this.uri); }
     delete() { dirs.delete(this.uri); for (const k of [...files.keys()]) if (k.startsWith(`${this.uri}/`)) files.delete(k); for (const d of [...dirs]) if (d.startsWith(`${this.uri}/`)) dirs.delete(d); }
-    list() { return [...dirs].filter((d) => d.startsWith(`${this.uri}/`) && !d.slice(this.uri.length + 1).includes('/')).map((d) => new Directory(d)); }
+    list() {
+      const own = (k: string) => k.startsWith(`${this.uri}/`) && !k.slice(this.uri.length + 1).includes('/');
+      return [...[...dirs].filter(own).map((d) => new Directory(d)), ...[...files.keys()].filter(own).map((f) => new File(f))];
+    }
   }
   class File {
     uri: string;
     constructor(...parts: unknown[]) { this.uri = join(parts); }
     get exists() { return files.has(this.uri); }
+    get name() { return this.uri.split('/').pop()!; }
     create() { if (!files.has(this.uri)) files.set(this.uri, ''); }
     write(content: string, opts?: { append?: boolean }) { files.set(this.uri, (opts?.append ? (files.get(this.uri) ?? '') : '') + content); }
+    async move(dest: File, opts?: { overwrite?: boolean }) {
+      if (!files.has(this.uri)) throw new Error(`move: source missing ${this.uri}`);
+      if (files.has(dest.uri) && !opts?.overwrite) throw new Error(`move: destination exists ${dest.uri}`);
+      files.set(dest.uri, files.get(this.uri)!);
+      files.delete(this.uri);
+    }
     async text() { return files.get(this.uri) ?? ''; }
     textSync() { return files.get(this.uri) ?? ''; }
     delete() { files.delete(this.uri); }

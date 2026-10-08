@@ -1,8 +1,10 @@
 # NeonShift 系統設計文件（SD — System Design）
 
+> 2026-09-20 現況：App 睡眠已停用讀取與入口；下文睡眠／雙任務內容屬保留協議或舊規則，不代表目前 App 提供此功能。鏈上與後端仍保留，Lv5 維持門檻影響見 [停用盤點](./activity-sleep-review.md)。
+
 | 項目 | 內容 |
 |---|---|
-| 文件版本 | v0.33（事故凍結） |
+| 文件版本 | v0.38（第二輪靜態 review：跑者記錄體驗） |
 | 建立日期 | 2026-09-09 |
 | 上游文件 | [BRD v0.6](./brd-detailed.md)、[SA v0.4](./sa.md)、[Style Guide v0.1](./style.md) |
 | 目標平台 | Android only；最低 Android 14（API 34）；Solana Mobile Seeker 為主要裝置 |
@@ -157,7 +159,7 @@ graph TB
 |---|---|---|
 | `wallet` | Pubkey | — |
 | `task_date` | u32 | UTC 日序 |
-| `task_type` | u8 | 1 = steps，2 = sleep |
+| `task_type` | u8 | 1 = steps，2 = sleep（維持規則 v2 起退役，6045），3 = workout（v2，DEC-04） |
 | `amount` | u64 | 實發金額 |
 | `nonce` | [u8; 16] | attestation nonce |
 | `claimed_at` | i64 | — |
@@ -308,7 +310,7 @@ let amount = amount.min(remaining);         // BR-04
 | 52 | 1 | `cluster_id` | 1 = devnet |
 | 53 | 32 | `wallet` | 領取者 |
 | 85 | 4 | `task_date` | UTC 日序 u32 |
-| 89 | 1 | `task_type` | 1 steps / 2 sleep |
+| 89 | 1 | `task_type` | 1 steps / 2 sleep（退役）/ 3 workout |
 | 90 | 2 | `rules_version` | u16 |
 | 92 | 32 | `evidence_hash` | SHA-256(判定輸入摘要) |
 | 124 | 8 | `issued_at` | i64 |
@@ -354,7 +356,8 @@ let amount = amount.min(remaining);         // BR-04
 | 6025 | `RewardParamsChangeRequiresPause` | BR-24：未 pause 或 pause 未滿 600 秒即更新影響獎勵金額的參數（實作期新增） |
 | 6026 | `Unauthorized` | 管理指令簽章者不是 `Config.admin`（實作期新增） |
 | 6027 | `InvalidAttestationWindow` | attestation 時間欄位不滿足 `issued_at <= not_before <= expiry`（實作期新增；步驟 7 的前半） |
-| 6028 | `InvalidTaskType` | task_type 不是 1／2（實作期新增；SD 3.4 程式片段原引用此名稱） |
+| 6028 | `InvalidTaskType` | task_type 不是 1／2／3（實作期新增；SD 3.4 程式片段原引用此名稱） |
+| 6045 | `TaskTypeRetired` | 維持規則 v2（DEC-04）：睡眠任務（2）退役，不再接受申請；歷史 receipt 保留 |
 | 6029 | `CollectibleNotEligible` | `claim_collectible`：尚未達成該 kind 的資格（含錦標賽名次在 C-14 接入前一律不合格） |
 | 6030 | `InvalidCollectibleKind` | `claim_collectible`：kind 不在 1～5／101／102／111～119 |
 | 6031 | `InvalidTournamentParam` | `create_tournament` 參數超出範圍（實作期新增） |
@@ -393,9 +396,11 @@ Base path `/v1`。除登入相關外皆需 Bearer JWT。錯誤回應統一為 `{
 
 驗證成功後簽發短期 access JWT（最長 15 分鐘）及可撤銷 refresh session（最長 24 小時）。【實作 2026-09-14】SIWS `statement` 固定為「Sign in to NeonShift. This request will not trigger a blockchain transaction or cost any gas fees.」；`/auth/nonce` 回傳完整訊息供 App 直接簽；access JWT 以 HS256（`JWT_SECRET`）簽發，`sid` claim 指向 refresh session，Bearer 驗證同時檢查 session 未撤銷與玩家未刪除；驗簽先於 nonce 消耗，壞簽章不會燒掉 nonce。JWT 固定 `iss`、`aud`、`sub=wallet`、`jti`、`iat`、`nbf`、`exp`，API 嚴格限制允許的簽章演算法。refresh token 每次使用都輪替並偵測舊 token 重用，發現重用時撤銷該 session family。登出、刪除資料或 wallet 切換時撤銷 refresh session；高風險操作不得只依賴舊 JWT。
 
-申請 attestation 前，App 先對 claim body（不含 `claim_authorization`）做與 3.5 相同的 canonicalization 及 SHA-256，再呼叫 `/auth/challenge`（`purpose=claim`）。後端回傳 32-byte 隨機 nonce 與 5 分鐘 expiry，並綁定 JWT wallet、purpose、task_date、task_type、request_hash。App 透過 MWA 簽署 `NEONSHIFT_CLAIM_V1 || nonce || request_hash || expiry_le`。`/attestation/claim` 必須驗證此簽章與單次 challenge，符合 BRD 9.2「以錢包簽署請求」；JWT 只負責 session，不可取代本次 claim 授權。
+申請 attestation 前，App 先對 claim body（不含 `claim_authorization`）做與 3.5 相同的 canonicalization 及 SHA-256，再呼叫 `/auth/challenge`（`purpose=claim`）。後端回傳 32-byte 隨機 nonce 與 5 分鐘 expiry，並綁定 JWT wallet、purpose、task_date、task_type、request_hash。App 透過 MWA 簽署 V2 可讀文字（2026-10-06 起；純 ASCII、換行分隔：標題、說明、`Wallet`、`Mission`、`Day (UTC)`、`Request`（request_hash hex）、`Nonce`（hex）、`Expires (UTC)`、`Domain: neonshift.cc`、`Version: NEONSHIFT_CLAIM_V2`；錦標賽為 `Week` 與 `NEONSHIFT_TOURNAMENT_STEPS_V2`）。後端先驗 V2、再驗舊版 App 的 V1 bytes（`NEONSHIFT_CLAIM_V1 || nonce || request_hash || expiry_le`）；兩版綁定內容相同。改版原因：V1 為二進位，Seed Vault 會警告訊息「含無法安全顯示的字元、可能藏有交易」。`/attestation/claim` 必須驗證此簽章與單次 challenge，符合 BRD 9.2「以錢包簽署請求」；JWT 只負責 session，不可取代本次 claim 授權。
 
 API 共通要求：TLS only、request body 上限、schema validation、wallet／IP rate limit、結構化 audit log；不得記錄 JWT、完整簽章或健康 request body。伺服器只信任驗證後 JWT 的 `sub`，不信任 body 內另傳的 wallet。
+
+**App 端 refresh 與逾時（2026-09-19 review 修正，`app/src/services/api/ApiClient.ts`）**：所有請求帶 AbortController 逾時（預設 15 s，可逐請求覆寫或傳入外部 signal），逾時與取消一律回 `NETWORK_ERROR`。`/auth/refresh` 的結果分三類：`ok`；`invalid`（401／403 且代碼為 `REFRESH_INVALID`／`REFRESH_EXPIRED`／`REFRESH_REUSED`／`SESSION_REVOKED`／`UNAUTHORIZED`，或 401 無代碼）才清除本機 token 並以 `NO_SESSION` 要求重新登入；`transient`（離線、逾時、429 → `RATE_LIMITED`、5xx → `SERVER_ERROR`）保留 token、回報對應錯誤，畫面不得把它顯示成需要登入。之前任何非 2xx 都清 token，伺服器維護中會把使用者踢出登入。
 
 ### 4.3 `POST /attestation/claim`
 
@@ -682,6 +687,8 @@ ChainIndexer 以 `(signature, event_index)` 冪等寫入，先記錄 `confirmed`
 
 2026-09-14 依 [Android 官方讀取文件](https://developer.android.com/health-and-fitness/health-connect/read-data) 再核對：SPN 查詢 API 的門檻為 extension 11，內建計步則為 20，須分開檢查。所有分頁均須讀完，permission、API 不可用與無資料狀態分開呈現。
 
+2026-09-16 Seeker（Android 16、extension 22）實機：Health Connect「手機追蹤步數」（Devices › 本機 › Allowed to write › Steps）寫入的 `DataOrigin` 為 `com.android.healthconnect.phone.<device-id>`，而 `getCurrentDeviceDataSource()` 反射取值為 null，導致 6,349 步被歸為第三方、App 顯示 0。修正：`HealthReader.classify` 將 `com.android.healthconnect.phone.` 前綴視同 `current_device_spn`（此裝置本身的計步，符合 BR-07／08 的「裝置來源」定義；後端白名單不變）。
+
 ### 5.2 導航結構【對應 style.md 第 2 章】
 
 ```
@@ -809,7 +816,7 @@ total_staked + treasury_injection
 | 項目 | 值 | 說明 |
 |---|---|---|
 | Android applicationId | `cc.neonshift.app` | 反向網域；dApp Store 送審後不可更改 |
-| API base URL（dev） | `https://api.neonshift.cc/v1` | build-time 寫入 dev build；後端在 `l1.neonshift.cc:6080`，nginx（另一台）反代；`/healthz` |
+| API base URL（dev） | `https://api.neonshift.cc/v1` | build-time 寫入 dev build；後端在 `<l1>:6080`，nginx（另一台）反代；`/healthz` |
 | API base URL（demo） | `https://api.neonshift.cc/v1` | 目前與 dev 共用主機；正式 demo 時分離 |
 | SIWS `domain`／JWT `iss` | `neonshift.cc` | 4.2 登入訊息綁定；後端拒絕其他 domain |
 | App Links | `https://neonshift.cc/e/<slug>` | 11.4 NFC／App Links；`assetlinks.json` 需列 release 簽章指紋 |
@@ -914,11 +921,13 @@ total_staked + treasury_injection
 
 依 [Android NFC basics](https://developer.android.com/develop/connectivity/nfc/nfc) 與 [App Links 文件](https://developer.android.com/training/app-links)（2026-09-14 核對）：使用 NDEF 並處理不同 Android 版本的 URI dispatch，HTTPS NFC 在 Android 16 起可由 ACTION_VIEW 處理；實作以實機 OS／target SDK 驗證。NFC 可用性執行期檢查，未支援／關閉提供 QR；不以 NFC 硬體作整個 App 的安裝必要條件。
 
-**實作（2026-09-14，PG-E-04）**：標籤內容只有 `https://neonshift.cc/e/<slug>?tag=<opaque_ref>`（24 bytes 隨機 base64url，`nfc_tags.opaque_ref` 唯一）；`POST /partner/events/{id}/tags`（staff，限授權 checkpoint；participant 載具需為已報名者，補發自動停用同人舊載具）、`POST …/tags/{tagId}/revoke`、`POST／GET /partner/events/{id}/checkpoints`；參加者感應後 `GET /events/{id}/tags/{ref}` 只回 `active｜revoked｜not_yours`（active 附站點名稱／用途與本人是否已報名），不回資格、金額或內部欄位。Android：`AndroidManifest` 加 App Links（`autoVerify`、`https://neonshift.cc/e/*`）與 `NDEF_DISCOVERED` 同 URI 的 intent-filter、`android.hardware.nfc required=false`；`web/.well-known/assetlinks.json`（debug 指紋已填，release 指紋待 Runbook 8.4）。App：`EventDetail` 解析 `?tag=` 後向後端查狀態顯示 TagBanner；未安裝時同一 URL 落到活動網頁；QR 為同一 URL 由相機 App 開啟，不需 App 內掃描器。報到／核銷動作於 E-05／E-06 接上。
+**實作（2026-09-14，PG-E-04）**：標籤內容只有 `https://neonshift.cc/e/<slug>?tag=<opaque_ref>`（24 bytes 隨機 base64url，`nfc_tags.opaque_ref` 唯一）；`POST /partner/events/{id}/tags`（staff，限授權 checkpoint；participant 載具需為已報名者，補發自動停用同人舊載具）、`POST …/tags/{tagId}/revoke`、`POST／GET /partner/events/{id}/checkpoints`；參加者感應後 `GET /events/{id}/tags/{ref}` 只回 `active｜revoked｜not_yours`（active 附站點名稱／用途與本人是否已報名），不回資格、金額或內部欄位。Android：`AndroidManifest` 加 App Links（`autoVerify`、`https://neonshift.cc/e/*`）與 `NDEF_DISCOVERED` 同 URI 的 intent-filter、`android.hardware.nfc required=false`；`web/.well-known/assetlinks.json`（2026-09-27：改為只列 release 憑證實際指紋 `C6:B8:BB:B3:…:4B:04`；先前填入的指紋對不上任何一把金鑰，驗證一直失敗）。App：`EventDetail` 解析 `?tag=` 後向後端查狀態顯示 TagBanner；未安裝時同一 URL 落到活動網頁；QR 為同一 URL 由相機 App 開啟，不需 App 內掃描器。報到／核銷動作於 E-05／E-06 接上。
 
 **實作（2026-09-14，PG-E-05）**：參加者 `POST /events/{id}/checkpoints/{cpId}/check-in-challenge`（需 session、已報名、站點用途 check_in、活動 published／live）取得 8 碼代碼（字母表去 0/O/1/I）與 `qr_payload = neonshift-checkin:<slug>:<code>`，效期 120 秒；DB 只存 `sha256(eventId|code)`，同人同站點重取即覆蓋舊 challenge。Staff `POST /partner/events/{id}/check-ins`：`{code, checkpoint_id, method:'qr'}` 由 hash 單次消耗 challenge（過期 410 `CHECKIN_CHALLENGE_EXPIRED`）；`{wallet, checkpoint_id, method:'manual', reason}` 為補登，需 `requireRecentLogin` 且理由寫入稽核；兩者皆限授權 checkpoint、報名狀態需 registered（否則 403 `NOT_ELIGIBLE`），成功把 `event_registrations.status` 設為 checked_in 並寫 `event_check_ins`；重複報到回 200 `already:true`（首次 201）。`GET /partner/events/{id}/check-ins` 供現場對帳；`/me/event-history` 附本人 `check_ins`。App：`EventDetail` 在已報名時顯示「顯示報到代碼」（感應到 check_in 站點標籤時直接帶站點，否則列站點供選）→ `CheckInCode` 顯示 QR＋代碼＋倒數與重取；有 staff／owner 角色時顯示「工作人員報到」入口 → `StaffCheckIn`（只列本人授權的 check_in 站點、代碼輸入或手動補登、結果以 InlineState 呈現、已報到計數）。相機掃描 QR 為後續項目，目前以輸入代碼取代。
 
-**實作（2026-09-14，PG-E-06）**：migration 0007 加 `event_redemptions.claim_code`（同活動唯一，僅查找鍵）。owner `POST /partner/events/{id}/benefits`（kind physical｜digital_badge、stock_total、per_person_limit、requires_checkin 預設 true、claim_deadline；eligibility_rule_revision 記發布中的規則版本）；`GET /events/{id}/benefits` 公開只回品項與 remaining；`GET /partner/events/{id}/benefits` 回 reserved／fulfilled 對帳。參加者 `POST /events/{id}/redemptions {benefit_id, quantity, idempotency_key}`：`reserveRedemption` 單一交易依序鎖 event → benefit → participant，檢查 published、名單、requires_checkin（需 checked_in）、截止、每人上限（reserved+fulfilled+requested ≤ limit）、庫存（reserved+fulfilled+requested ≤ total）；同 (event, wallet, key) 回原紀錄 200；實體品項建立 reserved（保留 15 分鐘、8 碼 claim_code、QR `neonshift-redeem:<slug>:<code>`），digital_badge 同交易直接 fulfilled 並寫 `event_badge_issues.credential_id`（鏈下憑證，不稱 NFT）。staff `POST /partner/events/{id}/redemptions/fulfill {claim_code｜redemption_id, checkpoint_id?}` 與 `POST /partner/redemptions/{id}/fulfill`：只有 reserved 可轉 fulfilled（reserved_count → fulfilled_count），重試回 200 `already:true`，逾期 410 `REDEMPTION_EXPIRED`、取消 409 `REDEMPTION_CANCELLED`，皆寫稽核。逾期釋放採 lazy：預留／交付／對帳前先 `expireRedemptions(now)`（reserved 且 reserved_until 已過 → expired、釋放 reserved_count）。活動取消（BR-33）在同一請求內 `releaseEventReservations`：reserved → cancelled，已交付保留。`GET /partner/events/{id}/redemptions` 分開計 reserved／fulfilled／expired／cancelled（FR-11.4）；`/me/event-history` 附本人 redemptions。App：`Perks`（EventDetail 內；品項與剩餘量、未報名提示、未報到停用並說明、預留後 QR＋代碼＋保留倒數、徽章已發放＋憑證、逾期提示、錯誤碼對應文案）；`StaffCheckIn` 加「權益交付」模式（代碼輸入、交付確認、庫存對帳列）。已知限制：checkpoint 限定的 staff 交付時未強制帶 checkpoint_id（BR-29 只約束報到站點）；相機掃描仍以輸入代碼取代。
+**實作（2026-09-14，PG-E-06）**：migration 0007 加 `event_redemptions.claim_code`（同活動唯一，僅查找鍵）。owner `POST /partner/events/{id}/benefits`（kind physical｜digital_badge、stock_total、per_person_limit、requires_checkin 預設 true、claim_deadline；eligibility_rule_revision 記發布中的規則版本）；`GET /events/{id}/benefits` 公開只回品項與 remaining；`GET /partner/events/{id}/benefits` 回 reserved／fulfilled 對帳。參加者 `POST /events/{id}/redemptions {benefit_id, quantity, idempotency_key}`：`reserveRedemption` 單一交易依序鎖 event → benefit → participant，檢查 published、名單、requires_checkin（需 checked_in）、截止、每人上限（reserved+fulfilled+requested ≤ limit）、庫存（reserved+fulfilled+requested ≤ total）；同 (event, wallet, key) 回原紀錄 200；實體品項建立 reserved（保留 15 分鐘、8 碼 claim_code、QR `neonshift-redeem:<slug>:<code>`），digital_badge 同交易直接 fulfilled 並寫 `event_badge_issues.credential_id`（鏈下憑證，不稱 NFT）。staff `POST /partner/events/{id}/redemptions/fulfill {claim_code｜redemption_id, checkpoint_id?}` 與 `POST /partner/redemptions/{id}/fulfill`：只有 reserved 可轉 fulfilled（reserved_count → fulfilled_count），重試回 200 `already:true`，逾期 410 `REDEMPTION_EXPIRED`、取消 409 `REDEMPTION_CANCELLED`，皆寫稽核。逾期釋放採 lazy：預留／交付／對帳前先 `expireRedemptions(now)`（reserved 且 reserved_until 已過 → expired、釋放 reserved_count）。活動取消（BR-33）在同一請求內 `releaseEventReservations`：reserved → cancelled，已交付保留。`GET /partner/events/{id}/redemptions` 分開計 reserved／fulfilled／expired／cancelled（FR-11.4）；`/me/event-history` 附本人 redemptions。App：`Perks`（EventDetail 內；品項與剩餘量、未報名提示、未報到停用並說明、預留後 QR＋代碼＋保留倒數、徽章已發放＋憑證、逾期提示、錯誤碼對應文案）；`StaffCheckIn` 加「權益交付」模式（代碼輸入、交付確認、庫存對帳列）。已知限制：相機掃描仍以輸入代碼取代。
+
+**補強（2026-09-22）**：交付改為帶站點——`StaffCheckIn` 以 `partnerCheckpoints`＋`partnerMe` 算出本人被授權的 `purpose=redemption` 站點，交付時一併送 `checkpoint_id`（多個站點時可選、owner 或未限站點的 staff 不受限）；沒有任何授權的權益站點時顯示說明並停用確認鍵，不再讓只被指派報到站點的 staff 交付。後端行為不變（`requireEventRole(['staff'], {checkpointId})` 對未授權站點回 403 `ROLE_FORBIDDEN`），此前因 App 未送 `checkpoint_id` 而形同不限站點。
 
 ### 11.5 成績、隱私與測試
 
@@ -967,6 +976,10 @@ API／webhook 屬後續 S 級串接：每合作方獨立 secret、簽章與時�
 | v0.2 | 2026-09-09 | 升級 Node.js 24 LTS；修正 UTC 額度回滾、streak 第 7 日、Shoe／Core 等級混用、attestation 重簽、登入防重放、SPN 範例、賽事專用 vault／批次結果 commitment 與 upgrade authority 策略 |
 | v0.3 | 2026-09-14 | 核對 164-byte layout 並補時效驗證缺口、達標檢查與任務分流、refresh／logout、原子冪等與保留政策，列出尚缺的實作前置契約 |
 | v0.4 | 2026-09-14 | 新增 SD 11：合作組織權限、活動 API／資料結構、NFC 報到與原子核銷、成績匯入與更正、隱私與驗收 |
+| v0.35 | 2026-09-15 | PG-U-04：探索冊 schema（migration 0017）、任務判定與領取／撤銷、API |
+| v0.38 | 2026-09-19 | 第二輪靜態 review：運動平均配速、時間目標用運動時間、配速過期、自動繼續門檻、finish 重試、返回運動入口、session 驅動提示、精簡記錄頁、常亮偏好 |
+| v0.37 | 2026-09-19 | 靜態 review 修正：Recorder 可重試啟動、寫入失敗不掉點、finish 不等同步、定位服務序列化、探測綁定 session；meta 原子寫入與損毀列出；ApiClient 逾時與 refresh 失敗分類；GPS 門檻單一來源 |
+| v0.34 | 2026-09-15 | PG-U-01：workout intent／goal_snapshot（migration 0016）、三模式與目標流程 |
 | v0.33 | 2026-09-15 | PG-V-05：IncidentFreeze PDA、set_incident_freeze、凍結期不升不降、6044 |
 | v0.32 | 2026-09-15 | PG-V-04：藝廊 board=lifetime、App 維持儀表與收藏分區 |
 | v0.31 | 2026-09-15 | PG-V-03：level_history 投影、PB NFT Lv3 達成日門檻與能力快照 |
@@ -1050,7 +1063,7 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 
 **實作（2026-09-14，PG-R-07）**：migration 0010 `pb_revisions`（唯一 (wallet, key…, source_kind, source_id)；status current｜historical｜invalidated；previous_pb_id 鏈）。`backend/src/pb/compute.ts` 純函式：`candidatesFromWorkout`（需 `pb_eligible`；`longest_run` ≥ 1 km；`fastest_1k／5k／10k` 只在 extras.splits 有完整、非 uncertain 的連續分段覆蓋 D 時取最短區間，只有總量不推算（BR-38）；半馬／全馬不從裝置簽發）、`candidatesFromResult`（finished 且距離與標準值誤差 ≤ 1% 歸固定距離；verification_class organizer、timing_basis elapsed）、`buildChains`（依 key 分組，achieved_at 排序，首筆 Baseline、嚴格改善才新增、相同不算、最後一筆 current）。`PersonalBestService.recompute(wallet)` 讀有效 workouts（排除 deleted）與本人各活動最新成績 → `syncPbRevisions`（同 (key, source) 保留 pb_id；不再出現者 invalidated、reason `source_removed_or_corrected`；重現恢復；PG 以 advisory lock 序列化）。觸發：`/workouts/import`（created／superseded）、`DELETE /me/workouts/{id}`、成績發布／更正（每個受影響錢包）；`DELETE /player/data` 刪除。`GET /me/personal-bests` 讀取時重算並回 groups（current／history）與 `imported_since`。R-08 的 achievement 簽發以 pb_id 為穩定 ID。
 
-**實作（2026-09-14，PG-R-08）**：證明格式 `attestation-core::achievement`（domain `NEONSHIFT_ACHIEVEMENT_V1`、194 bytes：domain 24｜version｜program_id｜cluster_id｜wallet｜achievement_id 32｜category u8｜verification_class u8｜source_revision u32｜rules_version u16｜metadata_hash 32｜issued_at i64｜expiry i64｜nonce 16；TTL ≤ 900 s；向量 `backend/src/lib/achievement-vectors.json`、TS 鏡像 `lib/achievement.ts`），與 164-byte 打卡格式不互通。鏈上：`AchievementEligibility` PDA `["eligibility", wallet, id]`（admin `set_achievement_eligibility` init_if_needed：status approved／revoked、source_revision、metadata_hash）、`claim_achievement`（前一道 ed25519 指令 194-byte 訊息、attestor 公鑰含寬限、canonical 逐 byte 比對、program／cluster／wallet、時效、registry approved 且 revision／metadata_hash／category／class 一致、`AchievementReceipt` PDA `["achievement", wallet, id]` init 唯一、Core CreateV1 到 `["aasset", wallet, id]`、URI `https://api.neonshift.cc/v1/nft/achievements/<id>.json`）；錯誤 6037 ProofMismatch／6038 NotApproved／6039 RegistryMismatch／6040 ProofExpired；事件 `AchievementClaimed`／`AchievementEligibilitySet`。後端：`achievements` 表；`achievement_id = sha256("neonshift-achievement|wallet|pb_id")`；`POST /me/achievements/{pbId}/mint-intent {public_consent}` 重算 PB 後建立／更新（metadata canonical＋sha256；同意公開才含精確值與日期）→ 狀態 pending_registry｜approved（回 15 分鐘證明與指令參數、費用估算）｜minted｜revoke_pending｜revoked；`GET /me/achievements`；`GET /nft/achievements/{id}.json`；ops `GET /ops/achievements/pending`／`POST /ops/achievements/{id}/registry`（chain-admin `sync-achievements` 送交易後回報）；PB 重算後 `reconcile`：invalidated → revoke_pending（已鑄造保留 minted 事實，藝廊標 Invalidated）、revision 變更重建 metadata 回 pending；indexer `AchievementClaimed`（finalized）→ minted＋asset；signer service 同時接受 194-byte。App：`claimAchievementInstruction`（args ＝ 訊息去 domain）、`achievementService.mint`（receipt 存在即已鑄造）、PB 區塊「Mint NFT」（同意對話 → 待核准提示或費用確認 → MWA）。**devnet 尚未升級**（程式 600 KB，buffer rent ≈ 3.05 SOL）。
+**實作（2026-09-14，PG-R-08）**：證明格式 `attestation-core::achievement`（domain `NEONSHIFT_ACHIEVEMENT_V1`、194 bytes：domain 24｜version｜program_id｜cluster_id｜wallet｜achievement_id 32｜category u8｜verification_class u8｜source_revision u32｜rules_version u16｜metadata_hash 32｜issued_at i64｜expiry i64｜nonce 16；TTL ≤ 900 s；向量 `backend/src/lib/achievement-vectors.json`、TS 鏡像 `lib/achievement.ts`），與 164-byte 打卡格式不互通。鏈上：`AchievementEligibility` PDA `["eligibility", wallet, id]`（admin `set_achievement_eligibility` init_if_needed：status approved／revoked、source_revision、metadata_hash）、`claim_achievement`（前一道 ed25519 指令 194-byte 訊息、attestor 公鑰含寬限、canonical 逐 byte 比對、program／cluster／wallet、時效、registry approved 且 revision／metadata_hash／category／class 一致、`AchievementReceipt` PDA `["achievement", wallet, id]` init 唯一、Core CreateV1 到 `["aasset", wallet, id]`、URI `https://api.neonshift.cc/v1/nft/achievements/<id>.json`）；錯誤 6037 ProofMismatch／6038 NotApproved／6039 RegistryMismatch／6040 ProofExpired；事件 `AchievementClaimed`／`AchievementEligibilitySet`。後端：`achievements` 表；`achievement_id = sha256("neonshift-achievement|wallet|pb_id")`；`POST /me/achievements/{pbId}/mint-intent {public_consent}` 重算 PB 後建立／更新（metadata canonical＋sha256；同意公開才含精確值與日期）→ 狀態 pending_registry｜approved（回 15 分鐘證明與指令參數、費用估算）｜minted｜revoke_pending｜revoked；`GET /me/achievements`；`GET /nft/achievements/{id}.json`；ops `GET /ops/achievements/pending`／`POST /ops/achievements/{id}/registry`（chain-admin `sync-achievements` 送交易後回報）；PB 重算後 `reconcile`：invalidated → revoke_pending（已鑄造保留 minted 事實，藝廊標 Invalidated）、revision 變更重建 metadata 回 pending；indexer `AchievementClaimed`（finalized）→ minted＋asset；signer service 同時接受 194-byte。App：`claimAchievementInstruction`（args ＝ 訊息去 domain）、`achievementService.mint`（receipt 存在即已鑄造）、PB 區塊「Mint NFT」（同意對話 → 待核准提示或費用確認 → MWA）。devnet 已升級（2026-09-15）。**鏈上時鐘寬限（2026-09-17）**：`Clock::unix_timestamp` 常落後牆上時間數秒，devnet 實測證明簽出 1 秒內送鏈即 6040「尚未生效」；後端簽發時把 `issued_at` 往前撥 `CHAIN_CLOCK_SKEW_SECONDS`（60 s，`lib/achievement.ts`），expiry 仍為 issued_at＋TTL（鏈上 ttl 檢查不變，有效期實際少 60 s）；164-byte 打卡 attestation 的 `issued_at／not_before` 同樣處理。首批真實鑄造：藝廊示範玩家（playbook 4.8）三枚首次里程碑 NFT。
 
 **實作（2026-09-15，PG-R-09）**：migration 0012 `gallery_prefs(wallet, hidden)`（與投影表分開，indexer 不會覆寫）；`listGalleryPlayers／countGalleryPlayers／galleryRankOf／searchGalleryPlayers` 排除 hidden；`GET /gallery/players/{wallet}` 對他人 404（本人回 `hidden: true` 並仍列出）、回 `achievements`（只含已鑄造：series pb_speed｜pb_distance、category、verification_class、environment、record current｜historical｜invalidated（依 PB 狀態與成就 revoked）、public、value／achieved_on 只在公開同意時、image、minted_at）；`GET /gallery/achievements/{asset}`（original_achiever、metadata、network、explorer_url；現持有人需鏈上查詢，UI 提示以 Explorer 為準）；`GET／PATCH /me/gallery-privacy`；`DELETE /player/data` 設 hidden＝true、保留已鑄造成就與其 PB 列（鏈上事實不可刪）。作品：`tools/nft-assets/build.mjs` 產生 `web/nft/achievements/<category>-<class>.svg`（Speed＝青藍斜向光軌＋切線式計時環、Distance＝紫→青綠等高弧線＋里程節點；官方＝mint 色標「OFFICIAL RESULT」、裝置標「DEVICE RECORDED」；不畫路線）。App：`PbCard`（類別／系列／來源／狀態文字、未公開顯示「數值未公開」）、GalleryPlayer 篩選與 PB 區、`AchievementDetail`、Profile 藝廊開關與跑步歷程入口。
 
@@ -1070,6 +1083,8 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 
 **實作（2026-09-15，PG-V-05 凍結治理／版本／攻擊測試）**：`IncidentFreeze` PDA `["freeze"]`（start／end／set_at／reason_hash；admin `set_incident_freeze(start, end, reason_hash)` init_if_needed；視窗 end > start、≤ 28 天、start ≥ now − 7 天（不回寫更早已結束週期）否則 6044；(0,0) 清除；emit `IncidentFreezeSet`）。`clock_in`／`settle_player_epochs` 增 `freeze: Option<Account>`（不存在傳 program id）；與凍結視窗重疊的週期結算不降不升（highest 不變、期內累計重置），`EpochSettled.frozen = true`；不接受玩家自報離線保級。版本：`maintenance_rules_version` 寫入 profile／事件，改參數需升級程式並提高版本、只向未來生效（既有玩家 `migrate_player` 保留等級自當日起新週期）。攻擊／邊界 LiteSVM：非 admin 拒絕、視窗三種非法、凍結期缺席不降／全勤不升、非重疊期照常、清除後恢復、傳錯 freeze 帳戶被 seeds 拒絕；先前：重送去重、6041 落後、bounded batch、v1 遷移 6042／6043。App：dashboard 讀 freeze 帳戶、打卡／結算指令帶 freeze PDA 或 program id、Gear 顯示凍結提示；chain-admin `set-freeze <start|0> <end|0> [reason]`（原文請公開於事故公告，鏈上存 sha256）。待：實機驗收、devnet 升級。
 
+**實作（2026-09-20，維持規則 v2／DEC-04 方案 B）**：鏈上 `MAINTENANCE_RULES_VERSION=2`、`TASK_WORKOUT=3`（`MAINTENANCE_POINTS_WORKOUT=100`、`XP_WORKOUT=100`、獎勵基礎沿用 `Config.base_sleep_reward` 作第二任務基礎，Config 版面不變）、`clock_in` 步驟 7b 拒收 `TASK_SLEEP`（6045），日上限自然為 200；門檻／活躍日／結算不變故不重新錨定，profile 於下次 clock_in 直接標 v2。attestation-core 解析接受 task_type 3。後端：claim `task_type="workout"`（可帶 `workout_session_id`），證據＝本人 `workouts` 表中同 UTC 日、`origin=gps`、`status=saved` 且 distance ≥ `goals.workout.min_distance_mm`、移動（elapsed − paused）≥ `min_moving_ms` 的最長一筆；拒絕碼 `WORKOUT_NOT_SYNCED`／`WORKOUT_UNDER_REVIEW`／`TASK_NOT_MET`（effective_value＝距離 mm）；evidence_hash 含 session id／距離／移動／revision；規則檔 `rules/v4.json`（睡眠規則移除）；migration 0018 放寬 `health_snapshots`／`attestations` task_type CHECK 為 (1,2,3)；`/auth/challenge` task_type 允許 3；schema 不再接受 `sleep`。App：`TASK_CODE`、dashboard `workout` 證據（本機已同步 session）、Home「運動任務」卡取代睡眠卡、ClaimFlow 不跑 live motion、拒絕碼文案。
+
 ## 15. 首次成就 NFT 契約補充
 
 依 [首次里程碑與紀念 NFT](./commemorative-nfts.md) 第 4 章，新增 first_5k／first_10k／first_half／first_marathon／first_finish 類別。首次類 stable key 綁 wallet、category、environment、verification class；來源 revision 只在 eligibility 中更新，不改 receipt 唯一性。活動／年度類另帶 event／year，明確區別終身一次與每期一次。
@@ -1082,28 +1097,152 @@ Health Connect 先唯讀匯入；原始路線不上傳，估算距離／熱量�
 
 **實作（2026-09-15，PG-M-04 活動留念章）**：migration 0014——`events.badges JSONB {check_in, finish}`（主辦方 `POST／PATCH /partner/events` 設定，公開投影回 `badges`）、`event_participants.level_at_registration`（報名時由 gallery_players 快照鞋階，無投影＝1；之後降級不沒收）、achievements kind 增 `event`（key `event|<event_id>|<check_in|finish>` 存於 milestone_key，`achievement_id = sha256("neonshift-event-badge|wallet|key")`）。`milestones/eventBadges.ts`：只列有發行的活動；狀態 cancelled（取消報名／活動取消）＞ level_locked（快照 < Lv2）＞ locked ＞ eligible；報到章來源＝參加者列（achieved_at＝賽事 starts_at）、完賽章來源＝該活動最新 FINISHED 結果 revision。`GET /me/event-badges`、`POST /me/event-badges/mint-intent {event_id, kind, public_consent}`（非 eligible → 409 `EVENT_BADGE_NOT_ELIGIBLE`）；category 12 event_check_in／13 event_finish（Rust `CATEGORY_MAX = 13`、向量 13 組）；metadata：Series Event Memory、Badge、Event（活動名為公開資訊）、Verification Official、Event date；公開同意才加 Time／Rank；image `milestones/event-<kind>.svg`（通用作品，不含主辦方商標）。同步：結果發布／更正（經 PB 重算 hook）與取消報名（`onParticipationChanged`）→ `reconcileEventBadges`（失效 revoke_pending、恢復同 id、已鑄造只更新來源）；PB `reconcile` 只處理 kind=pb。藝廊投影 `kind: event`、series event_check_in｜event_finish、`event {title, event_id}`、`achieved_on`＝活動日期（公開）。App：活動詳情 `EventBadges` 區塊（需報名／未達成／未達權限＋說明／可領取／等待核准／已領取／已撤銷；同意 → 領取預覽 → MWA）、藝廊 Events 篩選與活動章區。待：實機 NFC／報到／鑄造端到端驗收、devnet 程式升級。
 
+**實作（2026-09-27，PG-SEASON-04 節日收藏鑄造）**：鏈上**整個系列共用一個 category**——`attestation_core::CATEGORY_SEASONAL = 14`、`CATEGORY_MAX` 13→14（TS `CATEGORY_CODE.seasonal = 14`、向量 14 組），主題與年份寫在鏈下 metadata。決定的依據是唯一性來源：`achievement_id`（32 bytes）同時是 `AchievementReceipt` PDA、asset PDA 與 metadata URI 的 seed，所以「每玩家每屆一枚」不需要 category 的粒度；每個主題各一個 category 只會讓每年新增主題都得升級並重新部署程式。`achievement_metadata` 補上系列名（並修正原本 7..=13 全部落到 `_ => "Longest Run"` 的錯誤命名——名稱寫進鏈上改不了，已鑄造的保留當時名稱）。後端：migration 0021 `achievements_kind_ck` 加 `seasonal`、`source_ref_ck` 允許 seasonal 用 `milestone_key`；key＝`seasonal|<campaign_id>`（沿用既有 `(wallet, milestone_key)` 唯一索引，不另建）、`achievement_id = sha256("neonshift-seasonal|wallet|campaign_id")`；`buildSeasonalMetadata` 預設只寫公開資訊（Series／Edition／Theme／Year／Window／Requirement／Verification／Art／Rules ＋ 日期依據），**使用者自己達標的日期要逐次公開同意才寫入**；`ensureSeasonal`（`mint_enabled` 關著一律 409 `SEASONAL_MINT_NOT_OPEN`、非 eligible 409 `SEASONAL_NOT_ELIGIBLE`、被撤銷但重新符合則同一枚回到 pending_registry、來源換了補 `setAchievementSource`）、`reconcileSeasonal`（掛在 PB 重算 hook；資格消失 → revoke_pending，已鑄造只標記不刪）、`POST /v1/me/seasonal/:campaignId/intent`（沿用同一條 registry → proof → receipt 路徑）。旗標 `SEASONAL_MINT_ENABLED` 預設 false，代表「程式已支援 seasonal 且已部署到這個 cluster」；`/v1/seasonal` 與 `/v1/me/seasonal` 的 `mint_enabled` 與 notes 跟著它。App：`SeasonalFootprints` 只在 `mint_enabled && status === 'eligible'` 掛出領取（同意 → mint-intent → 預覽公開內容與 rent → MWA → 揭曉），關著時文案仍是「尚未開放領取」。待：devnet 程式升級、migration 0021 套用、實機領取端到端驗收。
+
 ## 16. GPS 運動模組契約（待實作）
 
 計算與資料基準見 [GPS 運動規格](./walk-run-tracking.md) 第 3～7 章；對應 PG-R-01／03～06／10／12。擬新增以下模組，實際路徑在實作 PR 定案：
 
 | 模組 | 職責與邊界 |
 |---|---|
-| WorkoutRecorder | 管理 Walking／Running session、權限、定位服務、單調時間及手動暫停；同時只允許一個主動 session |
+| WorkoutRecorder | 管理 Walking／Running session、權限、定位服務、單調時間及手動暫停；同時只允許一個主動 session；定位看門狗：開始後 12 s 無點重啟背景任務、24 s 無點加開前景備援訂閱（Style 23.12） |
+| Activity（domain/activity） | PG-LINK-04 日誌：本機＋伺服器合併、canonical id 去重、session 時區日曆日、篩選／穩定排序／月總覽（Style 23.16） |
+| WorkoutOutbox | PG-LINK-02／03 上傳與刪除佇列（tombstone 依序提交、2xx／404 確認後移除本機）：依玩家分區、startedAtUtc→endedAtUtc→sessionId 排序、單 worker、退避／blocked／排除、opt-in 自動入口（結束／啟動／回前景／網路恢復）；幂等鍵沿用匯入端點 (source_id, external_record_id, source_revision)（Style 23.14） |
 | LocalWorkoutStore | 加密軌跡、checkpoint 與操作 ID；先持久化再回報成功，恢复去重；清除 session 時清除點與圈 |
 | GpsMetricsEngine | 合格點判定、距離／完整 5 秒窗、split／lap 插值；純計算可由固定軌跡重播，保存規則版本 |
 | WorkoutSummarySync | 沿用第 13 章運動摘要入口，以 wallet＋session ID 去重、revision 防覆寫；只同步同意的摘要與圈，原始座標不得進請求或日誌 |
 | WorkoutScreens | 開始／記錄／暫停／摘要；展示來源與品質，串接 PB／首次資格結果，不由 UI 自行授予 NFT |
 
-**實作（2026-09-14，PG-R-04／R-05）**：`GpsMetricsEngine`（`app/src/domain/gps/engine.ts`，`GPS_RULES_VERSION = 1`）純計算：`start／pause／resume／lap／finish` 以單調毫秒驅動；`addPoint` 依序拒絕非有限座標、seq 重複、時間倒序、精度 > 20 m、與前一接受點速度超上限（跑 12／走 4 m/s，門檻待實機校準）、暫停中；與前一接受點間隔 > 5 s 或恢復後從新點重建連續段（不補直線距離；缺口計數）；位移 < 3 m 視為抖動不累加（錨點不前進）；距離為接受點間 haversine 整數毫米。速度＝最近完整 5 秒連續窗的接受距離 ÷ 5（窗起點插值），不完整回 null，最高速度取其最大；平均速度／配速用全程 elapsed（含暫停）。Splits 依 `splitLengthMm`（1,000,000／1,609,344）在兩接受點間按距離比例插值時間、一次跨多界線逐一切、跨缺口標 `uncertain`、末段 `isPartial`，最快分段只比完整且非 uncertain 者；手動 Lap 與自訂距離自動圈為獨立序列（暫停禁按、零距離／零時間不新增）；跑道等效圈 `floor(distance / lapMm)` ＋餘數（PG-R-12：`trackEquivalent()` 供記錄中即時顯示與 `finish()` 共用；`trackLapMm` 由開始頁選定 400／200／自訂 100～2000 m 並經使用者核對後寫入 session meta，恢復重播沿用；上傳 extras `track_equivalent`；不含實體過線偵測）。`finish()` 回摘要與品質統計（accepted／rejected 分類／stationary／segments／gaps／coverageRatio／complete）。固定軌跡重播測試 `app/src/__tests__/gpsEngine.test.ts`。
+**實作（2026-09-14，PG-R-04／R-05）**：`GpsMetricsEngine`（`app/src/domain/gps/engine.ts`，`GPS_RULES_VERSION = 1`）純計算：`start／pause／resume／lap／finish` 以單調毫秒驅動；`addPoint` 依序拒絕非有限座標、seq 重複、時間倒序、精度 > 50 m（2026-09-17 由 20 放寬：無 SIM／無 A-GPS 的 Seeker 戶外跑道 14 分鐘精度一直 > 20 m 全數被拒、0 km；抖動由遲滯門檻抑制）、與前一接受點速度超上限（跑 12／走 4 m/s，門檻待實機校準）、暫停中；與前一接受點間隔 > 5 s 或恢復後從新點重建連續段（不補直線距離；缺口計數）；位移 < 3 m 視為抖動不累加（錨點不前進）；距離為接受點間 haversine 整數毫米。速度＝最近完整 5 秒連續窗的接受距離 ÷ 5（窗起點插值），不完整回 null，最高速度取其最大；平均速度／配速用全程 elapsed（含暫停）。Splits 依 `splitLengthMm`（1,000,000／1,609,344）在兩接受點間按距離比例插值時間、一次跨多界線逐一切、跨缺口標 `uncertain`、末段 `isPartial`，最快分段只比完整且非 uncertain 者；手動 Lap 與自訂距離自動圈為獨立序列（暫停禁按、零距離／零時間不新增）；跑道等效圈 `floor(distance / lapMm)` ＋餘數（PG-R-12：`trackEquivalent()` 供記錄中即時顯示與 `finish()` 共用；`trackLapMm` 由開始頁選定 400／200／自訂 100～2000 m 並經使用者核對後寫入 session meta，恢復重播沿用；上傳 extras `track_equivalent`；不含實體過線偵測）。`finish()` 回摘要與品質統計（accepted／rejected 分類／stationary／segments／gaps／coverageRatio／complete）。固定軌跡重播測試 `app/src/__tests__/gpsEngine.test.ts`。
 
 **實作（2026-09-14，PG-R-03／R-06）**：`WorkoutRecorder`（`app/src/services/workouts/WorkoutRecorder.ts`）狀態機 idle → recording ↔ paused → finishing → saved｜needs_review → idle；同時只允許一個 session；Indoor 拒絕啟動（不以 GPS 推算）。定位：`expo-location.startLocationUpdatesAsync`（BestForNavigation、1 s、前景服務通知；`FOREGROUND_SERVICE_LOCATION`，不申請背景定位）→ `expo-task-manager` 任務（`locationTask.ts`，啟動時定義）把原始點以 seq 交給 recorder；點先批次寫入 `LocalWorkoutStore`（每 session 目錄：`meta.json` 無座標；`points.log` 每行一批 `nacl.secretbox`，金鑰在 Keystore-backed SecureStore）再餵 `GpsMetricsEngine`；暫停／手動圈時間記在 meta。Finish：停止定位 → `engine.finish` → 摘要與狀態寫入本機（gaps／coverage < 0.9 或 interrupted → needs_review）→ `WorkoutSummarySync`（`POST /workouts/import`，origin gps、source_id `cc.neonshift.app/gps`、external_record_id = sessionId、distance_method gps、client_flags gps_gap／interrupted、extras 含 splits／laps／quality，無座標）；失敗保留本機、摘要頁可重試。恢復：啟動時 `markRecoverable` 把非本 process 的 recording／paused 標 recoverable＋interrupted；`recover(id, 'finish')` 以 seq 去重重播點與暫停／圈事件，用最後一點時間結束（不補負時間）並同步；`discard` 刪目錄（路線一併清除）；同 process 才允許續錄。單調時基目前以定位 timestamp（UTC）為準，跨 process 一律視為中斷（原生 elapsedRealtime 於 R-10 實機驗證時評估）。刪除 workout（`DELETE /me/workouts/{id}`）與本機 `store.delete` 分開，UI 刪除時兩者都做。畫面見 Style 23.2。
+
+**2026-09-19 靜態 review 修正（`WorkoutRecorder`／`LocalWorkoutStore`）**：
+- 狀態機新增 `starting`：`start()` 在定位服務啟動成功前不進入 `recording`；啟動拋錯時清除 engine／meta／sink、刪除剛建立的 session 目錄並回到 `idle`，下一次 `start()` 不會被「已有運動」擋住。
+- `flush()` 寫入成功才從待存佇列移除該批；失敗保留原批、`snapshot().storage = { pendingPoints, failing, lastError }` 標示並以 1 s 起倍增（上限 30 s）退避重試。`finish()` 最多再試 3 次，仍未落地的點數寫入 `meta.unsavedPoints`，狀態強制 `needs_review`，同步 `client_flags` 加 `storage_incomplete`。畫面距離仍先累加，但使用者看得到「尚未存好」。
+- `finish()` 在本機保存完成後立即回傳並重設為 `idle`，回傳值改為 `{ meta, summary, sync: Promise<SyncOutcome> }`；同步在背景進行，完成時 `emit()`，摘要頁訂閱 recorder 重讀 meta 更新「已同步」。`recover()` 同樣改為背景同步。
+- 定位服務的 start／更新通知／stop 經同一條序列化佇列（`runLocationOp`）依序執行；`locationSession` 記錄應在跑服務的 session，`finish()` 一開始就清成 null，排隊中的通知更新執行時發現不符即跳過，不會在 stop 之後把定位重新叫起來。
+- `runProbe()` 在 await 前捕捉 engine 與 sessionId，量測回來後三者仍一致才記錄；舊運動的感測器結果不會落到新 session。
+- `meta.json` 改為「寫 `meta.json.tmp` → `File.move(overwrite)`」原子替換；讀取做最低限度 schema 檢查（`isSessionMeta`），主檔壞掉退回暫存檔，兩者皆壞由 `store.corrupted()` 列出 sessionId 與原因，目錄與點檔保留，不再從清單無聲消失。
+- GPS 精度門檻集中於 `app/src/domain/gps/thresholds.ts`：`acceptMaxAccuracyM` 50（引擎可採用、軌跡預覽）、`goodAccuracyM` 20（狀態列 ok／poor）、`autoResumeMaxAccuracyM` 20（自動繼續）；摘要文案的數值由此插值，不再寫死。
+- 運動紀錄頁的本機清單（可恢復／未同步）改在取得焦點與 recorder 變化時重讀，不只首次掛載。
+
+**2026-09-19 第二輪靜態 review 修正（跑者可否安心記錄、看懂數字、少操作）**：
+- `Summary` 新增 `movingAvgPaceSPerKm`／`movingAvgSpeedKmh`（距離 ÷ 運動時間）。既有 `avgPaceSPerKm`／`avgSpeedKmh`（距離 ÷ elapsed，含暫停）保留，與後端 `avg_pace_s_per_km` 的定義一致。App 記錄頁與摘要主數字一律用運動平均；摘要在有暫停時另列全程。後端契約不變。
+- 時間目標判定改用運動時間（`goalReached(goal, movingMs, distanceMm)`），`GOAL_VERSION` 升為 2；`goal.version === 1` 的舊快照在 App 內同樣以運動時間呈現（判定只在 App，後端只存快照）。
+- `RecorderSnapshot.paceStale`：記錄中超過 `PACE_STALE_MS`（10 s）沒有點被採用即為 true，`currentSpeedMs`／`currentPaceSPerKm` 為 null；距離不受影響。判斷依據是 `lastAcceptedAt`，不是「有沒有點進來」。
+- 自動繼續：`AUTO_PAUSE.maxAccuracyM` 改引用 `GPS_QUALITY.acceptMaxAccuracyM`（50），並要求 `resumeConsecutive`（2）個連續可用點都離暫停位置 ≥ 15 m；單點飄回即歸零。
+- `RecorderSnapshot.storage` 與 `finishError` 接到記錄頁；`finish()` 的持久化段獨立為 `persistFinish()`，寫入失敗時狀態停在 `finishing`、摘要保留在 `finishPending`，`retryFinish()` 重試；成功才轉 `idle`。`meta.unsavedPoints` 在摘要頁具體說明。
+- `active()` 回報進行中 session（recording／paused／finishing）；`markRecoverable()` 以此排除，不再把進行中的運動列為可恢復。Home／運動清單／開始頁依 `active()` 提供「返回運動」。
+- `onEvent()` 事件：`session_start`／`session_end`／`auto_pause`／`auto_resume`。`services/workouts/cueController.ts` 於 App 啟動安裝，訂閱 recorder 驅動 `WorkoutCues`（session 開始 reset、每次更新 onSnapshot、自動暫停／繼續 announce）；記錄頁不再驅動提示。`WorkoutCues.reset` 的時間基準改取最後一個完整分段的 `endElapsedMs`。
+- `workoutPrefs` 新增 `keepAwake`（預設 true；只在 recording 啟用常亮）與 `detailView`（預設 false；記錄頁精簡／詳細）。
 
 同步契約須拒絕非有限數值、負距離／時長、圈界越界及不支援的 sport／版本；伺服器衍生欄位不可由客戶端覆寫。相同 revision 重試返回同結果，過期 revision 回傳衝突，刪除 tombstone 阻止離線舊資料重建。裝置摘要仍屬裝置來源，欄位合法不等於運動真實性已驗證。
 
 Indoor 不啟用 GPS 推算距離，僅接可信裝置／已標記來源；缺來源顯示缺值。背景服務與定位權限依 Android／Expo 實作時官方文件驗證，不假設鎖屏與 process 被殺時持續可用。測試以專章 7 的固定軌跡、圈界、跳點、暫停、恢復及實機證據作 PG-R-10 完成門檻。
+
+### 16.1 GPS 運動防弊（完整性）分層（2026-09-16，GPS 規則 v2／後端規則 v2）
+
+原則：**App 只負責偵測與自報，伺服器負責判定**；任一完整性旗標 → session `needs_review`、`pb_eligible=false`、探索冊任務不計（`QuestService` 只收 `saved`）、里程碑不採用。旗標與計數同時寫入 `client_flags` 與 `extras.integrity`，伺服器取聯集、只承認白名單。
+
+| 層 | 檢查 | 門檻／行為 | 位置 |
+|---|---|---|---|
+| App 點級 | 模擬定位 | `LocationObject.mocked === true` → 點拒絕（`mock_location`）並計數；有任何一點即旗標 | `locationTask` → `GpsMetricsEngine` |
+| App 點級 | 單點跳點 | 與前一接受點速度 > 跑 12／走 4 m/s → 拒絕（既有） | engine |
+| App 段級 | 持續超速 | 60 s 滑動窗平均 > 跑 6.5／走 2.8 m/s 記一次 episode（`sustained_speed`）；針對「勻速搭車」 | engine `INTEGRITY_RULES` |
+| App 段級 | 缺口瞬移 | 缺口（> 5 s 無點）前後位移換算速度超過跳點上限 → `gap_teleport`；針對「關 GPS 移動再開」 | engine |
+| App 時間 | 時鐘漂移 | 牆鐘（`Date.now`）− 單調時鐘（`performance.now`）偏移在記錄中變動 > 30 s → `clock_drift`；針對改系統時間灌時長 | recorder `ingest` |
+| App 感測 | 步態探測 | 記錄中每 3 分鐘（前景、GPS 5 秒窗速度 ≥ 1 m/s 時）用 `NeonshiftSensors` 取 8 s 加速度：計步增量 > 0 或 1～4 Hz 主頻＋RMS ≥ 0.6 視為有步態；≥ 2 次且過半「GPS 在動但無步態」→ `motion_mismatch`；量不到（背景／無感測器）不計 | recorder `runProbe` |
+| 伺服器 | 旗標二線 | 白名單旗標任一 → `needs_review`；未知旗標忽略 | `workouts/schema.derive` |
+| 伺服器 | 自報極值 | `extras.max_speed_5s_kmh` > 跑 36／走 15 → `max_speed_5s_exceeds_cap`；`distance / extras.moving_ms` > 跑 25／走 12 km/h → `moving_speed_exceeds_cap`（含暫停的平均可被長暫停稀釋）；`extras.quality.accepted` < 運動秒數 × 0.2 → `sparse_samples`（partial、不具 PB） | derive |
+| 伺服器 | 錢包行為 | 同錢包既有 session（含同批）時間重疊 → `overlapping_session`；同 UTC 日第 13 筆起 → `daily_cap_exceeded` | `workouts/routes` |
+| 伺服器 | 既有 | 平均速度上限、步頻上限、Total 熱量冒充、手動輸入、GPS 缺口、revision／tombstone 防重放 | derive／store |
+
+未做（記錄為後續）：伺服器端軌跡形狀分析（座標不上傳，設計上不可行）、跨裝置同一錢包同時記錄（需裝置指紋）、人工審核工作流（目前只標記）。門檻需實機校準（walk-run-tracking 4），不視為人體極限宣稱。
 
 ## 17. 運動目標與探索冊契約（新增待實作）
 
 依 [補充規格](./sport-experience-gameplay.md)。WorkoutSession 新增可空 intent 與 goal_snapshot（kind、target、unit、version）；舊資料不回填為健走。擬新增 QuestTemplate、QuestEnrollment（wallet、template_version、start/end UTC、timezone、goal）、QuestContribution（來源穩定 ID／revision）、QuestReceipt（wallet＋enrollment 唯一）與 CosmeticEntitlement。資格由後端依有效摘要計算，禁止接受 client 自報 completed；發放 receipt 與外觀權限同交易原子提交。重播同來源不重領，來源修正／刪除觸發重算及權限撤銷。走路與健走共用來源去重鍵。
 
 擬新增本人任務查詢／接受／領取 API，皆沿用 wallet authentication；接受與領取支援 idempotency key，活動序列與截止時間由服務端驗證。探索模組只讀既有摘要，不寫鏈上維持帳戶或 NFT registry；不收原始座標。具體 schema／API migration 由 PG-U-04 實作並驗證唯一性、併發與刪除事件。
+
+**實作（2026-09-15，PG-U-01）**：migration 0016 `workout_sessions.intent`（NULL｜casual｜brisk｜run，CHECK）與 `goal_snapshot JSONB`；匯入 schema `intent`（walk → casual｜brisk、run → run，不符拒絕；缺省 null，跑步以 `intentOf` 推導 run、走路不自動判定健走）與 `goal {kind free|time|distance, target, unit s|mm, version}`（單位／正值檢查）；`/me/workouts` 回 `intent`、`goal`。App：`workoutPrefsStore`（最近模式與目標，SecureStore）；開始頁三模式 Segmented（走路／健走／跑步＋提示）與目標（自由／10／20／30 分鐘／1／3／5 km，達標只提醒不自動停止）；session meta 記 `intent`／`goal`（開始後固定）；`RecorderSnapshot.goalReached`（時間含暫停 elapsed、距離用接受距離）；記錄頁目標列＋達標一次震動提醒；摘要頁模式標籤與「目標已達成／未達成（已保存實際）」；歷程列表模式標籤（舊資料「走路（未指定模式）」）；Home 固定「開始運動」入口帶最近模式；同步 payload 含 intent／goal。
+
+**實作（2026-09-15，PG-U-04 探索冊）**：migration 0017 `quest_templates`（版本化；首版 `three_days` active_days{days:3}、`timed_goal` goal_time{minutes:[10,20,30]}，各對應外觀 `chapter_01_*`）、`quest_enrollments`（接受時快照模板版本／目標／時區／`period_start`／`period_end`＝本地週一 00:00 起 7 天；`(wallet, idempotency_key)` 與 `(wallet, template_id, period_start)` 唯一；status active→completed→claimed｜expired｜revoked）、`quest_contributions`（PK enrollment＋來源穩定 ID）、`quest_receipts`（enrollment 唯一；撤銷只標 `revoked_at/reason` 保留最小紀錄）、`cosmetic_entitlements`（帳號綁定外觀；無代幣、無維持點、無能力加成；不寫鏈上）。`quests/service.ts`：有效活動＝saved 且非 needs_review／estimated、run｜walk、`started_at ≥ accepted_at`、`ended_at < period_end`、`imported_at ≤ period_end + 48h`、非暫停時長 ≥ 10 分；GPS 來源需 `rules_version ≥ QUEST_GPS_MIN_RULES_VERSION`（未設定＝不計，R-10 定案後開放；比較對象是 `WORKOUT_RULES_VERSION`＝2，與 `/v1/rules/version` 的每日任務規則版號無關，門檻高於 2 等於沒開）；active_days 同日多筆算一天（enrollment 時區）；goal_time 需單筆 `goal_snapshot` 與接受分鐘一致且非暫停時長 ≥ 目標（拆分不累加）；`reevaluate` 於匯入／刪除（`onWorkoutsChanged` hook）與讀取時執行：完成→completed、失去證據→撤銷 receipt＋外觀、再符合→同 receipt 恢復、超過 48h 未完成→expired；接受時同模板週期重疊（含改時區）回既有。API：`GET /me/quests`（templates、enrollments＋progress／contributions、cosmetics、rules）、`POST /me/quests/accept {template_id, goal, timezone(IANA), idempotency_key}`、`POST /me/quests/{id}/claim`（冪等；未完成 409 `QUEST_NOT_COMPLETED`）。錢包刪除一併清除。App：`ExploreScreen`（探索冊格子點亮／未開啟、本週任務進度與狀態、選任務／分鐘、開啟一格、GPS 未開放註記、規則說明；Home 入口）。待：U-05 更正／多裝置／實機驗收。
+
+## 18. 導覽、揭曉與經濟保護狀態（2026-09-16）
+
+已實作：Root `GameGuide` 路由支援 `onboarding` 參數；Landing 先進指南，Profile 重看。`RewardStage` 以 React Native Animated native driver 與 LinearGradient 呈現有限時長特效；`NftReveal` 讀取 Zustand FIFO queue，待 `levelRevealStore.pending` 清空後開啟。Collectible store 與 PB／milestone／event 成功領取流程 enqueue，alreadyClaimed／alreadyMinted 不 enqueue。EvolutionReveal 觀察 coreLevel，fallback shoeLevel；確認後保存 lastSeen。queue 目前僅記憶體保存，重啟未完成揭曉不保證恢復。規格見 Style §25。
+
+待設計／實作（PG-EC-02～05）：目前 `clock_in` 仍要求 amount > 0，並把 token transfer 與 XP 等更新放在同筆交易；將常數改成零不能達成免費打卡。須拆分活動 receipt 與 reward receipt、預算期與規則快照，合格打卡不依賴金庫餘額；鏈上強制期間總額，禁止超撥款承諾。需定義個人 cap、整數餘數、驗證窗口、撤銷／重試／逾期及既有未領權益，再更新介面与資料遷移。不得宣稱這些保障已部署。
+
+經濟公式、九組壓力結果及限制以 [STEPN 風險評估](./economics/stepn-risk-review.md) 為準。固定供給是總量限制，國庫回流不是燒毀，競技場降低退款不會在全額分配獎金池時創造總消耗。實際配置與餘額需另查鏈上，不以文件初始值代替。
+
+## 19. 行動差異化增量架構（規劃，2026-09-16）
+
+詳見 [差異化規格](./mobile-differentiation.md)，FR-20／PG-XD，尚未實作。優先沿用既有資料與簽名邊界：
+
+- XD-01：現有 quest template／enrollment 狀態映射至任務卡；開始參數指向已接受目標快照；目前有 workout session 時只續接。
+- XD-02：目的頁恢復狀態、簽名待辦及 account binding；使用原 ChainClient／ClaimFlow／WorkoutRecorder，換錢包重新驗權，不沿用上一錢包領獎資格。
+- XD-03：跨成就引用／公開投影，沿用既有 achievement、quest receipt、event-history；不建立全量健康複本。來源撤銷更新資格及公開狀態。
+- XD-04：新增主題規則與 benefit 關聯快照；server 重驗來源與原子核銷。不得僅用前端「任務完成」判斷交付。receipt、庫存鎖與 staff 站點權限沿用 E-05／06；新開關與遷移需先定版本。
+- XD-05／06：待新增隊伍、成員／同意、邀請 hash／期限／撤銷、每日貢獻唯一鍵與結算 receipt。規則／名單／時區在開局鎖定；重送與來源 revision 沿用 U-05 去重及撤銷；join／最後名額與結算需原子保護。opaque link 不帶健康值、錢包明碼或簽名憑證。
+- XD-07：新增漏斗事件字典與去重，記錄計數／錯誤而非健康明細或座標；測試流量與真實合作分開，資料保留基線見規格 §6。
+
+此節是介面與資料責任邊界，API／migration／IDL 尚待設計。首版無新鏈上獎勵合約：沿用既有合格 NFT 領取，探索外觀保持鏈下；現有 NFT 不被轉成可兌現權利。待 EC 前置通過才可另設新金錢性獎勵。
+
+
+## 2026-09-19：跑鞋連動、同步與 Activity
+
+新增 owner 分區外觀／同步偏好、持久化 outbox、單 worker、revision 幂等及晚到重算契約；沿用運動端點擴充查詢／詳情／刪除。
+
+完整需求、畫面、資料契約及驗收以 [整合設計](./shoe-sync-activity.md) 為準。
+
+
+## 2026-09-20 特殊圖案路線挑戰（新增開發內容）
+
+規劃新增 RouteTemplate／Rules／Attempt／ShareGrant；GPX 分享先本機完成。分享連結的模板座標上傳需獨立同意與專用儲存，不混入 workout 摘要或鏈上 metadata。原始 session 與背景不因建立分享模板而更改。
+
+完整流程、資料與驗收：[特殊路線挑戰規格](design/pattern-route-challenges.md)。
+
+## 2026-09-21 官方 SKR 外觀付款（SKR-01～06，對應參賽計畫 §1 P1／§5）
+
+**範圍**：已由伺服器驗證並登錄（`achievements.status ∈ {approved, minted}`）的 `first_5k` 里程碑 → 可用官方 SKR 購買「Genesis Mint 收藏卡邊框」（純外觀；不加 XP／排名／審核）。與 devnet tSKR、任務金庫、NFT 鑄造完全分開；不改全 App cluster。
+
+**後端**（`backend/src/skr/`）
+- 設定：`SKR_ENABLED`、`SKR_NETWORK`（mainnet-beta｜devnet）、`SKR_RPC_URL`、`SKR_MINT`（主網強制官方 `SKRbvo6…hW3`；devnet 需另指定測試 mint）、`SKR_RECIPIENT`（收款 owner；收款帳戶為其 ATA）、`SKR_GENESIS_FRAME_PRICE`（最小單位）、`SKR_ORDER_TTL_SEC`（900）、`SKR_PAYMENT_GRACE_SEC`（600）、`SKR_COMMITMENT`。啟動時向鏈上核對 mint owner＝SPL Token、讀 decimals；失敗即停用（目錄 `enabled=false, reason`）。
+- 資料：`skr_orders`（不可變：network／wallet／sku＋version／cosmetic／mint／decimals／amount／recipient／recipient_token_account／reference（唯一）／eligibility_ref／source_env／expires_at；狀態：awaiting_payment→confirming→fulfilled｜expired｜needs_review｜cancelled）、`skr_receipts`（signature 主鍵、order_id 唯一）、`skr_entitlements`（(wallet, cosmetic_id) 主鍵）。履約＝receipt＋訂單 fulfilled＋權限 active 同交易；同 signature 第二張訂單 → 409 `PAYMENT_ALREADY_USED`。
+- API（皆需 SIWS session、限本人）：`GET /me/skr/catalog`、`POST /me/skr/orders {sku}`（冪等：同 SKU 未終結訂單回既有；已擁有 409 `ALREADY_OWNED`；資格不符 409 `NOT_ELIGIBLE`）、`GET /me/skr/orders[/:id]`、`POST /me/skr/orders/:id/confirm {signature}`（RPC 未見 → `found=false` 維持 confirming；驗證失敗：`tx_failed` → 回 awaiting_payment 可重付，其餘（他人付款／錯 mint／金額不足／逾期超過寬限）→ needs_review 不履約）、`POST /me/skr/orders/:id/recover`（以記錄的 signature 或 reference 反查）、`POST /me/skr/orders/:id/cancel`（awaiting_payment 可取消；confirming 只有期限＋寬限已過且 RPC 查無此 signature 才可）、`GET /me/skr/entitlements`。
+- 查驗（`verify.ts`）：`meta.err` 為空；account keys 含 reference；收款 ATA 於該 mint 的 post−pre ≥ 金額（多付照記實收）；訂單錢包擁有的同 mint 帳戶減少 ≥ 金額（他人代付不算）；blockTime ≤ expires_at＋寬限。網路由 RPC 本身決定（devnet 簽章在主網查無 → 不履約）。
+- 錢包刪除：權限與未履約訂單刪除；已履約訂單與 receipt 保留為付款紀錄。
+
+**App**（`app/src/services/skr/`、`state/skrStore.ts`、`components/GenesisFrameCard.tsx`）
+- 目錄／訂單雙重核對：主網 mint 必須等於 `OFFICIAL_SKR_MINT`；收款帳戶必須是收款人 ATA。
+- 交易：`createAssociatedTokenAccountIdempotent(收款人)` ＋ `transferChecked(amount, decimals)`，reference 為唯讀非簽名帳戶；主網以 MWA `solana:mainnet` 另行授權（token 另存 `neonshift.wallet.session.v1:solana:mainnet`，帳戶必須與 devnet session 相同）。
+- 流程：建單 → 餘額預檢（SKR ≥ 價格；SOL ≥ 手續費＋收款 ATA 不存在時的租金）→ 開錢包 → 送出 → 伺服器確認（退避 1.5→10 s，最多 6 次）→ `fulfilled`／`confirming`（保留 recover）／`needs_review`。送出後任何錯誤不重送；錢包不回覆／網路錯誤把訂單留在本機 pending（按 network＋wallet），重開 App 顯示「查看狀態」。
+- 外觀：權限以伺服器為準（換裝置／重裝恢復）；`useGenesisFrame` 偏好按錢包保存；里程碑卡片套金色邊框。不改任何已保存路線背景。
+
+**未完成／待決**：正式價格與收款錢包（負責人決策）；主網小額實測（需負責人核准金額與收款地址）；devnet 試跑用 `scripts/chain/skr-test-mint.sh`；SKR-07 自動測試已覆蓋（backend 11、app 12），真機證據待補。
+
+
+## 2026-09-28 實作註記：節日提醒的本機排程通知（PG-SEASON-06）
+
+- **只有本機排程，沒有遠端推播。** `expo-notifications ~57.0.21` 只用 channel／權限／
+  `scheduleNotificationAsync`（DATE trigger）。訂閱清單依原設計仍只存在裝置上、不上傳：
+  走 push 需要後端保存裝置 token 與訂閱關係，會把一個公開活動的訂閱變成個人資料，
+  而每一屆的日期本來就公開且事先已知，排程在手機上算得出來。
+- 排程時刻＝訂閱的一屆的「開始前 7 天／窗口開啟／窗口結束」三則；只排未來，已達標或待驗證不排；
+  id 固定為 `seasonal:<phase>:<campaign_id>`，同步採差異運算（比對 `fireAt` 與 `locale`，
+  換語言會重排未來的通知），不會排出第二份也不會誤殺其他通知。
+- 權限只由使用者打開提醒開關時要求（Android 13 需先有 channel 才會出現系統詢問）；
+  被拒絕時 UI 改說「只會在你打開 App 時提醒」，不假裝會通知。
+- 通知 `data` 只放活動代號、階段、時刻、語言——通知內容會留在系統通知紀錄裡，不放任何個人資料。
+- 原生層：autolinking 會處理模組本身（不需重跑 prebuild），但本專案手動維護 `android/`，
+  所以 config plugin 的產出（`notification_icon_color`、四個 meta-data）是手工補上的。
+  小圖示**沿用既有的 `@drawable/notification_icon`**（運動中前景服務用的單色脈衝向量圖，
+  `expo-location` 也按這個名字取圖）；因此 plugin 只宣告 `color` 不宣告 `icon`——宣告了會生成
+  密度限定的 PNG，在每個密度桶蓋掉那張向量圖。`POST_NOTIFICATIONS` 由模組 manifest 宣告，
+  `app.json` 也明列。
+- 代價：`expo-notifications` 固定依賴 `firebase-messaging`，會進 APK；本專案沒有 google-services
+  設定檔，不會初始化、不會有推播連線。
+- 隱私政策第 5 節已補通知權限揭露（生效日 2026-09-28）。

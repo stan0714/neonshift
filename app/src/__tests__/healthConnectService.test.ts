@@ -13,8 +13,9 @@ jest.mock('../../modules/neonshift-health', () => ({
   },
 }));
 
+import { FEATURES } from '@/config/features';
 import { NeonshiftHealth } from '../../modules/neonshift-health';
-import { HealthError, healthConnect, summarizePermissions, taskDateOf, taskDateRange } from '@/services/health/HealthConnectService';
+import { HealthError, healthConnect, summarizePermissions, taskDateOf, taskDateRange, REQUIRED_PERMISSIONS } from '@/services/health/HealthConnectService';
 
 const native = NeonshiftHealth as jest.Mocked<typeof NeonshiftHealth>;
 
@@ -30,13 +31,15 @@ describe('UTC 任務日（BR-05）', () => {
 });
 
 describe('權限整理（FR-02.5）', () => {
-  test('granted／partial／denied 與背景旗標', () => {
+  test('granted／partial／denied 與背景旗標（睡眠功能關閉時只要求步數，FEATURES.sleep）', () => {
     expect(summarizePermissions([]).state).toBe('denied');
-    expect(summarizePermissions(['android.permission.health.READ_STEPS']).state).toBe('partial');
+    // 睡眠隱藏（2026-09-20）：只有步數就是 granted，不再因缺睡眠判 partial
+    expect(summarizePermissions(['android.permission.health.READ_STEPS']).state).toBe(FEATURES.sleep ? 'partial' : 'granted');
     const s = summarizePermissions(['android.permission.health.READ_STEPS', 'android.permission.health.READ_SLEEP']);
     expect(s.state).toBe('granted');
     expect(s.backgroundGranted).toBe(false);
     expect(s.missing).toEqual([]);
+    expect(REQUIRED_PERMISSIONS()).toEqual(FEATURES.sleep ? ['android.permission.health.READ_STEPS', 'android.permission.health.READ_SLEEP'] : ['android.permission.health.READ_STEPS']);
   });
 });
 
@@ -79,4 +82,10 @@ describe('讀取', () => {
     expect(err).toBeInstanceOf(HealthError);
     expect((err as HealthError).code).toBe('HC_READ_FAILED');
   });
+});
+
+test('睡眠關閉時即使舊版本已授權也不呼叫原生睡眠讀取', async () => {
+  native.readSleepSessions.mockClear();
+  await expect(healthConnect.readSleepForTaskDate(20_706)).resolves.toEqual({ sessions: [] });
+  expect(native.readSleepSessions).not.toHaveBeenCalled();
 });

@@ -1,12 +1,12 @@
 /** PG-R-01：Health Connect session → 匯入 payload 映射（運動範圍、單位、Active／Total 分開、不套通用步長）、匯入器分批／不可用、運動紀錄畫面。 */
 import { NavigationContainer } from '@react-navigation/native';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { PropsWithChildren } from 'react';
 import { Alert } from 'react-native';
 
 import { formatDuration, formatKm, formatPace, sportOf, toImportInput } from '@/domain/workouts';
 import { WorkoutsScreen } from '@/screens/WorkoutsScreen';
-import { importFromHealthConnect } from '@/services/workouts/importer';
+import { importFromHealthConnect, previewHealthConnect } from '@/services/workouts/importer';
 import { ThemeProvider } from '@/theme';
 
 jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { myWorkouts: jest.fn(), importWorkouts: jest.fn(), deleteWorkout: jest.fn(), personalBests: jest.fn(async () => ({ rules_major: 1, imported_since: '2026-09-01T00:00:00Z', groups: [{ key: 'k', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', current: { pb_id: 'p2', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', rules_major: 1, value: '1500000', unit: 'ms', source: { kind: 'workout', id: 's1', revision: 1 }, achieved_at: '2026-09-05T00:00:00Z', status: 'current', is_baseline: false, previous_pb_id: 'p1', invalidated_at: null, reason: null }, history: [{ pb_id: 'p1', category: 'fastest_5k', environment: 'outdoor', verification_class: 'device', timing_basis: 'elapsed', rules_major: 1, value: '1600000', unit: 'ms', source: { kind: 'workout', id: 's0', revision: 1 }, achieved_at: '2026-09-01T00:00:00Z', status: 'historical', is_baseline: true, previous_pb_id: null, invalidated_at: null, reason: null }] }, { key: 'k2', category: 'longest_run', environment: 'outdoor', verification_class: 'organizer', timing_basis: 'elapsed', current: null, history: [{ pb_id: 'p3', category: 'longest_run', environment: 'outdoor', verification_class: 'organizer', timing_basis: 'elapsed', rules_major: 1, value: '5000000', unit: 'mm', source: { kind: 'result', id: 'r1', revision: 1 }, achieved_at: '2026-10-03T00:00:00Z', status: 'invalidated', is_baseline: true, previous_pb_id: null, invalidated_at: '2026-10-04T00:00:00Z', reason: 'source_removed_or_corrected' }] }] })) } }));
@@ -64,6 +64,16 @@ describe('importer', () => {
     expect(api.importWorkouts.mock.calls[1]![0]).toHaveLength(9);
     expect(r).toEqual({ kind: 'ok', imported: 57, superseded: 2, skipped: 1 });
   });
+  test('預檢：不提示權限、不上傳；對照伺服器 (source_id, external_record_id, revision) 算尚未匯入筆數；權限未授予 → unknown', async () => {
+    const sessions = [{ ...hc, recordId: 'r1', version: 1 }, { ...hc, recordId: 'r2', version: 2 }, { ...hc, recordId: 'r3', version: 1 }];
+    const existing = [{ source: { source_id: hc.dataOrigin, external_record_id: 'r1', source_revision: 1 } }, { source: { source_id: hc.dataOrigin, external_record_id: 'r2', source_revision: 1 } }];
+    const requestPermissions = jest.fn();
+    expect(await previewHealthConnect(existing, { reader: { readExerciseSessions: async () => ({ sessions }), requestPermissions } })).toEqual({ kind: 'ok', pending: 2, total: 3 }); // r2 有新版本、r3 全新
+    expect(await previewHealthConnect(sessions.map((x) => ({ source: { source_id: hc.dataOrigin, external_record_id: x.recordId, source_revision: 2 } })), { reader: { readExerciseSessions: async () => ({ sessions }) } })).toEqual({ kind: 'ok', pending: 0, total: 3 });
+    expect(await previewHealthConnect([], { reader: { PERMISSION_READ_EXERCISE: 'p', getGrantedPermissions: async () => [], requestPermissions, readExerciseSessions: async () => ({ sessions }) } })).toEqual({ kind: 'unknown' });
+    expect(requestPermissions).not.toHaveBeenCalled();
+    expect(api.importWorkouts).not.toHaveBeenCalled();
+  });
 });
 
 describe('WorkoutsScreen', () => {
@@ -81,6 +91,13 @@ describe('WorkoutsScreen', () => {
     expect(screen.getByText('From records imported since 2026-09-01')).toBeTruthy();
     expect(screen.getByText('A record was corrected or deleted — this best was revised.')).toBeTruthy();
     expect(screen.getAllByText('5.00 km')).toHaveLength(2); // s1 與 s3 都是 5 km
+    // PG-U-03：週回顧與模式篩選
+    expect(screen.getByTestId('workouts-week-review')).toBeTruthy();
+    expect(screen.getByText(/Weeks start Monday, local time/)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('workouts-filter-walking'));
+    expect(screen.queryByTestId('workout-s1')).toBeNull(); // s1 是跑步
+    await fireEvent.press(screen.getByTestId('workouts-filter-all'));
+    expect(screen.getByTestId('workout-s1')).toBeTruthy();
     expect(screen.getAllByText('5:00 /km').length).toBeGreaterThan(0);
     expect(screen.getAllByText('320 kcal').length).toBeGreaterThan(0);
     expect(screen.getByText('350 kcal (total)')).toBeTruthy();
@@ -109,4 +126,97 @@ describe('WorkoutsScreen', () => {
     await waitFor(() => expect(screen.getByTestId('workouts-empty')).toBeTruthy());
     await act(async () => {});
   });
+});
+
+test('review 6（第二輪）：有進行中的運動 → 清單顯示「返回運動」卡並導向記錄頁；它不會出現在可恢復清單', async () => {
+  const { workoutRecorder } = jest.requireActual('@/services/workouts/WorkoutRecorder') as typeof import('@/services/workouts/WorkoutRecorder');
+  jest.spyOn(workoutRecorder, 'active').mockReturnValue({ sessionId: 'live-1', state: 'recording', sport: 'run' });
+  jest.spyOn(workoutRecorder, 'markRecoverable').mockResolvedValue([]);
+  jest.spyOn(workoutRecorder, 'unsynced').mockReturnValue([]);
+  (jest.requireMock('@/services/api/ApiClient') as { apiClient: { myWorkouts: jest.Mock } }).apiClient.myWorkouts.mockResolvedValue({ items: [], rules_version: 1 });
+  await render(<WorkoutsScreen />, { wrapper: Wrapper });
+  expect(screen.getByTestId('workouts-ongoing')).toBeTruthy();
+  expect(screen.getByText('Workout in progress')).toBeTruthy();
+  expect(screen.queryByTestId('workouts-recover-live-1')).toBeNull();
+  expect(screen.getByText('Return to workout')).toBeTruthy();
+});
+
+test('review 9：本機清單不只掛載時讀一次——recorder 發出變化（結束／背景同步完成）時重讀；重新取得焦點時重讀', async () => {
+  const { workoutRecorder } = jest.requireActual('@/services/workouts/WorkoutRecorder') as typeof import('@/services/workouts/WorkoutRecorder');
+  const meta = { sessionId: 'local-9', sport: 'walk', intent: 'brisk', goal: null, environment: 'outdoor', status: 'saved', startedAtUtc: Date.UTC(2026, 8, 18, 8), startedMonoMs: 0, processId: 'p', pauses: [], manualLapsAtMs: [], lastSeq: 0, acceptedCount: 10, interrupted: false, endedAtUtc: null, syncedSessionId: null, updatedAt: 0, summary: { distanceMm: 2_000_000, elapsedMs: 1_500_000 } } as never;
+  const unsynced = jest.spyOn(workoutRecorder, 'unsynced').mockReturnValue([]);
+  jest.spyOn(workoutRecorder, 'markRecoverable').mockResolvedValue([]);
+  (jest.requireMock('@/services/api/ApiClient') as { apiClient: { myWorkouts: jest.Mock } }).apiClient.myWorkouts.mockResolvedValue({ items: [], rules_version: 1 });
+  const listeners = (workoutRecorder as unknown as { listeners: Set<() => void> }).listeners;
+  const before = listeners.size; // 單例可能已有其他測試留下的訂閱；只驗證本畫面自己有訂閱、卸載後有退訂
+  await render(<WorkoutsScreen />, { wrapper: Wrapper });
+  expect(screen.queryByTestId('workouts-unsynced')).toBeNull();
+  // 畫面仍在堆疊上時，另一處結束了一筆運動（recorder emit）→ 清單出現，不需重新掛載
+  unsynced.mockReturnValue([meta]);
+  expect(listeners.size).toBe(before + 1);
+  await act(async () => { for (const l of listeners) l(); });
+  await waitFor(() => expect(screen.getByTestId('workouts-unsynced')).toBeTruthy());
+  // 背景同步完成 → 再 emit → 清單移除
+  unsynced.mockReturnValue([]);
+  await act(async () => { for (const l of listeners) l(); });
+  await waitFor(() => expect(screen.queryByTestId('workouts-unsynced')).toBeNull());
+  await act(async () => { cleanup(); });
+  expect(listeners.size).toBe(before); // 卸載時取消訂閱
+});
+
+test('本機未同步紀錄（PG-LINK-02）：由舊到新列出並標狀態；單筆同步走佇列（未連錢包 → 提示登入；較早一筆卡住 → 本筆 BLOCKED_EARLIER；成功 → 已同步並移除）；訪客紀錄同步時歸屬；可刪除', async () => {
+  const { workoutRecorder } = jest.requireActual('@/services/workouts/WorkoutRecorder') as typeof import('@/services/workouts/WorkoutRecorder');
+  const { useWalletStore } = jest.requireActual('@/state/walletStore') as typeof import('@/state/walletStore');
+  const { PublicKey } = jest.requireActual('@solana/web3.js') as typeof import('@solana/web3.js');
+  jest.restoreAllMocks(); // 上一個測試 spy 了 unsynced／markRecoverable
+  const owner = '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU';
+  const store = workoutRecorder.localStore();
+  const mk = async (id: string, day: number, own: string | null) => {
+    const m = await store.create({ sessionId: id, sport: 'run', intent: 'run', goal: null, environment: 'outdoor', autoLapMm: null, splitLengthMm: 1_000_000, status: 'saved', startedAtUtc: Date.UTC(2026, 8, day, 12), startedMonoMs: 0, processId: 'p', owner: own });
+    m.endedAtUtc = m.startedAtUtc + 420_000;
+    m.summary = { distanceMm: 1_230_000, elapsedMs: 420_000 } as never;
+    await store.writeMeta(m);
+  };
+  await mk('local-19', 19, owner); // UI 若倒序也必須 17 → 18 → 19 上傳
+  await mk('local-17', 17, owner);
+  await mk('local-18', 18, null); // 訪客紀錄
+  const sync = jest.spyOn(workoutRecorder, 'syncMeta');
+  const del = jest.spyOn(workoutRecorder, 'deleteLocal').mockImplementation(() => {});
+  (jest.requireMock('@/services/api/ApiClient') as { apiClient: { myWorkouts: jest.Mock } }).apiClient.myWorkouts.mockResolvedValue({ items: [], rules_version: 1 });
+  useWalletStore.setState({ status: 'disconnected', session: null, error: null } as never);
+  await render(<WorkoutsScreen />, { wrapper: Wrapper });
+  expect(screen.getByTestId('workouts-unsynced')).toBeTruthy();
+  expect(screen.getAllByText(/Run · 1\.23 km · 7:00/).length).toBe(1); // 未連錢包：只列訪客紀錄
+  useWalletStore.setState({ status: 'connected', session: { address: owner, publicKey: new PublicKey(owner), walletUriBase: '', label: 'Phantom' }, error: null } as never);
+  await waitFor(() => expect(screen.getAllByText(/Run · 1\.23 km · 7:00/).length).toBe(3));
+  const rows = screen.getAllByTestId(/^workouts-local-(local-\d+)$/).map((r) => r.props.testID);
+  expect(rows).toEqual(['workouts-local-local-17', 'workouts-local-local-18', 'workouts-local-local-19']); // 由舊到新
+  expect(screen.getByTestId('workouts-local-status-local-18').props.children.join('')).toMatch(/^Guest workout/);
+  // 按最新那筆同步：佇列從 17 開始；17 未登入被擋 → 19 回「較早紀錄待處理」
+  sync.mockResolvedValueOnce({ ok: false, code: 'NO_SESSION', message: 'Sign in required' });
+  await fireEvent.press(screen.getByTestId('workouts-local-sync-local-19'));
+  await waitFor(() => expect(screen.getByText(/An earlier workout is pending/)).toBeTruthy());
+  expect(sync).toHaveBeenCalledTimes(1);
+  expect((sync.mock.calls[0]![0] as { sessionId: string }).sessionId).toBe('local-17');
+  await waitFor(() => expect(screen.getByTestId('workouts-local-status-local-17').props.children.join('')).toMatch(/Needs your action/));
+  expect(screen.getByTestId('workouts-head-stuck')).toBeTruthy();
+  // 再按 19：這次 17、18（訪客已歸屬）、19 依序成功；訪客紀錄歸屬到目前錢包
+  sync.mockImplementation(async (m) => { m.syncedSessionId = `srv-${m.sessionId}`; await store.writeMeta(m); return { ok: true }; });
+  await fireEvent.press(screen.getByTestId('workouts-local-sync-local-19'));
+  await waitFor(() => expect(screen.getByText('Synced to your account')).toBeTruthy());
+  expect(sync.mock.calls.slice(1).map((c) => (c[0] as { sessionId: string }).sessionId)).toEqual(['local-17', 'local-19']); // 訪客紀錄不會被自動歸屬
+  expect(store.readMeta('local-18')?.owner).toBeNull();
+  // 本人對訪客紀錄按同步 → 歸屬到目前錢包後上傳
+  await fireEvent.press(screen.getByTestId('workouts-local-sync-local-18'));
+  await waitFor(() => expect(store.readMeta('local-18')?.syncedSessionId).toBe('srv-local-18'));
+  expect(store.readMeta('local-18')?.owner).toBe(owner);
+  sync.mockRestore();
+  // 刪除：確認對話框 → deleteLocal
+  await mk('local-20', 20, owner);
+  jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, b) => b?.find((x) => x.style === 'destructive')?.onPress?.());
+  await act(async () => {});
+  cleanup();
+  await render(<WorkoutsScreen />, { wrapper: Wrapper });
+  await fireEvent.press(screen.getByTestId('workouts-local-delete-local-20'));
+  expect(del).toHaveBeenCalledWith('local-20');
 });

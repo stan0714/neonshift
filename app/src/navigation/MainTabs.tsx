@@ -1,3 +1,4 @@
+import { NftReveal } from '@/components/NftReveal';
 import { Feather } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { StyleSheet, View } from "react-native";
@@ -6,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { color, glowStyle, layout, typography } from "@/theme";
 import { EvolutionReveal } from "@/components/EvolutionReveal";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { ActivityScreen } from "@/screens/activity/ActivityScreen";
 import { ArenaScreen } from "@/screens/tabs/ArenaScreen";
 import { GearScreen } from "@/screens/tabs/GearScreen";
 import { HomeScreen } from "@/screens/tabs/HomeScreen";
@@ -22,6 +24,7 @@ const icons: Record<
   React.ComponentProps<typeof Feather>["name"]
 > = {
   Home: "activity",
+  ActivityTab: "bar-chart-2",
   Gear: "layers",
   Arena: "award",
   Profile: "user",
@@ -46,7 +49,7 @@ function TabIcon({
 }
 
 /**
- * 固定四分頁 bottom navigation（Style 2.2）。
+ * 固定五分頁 bottom navigation（Style 2.2；2026-09-20 加入「運動」分頁快速瀏覽運動內容）。
  * icon 與 label 同時顯示；active 為 mint 文字＋低強度 glow，inactive 為 textMuted。
  */
 export function MainTabs() {
@@ -75,11 +78,13 @@ export function MainTabs() {
         })}
       >
         <Tab.Screen name="Home" component={HomeScreen} options={{ title: t("nav.home") }} />
+        <Tab.Screen name="ActivityTab" component={ActivityScreen} options={{ title: t("nav.activityTab") }} />
         <Tab.Screen name="Gear" component={GearScreen} options={{ title: t("nav.gear") }} />
         <Tab.Screen name="Arena" component={ArenaScreen} options={{ title: t("nav.arena") }} />
         <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: t("nav.profile") }} />
       </Tab.Navigator>
       <EvolutionReveal />
+      <NftReveal />
     </>
   );
 }

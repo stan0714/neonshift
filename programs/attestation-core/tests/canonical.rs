@@ -125,7 +125,8 @@ fn rejects_unknown_version() {
 
 #[test]
 fn rejects_invalid_task_type() {
-    for bad in [0u8, 3, 255] {
+    // 維持規則 v2（DEC-04）：3 = 運動任務為合法值
+    for bad in [0u8, 4, 255] {
         let mut bytes = sample().encode();
         bytes[89] = bad;
         assert_eq!(

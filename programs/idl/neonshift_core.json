@@ -2602,7 +2602,7 @@
     {
       "code": 6028,
       "name": "InvalidTaskType",
-      "msg": "task_type 不是 1（steps）或 2（sleep）"
+      "msg": "task_type 不是 1（steps）、2（sleep）或 3（workout）"
     },
     {
       "code": 6029,
@@ -2683,6 +2683,11 @@
       "code": 6044,
       "name": "InvalidFreezeWindow",
       "msg": "凍結視窗無效：end 須大於 start、最長 28 天、start 不得早於 7 天前"
+    },
+    {
+      "code": 6045,
+      "name": "TaskTypeRetired",
+      "msg": "睡眠任務已於維持規則 v2 退役，不再接受申請"
     }
   ],
   "types": [

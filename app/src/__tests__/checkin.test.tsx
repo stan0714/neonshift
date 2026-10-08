@@ -12,8 +12,8 @@ jest.mock('react-native-qrcode-svg', () => {
   return (props: { value: string }) => <View testID="qr" accessibilityLabel={props.value} />;
 });
 jest.mock('@react-navigation/native', () => ({ ...jest.requireActual('@react-navigation/native'), useNavigation: () => ({ navigate: jest.fn() }), useRoute: () => ({ params: { eventId: 'E1', slug: 'river-5k' } }) }));
-jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { checkinChallenge: jest.fn(), partnerCheckpoints: jest.fn(), partnerMe: jest.fn(), staffCheckin: jest.fn(), staffCheckins: jest.fn(), partnerBenefits: jest.fn(async () => ({ benefits: [] })) } }));
-const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'checkinChallenge' | 'partnerCheckpoints' | 'partnerMe' | 'staffCheckin' | 'staffCheckins', jest.Mock>;
+jest.mock('@/services/api/ApiClient', () => ({ ...jest.requireActual('@/services/api/ApiClient'), apiClient: { eventRegistration: jest.fn(async () => ({ registration: null })), checkinChallenge: jest.fn(), partnerCheckpoints: jest.fn(), partnerMe: jest.fn(), staffCheckin: jest.fn(), staffCheckins: jest.fn(), partnerBenefits: jest.fn(async () => ({ benefits: [] })) } }));
+const api = jest.requireMock('@/services/api/ApiClient').apiClient as Record<'checkinChallenge' | 'partnerCheckpoints' | 'partnerMe' | 'staffCheckin' | 'staffCheckins' | 'eventRegistration', jest.Mock>;
 const { ApiError } = jest.requireActual('@/services/api/ApiClient');
 
 const Wrapper = ({ children }: PropsWithChildren) => (
@@ -80,5 +80,38 @@ describe('StaffCheckInScreen', () => {
     api.staffCheckins.mockRejectedValue(new ApiError(404, 'NOT_FOUND', 'x'));
     await render(<StaffCheckInScreen />, { wrapper: Wrapper });
     await waitFor(() => expect(screen.getByTestId('staff-no-role')).toBeTruthy());
+  });
+});
+
+describe('CheckInCode（2026-09-19 review）', () => {
+  const challenge = (code: string, id: string) => ({ code, expires_at: new Date(Date.now() + 120_000).toISOString(), checkpoint: { checkpoint_id: id, name: id }, qr_payload: `neonshift-checkin:river-5k:${code}` });
+  test('切換站點：立即清空舊碼並顯示載入中；舊站點的延遲回應被忽略', async () => {
+    let resolveOld!: (v: unknown) => void;
+    api.checkinChallenge.mockImplementationOnce(() => new Promise((res) => { resolveOld = res; })).mockResolvedValueOnce(challenge('NEWW2345', 'c2'));
+    const { rerender } = await render(<CheckInCode eventId="E1" checkpointId="c1" checkpointName="Gate" />, { wrapper: Wrapper });
+    expect(screen.getByTestId('checkin-loading')).toBeTruthy();
+    await rerender(<CheckInCode eventId="E1" checkpointId="c2" checkpointName="Booth" />);
+    await waitFor(() => expect(screen.getByTestId('checkin-code-text').props.children.join('')).toBe('NEWW 2345'));
+    await act(async () => { resolveOld(challenge('OLDD2345', 'c1')); });
+    expect(screen.getByTestId('checkin-code-text').props.children.join('')).toBe('NEWW 2345');
+    expect(screen.queryByText(/OLDD/)).toBeNull();
+  });
+  test('顯示代碼期間輪詢報名狀態：staff 確認 checked_in → onCheckedIn', async () => {
+    jest.useFakeTimers();
+    try {
+      api.checkinChallenge.mockResolvedValue(challenge('ABCD2345', 'c1'));
+      api.eventRegistration.mockResolvedValueOnce({ registration: { status: 'registered' } }).mockResolvedValueOnce({ registration: { status: 'checked_in' } });
+      const onCheckedIn = jest.fn();
+      await render(<CheckInCode eventId="E1" checkpointId="c1" checkpointName="Gate" onCheckedIn={onCheckedIn} />, { wrapper: Wrapper });
+      await waitFor(() => expect(screen.getByTestId('checkin-code')).toBeTruthy());
+      expect(screen.getByTestId('checkin-watching')).toBeTruthy();
+      await act(async () => { jest.advanceTimersByTime(5_100); });
+      expect(onCheckedIn).not.toHaveBeenCalled();
+      await act(async () => { jest.advanceTimersByTime(5_100); });
+      await act(async () => {});
+      expect(onCheckedIn).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

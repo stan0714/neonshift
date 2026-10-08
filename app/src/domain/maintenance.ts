@@ -1,13 +1,15 @@
 /**
- * 跑鞋維持挑戰（PG-V-04；shoe-gameplay 3、4、6）。參數與 programs/neonshift-core/src/maintenance.rs、tools/maintenance-sim/rules.mjs 同版（v1）；
+ * 跑鞋維持挑戰（PG-V-04；shoe-gameplay 3、4、6）。參數與 programs/neonshift-core/src/maintenance.rs、tools/maintenance-sim/rules-v2.mjs 同版（v2，DEC-04：第二任務＝運動 +100、日上限 200；門檻不變）；
  * 只作 UI 預覽與提示，production 以鏈上狀態為準。
  */
 import { EPOCH_DAYS, epochIndexOf, type PlayerProfile } from '@/chain/accounts';
 
-export const MAINTENANCE_RULES_VERSION = 1;
+export const MAINTENANCE_RULES_VERSION = 2;
 export const MAINTENANCE_POINTS = [0, 200, 450, 700, 900] as const;
 export const MAINTENANCE_ACTIVE_DAYS = [0, 2, 3, 5, 6] as const;
 export const POINTS_STEPS = 100;
+export const POINTS_WORKOUT = 100;
+/** v1 睡眠（已退役，僅供歷史顯示） */
 export const POINTS_SLEEP = 50;
 
 export type MaintenanceView = {
@@ -58,6 +60,6 @@ export function maintenanceView(profile: PlayerProfile | null, thresholds: bigin
 export function nextSteps(target: { points: number; activeDays: number }, points: number, activeDays: number) {
   const morePoints = Math.max(0, target.points - points);
   const moreDays = Math.max(0, target.activeDays - activeDays);
-  const doubleDays = Math.ceil(morePoints / (POINTS_STEPS + POINTS_SLEEP));
+  const doubleDays = Math.ceil(morePoints / (POINTS_STEPS + POINTS_WORKOUT));
   return { morePoints, moreDays, doubleDays: Math.max(doubleDays, moreDays) };
 }

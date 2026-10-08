@@ -4,15 +4,27 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { Button, Chip, InlineState, Screen, Surface } from '@/components';
+import { BodyWeightCard } from '@/components/BodyWeightCard';
+import { WalletTimelineCard } from '@/components/WalletTimelineCard';
+import { useAppearance } from '@/hooks/useAppearance';
+import { useOutbox } from '@/hooks/useOutbox';
+import { workoutOutbox } from '@/services/workouts/WorkoutOutbox';
+import { useSyncPrefs } from '@/state/syncPrefsStore';
+import { useAppearanceStore } from '@/state/appearanceStore';
+import { stageName } from '@/domain/collectibles';
 import { APP_CONFIG } from '@/config/app';
+import { APP_VERSION_DISPLAY } from '@/config/version';
 import { ApiError, apiClient } from '@/services/api/ApiClient';
+import { apiErrorText } from '@/services/api/errorText';
 import { healthConnect, type HealthPermissionSummary } from '@/services/health/HealthConnectService';
 import { activityRecognition } from '@/services/permissions/ActivityRecognition';
 import { useDashboardStore } from '@/state/dashboardStore';
 import { useOnboardingStore } from '@/state/onboardingStore';
 import { shortAddress, useWalletStore } from '@/state/walletStore';
+import { disconnectWallet } from '@/services/session/disconnect';
 import { color, radius, space, Text } from '@/theme';
 import { useLocaleStore, useT, type TKey } from '@/i18n';
+import { FEATURES } from '@/config/features';
 
 type Deletion = { state: 'idle' | 'working' | 'done' | 'scheduled' | 'error'; dueAt?: string; message?: string; referenceId?: string };
 
@@ -24,12 +36,42 @@ export function ProfileScreen() {
   const { t } = useT();
   const navigation = useNavigation();
   const wallet = useWalletStore();
+  const ap = useAppearance();
+  const setBackground = useAppearanceStore((s) => s.setBackground);
+  // PG-LINK-02：資料與同步
+  const ob = useOutbox();
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncNote, setSyncNote] = useState<{ kind: 'success' | 'warning' | 'info'; title: string; body?: string } | null>(null);
+  const setAutoSync = async (v: boolean) => {
+    await useSyncPrefs.getState().setAutoSync(v);
+    if (v) void workoutOutbox.kick('toggle');
+  };
+  const syncAllNow = async () => {
+    if (!ob.owner) return;
+    setSyncBusy(true);
+    setSyncNote(null);
+    try {
+      const r = await workoutOutbox.run(ob.owner, { manual: true });
+      if (!r.stoppedAt) setSyncNote({ kind: 'success', title: t('sync.done', { n: r.sent }) });
+      else setSyncNote({ kind: 'warning', title: t('sync.stopped', { n: r.sent }), body: t(`sync.err.${r.stoppedAt.outcome.ok ? 'UNKNOWN' : r.stoppedAt.outcome.code}` as TKey, { message: apiErrorText(t, r.stoppedAt.outcome.ok ? '' : r.stoppedAt.outcome.message) }) });
+    } finally {
+      setSyncBusy(false);
+    }
+  };
+  const assignGuest = () => {
+    if (!ob.owner) return;
+    Alert.alert(t('sync.assign.title', { n: ob.unassigned.length }), t('sync.assign.body'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('sync.assign.confirm'), onPress: () => void workoutOutbox.assign(ob.unassigned.map((m) => m.sessionId), ob.owner!) },
+    ]);
+  };
   const onboarding = useOnboardingStore();
   const dashboard = useDashboardStore();
   const [health, setHealth] = useState<HealthPermissionSummary | null>(null);
   const [activity, setActivity] = useState<boolean | null>(null);
   const [backend, setBackend] = useState<boolean | null>(null);
   const [deletion, setDeletion] = useState<Deletion>({ state: 'idle' });
+  const [disconnecting, setDisconnecting] = useState(false);
   // PG-R-09：藝廊展示偏好（退出只停止展示）
   const [galleryShown, setGalleryShownState] = useState(true);
   const [galleryBusy, setGalleryBusy] = useState(false);
@@ -64,11 +106,21 @@ export function ProfileScreen() {
       {
         text: t('profile.disconnect.ok'),
         style: 'destructive',
+        /**
+         * 2026-10-02 實機回報「點了 Disconnect 會停住」。其實有在跑：signOut 是網路請求
+         * （最長 15 秒），之後 MWA 的 deauthorize 還要開錢包選擇器。但這段期間**畫面毫無變化**
+         * ——沒有 spinner、按鈕沒停用——使用者只能判斷成當掉。
+         * 動作要說出自己正在發生，否則使用者唯一的結論就是壞了。
+         */
         onPress: async () => {
-          await apiClient.signOut().catch(() => {});
-          await wallet.disconnect();
-          await healthConnect.clearCache().catch(() => {});
-          navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+          if (disconnecting) return;
+          setDisconnecting(true);
+          try {
+            await disconnectWallet(); // 後端登出最多等 3 秒，再撤銷錢包授權、清健康快取
+            navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
+          } finally {
+            setDisconnecting(false);
+          }
         },
       },
     ]);
@@ -97,7 +149,10 @@ export function ProfileScreen() {
               }
               setBackend(false);
             } catch (e) {
-              setDeletion({ state: 'error', message: e instanceof ApiError ? `${e.code}: ${e.message}` : String(e), ...(e instanceof ApiError && e.requestId ? { referenceId: e.requestId } : {}) });
+              // 技術細節進 Ref、人話進正文（同 home.chainErr／home.healthErr 的做法）：
+              // 原本是 `${e.code}: ${e.message}`，畫面上會出現「VALIDATION: body/wallet must be string 沒有刪除任何資料。」
+              // 錯誤碼對支援很有用，但它屬於可回報的參考碼，不屬於句子。
+              setDeletion({ state: 'error', message: apiErrorText(t, e), ...(e instanceof ApiError ? { referenceId: e.requestId ? `${e.code} · ${e.requestId}` : e.code } : {}) });
             }
           },
         },
@@ -112,18 +167,35 @@ export function ProfileScreen() {
         <Chip label={t('common.devnet')} kind="devnet" />
       </View>
 
+      <Section title={t('guide.entry')}>
+        <Text variant="bodySmall" tone="secondary">{t('guide.entryBody')}</Text>
+        <Button label={t('guide.entry')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('GameGuide')} testID="profile-game-guide" />
+      </Section>
+
+      {/*
+        唯讀預覽的入口（APK-05）。原本只掛在登入前的 LandingScreen 上，所以一旦連了錢包
+        就再也回不去——而評審指南寫的正是「沒有合格 Health Connect 紀錄就用公開預覽」。
+        沒有這個入口，那句話對已登入的評審是死路。放在 Profile 而不是首頁：
+        首頁的健康資料警示該指向「檢查權限」（真正的修法），預覽是替代路徑，不是修法。
+      */}
+      <Section title={t('demo.title')}>
+        <Text variant="bodySmall" tone="secondary">{t('profile.previewBody')}</Text>
+        <Button label={t('profile.previewOpen')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('DemoPreview')} testID="profile-demo-preview" />
+      </Section>
+
       <Section title={t('profile.wallet')}>
         <Row icon="credit-card" label={wallet.session ? shortAddress(wallet.session.address, 6) : t('common.notConnected')} detail={wallet.session?.label ?? `Solana ${APP_CONFIG.cluster}`} />
         <Row icon="server" label={t('profile.backendSession')} detail={backend === null ? '…' : backend ? t('profile.signedIn') : t('profile.signedOut')} />
-        {wallet.session ? <Button label={t('profile.disconnectWallet')} variant="danger" style={styles.btn} onPress={disconnect} /> : <Button label={t('common.connectWallet')} style={styles.btn} onPress={() => navigation.navigate('Onboarding', { screen: 'WalletConnect' })} />}
+        {wallet.session ? <Button label={t('profile.disconnectWallet')} variant="danger" style={styles.btn} loading={disconnecting} loadingLabel={t('profile.disconnecting')} disabled={disconnecting} onPress={disconnect} testID="profile-disconnect" /> : <Button label={t('common.connectWallet')} style={styles.btn} onPress={() => navigation.navigate('Onboarding', { screen: 'WalletConnect' })} />}
       </Section>
 
       <Section title={t('profile.permissions')}>
-        <Row icon="activity" label={t('profile.healthConnect')} detail={health ? (health.state === 'granted' ? `${t('profile.stepsSleep')}${health.backgroundGranted ? t('profile.background') : ''}` : health.state === 'partial' ? t('profile.partial') : t('profile.off')) : '…'} tint={health?.state === 'granted' ? color.success : color.warning} />
+        <Row icon="activity" label={t('profile.healthConnect')} detail={health ? (health.state === 'granted' ? `${t(FEATURES.sleep ? 'profile.stepsSleep' : 'profile.stepsOnly')}${health.backgroundGranted ? t('profile.background') : ''}` : health.state === 'partial' ? t('profile.partial') : t('profile.off')) : '…'} tint={health?.state === 'granted' ? color.success : color.warning} />
         <Row icon="bar-chart-2" label={t('profile.activity')} detail={activity === null ? '…' : activity ? t('profile.allowed') : t('profile.off')} tint={activity ? color.success : color.warning} />
-        <View style={styles.rowBtns}>
-          <Button label={t('profile.hcSettings')} variant="secondary" style={styles.half} onPress={() => void healthConnect.openSettings()} />
-          <Button label={t('profile.appSettings')} variant="secondary" style={styles.half} onPress={() => void Linking.openSettings()} />
+        {/* 上下排滿寬：並排時「Health Connect settings」在半寬按鈕裡會換成三行 */}
+        <View style={styles.stackBtns}>
+          <Button label={t('profile.hcSettings')} variant="secondary" onPress={() => void healthConnect.openSettings()} testID="profile-hc-settings" />
+          <Button label={t('profile.appSettings')} variant="secondary" onPress={() => void Linking.openSettings()} testID="profile-app-settings" />
         </View>
       </Section>
 
@@ -142,6 +214,36 @@ export function ProfileScreen() {
         </View>
       </Section>
 
+      <Section title={t('profile.lookTitle')}>
+        <Row icon="layers" label={t('profile.lookShoe', { name: stageName(t, ap.level) })} detail={ap.differs ? t('gear.lookNote', { look: ap.level, active: ap.active }) : t('profile.lookFollow')} />
+        <View style={styles.rowBetween}>
+          <Text variant="bodySmall" tone="secondary" style={styles.flex}>{t('gear.bg.follow')}</Text>
+          <Switch value={ap.backgroundEnabled} onValueChange={(v) => void setBackground(v)} disabled={!wallet.session} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('gear.bg.follow')} testID="profile-bg-switch" />
+        </View>
+        <Text variant="caption" tone="muted" style={styles.mtXs}>{t(wallet.session ? 'profile.lookBody' : 'gear.bg.guest')}</Text>
+        <Button label={t('profile.lookOpenGear')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('Main', { screen: 'Gear' })} testID="profile-open-gear" />
+      </Section>
+
+      <Section title={t('sync.title')}>
+        <View style={styles.rowBetween}>
+          <Text variant="bodySmall" tone="secondary" style={styles.flex}>{t('sync.auto')}</Text>
+          <Switch value={ob.autoSync} onValueChange={(v) => void setAutoSync(v)} disabled={!wallet.session} trackColor={{ true: color.mint, false: color.borderSubtle }} thumbColor={color.textPrimary} accessibilityLabel={t('sync.auto')} testID="profile-autosync-switch" />
+        </View>
+        <Text variant="caption" tone="muted" style={styles.mtXs}>{t('sync.autoBody')}</Text>
+        <Row icon="upload-cloud" label={t('sync.pending', { n: ob.summary.pending })} detail={ob.lastSuccessAt ? t('sync.lastSuccess', { when: new Date(ob.lastSuccessAt).toLocaleString() }) : t('sync.never')} tint={ob.summary.pending > 0 ? color.warning : color.success} />
+        {ob.summary.head?.status === 'blocked' || ob.summary.head?.status === 'retry_wait' ? (
+          <Text variant="bodySmall" tone="warning" style={styles.mtXs} testID="profile-sync-head-error">
+            {t('sync.headStuck', { when: new Date(ob.summary.head.meta.startedAtUtc).toLocaleDateString(), reason: t(`sync.err.${ob.summary.head.lastError?.code ?? 'UNKNOWN'}` as TKey, { message: apiErrorText(t, ob.summary.head.lastError?.message ?? '') }) })}
+          </Text>
+        ) : null}
+        {ob.unassigned.length ? (
+          <Button label={t('sync.assign.btn', { n: ob.unassigned.length })} variant="secondary" style={styles.btn} onPress={assignGuest} disabled={!wallet.session} testID="profile-sync-assign" />
+        ) : null}
+        <Button label={t('sum.syncNow')} variant="secondary" style={styles.btn} onPress={() => void syncAllNow()} loading={syncBusy || ob.summary.running} loadingLabel={t('sum.syncing')} disabled={!wallet.session || ob.summary.pending === 0} disabledReason={!wallet.session ? t('common.reasonConnectWallet') : ob.summary.pending === 0 ? t('sync.nothing') : undefined} testID="profile-sync-now" />
+        {syncNote ? <InlineState kind={syncNote.kind} title={syncNote.title} body={syncNote.body} testID="profile-sync-note" /> : null}
+        <Text variant="caption" tone="muted" style={styles.mtXs}>{t('sync.footnote')}</Text>
+      </Section>
+
       <Section title={t('profile.galleryTitle')}>
         <View style={styles.rowBetween}>
           <Text variant="bodySmall" tone="secondary" style={styles.flex}>
@@ -152,8 +254,14 @@ export function ProfileScreen() {
         <Text variant="caption" tone="muted" style={styles.mtXs}>
           {t('profile.galleryBody')}
         </Text>
+        <Button label={t('actv.title')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('Main', { screen: 'ActivityTab' })} testID="profile-activity" />
         <Button label={t('profile.runningHistory')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('Workouts')} testID="profile-running-history" />
+        {/* XD-03 成就護照（本人只讀） */}
+        <Button label={t('profile.passport')} variant="secondary" style={styles.btn} onPress={() => navigation.navigate('Passport')} testID="profile-passport" />
       </Section>
+
+      {/* PG-R-11：熱量估算體重（選填，只存手機） */}
+      <BodyWeightCard />
 
       <Section title={t('profile.privacy')}>
         <Text variant="bodySmall" tone="secondary">
@@ -164,14 +272,23 @@ export function ProfileScreen() {
             {t('profile.privacyLink', { url: `${APP_CONFIG.siteUrl.replace('https://', '')}/privacy` })}
           </Text>
         </Pressable>
+        {/* COMP-07／08：第三方授權（含 LGPL 通知）與素材來源 */}
+        <Pressable onPress={() => void Linking.openURL(`${APP_CONFIG.siteUrl}/licenses`)} accessibilityRole="link" style={styles.link} testID="profile-licenses-link">
+          <Text variant="bodySmall" tone="cyan">
+            {t('profile.licensesLink', { url: `${APP_CONFIG.siteUrl.replace('https://', '')}/licenses` })}
+          </Text>
+        </Pressable>
         <Button label={t('profile.deleteData')} variant="danger" style={styles.btn} onPress={deleteData} loading={deletion.state === 'working'} loadingLabel={t('profile.deleting')} disabled={!backend} disabledReason={backend === false ? t('profile.deleteReason') : undefined} />
         {deletion.state === 'done' ? <InlineState kind="success" title={t('profile.deleted.title')} body={t('profile.deleted.body')} testID="deletion-done" /> : null}
         {deletion.state === 'scheduled' ? <InlineState kind="info" title={t('profile.scheduled.title')} body={t('profile.scheduled.body', { when: deletion.dueAt ? new Date(deletion.dueAt).toLocaleString() : t('profile.retentionLimit') })} testID="deletion-scheduled" /> : null}
-        {deletion.state === 'error' ? <InlineState kind="error" title={t('common.somethingInterrupted')} body={t('profile.deleteErr.body', { message: deletion.message ?? '' })} referenceId={deletion.referenceId} action={{ label: t('common.tryAgain'), onPress: deleteData }} testID="deletion-error" /> : null}
+        {deletion.state === 'error' ? <InlineState kind="error" title={t('common.somethingInterrupted')} body={t('profile.deleteErr.body', { message: apiErrorText(t, deletion.message ?? '') })} referenceId={deletion.referenceId} action={{ label: t('common.tryAgain'), onPress: deleteData }} testID="deletion-error" /> : null}
       </Section>
 
+      {/* XD-02：錢包互動時間線（驗收「記錄中自動彈出＝0」與等待時間拆分） */}
+      <WalletTimelineCard />
+
       <Section title={t('profile.about')}>
-        <Row icon="info" label="NeonShift 0.1.0" detail={`${APP_CONFIG.chainConfigured ? t('profile.program', { id: shortAddress(APP_CONFIG.programId, 6) }) : t('profile.noProgram')} · ${APP_CONFIG.backendConfigured ? APP_CONFIG.apiUrl : t('profile.noBackend')}`} />
+        <Row icon="info" label={`NeonShift ${APP_VERSION_DISPLAY}`} testID="profile-version" detail={`${APP_CONFIG.chainConfigured ? t('profile.program', { id: shortAddress(APP_CONFIG.programId, 6) }) : t('profile.noProgram')} · ${APP_CONFIG.backendConfigured ? APP_CONFIG.apiUrl : t('profile.noBackend')}`} />
         <Row icon="refresh-cw" label={t('profile.healthSync')} detail={dashboard.health?.syncedAt ? `${dashboard.health.source} · ${new Date(dashboard.health.syncedAt).toLocaleTimeString()}` : t('profile.notSyncedYet')} />
         <Text variant="caption" tone="muted" style={styles.disclaimer}>
           {t('profile.aboutDisclaimer')}
@@ -194,9 +311,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Row({ icon, label, detail, tint = color.textSecondary }: { icon: React.ComponentProps<typeof Feather>['name']; label: string; detail: string; tint?: string }) {
+function Row({ icon, label, detail, tint = color.textSecondary, testID }: { icon: React.ComponentProps<typeof Feather>['name']; label: string; detail: string; tint?: string; testID?: string }) {
   return (
-    <View style={styles.row} accessible accessibilityLabel={`${label}: ${detail}`}>
+    <View style={styles.row} accessible accessibilityLabel={`${label}: ${detail}`} testID={testID}>
       <Feather name={icon} size={20} color={tint} />
       <View style={styles.rowText}>
         <Text variant="body">{label}</Text>
@@ -214,12 +331,11 @@ const styles = StyleSheet.create({
   sectionTitle: { marginBottom: space.xs },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: space.xs },
   rowText: { marginLeft: space.s, flex: 1 },
-  rowBtns: { flexDirection: 'row', marginTop: space.s, gap: space.xs },
+  stackBtns: { marginTop: space.s, gap: space.xs },
   segment: { flexDirection: 'row', backgroundColor: color.elevated, borderRadius: radius.m, padding: 4, marginTop: space.xs },
   segmentItem: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radius.s },
   segmentOn: { backgroundColor: color.mint },
   segmentOnText: { color: color.onMint },
-  half: { flex: 1 },
   btn: { marginTop: space.m },
   link: { marginTop: space.s, minHeight: 48, justifyContent: 'center' },
   disclaimer: { marginTop: space.s },

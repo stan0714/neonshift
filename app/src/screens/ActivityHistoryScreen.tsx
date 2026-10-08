@@ -3,11 +3,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { InlineState, Screen, Surface } from '@/components';
+import { SignInState } from '@/components/SignInState';
 import { APP_CONFIG } from '@/config/app';
 import { ApiError, apiClient, type HistoryResponse } from '@/services/api/ApiClient';
 import { formatTskr } from '@/state/dashboardStore';
 import { color, radius, space, Text } from '@/theme';
 import { useT } from '@/i18n';
+import { apiErrorText } from '@/services/api/errorText';
 
 const dateOf = (taskDate: number) => new Date(taskDate * 86_400_000).toISOString().slice(0, 10);
 
@@ -54,9 +56,9 @@ export function ActivityHistoryScreen() {
 
       {error ? (
         error.code === 'NO_SESSION' ? (
-          <InlineState kind="info" title={t('act.signin.title')} body={t('act.signin.body')} testID="activity-signin" />
+          <SignInState title={t('act.signin.title')} body={t('act.signin.body')} onSignedIn={load} testID="activity-signin" />
         ) : (
-          <InlineState kind={error.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={error.code === 'NETWORK_ERROR' ? t('common.devnetBreak') : t('common.somethingInterrupted')} body={t('act.errBody', { message: error.message })} referenceId={error.ref} action={{ label: t('common.tryAgain'), onPress: () => void load(), loading }} testID="activity-error" />
+          <InlineState kind={error.code === 'NETWORK_ERROR' ? 'warning' : 'error'} title={error.code === 'NETWORK_ERROR' ? t('common.devnetBreak') : t('common.somethingInterrupted')} body={t('act.errBody', { message: apiErrorText(t, error.message) })} referenceId={error.ref} action={{ label: t('common.tryAgain'), onPress: () => void load(), loading }} testID="activity-error" />
         )
       ) : null}
 
@@ -76,7 +78,7 @@ export function ActivityHistoryScreen() {
             <Surface style={styles.row}>
               <Feather name={i.task_type === 'steps' ? 'activity' : 'moon'} size={20} color={i.task_type === 'steps' ? color.mint : color.violet} />
               <View style={styles.rowText}>
-                <Text variant="title">{i.task_type === 'steps' ? t('mission.steps') : t('mission.sleep')}</Text>
+                <Text variant="title">{i.task_type === 'steps' ? t('mission.steps') : i.task_type === 'workout' ? t('mission.workout') : t('mission.sleep')}</Text>
                 <Text variant="caption" tone="muted" numeric>
                   {t('act.dateXp', { date: dateOf(i.task_date) })}{i.xp !== null ? ` · ${t('common.xp', { n: i.xp })}` : ''}
                 </Text>

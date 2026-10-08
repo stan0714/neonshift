@@ -14,7 +14,7 @@ import { canonicalize, type Json } from "../claim/canonical.js";
 import { ApiError } from "../errors.js";
 import type { Store, WorkoutSession } from "../store/types.js";
 import type { PersonalBestService } from "../pb/service.js";
-import { derive, importBody, WORKOUT_RULES_VERSION } from "./schema.js";
+import { DAILY_SESSION_CAP, derive, importBody, WORKOUT_RULES_VERSION, intentOf } from "./schema.js";
 
 const uuid = z.string().uuid();
 const str = (b: bigint | null) => (b === null ? null : b.toString());
@@ -36,11 +36,11 @@ export function workoutView(w: WorkoutSession) {
       avg_speed_kmh: km && km > 0 ? Number((km / (elapsedS / 3600)).toFixed(3)) : null,
       step_length_mm: w.stepLengthMm,
     },
-    pb_eligible: w.pbEligible, extras: w.extras, revision: w.revision, imported_at: w.importedAt.toISOString(), updated_at: w.updatedAt.toISOString(),
+    pb_eligible: w.pbEligible, extras: w.extras, intent: w.intent, goal: w.goalSnapshot, revision: w.revision, imported_at: w.importedAt.toISOString(), updated_at: w.updatedAt.toISOString(),
   };
 }
 
-export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthService; store: Store; now: () => Date; pbs?: PersonalBestService }) {
+export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthService; store: Store; now: () => Date; pbs?: PersonalBestService; /** PG-U-04：匯入／刪除後重算探索冊任務 */ onWorkoutsChanged?: (wallet: string) => Promise<void> }) {
   const { auth, store, now, pbs } = opts;
 
   app.post("/workouts/import", { preHandler: requireAuth(auth), config: { rateLimit: { max: app.config.RATE_LIMIT_SENSITIVE_PER_MINUTE, timeWindow: "1 minute" } } }, async (req, reply) => {
@@ -50,8 +50,20 @@ export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthServ
     const wallet = req.auth!.wallet;
     const results = [];
     let created = 0;
+    // 防弊二線（伺服器側）：同錢包既有 session 時間重疊、單日筆數上限；不信任 App 單方判定
+    const recent = await store.listWorkouts(wallet, 200, 0);
+    const batchSeen: { start: number; end: number; ext: string }[] = [];
     for (const w of parsed.data.sessions) {
-      const d = derive(w);
+      const serverReasons: string[] = [];
+      const start = w.started_at.getTime();
+      const end = w.ended_at.getTime();
+      const overlaps = (s: number, e: number) => s < end && e > start;
+      if (recent.some((r) => r.externalRecordId !== w.external_record_id && r.status !== "invalid" && overlaps(r.startedAt.getTime(), r.endedAt.getTime())) || batchSeen.some((b) => b.ext !== w.external_record_id && overlaps(b.start, b.end))) serverReasons.push("overlapping_session");
+      const day = w.started_at.toISOString().slice(0, 10);
+      const sameDay = recent.filter((r) => r.externalRecordId !== w.external_record_id && r.startedAt.toISOString().slice(0, 10) === day).length + batchSeen.filter((b) => b.ext !== w.external_record_id && new Date(b.start).toISOString().slice(0, 10) === day).length;
+      if (sameDay >= DAILY_SESSION_CAP) serverReasons.push("daily_cap_exceeded");
+      batchSeen.push({ start, end, ext: w.external_record_id });
+      const d = derive(w, serverReasons);
       if (d.status === "invalid") { results.push({ external_record_id: w.external_record_id, outcome: "invalid", reasons: d.reviewReasons }); continue; }
       // request hash：來源鍵＋內容（不含伺服器衍生），用於稽核與重放比對
       const hash = createHash("sha256").update(canonicalize(JSON.parse(JSON.stringify({ ...w, started_at: w.started_at.toISOString(), ended_at: w.ended_at.toISOString(), paused_ms: w.paused_ms.toString(), distance_mm: w.distance_mm?.toString() ?? null, active_energy_mkcal: w.active_energy_mkcal?.toString() ?? null, total_energy_mkcal: w.total_energy_mkcal?.toString() ?? null })) as Json)).digest();
@@ -60,21 +72,61 @@ export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthServ
           sessionId: randomUUID(), wallet, sport: w.sport, environment: w.environment, origin: w.origin, sourceId: w.source_id, externalRecordId: w.external_record_id, sourceRevision: w.source_revision,
           startedAt: w.started_at, endedAt: w.ended_at, elapsedMs: d.elapsedMs, pausedMs: w.paused_ms, status: d.status, quality: d.quality, rulesVersion: WORKOUT_RULES_VERSION,
           distanceMm: d.distanceMm, distanceMethod: d.distanceMethod, steps: w.steps, activeEnergyMkcal: w.active_energy_mkcal, energyMethod: w.energy_method, totalEnergyMkcal: w.total_energy_mkcal, stepLengthMm: w.step_length_mm,
-          pbEligible: d.pbEligible, reviewReasons: d.reviewReasons, extras: w.extras, requestHash: hash,
+          pbEligible: d.pbEligible, reviewReasons: d.reviewReasons, extras: w.extras, intent: intentOf(w), goalSnapshot: w.goal, requestHash: hash,
         },
         t,
       );
       if (r.outcome === "created") created += 1;
       results.push({ external_record_id: w.external_record_id, outcome: r.outcome, session: workoutView(r.session) });
     }
-    if (pbs && results.some((r) => r.outcome === "created" || r.outcome === "superseded")) await pbs.recompute(wallet); // PG-R-07：匯入後重算 PB
-    return reply.status(created > 0 ? 201 : 200).send({ imported: created, results });
+    // PG-LINK-03：晚到／更正的紀錄插回運動時間線後，自最早受影響時間重算 PB、首次里程碑與探索冊（全量重算，冪等）；
+    // 先 commit 再 ACK：回應裡 `recompute: "confirmed"` 表示成就已依最新時間線更新，"unchanged" 表示本批沒有新增或取代
+    const changed = results.some((r) => r.outcome === "created" || r.outcome === "superseded");
+    if (pbs && changed) await pbs.recompute(wallet); // PG-R-07：匯入後重算 PB
+    if (opts.onWorkoutsChanged && changed) await opts.onWorkoutsChanged(wallet);
+    return reply.status(created > 0 ? 201 : 200).send({ imported: created, results: results.map((r) => ("session" in r && r.session ? { ...r, accepted_revision: r.session.revision } : r)), recompute: changed ? "confirmed" : "unchanged" });
   });
 
+  /**
+   * PG-LINK-04：Activity 日誌查詢——`from,to`（[from,to)，ISO）、`sport`、`intent`、`source`（gps／device／manual／imported＝非 gps）、
+   * `status`、`order`（asc＝運動開始時間由舊到新；預設 desc 相容舊版）、`cursor`＋`limit` 游標分頁（開始時間＋session id，穩定）。
+   * 回傳 `next_cursor`、`as_of`（查詢快照時間）與 `range`；資料量受 30 天保留期限制，先全取再過濾。舊參數 `offset` 仍支援。
+   */
   app.get("/me/workouts", { preHandler: requireAuth(auth) }, async (req) => {
-    const q = z.object({ limit: z.coerce.number().int().min(1).max(200).default(50), offset: z.coerce.number().int().min(0).default(0) }).parse(req.query ?? {});
-    const items = await store.listWorkouts(req.auth!.wallet, q.limit, q.offset);
-    return { items: items.map(workoutView), rules_version: WORKOUT_RULES_VERSION };
+    const q = z.object({
+      limit: z.coerce.number().int().min(1).max(200).default(50), offset: z.coerce.number().int().min(0).default(0),
+      from: z.coerce.date().optional(), to: z.coerce.date().optional(),
+      sport: z.enum(["run", "walk"]).optional(), intent: z.enum(["run", "brisk", "casual"]).optional(),
+      source: z.enum(["gps", "device", "manual", "imported"]).optional(), status: z.enum(["saved", "needs_review", "invalid"]).optional(),
+      order: z.enum(["asc", "desc"]).default("desc"), cursor: z.string().max(200).optional(),
+    }).parse(req.query ?? {});
+    const wallet = req.auth!.wallet;
+    const legacy = !q.from && !q.to && !q.sport && !q.intent && !q.source && !q.status && !q.cursor && q.order === "desc";
+    if (legacy) {
+      const items = await store.listWorkouts(wallet, q.limit, q.offset);
+      return { items: items.map(workoutView), rules_version: WORKOUT_RULES_VERSION, next_cursor: null, as_of: now().toISOString() };
+    }
+    const all = (await store.listWorkouts(wallet, 1000, 0)).filter((w) => {
+      if (q.from && w.startedAt < q.from) return false;
+      if (q.to && w.startedAt >= q.to) return false;
+      if (q.sport && w.sport !== q.sport) return false;
+      if (q.intent && (w.intent ?? (w.sport === "run" ? "run" : null)) !== q.intent) return false;
+      if (q.source && (q.source === "imported" ? w.origin === "gps" : w.origin !== q.source)) return false;
+      if (q.status && w.status !== q.status) return false;
+      return true;
+    });
+    const cmp = (a: WorkoutSession, b: WorkoutSession) => (a.startedAt.getTime() - b.startedAt.getTime()) || (a.sessionId < b.sessionId ? -1 : a.sessionId > b.sessionId ? 1 : 0);
+    all.sort((a, b) => (q.order === "asc" ? cmp(a, b) : -cmp(a, b)));
+    let start = 0;
+    if (q.cursor) {
+      const [ms, id] = Buffer.from(q.cursor, "base64url").toString("utf8").split("|");
+      const idx = all.findIndex((w) => w.startedAt.getTime() === Number(ms) && w.sessionId === id);
+      start = idx >= 0 ? idx + 1 : 0;
+    }
+    const page = all.slice(start, start + q.limit);
+    const last = page[page.length - 1];
+    const nextCursor = start + q.limit < all.length && last ? Buffer.from(`${last.startedAt.getTime()}|${last.sessionId}`).toString("base64url") : null;
+    return { items: page.map(workoutView), rules_version: WORKOUT_RULES_VERSION, next_cursor: nextCursor, as_of: now().toISOString(), range: { from: q.from?.toISOString() ?? null, to: q.to?.toISOString() ?? null }, total: all.length };
   });
 
   app.get("/me/workouts/:id", { preHandler: requireAuth(auth) }, async (req) => {
@@ -91,6 +143,7 @@ export async function workoutRoutes(app: FastifyInstance, opts: { auth: AuthServ
     const ok = await store.deleteWorkout(req.auth!.wallet, id.data, now());
     if (!ok) throw new ApiError(404, "NOT_FOUND", "workout not found");
     if (pbs) await pbs.recompute(req.auth!.wallet); // 刪除 → 撤銷候選、重算（BR-40）
+    if (opts.onWorkoutsChanged) await opts.onWorkoutsChanged(req.auth!.wallet);
     return reply.status(204).send();
   });
 }

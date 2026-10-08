@@ -1,6 +1,10 @@
+import { freezeWorkoutArtwork } from "../workouts/appearance.js";
 import type pg from "pg";
 
-import type { AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBadges, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, GalleryBoard, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, LevelHistoryEntry, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
+import type { PlayerCohortStats, QuestFunnelRow,
+  SkrEntitlement,
+  SkrOrder,
+  SkrReceipt, AttestationRow, AuditEntry, Challenge, ChainEventInput, ChainEventRow, ClaimResult, DeletionResult, Checkpoint, EventBadges, EventBenefit, EventParticipant, EventRedemption, FulfillOutcome, EventPatch, EventRole, EventRoleGrant, EventRow, EventRuleRevision, EventState, CosmeticEntitlement, QuestContribution, QuestEnrollment, QuestReceipt, QuestTemplate, GalleryBoard, GalleryCollectible, GalleryPlayer, HealthSnapshotInput, LevelHistoryEntry, HistoryItem, NfcTag, PartnerMembership, PartnerOrganization, Player, PurgeCounts, ReserveOutcome, ResultImport, ResultRevision, RiskDecisionInput, RuleSetRow, Achievement, PbDesired, PbRevision, Session, Store, TournamentStepsRow, WorkoutSession } from "./types.js";
 
 type Row = Record<string, unknown>;
 
@@ -387,6 +391,19 @@ export class PostgresStore implements Store {
   async bumpCampaign(eventId: string, source: string, day: string, field: "views" | "registrations" | "checkins" | "redemptions") {
     await this.pool.query(`INSERT INTO campaign_aggregates (event_id, source, day, ${field}) VALUES ($1,$2,$3,1) ON CONFLICT (event_id, source, day) DO UPDATE SET ${field} = campaign_aggregates.${field} + 1`, [eventId, source, day]);
   }
+  async bumpShare(kind: string, source: string, day: string, eventName: string) {
+    await this.pool.query(
+      `INSERT INTO share_aggregates (kind, source, day, event_name, count) VALUES ($1,$2,$3,$4,1) ON CONFLICT (kind, source, day, event_name) DO UPDATE SET count = share_aggregates.count + 1`,
+      [kind, source, day, eventName],
+    );
+  }
+  async listShare(sinceDay: string, untilDay: string) {
+    const r = await this.pool.query(
+      `SELECT kind, source, day::text AS day, event_name, count FROM share_aggregates WHERE day >= $1 AND day <= $2 ORDER BY day, kind, source, event_name`,
+      [sinceDay, untilDay],
+    );
+    return (r.rows as Row[]).map((x) => ({ kind: x.kind as string, source: x.source as string, day: x.day as string, eventName: x.event_name as string, count: Number(x.count) }));
+  }
   async listCampaign(eventId: string) {
     const r = await this.pool.query(`SELECT source, day::text AS day, views, registrations, checkins, redemptions FROM campaign_aggregates WHERE event_id = $1 ORDER BY day, source`, [eventId]);
     return (r.rows as Row[]).map((x) => ({ source: x.source as string, day: x.day as string, views: Number(x.views), registrations: Number(x.registrations), checkins: Number(x.checkins), redemptions: Number(x.redemptions) }));
@@ -721,12 +738,12 @@ export class PostgresStore implements Store {
       sourceId: x.source_id as string, externalRecordId: x.external_record_id as string, sourceRevision: Number(x.source_revision), startedAt: x.started_at as Date, endedAt: x.ended_at as Date, elapsedMs: BigInt(x.elapsed_ms as string), pausedMs: BigInt(x.paused_ms as string),
       status: x.status as WorkoutSession["status"], quality: x.quality as WorkoutSession["quality"], rulesVersion: Number(x.rules_version),
       distanceMm: big(x.distance_mm), distanceMethod: (x.distance_method as WorkoutSession["distanceMethod"]) ?? null, steps: x.steps === null ? null : Number(x.steps), activeEnergyMkcal: big(x.active_energy_mkcal), energyMethod: (x.energy_method as WorkoutSession["energyMethod"]) ?? null, totalEnergyMkcal: big(x.total_energy_mkcal), stepLengthMm: x.step_length_mm === null ? null : Number(x.step_length_mm),
-      pbEligible: Boolean(x.pb_eligible), possibleDuplicateOf: (x.possible_duplicate_of as string | null) ?? null, reviewReasons: (x.review_reasons as string[]) ?? [], extras: (x.extras as Record<string, unknown>) ?? {}, requestHash: x.request_hash as Buffer, revision: Number(x.revision), importedAt: x.imported_at as Date, updatedAt: x.updated_at as Date, deletedAt: (x.deleted_at as Date | null) ?? null,
+      pbEligible: Boolean(x.pb_eligible), possibleDuplicateOf: (x.possible_duplicate_of as string | null) ?? null, reviewReasons: (x.review_reasons as string[]) ?? [], extras: (x.extras as Record<string, unknown>) ?? {}, intent: (x.intent as WorkoutSession["intent"] | undefined) ?? null, goalSnapshot: (x.goal_snapshot as WorkoutSession["goalSnapshot"] | undefined) ?? null, requestHash: x.request_hash as Buffer, revision: Number(x.revision), importedAt: x.imported_at as Date, updatedAt: x.updated_at as Date, deletedAt: (x.deleted_at as Date | null) ?? null,
     };
   }
-  private static readonly WORKOUT_COLS = "wallet, sport, environment, origin, source_id, external_record_id, source_revision, started_at, ended_at, elapsed_ms, paused_ms, status, quality, rules_version, distance_mm, distance_method, steps, active_energy_mkcal, energy_method, total_energy_mkcal, step_length_mm, pb_eligible, review_reasons, extras, request_hash";
+  private static readonly WORKOUT_COLS = "wallet, sport, environment, origin, source_id, external_record_id, source_revision, started_at, ended_at, elapsed_ms, paused_ms, status, quality, rules_version, distance_mm, distance_method, steps, active_energy_mkcal, energy_method, total_energy_mkcal, step_length_mm, pb_eligible, review_reasons, extras, intent, goal_snapshot, request_hash";
   private workoutParams(w: Omit<WorkoutSession, "revision" | "importedAt" | "updatedAt" | "deletedAt" | "possibleDuplicateOf">) {
-    return [w.wallet, w.sport, w.environment, w.origin, w.sourceId, w.externalRecordId, w.sourceRevision, w.startedAt, w.endedAt, w.elapsedMs.toString(), w.pausedMs.toString(), w.status, w.quality, w.rulesVersion, w.distanceMm?.toString() ?? null, w.distanceMethod, w.steps, w.activeEnergyMkcal?.toString() ?? null, w.energyMethod, w.totalEnergyMkcal?.toString() ?? null, w.stepLengthMm, w.pbEligible, JSON.stringify(w.reviewReasons), JSON.stringify(w.extras), w.requestHash];
+    return [w.wallet, w.sport, w.environment, w.origin, w.sourceId, w.externalRecordId, w.sourceRevision, w.startedAt, w.endedAt, w.elapsedMs.toString(), w.pausedMs.toString(), w.status, w.quality, w.rulesVersion, w.distanceMm?.toString() ?? null, w.distanceMethod, w.steps, w.activeEnergyMkcal?.toString() ?? null, w.energyMethod, w.totalEnergyMkcal?.toString() ?? null, w.stepLengthMm, w.pbEligible, JSON.stringify(w.reviewReasons), JSON.stringify(w.extras), w.intent, w.goalSnapshot ? JSON.stringify(w.goalSnapshot) : null, w.requestHash];
   }
   async upsertWorkout(w: Omit<WorkoutSession, "revision" | "importedAt" | "updatedAt" | "deletedAt" | "possibleDuplicateOf">, now: Date) {
     const client = await this.pool.connect();
@@ -750,12 +767,14 @@ export class PostgresStore implements Store {
         if (w.sourceRevision < existing.sourceRevision) { await client.query("ROLLBACK"); return { outcome: "stale" as const, session: existing }; }
         if (w.sourceRevision === existing.sourceRevision && !existing.deletedAt) { await client.query("ROLLBACK"); return { outcome: "same" as const, session: existing }; }
         const dup = await dupOf(existing.sessionId);
+        w = { ...w, extras: freezeWorkoutArtwork(w.extras, existing.extras) };
         const sets = PostgresStore.WORKOUT_COLS.split(", ").map((c, i) => `${c} = $${i + 3}`).join(", ");
         const r = await client.query(`UPDATE workout_sessions SET ${sets}, revision = revision + 1, updated_at = $2, deleted_at = NULL, possible_duplicate_of = $${PostgresStore.WORKOUT_COLS.split(", ").length + 3} WHERE session_id = $1 RETURNING *`, [existing.sessionId, now, ...this.workoutParams(w), dup]);
         await client.query("COMMIT");
         return { outcome: "superseded" as const, session: this.workoutRow(r.rows[0] as Row) };
       }
       const dup = await dupOf(null);
+      w = { ...w, extras: freezeWorkoutArtwork(w.extras) };
       const n = PostgresStore.WORKOUT_COLS.split(", ").length;
       const placeholders = Array.from({ length: n }, (_, i) => `$${i + 3}`).join(",");
       const r = await client.query(`INSERT INTO workout_sessions (session_id, imported_at, updated_at, ${PostgresStore.WORKOUT_COLS}, possible_duplicate_of) VALUES ($1,$2,$2,${placeholders},$${n + 3}) RETURNING *`, [w.sessionId, now, ...this.workoutParams(w), dup]);
@@ -1073,6 +1092,146 @@ export class PostgresStore implements Store {
     );
     return r.rows[0] ? Number((r.rows[0] as { rank: string | number }).rank) : null;
   }
+  // ---- PG-U-04：探索冊 ----
+  private questTemplateRow(x: Row): QuestTemplate { return { templateId: x.template_id as string, version: Number(x.version), kind: x.kind as QuestTemplate["kind"], params: (x.params as Record<string, unknown>) ?? {}, cosmeticId: x.cosmetic_id as string, active: Boolean(x.active) }; }
+  private questEnrollmentRow(x: Row): QuestEnrollment { return { enrollmentId: x.enrollment_id as string, wallet: x.wallet as string, templateId: x.template_id as string, templateVersion: Number(x.template_version), goal: (x.goal as Record<string, unknown>) ?? {}, timezone: x.timezone as string, periodStart: x.period_start as Date, periodEnd: x.period_end as Date, acceptedAt: x.accepted_at as Date, status: x.status as QuestEnrollment["status"], idempotencyKey: x.idempotency_key as string, completedAt: (x.completed_at as Date | null) ?? null, updatedAt: x.updated_at as Date }; }
+  private questReceiptRow(x: Row): QuestReceipt { return { receiptId: x.receipt_id as string, wallet: x.wallet as string, enrollmentId: x.enrollment_id as string, cosmeticId: x.cosmetic_id as string, issuedAt: x.issued_at as Date, revokedAt: (x.revoked_at as Date | null) ?? null, revokeReason: (x.revoke_reason as string | null) ?? null }; }
+  async listQuestTemplates() { const r = await this.pool.query(`SELECT * FROM quest_templates WHERE active ORDER BY template_id, version`); return (r.rows as Row[]).map((x) => this.questTemplateRow(x)); }
+  async questFunnel(since: Date, until: Date): Promise<QuestFunnelRow[]> {
+    const r = await this.pool.query(
+      `SELECT template_id,
+              COUNT(*)::int AS accepted,
+              COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM workout_sessions w WHERE w.wallet = e.wallet AND w.deleted_at IS NULL AND w.started_at >= e.accepted_at AND w.ended_at < e.period_end))::int AS started,
+              COUNT(*) FILTER (WHERE status IN ('completed', 'claimed'))::int AS completed,
+              COUNT(*) FILTER (WHERE status = 'claimed')::int AS claimed,
+              COUNT(*) FILTER (WHERE status = 'revoked')::int AS revoked,
+              COUNT(*) FILTER (WHERE status = 'expired')::int AS expired
+         FROM quest_enrollments e
+        WHERE accepted_at >= $1 AND accepted_at <= $2
+        GROUP BY template_id ORDER BY template_id`, [since, until]);
+    return (r.rows as Row[]).map((x) => ({ templateId: x.template_id as string, accepted: Number(x.accepted), started: Number(x.started), completed: Number(x.completed), claimed: Number(x.claimed), revoked: Number(x.revoked), expired: Number(x.expired) }));
+  }
+  async playerCohortStats(since: Date, now: Date): Promise<PlayerCohortStats> {
+    const r = await this.pool.query(
+      `SELECT COUNT(*)::int AS players,
+              COUNT(*) FILTER (WHERE first_seen_at >= $2 - interval '7 days')::int AS new7d,
+              COUNT(*) FILTER (WHERE last_seen_at >= $2 - interval '7 days')::int AS active7d,
+              COUNT(*) FILTER (WHERE first_seen_at >= $1 AND first_seen_at < $1 + interval '7 days')::int AS cohort,
+              COUNT(*) FILTER (WHERE first_seen_at >= $1 AND first_seen_at < $1 + interval '7 days' AND last_seen_at >= first_seen_at + interval '7 days')::int AS d7,
+              COUNT(*) FILTER (WHERE first_seen_at >= $1 AND first_seen_at < $1 + interval '7 days' AND last_seen_at >= first_seen_at + interval '30 days')::int AS d30
+         FROM players WHERE deleted_at IS NULL`, [since, now]);
+    const x = r.rows[0] as Row;
+    return { players: Number(x.players), new7d: Number(x.new7d), active7d: Number(x.active7d), cohort: { size: Number(x.cohort), retainedD7: Number(x.d7), retainedD30: Number(x.d30) } };
+  }
+  async listQuestEnrollments(wallet: string) { const r = await this.pool.query(`SELECT * FROM quest_enrollments WHERE wallet = $1 ORDER BY period_end DESC, accepted_at DESC`, [wallet]); return (r.rows as Row[]).map((x) => this.questEnrollmentRow(x)); }
+  async getQuestEnrollment(wallet: string, enrollmentId: string) { const r = await this.pool.query(`SELECT * FROM quest_enrollments WHERE wallet = $1 AND enrollment_id = $2`, [wallet, enrollmentId]); return r.rows[0] ? this.questEnrollmentRow(r.rows[0] as Row) : null; }
+  async createQuestEnrollment(e: Omit<QuestEnrollment, "status" | "completedAt" | "updatedAt">, now: Date) {
+    const dup = await this.pool.query(`SELECT * FROM quest_enrollments WHERE wallet = $1 AND (idempotency_key = $2 OR (template_id = $3 AND period_start = $4)) LIMIT 1`, [e.wallet, e.idempotencyKey, e.templateId, e.periodStart]);
+    if (dup.rows[0]) return { enrollment: this.questEnrollmentRow(dup.rows[0] as Row), created: false };
+    const r = await this.pool.query(
+      `INSERT INTO quest_enrollments (enrollment_id, wallet, template_id, template_version, goal, timezone, period_start, period_end, accepted_at, status, idempotency_key, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$11)
+       ON CONFLICT DO NOTHING RETURNING *`,
+      [e.enrollmentId, e.wallet, e.templateId, e.templateVersion, JSON.stringify(e.goal), e.timezone, e.periodStart, e.periodEnd, e.acceptedAt, e.idempotencyKey, now],
+    );
+    if (r.rows[0]) return { enrollment: this.questEnrollmentRow(r.rows[0] as Row), created: true };
+    const again = await this.pool.query(`SELECT * FROM quest_enrollments WHERE wallet = $1 AND (idempotency_key = $2 OR (template_id = $3 AND period_start = $4)) LIMIT 1`, [e.wallet, e.idempotencyKey, e.templateId, e.periodStart]);
+    return { enrollment: this.questEnrollmentRow(again.rows[0] as Row), created: false };
+  }
+  async replaceQuestContributions(enrollmentId: string, list: QuestContribution[]) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`DELETE FROM quest_contributions WHERE enrollment_id = $1`, [enrollmentId]);
+      for (const c of list) await client.query(`INSERT INTO quest_contributions (enrollment_id, source_kind, source_id, source_revision, local_day) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`, [enrollmentId, c.sourceKind, c.sourceId, c.sourceRevision, c.localDay]);
+      await client.query("COMMIT");
+    } catch (e) { await client.query("ROLLBACK"); throw e; } finally { client.release(); }
+  }
+  async listQuestContributions(enrollmentId: string) { const r = await this.pool.query(`SELECT * FROM quest_contributions WHERE enrollment_id = $1 ORDER BY local_day`, [enrollmentId]); return (r.rows as Row[]).map((x) => ({ enrollmentId: x.enrollment_id as string, sourceKind: "workout" as const, sourceId: x.source_id as string, sourceRevision: Number(x.source_revision), localDay: x.local_day as string })); }
+  async setQuestEnrollmentStatus(enrollmentId: string, status: QuestEnrollment["status"], completedAt: Date | null, now: Date) { const r = await this.pool.query(`UPDATE quest_enrollments SET status = $2, completed_at = $3, updated_at = $4 WHERE enrollment_id = $1 RETURNING *`, [enrollmentId, status, completedAt, now]); return r.rows[0] ? this.questEnrollmentRow(r.rows[0] as Row) : null; }
+  async issueQuestReceipt(r: Omit<QuestReceipt, "revokedAt" | "revokeReason">, now: Date) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const cur = await client.query(`SELECT * FROM quest_receipts WHERE enrollment_id = $1 FOR UPDATE`, [r.enrollmentId]);
+      if (cur.rows[0]) { await client.query("COMMIT"); return { receipt: this.questReceiptRow(cur.rows[0] as Row), created: false }; }
+      const ins = await client.query(`INSERT INTO quest_receipts (receipt_id, wallet, enrollment_id, cosmetic_id, issued_at) VALUES ($1,$2,$3,$4,$5) RETURNING *`, [r.receiptId, r.wallet, r.enrollmentId, r.cosmeticId, r.issuedAt]);
+      await client.query(`INSERT INTO cosmetic_entitlements (wallet, cosmetic_id, receipt_id, status, granted_at, updated_at) VALUES ($1,$2,$3,'active',$4,$4)`, [r.wallet, r.cosmeticId, r.receiptId, now]);
+      await client.query(`UPDATE quest_enrollments SET status = 'claimed', completed_at = COALESCE(completed_at, $2), updated_at = $2 WHERE enrollment_id = $1`, [r.enrollmentId, now]);
+      await client.query("COMMIT");
+      return { receipt: this.questReceiptRow(ins.rows[0] as Row), created: true };
+    } catch (e) { await client.query("ROLLBACK"); throw e; } finally { client.release(); }
+  }
+  async getQuestReceipt(enrollmentId: string) { const r = await this.pool.query(`SELECT * FROM quest_receipts WHERE enrollment_id = $1`, [enrollmentId]); return r.rows[0] ? this.questReceiptRow(r.rows[0] as Row) : null; }
+  async revokeQuestReceipt(enrollmentId: string, reason: string, now: Date) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const r = await client.query(`UPDATE quest_receipts SET revoked_at = COALESCE(revoked_at, $2), revoke_reason = COALESCE(revoke_reason, $3) WHERE enrollment_id = $1 RETURNING receipt_id`, [enrollmentId, now, reason]);
+      if (r.rows[0]) await client.query(`UPDATE cosmetic_entitlements SET status = 'revoked', updated_at = $2 WHERE receipt_id = $1`, [(r.rows[0] as Row).receipt_id, now]);
+      await client.query(`UPDATE quest_enrollments SET status = 'revoked', updated_at = $2 WHERE enrollment_id = $1`, [enrollmentId, now]);
+      await client.query("COMMIT");
+    } catch (e) { await client.query("ROLLBACK"); throw e; } finally { client.release(); }
+  }
+  async restoreQuestReceipt(enrollmentId: string, now: Date) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const r = await client.query(`UPDATE quest_receipts SET revoked_at = NULL, revoke_reason = NULL WHERE enrollment_id = $1 RETURNING receipt_id`, [enrollmentId]);
+      if (r.rows[0]) await client.query(`UPDATE cosmetic_entitlements SET status = 'active', updated_at = $2 WHERE receipt_id = $1`, [(r.rows[0] as Row).receipt_id, now]);
+      await client.query(`UPDATE quest_enrollments SET status = 'claimed', completed_at = COALESCE(completed_at, $2), updated_at = $2 WHERE enrollment_id = $1`, [enrollmentId, now]);
+      await client.query("COMMIT");
+    } catch (e) { await client.query("ROLLBACK"); throw e; } finally { client.release(); }
+  }
+  async listCosmetics(wallet: string) { const r = await this.pool.query(`SELECT * FROM cosmetic_entitlements WHERE wallet = $1 ORDER BY granted_at DESC`, [wallet]); return (r.rows as Row[]).map((x) => ({ wallet: x.wallet as string, cosmeticId: x.cosmetic_id as string, receiptId: x.receipt_id as string, status: x.status as CosmeticEntitlement["status"], grantedAt: x.granted_at as Date, updatedAt: x.updated_at as Date })); }
+
+  // ---- SKR-02～06 ----
+  private skrOrderRow(x: Row): SkrOrder {
+    return { orderId: x.order_id as string, wallet: x.wallet as string, sku: x.sku as string, skuVersion: Number(x.sku_version), cosmeticId: x.cosmetic_id as string, network: x.network as SkrOrder["network"], mint: x.mint as string, decimals: Number(x.decimals), amount: BigInt(x.amount as string), recipient: x.recipient as string, recipientTokenAccount: x.recipient_token_account as string, reference: x.reference as string, eligibilityRef: x.eligibility_ref as string, sourceEnv: x.source_env as string, status: x.status as SkrOrder["status"], signature: (x.signature as string | null) ?? null, paidAmount: x.paid_amount === null || x.paid_amount === undefined ? null : BigInt(x.paid_amount as string), paidSlot: x.paid_slot === null || x.paid_slot === undefined ? null : BigInt(x.paid_slot as string), paidAt: (x.paid_at as Date | null) ?? null, failureReason: (x.failure_reason as string | null) ?? null, expiresAt: x.expires_at as Date, createdAt: x.created_at as Date, updatedAt: x.updated_at as Date };
+  }
+  private skrReceiptRow(x: Row): SkrReceipt { return { signature: x.signature as string, orderId: x.order_id as string, wallet: x.wallet as string, amount: BigInt(x.amount as string), slot: BigInt(x.slot as string), blockTime: (x.block_time as Date | null) ?? null, verifiedAt: x.verified_at as Date }; }
+  private skrEntitlementRow(x: Row): SkrEntitlement { return { wallet: x.wallet as string, cosmeticId: x.cosmetic_id as string, orderId: x.order_id as string, status: x.status as SkrEntitlement["status"], grantedAt: x.granted_at as Date, updatedAt: x.updated_at as Date }; }
+  async createSkrOrder(o: Omit<SkrOrder, "status" | "signature" | "paidAmount" | "paidSlot" | "paidAt" | "failureReason" | "createdAt" | "updatedAt">, now: Date) {
+    const r = await this.pool.query(
+      `INSERT INTO skr_orders (order_id, wallet, sku, sku_version, cosmetic_id, network, mint, decimals, amount, recipient, recipient_token_account, reference, eligibility_ref, source_env, status, expires_at, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'awaiting_payment',$15,$16,$16) RETURNING *`,
+      [o.orderId, o.wallet, o.sku, o.skuVersion, o.cosmeticId, o.network, o.mint, o.decimals, o.amount.toString(), o.recipient, o.recipientTokenAccount, o.reference, o.eligibilityRef, o.sourceEnv, o.expiresAt, now],
+    );
+    return this.skrOrderRow(r.rows[0] as Row);
+  }
+  async getSkrOrder(orderId: string) { const r = await this.pool.query(`SELECT * FROM skr_orders WHERE order_id = $1`, [orderId]); return r.rows[0] ? this.skrOrderRow(r.rows[0] as Row) : null; }
+  async findOpenSkrOrder(wallet: string, sku: string, skuVersion: number) {
+    const r = await this.pool.query(`SELECT * FROM skr_orders WHERE wallet = $1 AND sku = $2 AND sku_version = $3 AND status IN ('awaiting_payment','confirming','needs_review') ORDER BY created_at DESC LIMIT 1`, [wallet, sku, skuVersion]);
+    return r.rows[0] ? this.skrOrderRow(r.rows[0] as Row) : null;
+  }
+  async listSkrOrders(wallet: string, limit: number) { const r = await this.pool.query(`SELECT * FROM skr_orders WHERE wallet = $1 ORDER BY created_at DESC LIMIT $2`, [wallet, limit]); return (r.rows as Row[]).map((x) => this.skrOrderRow(x)); }
+  async updateSkrOrder(orderId: string, patch: Partial<Pick<SkrOrder, "status" | "signature" | "paidAmount" | "paidSlot" | "paidAt" | "failureReason">>, now: Date) {
+    const cols: string[] = []; const vals: unknown[] = [orderId, now]; let i = 3;
+    const map: Record<string, string> = { status: "status", signature: "signature", paidAmount: "paid_amount", paidSlot: "paid_slot", paidAt: "paid_at", failureReason: "failure_reason" };
+    for (const [k, col] of Object.entries(map)) if (k in patch) { const v = (patch as Record<string, unknown>)[k]; cols.push(`${col} = $${i++}`); vals.push(typeof v === "bigint" ? v.toString() : v); }
+    if (!cols.length) return this.getSkrOrder(orderId);
+    const r = await this.pool.query(`UPDATE skr_orders SET ${cols.join(", ")}, updated_at = $2 WHERE order_id = $1 RETURNING *`, vals);
+    return r.rows[0] ? this.skrOrderRow(r.rows[0] as Row) : null;
+  }
+  async getSkrReceipt(signature: string) { const r = await this.pool.query(`SELECT * FROM skr_receipts WHERE signature = $1`, [signature]); return r.rows[0] ? this.skrReceiptRow(r.rows[0] as Row) : null; }
+  async fulfillSkrOrder(orderId: string, receipt: Omit<SkrReceipt, "verifiedAt">, now: Date) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const cur = await client.query(`SELECT * FROM skr_orders WHERE order_id = $1 FOR UPDATE`, [orderId]);
+      if (!cur.rows[0]) { await client.query("ROLLBACK"); return { kind: "not_found" as const }; }
+      const order = this.skrOrderRow(cur.rows[0] as Row);
+      const used = await client.query(`SELECT order_id FROM skr_receipts WHERE signature = $1`, [receipt.signature]);
+      if (used.rows[0] && (used.rows[0] as Row).order_id !== orderId) { await client.query("ROLLBACK"); return { kind: "signature_used" as const, byOrderId: (used.rows[0] as Row).order_id as string }; }
+      if (order.status === "fulfilled") { await client.query("COMMIT"); return { kind: "ok" as const, order, created: false }; }
+      await client.query(`INSERT INTO skr_receipts (signature, order_id, wallet, amount, slot, block_time, verified_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (signature) DO NOTHING`, [receipt.signature, orderId, receipt.wallet, receipt.amount.toString(), receipt.slot.toString(), receipt.blockTime, now]);
+      const upd = await client.query(`UPDATE skr_orders SET status = 'fulfilled', signature = $2, paid_amount = $3, paid_slot = $4, paid_at = $5, failure_reason = NULL, updated_at = $6 WHERE order_id = $1 RETURNING *`, [orderId, receipt.signature, receipt.amount.toString(), receipt.slot.toString(), receipt.blockTime ?? now, now]);
+      await client.query(`INSERT INTO skr_entitlements (wallet, cosmetic_id, order_id, status, granted_at, updated_at) VALUES ($1,$2,$3,'active',$4,$4) ON CONFLICT (wallet, cosmetic_id) DO UPDATE SET status = 'active', order_id = EXCLUDED.order_id, updated_at = EXCLUDED.updated_at`, [order.wallet, order.cosmeticId, orderId, now]);
+      await client.query("COMMIT");
+      return { kind: "ok" as const, order: this.skrOrderRow(upd.rows[0] as Row), created: true };
+    } catch (e) { await client.query("ROLLBACK"); throw e; } finally { client.release(); }
+  }
+  async listSkrEntitlements(wallet: string) { const r = await this.pool.query(`SELECT * FROM skr_entitlements WHERE wallet = $1 ORDER BY granted_at DESC`, [wallet]); return (r.rows as Row[]).map((x) => this.skrEntitlementRow(x)); }
+
   async deletePlayerData(wallet: string, now: Date, deferUntil: Date | null): Promise<DeletionResult> {
     const client = await this.pool.connect();
     try {
@@ -1091,8 +1250,15 @@ export class PostgresStore implements Store {
         attestations = (await client.query(`DELETE FROM attestations WHERE wallet = $1`, [wallet])).rowCount ?? 0;
         claimResults = (await client.query(`DELETE FROM claim_results WHERE wallet = $1`, [wallet])).rowCount ?? 0;
         await client.query(`DELETE FROM tournament_steps WHERE wallet = $1`, [wallet]);
+        // SKR：外觀權限與未履約訂單刪除；已履約訂單與 receipt 為付款紀錄，保留（§5 退款／人工處理依據）
+        await client.query(`DELETE FROM skr_entitlements WHERE wallet = $1`, [wallet]);
+        await client.query(`DELETE FROM skr_orders WHERE wallet = $1 AND status <> 'fulfilled'`, [wallet]);
         await client.query(`UPDATE workout_sessions SET possible_duplicate_of = NULL WHERE wallet = $1`, [wallet]);
         await client.query(`DELETE FROM workout_sessions WHERE wallet = $1`, [wallet]); // PG-R-01：運動摘要一併刪除
+        // PG-U-04：探索冊（權限 → receipt → enrollment；contributions 隨 enrollment 級聯）
+        await client.query(`DELETE FROM cosmetic_entitlements WHERE wallet = $1`, [wallet]);
+        await client.query(`DELETE FROM quest_receipts WHERE wallet = $1`, [wallet]);
+        await client.query(`DELETE FROM quest_enrollments WHERE wallet = $1`, [wallet]);
         await client.query(`DELETE FROM achievements WHERE wallet = $1 AND minted_signature IS NULL`, [wallet]); // PG-R-08：未鑄造刪除；已鑄造保留鏈上事實
         await client.query(`INSERT INTO gallery_prefs (wallet, hidden, updated_at) VALUES ($1, true, $2) ON CONFLICT (wallet) DO UPDATE SET hidden = true, updated_at = EXCLUDED.updated_at`, [wallet, now]); // PG-R-09：停止藝廊展示
         await client.query(`UPDATE pb_revisions SET previous_pb_id = NULL WHERE wallet = $1`, [wallet]);

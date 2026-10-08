@@ -8,7 +8,7 @@ import java.time.Instant
 
 /**
  * 背景同步（PG-A-19，FR-02.3）：WorkManager 以最短 15 分鐘週期讀取「今日 UTC 任務日」的
- * 步數與睡眠摘要並寫入本機快取；App 開啟／回前景仍會強制前景同步，背景只是補強。
+ * 步數摘要並寫入本機快取；App 開啟／回前景仍會強制前景同步，背景只是補強。
  * 需要 READ_HEALTH_DATA_IN_BACKGROUND；未授權時工作直接成功結束（不重試轟炸）。
  */
 class HealthSyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
@@ -20,7 +20,8 @@ class HealthSyncWorker(context: Context, params: WorkerParameters) : CoroutineWo
       val start = Instant.ofEpochSecond(taskDate * 86_400L)
       val end = Instant.ofEpochSecond((taskDate + 1) * 86_400L)
       val steps = reader.readSteps(start, end)
-      val sleep = reader.readSleepSessions(start, end)
+      // Sleep is disabled in this build; retain an empty field for cache compatibility.
+      val sleep = JSONObject().put("sessions", org.json.JSONArray())
       HealthCache.write(applicationContext, JSONObject()
         .put("taskDate", taskDate)
         .put("steps", steps)

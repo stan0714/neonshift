@@ -1,0 +1,131 @@
+/**
+ * 跑鞋外觀（PG-LINK-01，docs/shoe-sync-activity.md §2）：外觀選擇與 Active level 分開。
+ * - 取得＝曾真正達到該階（鏈上 highest_level／shoe_level），只有 XP 達門檻不算。
+ *   Lv.1 原點＝起始鞋，要領取（init_player，鏈上 profile 存在）才算擁有——沒有 profile 的錢包一雙都沒有。
+ * - 曾取得的外觀在正常降級後仍可用；倍率與新資格只看有效等級（不在此模組處理）。
+ * - 尚未發行的系列不列入；NFT 轉入不自動授予鞋款（取得紀錄以鏈上 profile 為權威）。
+ */
+import type { PlayerProfile } from '@/chain/accounts';
+import { DEFAULT_SHOE_SERIES, shoeVariant, type ShoeSeriesId, type ShoeVariant } from '@/config/shoeCollection';
+import type { ShoeLevel } from '@/config/shoeProgression';
+
+export type OwnedShoe = {
+  /** `${series}:${level}` */
+  id: string;
+  seriesId: ShoeSeriesId;
+  level: ShoeLevel;
+  /** 固定分配的款式（Lv.1 無款式） */
+  variant: ShoeVariant | null;
+  entitlementSource: 'starter' | 'chain_level';
+};
+
+/** 曾取得的最高階（鏈上 highest_level 與目前 shoe_level 取大者）；無 profile → 1 */
+export const highestOwnedLevel = (profile: PlayerProfile | null): ShoeLevel => {
+  if (!profile) return 1;
+  const h = Math.max(profile.highestLevel ?? 1, profile.shoeLevel, 1);
+  return Math.min(5, h) as ShoeLevel;
+};
+
+/** 有效等級（倍率與資格用）：core_level */
+export const activeLevel = (profile: PlayerProfile | null): ShoeLevel => (profile ? (Math.min(5, Math.max(1, profile.coreLevel || 1)) as ShoeLevel) : 1);
+
+export function ownedShoes(owner: string | null, profile: PlayerProfile | null, series: ShoeSeriesId = DEFAULT_SHOE_SERIES): OwnedShoe[] {
+  // 2026-10-02 實機：沒有 profile 的錢包在「我的跑鞋」顯示原點「使用中」，下方收藏卻寫「建立玩家檔案」解鎖。
+  if (!profile) return [];
+  const top = highestOwnedLevel(profile);
+  const out: OwnedShoe[] = [];
+  for (let level = 1; level <= top; level++) {
+    const l = level as ShoeLevel;
+    out.push({ id: shoeId(series, l), seriesId: series, level: l, variant: shoeVariant(owner, l, series), entitlementSource: l === 1 ? 'starter' : 'chain_level' });
+  }
+  return out;
+}
+
+export const shoeId = (series: ShoeSeriesId, level: ShoeLevel) => `${series}:${level}`;
+export const levelOfShoeId = (id: string | null): ShoeLevel | null => {
+  if (!id) return null;
+  const n = Number(id.split(':').pop());
+  return n >= 1 && n <= 5 ? (n as ShoeLevel) : null;
+};
+
+/**
+ * 顯示用外觀等級：有明確選擇且仍擁有 → 該鞋；否則跟隨有效等級。
+ * 選擇的鞋若已不再擁有（換帳號／資料不一致）視同未選擇，不套用未取得的外觀。
+ */
+export function appearanceLevel(profile: PlayerProfile | null, selectedShoeId: string | null): ShoeLevel {
+  const chosen = levelOfShoeId(selectedShoeId);
+  if (chosen !== null && chosen <= highestOwnedLevel(profile)) return chosen;
+  return activeLevel(profile);
+}
+
+/** 場景（§2 表）：Lv.1 原點＝基本背景（null） */
+export type HabitatSceneKind = 'forest' | 'ocean' | 'jungle' | 'snow';
+export const sceneOf = (level: ShoeLevel): HabitatSceneKind | null => (level === 2 ? 'forest' : level === 3 ? 'ocean' : level === 4 ? 'jungle' : level === 5 ? 'snow' : null);
+
+/** 記錄用鞋款快照（session 開始時寫入，之後切鞋不回寫） */
+export type ShoeSnapshot = { shoeId: string; level: ShoeLevel; variant: ShoeVariant | null };
+export const shoeSnapshotOf = (owner: string | null, profile: PlayerProfile | null, selectedShoeId: string | null): ShoeSnapshot | null => {
+  if (!owner || !profile) return null; // 未綁定玩家：標未指定，不推算
+  const level = appearanceLevel(profile, selectedShoeId);
+  return { shoeId: shoeId(DEFAULT_SHOE_SERIES, level), level, variant: shoeVariant(owner, level) };
+};
+
+/** 場景對應的鞋階（路線底圖解鎖條件用） */
+export const SCENE_LEVEL: Record<HabitatSceneKind, ShoeLevel> = { forest: 2, ocean: 3, jungle: 4, snow: 5 };
+export const HABITAT_SCENES: readonly HabitatSceneKind[] = ['forest', 'ocean', 'jungle', 'snow'];
+
+/**
+ * 路線底圖與跑鞋連動（PG-LINK-07）：`shoe`＝跟隨目前外觀的棲地（Lv.1 原點 → 格線）；
+ * 明確選棲地只在曾取得該鞋階時有效，否則（換帳號／降級不影響取得）退回跟隨跑鞋。不受頁面背景開關影響——畫布本來就是一張圖。
+ */
+export function resolveTraceLayer(pref: 'shoe' | 'grid' | 'mars' | 'chain' | 'space' | HabitatSceneKind, level: ShoeLevel, highestOwned: ShoeLevel): 'grid' | 'mars' | 'chain' | 'space' | HabitatSceneKind {
+  const follow = sceneOf(level) ?? 'grid';
+  if (pref === 'shoe') return follow;
+  if (pref in SCENE_LEVEL) return SCENE_LEVEL[pref as HabitatSceneKind] <= highestOwned ? pref : follow;
+  return pref;
+}
+
+/** Versioned route artwork. Version 1 IDs must keep their artwork; new art needs a new version. */
+export type RouteAppearance = { version: 1; layer: ReturnType<typeof resolveTraceLayer> };
+export function routeAppearanceOf(value: unknown): RouteAppearance {
+  const v = value as Partial<RouteAppearance> | null | undefined;
+  const layers = ['grid', 'mars', 'chain', 'space', ...HABITAT_SCENES];
+  return v?.version === 1 && layers.includes(v.layer ?? '') ? { version: 1, layer: v.layer! } : { version: 1, layer: 'grid' };
+}
+
+/**
+ * 每雙鞋的運動歷程（LINK-10 候選；design/shoe-route-linkage.md）：依 session 開始時的 `shoeSnapshot.shoeId` 歸組，
+ * 只算本機已保存且屬於該玩家（或訪客）的紀錄；待審／刪除中另計、不加 XP 或獎勵。沒有快照的舊紀錄不推算、不歸任何鞋。
+ */
+export type ShoeMileage = { count: number; distanceMm: number; review: number };
+export function shoeMileage(
+  sessions: { shoeSnapshot?: { shoeId: string } | null; owner?: string | null; status: string; deletedAt?: number | null; summary?: { distanceMm: number | null } | null }[],
+  owner: string | null,
+): Record<string, ShoeMileage> {
+  const out: Record<string, ShoeMileage> = {};
+  for (const m of sessions) {
+    if (!m.shoeSnapshot || (m.status !== 'saved' && m.status !== 'needs_review')) continue;
+    if (owner ? m.owner !== owner : !!m.owner) continue;
+    const k = m.shoeSnapshot.shoeId;
+    const cur = (out[k] ??= { count: 0, distanceMm: 0, review: 0 });
+    if (m.deletedAt || m.status === 'needs_review') { cur.review += 1; continue; }
+    cur.count += 1;
+    cur.distanceMm += m.summary?.distanceMm ?? 0;
+  }
+  return out;
+}
+
+/**
+ * 升階後首次運動紀念（LINK-10 候選）：該玩家第一次穿某雙 Lv.2+ 跑鞋、狀態 saved（品質審核通過、非待審／刪除）的 session。
+ * 判定純粹看本機紀錄（同玩家＋同 shoeId 中 startedAtUtc 最早的 saved 者＝這場）；每玩家＋鞋款只會有一場；不鑄 NFT、不加 XP。
+ */
+export function isFirstWear(
+  sessions: { sessionId: string; startedAtUtc: number; status: string; owner?: string | null; deletedAt?: number | null; shoeSnapshot?: { shoeId: string; level: number } | null }[],
+  sessionId: string,
+): boolean {
+  const me = sessions.find((s) => s.sessionId === sessionId);
+  if (!me || !me.shoeSnapshot || me.shoeSnapshot.level < 2 || me.status !== 'saved' || me.deletedAt || !me.owner) return false;
+  const same = sessions.filter((s) => s.owner === me.owner && s.shoeSnapshot?.shoeId === me.shoeSnapshot!.shoeId && s.status === 'saved' && !s.deletedAt);
+  same.sort((a, b) => a.startedAtUtc - b.startedAtUtc || (a.sessionId < b.sessionId ? -1 : 1));
+  return same[0]?.sessionId === sessionId;
+}

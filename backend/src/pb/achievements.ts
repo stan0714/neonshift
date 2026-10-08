@@ -17,10 +17,11 @@ import type { AuthService } from "../auth/service.js";
 import { canonicalize, type Json } from "../claim/canonical.js";
 import type { AppConfig } from "../config.js";
 import { ApiError } from "../errors.js";
-import { ACHIEVEMENT_MAX_TTL_SECONDS, ACHIEVEMENT_VERSION, CATEGORY_CODE, CLASS_CODE, encodeAchievement, type AchievementProof } from "../lib/achievement.js";
+import { ACHIEVEMENT_MAX_TTL_SECONDS, ACHIEVEMENT_VERSION, CHAIN_CLOCK_SKEW_SECONDS, CATEGORY_CODE, CLASS_CODE, encodeAchievement, type AchievementProof } from "../lib/achievement.js";
 import { MILESTONE_RULES_MAJOR, type MilestoneCandidate, type MilestoneResolution } from "../milestones/compute.js";
 import { EVENT_BADGE_RULES_MAJOR, eventBadgeKeyOf, eventBadgeView, type EventBadgeResolution, type EventBadgeService } from "../milestones/eventBadges.js";
 import type { MilestoneService } from "../milestones/service.js";
+import type { SeasonalService } from "../seasonal/service.js";
 import type { AttestorSigner } from "../signer/types.js";
 import type { Achievement, PbRevision, Store } from "../store/types.js";
 import type { PersonalBestService } from "./service.js";
@@ -44,6 +45,10 @@ export const achievementIdOf = (wallet: string, pbId: string) => createHash("sha
 export const milestoneAchievementIdOf = (wallet: string, key: string) => createHash("sha256").update(`neonshift-milestone|${wallet}|${key}`).digest("hex");
 /** PG-M-04：活動留念章 key＝event|<event_id>|<kind>（與首次章不同 namespace） */
 export const eventBadgeAchievementIdOf = (wallet: string, key: string) => createHash("sha256").update(`neonshift-event-badge|${wallet}|${key}`).digest("hex");
+/** PG-SEASON-04：節日收藏 key＝seasonal|<campaign_id>（每屆一個 namespace，跨年份不共用） */
+export const seasonalAchievementIdOf = (wallet: string, campaignId: string) => createHash("sha256").update(`neonshift-seasonal|${wallet}|${campaignId}`).digest("hex");
+export const seasonalKeyOf = (campaignId: string) => `seasonal|${campaignId}`;
+export const parseSeasonalKey = (key: string): string | null => (key.startsWith("seasonal|") ? key.slice("seasonal|".length) || null : null);
 
 const categoryLabel: Record<string, string> = { fastest_1k: "Fastest 1K", fastest_5k: "Fastest 5K", fastest_10k: "Fastest 10K", fastest_half: "Fastest Half Marathon", fastest_marathon: "Fastest Marathon", longest_run: "Longest Run" };
 /** 首次里程碑作品名（commemorative-nfts 1） */
@@ -134,8 +139,51 @@ export function buildEventBadgeMetadata(b: EventBadgeResolution, achievementId: 
   };
 }
 
+/**
+ * PG-SEASON-04 canonical metadata：**主題與年份寫在這裡**，不在鏈上 category。
+ *
+ * 鏈上整個系列只有一個 category（`CATEGORY_SEASONAL`），名稱是系列名；能區分「哪一屆」的
+ * 是每一枚自己的 metadata URI（以 achievement_id 為檔名）。這樣每年新增主題不必升級程式。
+ *
+ * 預設只公開**公開資訊**：主題、年份、活動窗口、規則／美術版本、驗證等級與日期依據。
+ * 使用者自己達標的時間屬私人詳情，只有逐次公開同意才寫入（設計 §4.5／§5）。
+ * 不含 Activity ID、起終點、GPS 與錢包。
+ */
+export function buildSeasonalMetadata(
+  c: { campaignId: string; themeId: string; year: number; artVersion: number; rulesVersion: number; startsAt: Date; endsAt: Date; displayTimezone: string; minMovingMs: number; source: { fact: Record<"zh-TW" | "en", string>; url: string } },
+  first: { startedAt: Date } | null,
+  achievementId: string,
+  publicConsent: boolean,
+): Record<string, Json> {
+  const theme = c.themeId.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  const attrs: Json[] = [
+    { trait_type: "Series", value: "Seasonal Footprints" },
+    { trait_type: "Edition", value: `${theme} ${c.year}` },
+    { trait_type: "Theme", value: theme },
+    { trait_type: "Year", value: String(c.year) },
+    // 活動窗口是公開主題（節日日期本身就是公開的），與「使用者何時達標」是兩件事
+    { trait_type: "Window", value: `${c.startsAt.toISOString().slice(0, 10)} → ${new Date(c.endsAt.getTime() - 1).toISOString().slice(0, 10)} (${c.displayTimezone})` },
+    { trait_type: "Requirement", value: `${Math.round(c.minMovingMs / 60_000)} min moving time, single session` },
+    { trait_type: "Verification", value: "Device" },
+    { trait_type: "Art", value: `v${c.artVersion}` },
+    { trait_type: "Rules", value: `v${c.rulesVersion}` },
+  ];
+  if (publicConsent && first) attrs.push({ trait_type: "Earned", value: first.startedAt.toISOString().slice(0, 10) });
+  // 鏈上 metadata 固定用英文的 fact：整段 description 是英文，而 metadata 鑄造後不可更改，
+  // 也沒有「之後換語言」這回事。App 畫面上那份才依使用者語言挑（見 SeasonalFootprints）。
+  return {
+    name: `NeonShift · ${theme} ${c.year}`,
+    symbol: "NSSF",
+    description: `Seasonal Footprints ${c.year}: one walk or run with ${Math.round(c.minMovingMs / 60_000)} minutes of moving time inside the published window, recorded on the runner's device and verified by NeonShift rules. Walking counts. Date reference: ${c.source.fact.en}.${publicConsent ? " Earned date shared by the runner." : " Earned date kept private by the runner."}`,
+    image: `${IMAGE_BASE}seasonal/${c.themeId}-${c.year}.svg`,
+    external_url: `https://neonshift.cc/nft/achievements/${achievementId}`,
+    attributes: attrs,
+    properties: { category: "image", achievement_id: achievementId, campaign_id: c.campaignId, theme_id: c.themeId, year: c.year, source_url: c.source.url, public: publicConsent },
+  };
+}
+
 export class AchievementService {
-  constructor(private readonly store: Store, private readonly config: AppConfig, private readonly signer: AttestorSigner, private readonly now: () => Date, private readonly milestones: MilestoneService | null = null, private readonly eventBadges: EventBadgeService | null = null) {}
+  constructor(private readonly store: Store, private readonly config: AppConfig, private readonly signer: AttestorSigner, private readonly now: () => Date, private readonly milestones: MilestoneService | null = null, private readonly eventBadges: EventBadgeService | null = null, private readonly seasonal: SeasonalService | null = null) {}
 
   /** 依 PB 建立／更新成就（冪等）；PB 需為 current／historical */
   async ensure(wallet: string, pbId: string, publicConsent: boolean): Promise<{ achievement: Achievement; pb: PbRevision }> {
@@ -161,7 +209,12 @@ export class AchievementService {
     if (m.status !== "eligible" || !m.first) throw new ApiError(409, "MILESTONE_NOT_ELIGIBLE", `milestone is ${m.status}`);
     const achievementId = milestoneAchievementIdOf(wallet, key);
     const metadata = buildMilestoneMetadata(m, m.first, achievementId, publicConsent);
-    const achievement = await this.store.upsertAchievement({ achievementId, wallet, kind: "milestone", pbId: null, milestoneKey: key, sourceKind: m.first.sourceKind, sourceId: m.first.sourceId, category: m.category, verificationClass: m.verificationClass, sourceRevision: m.first.sourceRevision, rulesMajor: MILESTONE_RULES_MAJOR, publicConsent, metadata, metadataHash: metadataHashOf(metadata), status: "pending_registry", registrySignature: null, registryUpdatedAt: null, asset: null, mintedSignature: null, mintedAt: null }, this.now());
+    let achievement = await this.store.upsertAchievement({ achievementId, wallet, kind: "milestone", pbId: null, milestoneKey: key, sourceKind: m.first.sourceKind, sourceId: m.first.sourceId, category: m.category, verificationClass: m.verificationClass, sourceRevision: m.first.sourceRevision, rulesMajor: MILESTONE_RULES_MAJOR, publicConsent, metadata, metadataHash: metadataHashOf(metadata), status: "pending_registry", registrySignature: null, registryUpdatedAt: null, asset: null, mintedSignature: null, mintedAt: null }, this.now());
+    // PG-LINK-03：晚到的更早紀錄讓「首次」換了來源，但未公開的 metadata 可能一字不差（無日期／數值）→ upsert 不會動；來源欄位仍須跟著更正
+    if (!achievement.mintedSignature && (achievement.sourceKind !== m.first.sourceKind || achievement.sourceId !== m.first.sourceId || achievement.sourceRevision !== m.first.sourceRevision)) {
+      await this.store.setAchievementSource(achievementId, { sourceKind: m.first.sourceKind, sourceId: m.first.sourceId, sourceRevision: m.first.sourceRevision }, this.now());
+      achievement = (await this.store.getAchievement(achievementId)) ?? achievement;
+    }
     return { achievement, milestone: m };
   }
 
@@ -225,14 +278,78 @@ export class AchievementService {
     }
   }
 
-  /** 已核准者簽發 15 分鐘證明；回傳鏈上指令參數與費用揭露（PB 以 pbId、里程碑／活動章以穩定 key） */
-  async intent(wallet: string, ref: { pbId: string } | { milestoneKey: string } | { eventBadgeKey: string }, publicConsent: boolean) {
-    const achievement = "pbId" in ref ? (await this.ensure(wallet, ref.pbId, publicConsent)).achievement : "milestoneKey" in ref ? (await this.ensureMilestone(wallet, ref.milestoneKey, publicConsent)).achievement : (await this.ensureEventBadge(wallet, ref.eventBadgeKey, publicConsent)).achievement;
+  /**
+   * PG-SEASON-04：依節日屆次建立／更新（冪等；需 eligible）。
+   *
+   * **`mint_enabled` 關著時一律拒絕**：這個開關代表「鏈上程式已經支援 seasonal 類別且已部署」，
+   * 在它打開之前就簽發證明，玩家會拿到一個鏈上必定失敗的交易。
+   */
+  async ensureSeasonal(wallet: string, campaignId: string, publicConsent: boolean): Promise<{ achievement: Achievement }> {
+    if (!this.seasonal) throw new ApiError(503, "SEASONAL_UNAVAILABLE", "seasonal campaigns not configured");
+    if (!this.seasonal.mintEnabled) throw new ApiError(409, "SEASONAL_MINT_NOT_OPEN", "claiming is not open for seasonal editions yet");
+    const r = (await this.seasonal.resolve(wallet)).find((x) => x.campaign.campaignId === campaignId);
+    if (!r) throw new ApiError(404, "NOT_FOUND", "seasonal campaign not found");
+    if (r.status !== "eligible" || !r.first) throw new ApiError(409, "SEASONAL_NOT_ELIGIBLE", `seasonal edition is ${r.status}`);
+    const achievementId = seasonalAchievementIdOf(wallet, campaignId);
+    const key = seasonalKeyOf(campaignId);
+    // 之前被標記撤銷、現在又符合資格（例如來源運動刪掉後重新匯入成另一筆）：
+    // 同一枚恢復成待核准。能走到這裡代表**現在**的判定是 eligible，所以不會多發。
+    // 已鑄造的不動——鏈上那一枚還在，狀態由 intent 回報 minted。
+    const existing = await this.store.getAchievement(achievementId);
+    if (existing && !existing.mintedSignature && (existing.status === "revoked" || existing.status === "revoke_pending")) {
+      await this.store.setAchievementStatus(achievementId, "pending_registry", {}, this.now());
+    }
+    const metadata = buildSeasonalMetadata(r.campaign, r.first, achievementId, publicConsent);
+    let achievement = await this.store.upsertAchievement({ achievementId, wallet, kind: "seasonal", pbId: null, milestoneKey: key, sourceKind: "workout", sourceId: r.first.sessionId, category: "seasonal", verificationClass: "device", sourceRevision: r.first.sourceRevision, rulesMajor: r.campaign.rulesVersion, publicConsent, metadata, metadataHash: metadataHashOf(metadata), status: "pending_registry", registrySignature: null, registryUpdatedAt: null, asset: null, mintedSignature: null, mintedAt: null }, this.now());
+    // 與里程碑同一個問題（PG-LINK-03）：換了來源運動但公開的 metadata 一字不差（沒有日期／數值），
+    // upsert 不會動任何欄位——來源仍須跟著更正，否則護照與撤銷判定會指向一筆已經不存在的運動。
+    if (!achievement.mintedSignature && (achievement.sourceId !== r.first.sessionId || achievement.sourceRevision !== r.first.sourceRevision)) {
+      await this.store.setAchievementSource(achievementId, { sourceKind: "workout", sourceId: r.first.sessionId, sourceRevision: r.first.sourceRevision }, this.now());
+      achievement = (await this.store.getAchievement(achievementId)) ?? achievement;
+    }
+    return { achievement };
+  }
+
+  /**
+   * PG-SEASON-04：節日收藏與目前判定同步。資格消失（來源運動被刪／更正到窗口外）→ revoke_pending；
+   * 重新符合 → 同一個 achievement_id 恢復，不鑄第二枚（設計 §5「更正／撤銷沿用資格更新流程」）。
+   */
+  async reconcileSeasonal(wallet: string) {
+    if (!this.seasonal) return;
+    const list = (await this.store.listAchievements(wallet)).filter((a) => a.kind === "seasonal");
+    if (!list.length) return;
+    const res = await this.seasonal.resolve(wallet);
+    for (const a of list) {
+      const campaignId = a.milestoneKey ? parseSeasonalKey(a.milestoneKey) : null;
+      const r = campaignId ? res.find((x) => x.campaign.campaignId === campaignId) : undefined;
+      const ok = r?.status === "eligible" ? r.first : null;
+      const revoked = a.status === "revoked" || a.status === "revoke_pending";
+      if (!ok) { if (!revoked) await this.store.setAchievementStatus(a.achievementId, "revoke_pending", {}, this.now()); continue; }
+      const sourceChanged = a.sourceId !== ok.sessionId || a.sourceRevision !== ok.sourceRevision;
+      if (a.mintedSignature) {
+        // 鏈上作品保留；恢復或來源更正只更新紀錄
+        if (revoked) await this.store.setAchievementStatus(a.achievementId, "minted", {}, this.now());
+        if (sourceChanged) await this.store.setAchievementSource(a.achievementId, { sourceKind: "workout", sourceId: ok.sessionId, sourceRevision: ok.sourceRevision }, this.now());
+      } else if (revoked || sourceChanged) {
+        if (revoked) await this.store.setAchievementStatus(a.achievementId, "pending_registry", {}, this.now());
+        if (this.seasonal.mintEnabled) await this.ensureSeasonal(wallet, campaignId!, a.publicConsent);
+        else await this.store.setAchievementSource(a.achievementId, { sourceKind: "workout", sourceId: ok.sessionId, sourceRevision: ok.sourceRevision }, this.now());
+      }
+    }
+  }
+
+  /** 已核准者簽發 15 分鐘證明；回傳鏈上指令參數與費用揭露（PB 以 pbId、里程碑／活動章／節日以穩定 key） */
+  async intent(wallet: string, ref: { pbId: string } | { milestoneKey: string } | { eventBadgeKey: string } | { seasonalCampaignId: string }, publicConsent: boolean) {
+    const achievement =
+      "pbId" in ref ? (await this.ensure(wallet, ref.pbId, publicConsent)).achievement
+      : "milestoneKey" in ref ? (await this.ensureMilestone(wallet, ref.milestoneKey, publicConsent)).achievement
+      : "eventBadgeKey" in ref ? (await this.ensureEventBadge(wallet, ref.eventBadgeKey, publicConsent)).achievement
+      : (await this.ensureSeasonal(wallet, ref.seasonalCampaignId, publicConsent)).achievement;
     const base = { achievement: achievementView(achievement), pb_id: achievement.pbId, milestone_key: achievement.milestoneKey, fee_estimate_lamports: MINT_FEE_ESTIMATE_LAMPORTS, metadata_preview: achievement.metadata };
     if (achievement.status === "minted") return { ...base, status: "minted" as const, proof: null };
     if (achievement.status !== "approved") return { ...base, status: achievement.status, proof: null };
     if (!this.config.PROGRAM_ID) throw new ApiError(503, "CHAIN_UNAVAILABLE", "PROGRAM_ID not configured");
-    const issuedAt = Math.floor(this.now().getTime() / 1000);
+    const issuedAt = Math.floor(this.now().getTime() / 1000) - CHAIN_CLOCK_SKEW_SECONDS; // 鏈上時鐘落後寬限
     const proof: AchievementProof = {
       version: ACHIEVEMENT_VERSION, programId: Buffer.from(bs58.decode(this.config.PROGRAM_ID)), clusterId: this.config.CLUSTER_ID, wallet: Buffer.from(bs58.decode(wallet)), achievementId: Buffer.from(achievement.achievementId, "hex"),
       category: CATEGORY_CODE[achievement.category as keyof typeof CATEGORY_CODE], verificationClass: CLASS_CODE[achievement.verificationClass], sourceRevision: achievement.sourceRevision, rulesVersion: achievement.rulesMajor, metadataHash: achievement.metadataHash,

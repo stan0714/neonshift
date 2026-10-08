@@ -11,3 +11,4 @@ export { DataCard } from './DataCard';
 export { MissionCard } from './MissionCard';
 export { OfflineBanner } from './OfflineBanner';
 export { EvolutionReveal } from './EvolutionReveal';
+export { Sheet } from './Sheet';

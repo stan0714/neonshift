@@ -10,7 +10,7 @@ jest.mock('expo-secure-store', () => ({
 }));
 
 import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
-import { base64ToBase58, mapWalletError, walletService } from '@/services/wallet/WalletService';
+import { base64ToBase58, isKnownNoReplyWallet, mapAuthorizeError, mapSignError, mapWalletError, walletService } from '@/services/wallet/WalletService';
 
 const mockTransact = transact as jest.MockedFunction<typeof transact>;
 const pk = PublicKey.unique();
@@ -32,6 +32,23 @@ describe('WalletService（PG-A-06，FR-01）', () => {
     const s = await walletService.connect();
     expect(s.address).toBe(pk.toBase58());
     expect(s.label).toBe('Seeker Wallet');
+    expect(await walletService.hasStoredSession()).toBe(true);
+  });
+
+  test('connect＋afterAuthorize：同一個 MWA session 內簽登入訊息；登入失敗（拒簽／後端錯）不影響連線', async () => {
+    const signMessages = jest.fn(async () => [new Uint8Array([9, 9])]);
+    mockTransact.mockImplementationOnce(async (cb) => cb({ authorize: async () => authResult(), signMessages } as never));
+    const seen: string[] = [];
+    let sig: Uint8Array | null = null;
+    const s = await walletService.connect({ afterAuthorize: async (address, sign) => { seen.push(address); sig = await sign(new Uint8Array([1])); } });
+    expect(s.address).toBe(pk.toBase58());
+    expect(seen).toEqual([pk.toBase58()]);
+    expect(signMessages).toHaveBeenCalledWith({ addresses: [b64], payloads: [new Uint8Array([1])] });
+    expect(sig).toEqual(new Uint8Array([9, 9]));
+    // 登入步驟失敗：連線仍成功、token 仍保存
+    mockTransact.mockImplementationOnce(async (cb) => cb({ authorize: async () => authResult('tok-2'), signMessages: async () => { throw new Error('user declined'); } } as never));
+    const s2 = await walletService.connect({ afterAuthorize: async (_a, sign) => { await sign(new Uint8Array([2])); } });
+    expect(s2.address).toBe(pk.toBase58());
     expect(await walletService.hasStoredSession()).toBe(true);
   });
 
@@ -78,7 +95,132 @@ describe('WalletService（PG-A-06，FR-01）', () => {
     expect(mapWalletError(new Error('x')).code).toBe('UNKNOWN');
   });
 
+  /**
+   * 2026-10-02 Seeker 實機（A-4 ①）：在錢包的連接 sheet 按右上 X，畫面卻說
+   *「Wallet connection could not finish ... 去錢包檢查待處理的請求」——那是 UNKNOWN 的文案，
+   * 而使用者剛親手取消，沒有任何待處理的請求。logcat 顯示原生層是 CancellationException，
+   * 走 catch-all 的 promise.reject(e)，RN 給 EUNSPECIFIED，四個判斷全不中。
+   */
+  test('authorize 階段被取消（sheet 按 X）→ REJECTED，不是 UNKNOWN', () => {
+    expect(mapAuthorizeError(new Error('java.util.concurrent.CancellationException')).code).toBe('REJECTED');
+    // 已分類得出來的不被覆蓋
+    expect(mapAuthorizeError(Object.assign(new Error(), { code: 'ERROR_WALLET_NOT_FOUND' })).code).toBe('WALLET_UNAVAILABLE');
+    expect(mapAuthorizeError(Object.assign(new Error(), { code: 'ERROR_SESSION_CLOSED' })).code).toBe('NETWORK_ERROR');
+    // 真正不明的仍是 UNKNOWN——不要把所有不認得的失敗都說成「使用者取消」
+    expect(mapAuthorizeError(new Error('x')).code).toBe('UNKNOWN');
+    // 送交易階段語意相反（可能已送出），不得被改寫成 REJECTED
+    expect(mapSignError(new Error('java.util.concurrent.CancellationException')).code).toBe('WALLET_NO_REPLY');
+  });
+
+  test('connect 在 sheet 被關掉時丟 REJECTED（實機路徑，不只是 mapper 單元）', async () => {
+    mockTransact.mockRejectedValueOnce(new Error('java.util.concurrent.CancellationException'));
+    await expect(walletService.connect()).rejects.toMatchObject({ code: 'REJECTED' });
+  });
+
   test('signMessage：無 session → SESSION_EXPIRED', async () => {
     await expect(walletService.signMessage(new Uint8Array([1]))).rejects.toMatchObject({ code: 'SESSION_EXPIRED' });
   });
+
+  test('signMessage：錢包簽了卻沒回覆（Phantom on Seeker 2026-09-21）→ WALLET_NO_REPLY；授權階段的 session closed 仍走原本重試分類', async () => {
+    expect(mapSignError(new Error('java.util.concurrent.CancellationException')).code).toBe('WALLET_NO_REPLY');
+    expect(mapSignError(Object.assign(new Error('session closed'), { code: 'ERROR_SESSION_CLOSED' })).code).toBe('WALLET_NO_REPLY');
+    expect(mapSignError(Object.assign(new Error(), { code: 'ERROR_ASSOCIATION_CANCELLED' })).code).toBe('REJECTED');
+    expect(mapSignError(new Error('x')).code).toBe('UNKNOWN');
+    mockStore.set('neonshift.wallet.session.v1', JSON.stringify({ authToken: 'tok', address: pk.toBase58(), walletUriBase: 'https://phantom.app/ul/v1' }));
+    const authorize = jest.fn(async () => authResult('tok'));
+    const signMessages = jest.fn(async () => { throw new Error('java.util.concurrent.CancellationException'); });
+    mockTransact.mockImplementation(async (cb) => cb({ authorize, signMessages } as never));
+    await expect(walletService.signMessage(new Uint8Array([1]))).rejects.toMatchObject({ code: 'WALLET_NO_REPLY' });
+    expect(signMessages).toHaveBeenCalledTimes(1); // 已送到錢包的請求不重送
+    expect(isKnownNoReplyWallet({ label: 'Phantom' })).toBe(true);
+    expect(isKnownNoReplyWallet({ label: 'Seeker Wallet', walletUriBase: 'https://phantom.app' })).toBe(true);
+    expect(isKnownNoReplyWallet({ label: 'Seeker Wallet' })).toBe(false);
+    expect(isKnownNoReplyWallet(null)).toBe(false);
+  });
+
+  describe('簽章前重新授權（實機：Phantom 撤銷舊 token 會直接關閉 session）', () => {
+    const stored = () => mockStore.set('neonshift.wallet.session.v1', JSON.stringify({ authToken: 'old', address: pk.toBase58(), walletUriBase: 'x' }));
+    const sessionClosed = () => Object.assign(new Error('session closed'), { code: 'ERROR_SESSION_CLOSED' });
+
+    test('舊 token 失效 → 改開全新授權（同帳戶）後才送交易，並帶 minContextSlot', async () => {
+      stored();
+      const authorize = jest.fn(async (p: { auth_token?: string }) => {
+        if (p.auth_token) throw sessionClosed();
+        return authResult('fresh');
+      });
+      const signAndSendTransactions = jest.fn(async (_p: { minContextSlot?: number }) => ['sig-1']);
+      mockTransact.mockImplementation(async (cb) => cb({ authorize, signAndSendTransactions } as never));
+      const sig = await walletService.signAndSendTransaction({ __tx: true } as never, { minContextSlot: 4200 });
+      expect(sig).toBe('sig-1');
+      expect(authorize).toHaveBeenCalledTimes(2);
+      expect(authorize.mock.calls[1]![0]).not.toHaveProperty('auth_token');
+      expect(signAndSendTransactions).toHaveBeenCalledTimes(1);
+      expect(signAndSendTransactions.mock.calls[0]![0]).toMatchObject({ minContextSlot: 4200 });
+      expect(JSON.parse(mockStore.get('neonshift.wallet.session.v1')!).authToken).toBe('fresh');
+    });
+
+    test('全新授權回不同帳戶 → SESSION_EXPIRED 並清除本機 session，不送交易', async () => {
+      stored();
+      const other = Buffer.from(PublicKey.unique().toBytes()).toString('base64');
+      const authorize = jest.fn(async (p: { auth_token?: string }) => {
+        if (p.auth_token) throw sessionClosed();
+        return { ...authResult('fresh'), accounts: [{ address: other }] };
+      });
+      const signAndSendTransactions = jest.fn(async () => ['sig-1']);
+      mockTransact.mockImplementation(async (cb) => cb({ authorize, signAndSendTransactions } as never));
+      await expect(walletService.signAndSendTransaction({ __tx: true } as never, { minContextSlot: 1 })).rejects.toMatchObject({ code: 'SESSION_EXPIRED' });
+      expect(signAndSendTransactions).not.toHaveBeenCalled();
+      expect(await walletService.hasStoredSession()).toBe(false);
+    });
+
+    test('全新授權也失敗 → SESSION_EXPIRED 並清除本機 session', async () => {
+      stored();
+      const authorize = jest.fn(async () => { throw sessionClosed(); });
+      mockTransact.mockImplementation(async (cb) => cb({ authorize } as never));
+      await expect(walletService.signMessage(new Uint8Array([1]))).rejects.toMatchObject({ code: 'SESSION_EXPIRED' });
+      expect(authorize).toHaveBeenCalledTimes(2);
+      expect(await walletService.hasStoredSession()).toBe(false);
+    });
+
+    test('授權成功後使用者拒絕簽章 → 不重試、不再開授權', async () => {
+      stored();
+      const authorize = jest.fn(async () => authResult('t2'));
+      const signMessages = jest.fn(async () => { throw Object.assign(new Error('cancelled'), { code: 'ERROR_ASSOCIATION_CANCELLED' }); });
+      mockTransact.mockImplementation(async (cb) => cb({ authorize, signMessages } as never));
+      await expect(walletService.signMessage(new Uint8Array([1]))).rejects.toMatchObject({ code: 'REJECTED' });
+      expect(authorize).toHaveBeenCalledTimes(1);
+      expect(await walletService.hasStoredSession()).toBe(true);
+    });
+  });
+});
+
+test('corrupt stored account never breaks startup', async () => {
+  mockStore.set('neonshift.wallet.session.v1', JSON.stringify({ authToken: 'x', address: 'invalid!', walletUriBase: '' }));
+  expect(await walletService.peekStoredSession()).toBeNull();
+  expect(mockTransact).not.toHaveBeenCalled();
+});
+
+test('Seeker Wallet 不回 wallet_uri_base：保存的 session 仍有效（2026-09-21 實機：嚴格檢查把它當損壞，重啟回到歡迎頁）', async () => {
+  mockStore.set('neonshift.wallet.session.v1', JSON.stringify({ authToken: 'tok', address: pk.toBase58(), label: 'Seeker Wallet' }));
+  const peeked = await walletService.peekStoredSession();
+  expect(peeked?.address).toBe(pk.toBase58());
+  expect(peeked?.walletUriBase).toBe('');
+  mockTransact.mockImplementationOnce(async (cb) => cb({ authorize: async () => ({ accounts: [{ address: b64, label: 'Seeker Wallet' }], auth_token: 'tok-2', wallet_uri_base: undefined }) } as never));
+  const s = await walletService.connect();
+  expect(s.walletUriBase).toBe('');
+  expect(JSON.parse(mockStore.get('neonshift.wallet.session.v1')!).walletUriBase).toBe('');
+});
+
+test('connection reports its stage and surfaces optional login failure', async () => {
+  const phases: string[] = [];
+  const onLoginError = jest.fn();
+  mockTransact.mockImplementationOnce(async cb => cb({ authorize: async () => authResult() } as never));
+  await walletService.connect({
+    onPhase: phase => phases.push(phase),
+    onLoginError,
+    afterAuthorize: async () => { throw new Error('backend unavailable'); },
+  });
+  expect(phases).toEqual(['opening', 'authorizing', 'login', 'saving']);
+  expect(onLoginError).toHaveBeenCalledTimes(1);
+  expect(await walletService.hasStoredSession()).toBe(true);
 });

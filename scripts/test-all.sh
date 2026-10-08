@@ -50,8 +50,25 @@ else
   skip "需要 cargo 與 python3"
 fi
 
+# Docker Desktop 的 CLI 偶爾會掛住不回（backend process 還活著，但 socket 不回應）。
+# 沒有逾時的話整份測試會停在下一段，而不是按設計 SKIP——2026-09-26 實際遇到一次，
+# `docker info` 卡了十幾分鐘。有 coreutils 的 timeout／gtimeout 就用，否則自己顧一個。
+with_timeout() {
+  local secs=$1; shift
+  if command -v timeout >/dev/null; then timeout "$secs" "$@"; return $?; fi
+  if command -v gtimeout >/dev/null; then gtimeout "$secs" "$@"; return $?; fi
+  "$@" &
+  local cmd_pid=$!
+  ( sleep "$secs"; kill -9 "$cmd_pid" 2>/dev/null ) >/dev/null 2>&1 &
+  local killer=$!
+  local rc=0
+  wait "$cmd_pid" 2>/dev/null || rc=$?
+  kill -9 "$killer" 2>/dev/null
+  return $rc
+}
+
 section "資料庫 schema"
-if docker info >/dev/null 2>&1; then
+if with_timeout 20 docker info >/dev/null 2>&1; then
   C=neonshift-schema-test
   docker rm -f "$C" >/dev/null 2>&1
   docker run -d --name "$C" -p 127.0.0.1::5432 -e POSTGRES_PASSWORD=test -e POSTGRES_DB=neonshift \
@@ -81,7 +98,7 @@ if docker info >/dev/null 2>&1; then
     bad "migration 套用"
   fi
 else
-  skip "Docker daemon 未執行"
+  skip "Docker daemon 未執行或沒有回應（20 秒內沒回 docker info）"
 fi
 
 section "後端（TypeScript）"
@@ -110,6 +127,30 @@ if command -v npm >/dev/null && [ -d app/node_modules ]; then
   fi
 else
   skip "Node.js 未安裝或 app/ 尚未 npm install"
+fi
+
+section "節日活動設定（PG-SEASON-06）"
+if command -v node >/dev/null && [ -d backend/node_modules ]; then
+  # 設定寫錯（UTC 窗口算錯、expect_local_days 打錯、DST 讓當地日期跑掉）在這裡就要失敗，
+  # 而不是等部署時 API 啟動不起來
+  if (cd backend && npm run -s seasonal:check) >/tmp/ns-seasonal.log 2>&1; then
+    ok "$(tail -1 /tmp/ns-seasonal.log)"
+  else
+    bad "節日活動設定"; tail -20 /tmp/ns-seasonal.log
+  fi
+else
+  skip "Node.js 未安裝或 backend/ 尚未 npm install"
+fi
+
+section "網站社群預覽（OG head）"
+if command -v node >/dev/null; then
+  if node tools/og-assets/verify.mjs >/tmp/ns-og.log 2>&1; then
+    ok "$(tail -1 /tmp/ns-og.log)"
+  else
+    bad "OG head 檢查"; tail -20 /tmp/ns-og.log
+  fi
+else
+  skip "Node.js 未安裝"
 fi
 
 section "鏈上程式（Anchor + LiteSVM）"

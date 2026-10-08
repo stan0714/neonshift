@@ -1,3 +1,4 @@
+import { RewardStage } from '@/components/RewardStage';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -9,6 +10,7 @@ import { runClaimFlow, type ClaimInput, type ClaimPhase } from '@/services/claim
 import { liveMotion } from '@/services/sensors/LiveMotionService';
 import { color, radius, space, Text } from '@/theme';
 import { useT, type TKey } from '@/i18n';
+import { apiErrorText } from '@/services/api/errorText';
 
 type Props = {
   visible: boolean;
@@ -18,7 +20,7 @@ type Props = {
 };
 
 /** SA 附錄 A 拒絕碼 → 使用者可見文案（不揭露門檻；i18n key `clock.reject.<code>.*`） */
-const REJECT_CODES = ['SRC_UNATTRIBUTED', 'SRC_MANUAL', 'NO_SENSOR', 'LIVE_MOTION_INCOMPLETE', 'TASK_NOT_MET', 'SLEEP_RANGE', 'RISK_SCORE'];
+const REJECT_CODES = ['SRC_UNATTRIBUTED', 'SRC_MANUAL', 'NO_SENSOR', 'LIVE_MOTION_INCOMPLETE', 'TASK_NOT_MET', 'SLEEP_RANGE', 'RISK_SCORE', 'WORKOUT_NOT_SYNCED', 'WORKOUT_UNDER_REVIEW'];
 
 /**
  * 打卡引導（PG-A-13，Style 7.3／15）：live motion 倒數 → Verifying → Open wallet → Confirming → Confirmed／Failed。
@@ -37,7 +39,7 @@ export function ClockInSheet({ visible, input, onClose, onPhase }: Props) {
       setPhase(p);
       onPhase(p);
     });
-    if (final.kind === 'confirmed') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (final.kind === 'confirmed') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     running.current = false;
   }, [input, onPhase]);
 
@@ -58,7 +60,7 @@ export function ClockInSheet({ visible, input, onClose, onPhase }: Props) {
     <Modal visible={visible} transparent animationType="fade" onRequestClose={cancel}>
       <View style={styles.scrim}>
         <Surface hero style={styles.sheet} testID="clockin-sheet">
-          <Text variant="heading2">{input?.taskType === 'steps' ? t('mission.steps') : t('mission.sleep')}</Text>
+          <Text variant="heading2">{input?.taskType === 'steps' ? t('mission.steps') : input?.taskType === 'workout' ? t('mission.workout') : t('mission.sleep')}</Text>
           {phase ? <PhaseView phase={phase} taskType={input?.taskType ?? 'steps'} /> : null}
           <View style={styles.actions}>
             {terminal ? <Button label={t('clock.done')} onPress={onClose} /> : <Button label={phase?.kind === 'live_motion' ? t('clock.cancelCheck') : t('common.cancel')} variant="secondary" onPress={cancel} disabled={phase?.kind === 'awaiting_signature' || phase?.kind === 'confirming'} disabledReason={phase?.kind === 'confirming' ? t('clock.waitingNetwork') : undefined} />}
@@ -102,7 +104,9 @@ function PhaseView({ phase, taskType }: { phase: ClaimPhase; taskType: TaskType 
       return <Step icon="clock" text={t('clock.confirming')} tint={color.cyan} testID="phase-confirming" />;
     case 'confirmed':
       return (
-        <InlineState kind="success" title={taskType === 'steps' ? t('clock.claimed.steps') : t('clock.claimed.sleep')} body={phase.signature ? t('clock.claimed.bodyTx', { tx: phase.signature.slice(0, 8) }) : t('clock.claimed.body')} testID="phase-confirmed" />
+        <View accessibilityLiveRegion="polite">
+          <RewardStage mode="task"><Feather name="check" size={42} color={color.mint} /></RewardStage>
+        <InlineState kind="success" title={taskType === 'steps' ? t('clock.claimed.steps') : taskType === 'workout' ? t('clock.claimed.workout') : t('clock.claimed.sleep')} body={phase.signature ? t('clock.claimed.bodyTx', { tx: phase.signature.slice(0, 8) }) : t('clock.claimed.body')} testID="phase-confirmed" /></View>
       );
     case 'already_claimed':
       return <InlineState kind="info" title={t('clock.already.title')} body={t('clock.already.body')} testID="phase-already" />;
@@ -111,7 +115,9 @@ function PhaseView({ phase, taskType }: { phase: ClaimPhase; taskType: TaskType 
       return <InlineState kind="warning" title={c.title} body={`${c.body}${phase.effectiveValue !== undefined ? t('clock.verifiedToday', { n: phase.effectiveValue }) : ''}`} testID="phase-rejected" />;
     }
     case 'failed':
-      return <InlineState kind="error" title={phase.code === 'CANCELLED' || phase.code === 'REJECTED' ? t('common.requestCanceled') : t('common.somethingInterrupted')} body={t('clock.failed.body', { message: phase.message })} referenceId={phase.referenceId} testID="phase-failed" />;
+      if (phase.code === 'INSUFFICIENT_SOL') return <InlineState kind="error" title={t('common.insufficientSol.title')} body={t('common.insufficientSol.body')} testID="phase-insufficient-sol" />;
+      if (phase.code === 'WALLET_NO_REPLY') return <InlineState kind="error" title={t('wallet.err.WALLET_NO_REPLY.title')} body={t('wallet.err.WALLET_NO_REPLY.body')} testID="phase-failed" />;
+      return <InlineState kind="error" title={phase.code === 'CANCELLED' || phase.code === 'REJECTED' ? t('common.requestCanceled') : t('common.somethingInterrupted')} body={t('clock.failed.body', { message: apiErrorText(t, phase.message) })} referenceId={phase.referenceId} testID="phase-failed" />;
     default:
       return null;
   }

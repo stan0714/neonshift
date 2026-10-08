@@ -1,4 +1,8 @@
 // jest-expo preset 加上本專案需要的調整
+// 測試一律在台北時區跑（2026-10-02）：有些斷言（例如沒有記錄時區的紀錄依裝置時區命名）
+// 依賴本機時區，開發機在台北所以一直綠燈，CI（ubuntu，UTC）卻會紅。設定檔在主程序執行，worker 會繼承。
+process.env.TZ = 'Asia/Taipei';
+
 const preset = require('jest-expo/jest-preset');
 
 // @solana/* 的 react-native 進入點是 .mjs；沿用 jest-expo 的 babel 選項另加一條 .mjs 轉換

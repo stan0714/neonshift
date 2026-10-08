@@ -5,7 +5,8 @@
 import { randomBytes } from "node:crypto";
 import bs58 from "bs58";
 
-import { type Attestation, encode, MAX_TTL_SECONDS, TASK_SLEEP, TASK_STEPS, validate, VERSION } from "../lib/attestation.js";
+import { CHAIN_CLOCK_SKEW_SECONDS } from "../lib/achievement.js";
+import { type Attestation, encode, MAX_TTL_SECONDS, TASK_SLEEP, TASK_STEPS, TASK_WORKOUT, validate, VERSION } from "../lib/attestation.js";
 import type { AttestorSigner } from "./types.js";
 
 export type IssueInput = {
@@ -13,7 +14,7 @@ export type IssueInput = {
   clusterId: number;
   wallet: string;
   taskDate: number;
-  taskType: "steps" | "sleep";
+  taskType: "steps" | "sleep" | "workout";
   rulesVersion: number;
   evidenceHash: Uint8Array;
   issuedAt: Date;
@@ -41,7 +42,7 @@ export class AttestationSigner {
   async issue(input: IssueInput): Promise<IssuedAttestation> {
     const ttl = input.ttlSeconds ?? MAX_TTL_SECONDS;
     if (ttl <= 0 || ttl > MAX_TTL_SECONDS) throw new Error(`ttl must be within 1..${MAX_TTL_SECONDS}`);
-    const issuedAt = Math.floor(input.issuedAt.getTime() / 1000);
+    const issuedAt = Math.floor(input.issuedAt.getTime() / 1000) - CHAIN_CLOCK_SKEW_SECONDS; // 鏈上時鐘落後寬限（同成就證明）
     const nonce = randomBytes(16);
     const fields: Attestation = {
       version: VERSION,
@@ -49,7 +50,7 @@ export class AttestationSigner {
       clusterId: input.clusterId,
       wallet: Buffer.from(bs58.decode(input.wallet)),
       taskDate: input.taskDate,
-      taskType: input.taskType === "steps" ? TASK_STEPS : TASK_SLEEP,
+      taskType: input.taskType === "steps" ? TASK_STEPS : input.taskType === "workout" ? TASK_WORKOUT : TASK_SLEEP,
       rulesVersion: input.rulesVersion,
       evidenceHash: Buffer.from(input.evidenceHash),
       issuedAt: BigInt(issuedAt),

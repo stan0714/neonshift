@@ -7,6 +7,7 @@ import { useT, type TKey } from '@/i18n';
 import type { RootParamList } from '@/navigation/types';
 import { ApiError, apiClient, type EventBenefit, type StaffCheckinResult } from '@/services/api/ApiClient';
 import { color, radius, space, Text } from '@/theme';
+import { apiErrorText } from '@/services/api/errorText';
 
 type Checkpoint = { checkpoint_id: string; name: string; purpose: string };
 
@@ -34,14 +35,25 @@ export function StaffCheckInScreen() {
   const [redeemCode, setRedeemCode] = useState('');
   const [stock, setStock] = useState<Stock[] | null>(null);
   const [hasRole, setHasRole] = useState(false);
+  const [redeemCps, setRedeemCps] = useState<Checkpoint[]>([]);
+  const [redeemCp, setRedeemCp] = useState<Checkpoint | null>(null);
+  const [redeemBlocked, setRedeemBlocked] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const [cps, me, list] = await Promise.all([apiClient.partnerCheckpoints(params.eventId), apiClient.partnerMe(), apiClient.staffCheckins(params.eventId).catch(() => null)]);
       const mine = me.event_roles.filter((r) => r.event_id === params.eventId && r.role === 'staff');
-      const allowed = cps.checkpoints.filter((c) => c.purpose === 'check_in' && (mine.some((r) => r.checkpoint_id === null) || mine.some((r) => r.checkpoint_id === c.checkpoint_id) || me.organizations.some((o) => o.role === 'owner')));
+      const unscoped = mine.some((r) => r.checkpoint_id === null) || me.organizations.some((o) => o.role === 'owner');
+      const authorized = (c: Checkpoint) => unscoped || mine.some((r) => r.checkpoint_id === c.checkpoint_id);
+      const allowed = cps.checkpoints.filter((c) => c.purpose === 'check_in' && authorized(c));
       setCheckpoints(allowed);
       setCp(allowed[0] ?? null);
+      // 交付也要帶站點，後端才會擋跨站點（SD 11.1：staff 僅限授權 checkpoint）
+      const redeemAll = cps.checkpoints.filter((c) => c.purpose === 'redemption');
+      const redeemMine = redeemAll.filter(authorized);
+      setRedeemCps(redeemMine);
+      setRedeemCp(redeemMine[0] ?? null);
+      setRedeemBlocked(redeemAll.length > 0 && redeemMine.length === 0);
       setCount(list?.check_ins.length ?? null);
       const anyRole = mine.length > 0 || me.organizations.some((o) => o.role === 'owner');
       setHasRole(anyRole);
@@ -73,7 +85,7 @@ export function StaffCheckInScreen() {
     } catch (e) {
       const c = e instanceof ApiError ? e.code : 'UNKNOWN';
       const known = ['CHECKIN_CHALLENGE_EXPIRED', 'NOT_ELIGIBLE', 'ROLE_FORBIDDEN'].includes(c);
-      setOutcome({ kind: 'error', title: known ? t(`staff.err.${c}` as TKey) : t('staff.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+      setOutcome({ kind: 'error', title: known ? t(`staff.err.${c}` as TKey) : t('staff.err.generic', { message: apiErrorText(t, e) }) });
     } finally {
       setBusy(false);
     }
@@ -83,7 +95,7 @@ export function StaffCheckInScreen() {
     setBusy(true);
     setOutcome(null);
     try {
-      const r = await apiClient.staffFulfill(params.eventId, { claim_code: redeemCode.replace(/\s/g, '') });
+      const r = await apiClient.staffFulfill(params.eventId, { claim_code: redeemCode.replace(/\s/g, ''), ...(redeemCp ? { checkpoint_id: redeemCp.checkpoint_id } : {}) });
       const name = stock?.find((b) => b.benefit_id === r.benefit_id)?.name ?? r.benefit_id.slice(0, 8);
       setOutcome({ kind: r.already ? 'warning' : 'success', title: r.already ? t('staff.redeemAlready', { name }) : t('staff.redeemOk', { name }), body: r.fulfilled_at ?? undefined });
       setRedeemCode('');
@@ -91,7 +103,7 @@ export function StaffCheckInScreen() {
     } catch (e) {
       const c = e instanceof ApiError ? e.code : 'UNKNOWN';
       const known = ['REDEMPTION_EXPIRED', 'REDEMPTION_CANCELLED', 'NOT_FOUND', 'ROLE_FORBIDDEN'].includes(c);
-      setOutcome({ kind: 'error', title: known ? t(`staff.err.${c}` as TKey) : t('staff.err.generic', { message: e instanceof Error ? e.message : String(e) }) });
+      setOutcome({ kind: 'error', title: known ? t(`staff.err.${c}` as TKey) : t('staff.err.generic', { message: apiErrorText(t, e) }) });
     } finally {
       setBusy(false);
     }
@@ -116,12 +128,22 @@ export function StaffCheckInScreen() {
       {noRole ? <InlineState kind="warning" title={t('staff.noRole')} testID="staff-no-role" /> : null}
       {mode === 'redeem' && hasRole ? (
         <>
+          {redeemBlocked ? <InlineState kind="warning" title={t('staff.redeemNoCheckpoint')} testID="staff-redeem-no-checkpoint" /> : null}
+          {redeemCps.length > 1 ? (
+            <View style={styles.chips}>
+              {redeemCps.map((c) => (
+                <Pressable key={c.checkpoint_id} onPress={() => setRedeemCp(c)} accessibilityRole="radio" accessibilityState={{ selected: redeemCp?.checkpoint_id === c.checkpoint_id }} testID={`redeem-cp-${c.checkpoint_id}`}>
+                  <Chip label={c.name} kind={redeemCp?.checkpoint_id === c.checkpoint_id ? 'synced' : 'neutral'} />
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
           <Surface style={styles.card}>
             <Text variant="label" tone="muted" uppercase>
               {t('staff.redeemCode')}
             </Text>
             <TextInput value={redeemCode} onChangeText={(v) => setRedeemCode(v.toUpperCase())} autoCapitalize="characters" autoCorrect={false} maxLength={64} placeholder="ABCD 2345" placeholderTextColor={color.textMuted} style={styles.input} accessibilityLabel={t('staff.redeemCode')} testID="staff-redeem-code" />
-            <Button label={t('staff.redeemConfirm')} style={styles.mt} onPress={() => void fulfill()} loading={busy} loadingLabel={t('staff.confirming')} disabled={busy || redeemCode.replace(/\s/g, '').length < 8} testID="staff-redeem-confirm" />
+            <Button label={t('staff.redeemConfirm')} style={styles.mt} onPress={() => void fulfill()} loading={busy} loadingLabel={t('staff.confirming')} disabled={busy || redeemBlocked || redeemCode.replace(/\s/g, '').length < 8} testID="staff-redeem-confirm" />
           </Surface>
           {stock?.map((b) => (
             <Text key={b.benefit_id} variant="caption" tone="muted" style={styles.mt} testID={`staff-stock-${b.benefit_id}`}>

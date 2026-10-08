@@ -10,7 +10,12 @@ const env = {
   programId: process.env.EXPO_PUBLIC_PROGRAM_ID ?? '',
   apiUrl: process.env.EXPO_PUBLIC_API_URL ?? '',
   tskrMint: process.env.EXPO_PUBLIC_TSKR_MINT ?? '',
+  /** SKR-01：官方 SKR 付款用主網 RPC（只讀餘額／blockhash／送交易），與 devnet 程式 RPC 分開；後端目錄決定實際網路 */
+  skrMainnetRpcUrl: process.env.EXPO_PUBLIC_SKR_MAINNET_RPC_URL ?? 'https://api.mainnet-beta.solana.com',
 };
+
+/** 官方 SKR mint（solanamobile.com/skr）；主網目錄的 mint 必須等於此值，否則 App 拒絕付款（SKR-01 雙重核對） */
+export const OFFICIAL_SKR_MINT = 'SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3';
 
 export const APP_CONFIG = {
   ...env,

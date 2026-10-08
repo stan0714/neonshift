@@ -1,3 +1,4 @@
+import { FEATURES } from '@/config/features';
 import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -45,7 +46,7 @@ export function HealthDiagnosticsScreen() {
       <Button label="requestRequiredPermissions" style={styles.btn} onPress={() => run(async () => setPerm(await healthConnect.requestRequiredPermissions()))} />
       <Button label="openSettings" variant="secondary" style={styles.btn} onPress={() => run(() => healthConnect.openSettings())} />
       <Button label={`readSteps (task_date ${today})`} variant="secondary" style={styles.btn} onPress={() => run(async () => setSteps(await healthConnect.readStepsForTaskDate(today)))} />
-      <Button label="readSleep" variant="secondary" style={styles.btn} onPress={() => run(async () => setSleep(await healthConnect.readSleepForTaskDate(today)))} />
+      {FEATURES.sleep ? <Button label="readSleep" variant="secondary" style={styles.btn} onPress={() => run(async () => setSleep(await healthConnect.readSleepForTaskDate(today)))} /> : null}
 
       <Text variant="heading2" style={styles.section}>Sensors</Text>
       <Button label="getCapabilities" variant="secondary" style={styles.btn} onPress={() => run(async () => setCaps(await liveMotion.getCapabilities()))} />

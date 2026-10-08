@@ -6,6 +6,6 @@ import App from '../../App';
 test('App 冷啟動後進入 Landing', async () => {
   await render(<App />);
   await waitFor(() => expect(screen.getByTestId('landing-screen')).toBeTruthy());
-  expect(screen.getByText('Connect wallet')).toBeTruthy();
+  expect(screen.getByText('Start your adventure')).toBeTruthy();
   expect(screen.getByText('DEVNET')).toBeTruthy();
 });

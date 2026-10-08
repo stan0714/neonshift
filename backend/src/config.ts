@@ -5,6 +5,11 @@
 import { z } from "zod";
 
 const base58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+/** 環境變數布林：只有 true／1／yes 為真（z.coerce.boolean 會把 "false" 當真） */
+const envBool = z.preprocess((v) => (typeof v === "string" ? ["true", "1", "yes"].includes(v.trim().toLowerCase()) : Boolean(v)), z.boolean());
+
+/** 官方 SKR mint（solanamobile.com/skr；2026-09-21 於 mainnet 核對：SPL Token、6 decimals） */
+export const OFFICIAL_SKR_MINT = "SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3";
 
 export const configSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -25,6 +30,8 @@ export const configSchema = z.object({
   RETENTION_INTERVAL_MS: z.coerce.number().int().min(60_000).default(60 * 60 * 1000),
   /** 活動個人層資料保留天數（PG-E-09；BRD Q-13／DEC-06 定案前預設 180；活動結束或取消後起算） */
   EVENT_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(180),
+  /** PG-U-04 探索冊：GPS 來源活動需 ≥ 此 GPS 規則版本才計入任務（R-10 品質驗收定案後設定；未設定＝GPS 活動不計入，Health Connect 匯入不受影響） */
+  QUEST_GPS_MIN_RULES_VERSION: z.coerce.number().int().min(1).optional(),
   /** ChainIndexer（PG-B-16）：與 API 同 process 週期同步；正式環境建議單一 replica 開啟 */
   INDEXER_ENABLED: z.coerce.boolean().default(false),
   INDEXER_INTERVAL_MS: z.coerce.number().int().min(1_000).default(10_000),
@@ -37,7 +44,18 @@ export const configSchema = z.object({
   /** access JWT HS256 密鑰；正式環境必填且 ≥ 32 bytes，local／test 未給時以隨機值啟動（重啟即失效） */
   JWT_SECRET: z.string().min(32).optional(),
   /** 規則集檔案（PG-B-07） */
-  RULES_FILE: z.string().default("rules/v3.json"),
+  RULES_FILE: z.string().default("rules/v4.json"),
+  /** PG-SEASON-01：節日收藏每屆設定；檔案不存在＝沒有任何屆次（不發資格），內容錯誤則啟動失敗 */
+  SEASONAL_FILE: z.string().default("seasonal/campaigns.json"),
+  /**
+   * PG-SEASON-04：節日收藏是否開放領取。**預設關**，而且必須手動打開——
+   * 它代表的是「鏈上程式已支援 seasonal 類別（CATEGORY_SEASONAL=14）且已部署到這個 cluster」。
+   * 在程式重新部署之前打開，玩家會拿到一個鏈上必定失敗的交易。
+   */
+  SEASONAL_MINT_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
   /** attestor signer：`http:<url>`（隔離 signer service，配 SIGNER_TOKEN）或 dev 用 `local:<keypair 路徑|base58>` */
   ATTESTOR_SIGNER: z.string().optional(),
   SIGNER_TOKEN: z.string().optional(),
@@ -48,6 +66,21 @@ export const configSchema = z.object({
   ALERT_WEBHOOK_URL: z.string().url().optional(),
   /** /metrics 保護 token；未設定時 /metrics 只在 local 開放 */
   METRICS_TOKEN: z.string().optional(),
+  // ---- SKR-01～05（docs/store/competition-development-plan.md §1 P1／§5）：官方 SKR 外觀付款，與 devnet tSKR 完全分開 ----
+  /** 未開啟時 /me/skr/* 回 enabled=false，不建立訂單 */
+  SKR_ENABLED: envBool.default(false),
+  /** 付款網路；mainnet-beta 時 SKR_MINT 必須是官方 mint（下方檢查）；devnet 只供標示為 TEST 的試跑 */
+  SKR_NETWORK: z.enum(["mainnet-beta", "devnet"]).default("mainnet-beta"),
+  SKR_RPC_URL: z.string().url().optional(),
+  SKR_MINT: z.string().regex(base58, "SKR_MINT 必須是 base58 公鑰").default(OFFICIAL_SKR_MINT),
+  /** 收款錢包（owner）；實際收款帳戶為其 SKR ATA */
+  SKR_RECIPIENT: z.string().regex(base58, "SKR_RECIPIENT 必須是 base58 公鑰").optional(),
+  /** 首款 SKU「Genesis Mint 收藏卡邊框」價格，SKR 最小單位（6 decimals；1 SKR = 1_000_000） */
+  SKR_GENESIS_FRAME_PRICE: z.coerce.number().int().positive().optional(),
+  /** 訂單有效期與逾期後仍接受的寬限（鏈上 blockTime 判定；超過寬限 → needs_review，不要求再付） */
+  SKR_ORDER_TTL_SEC: z.coerce.number().int().min(60).max(86_400).default(900),
+  SKR_PAYMENT_GRACE_SEC: z.coerce.number().int().min(0).max(86_400).default(600),
+  SKR_COMMITMENT: z.enum(["confirmed", "finalized"]).default("confirmed"),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
@@ -72,6 +105,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
   if (cfg.ATTESTOR_SIGNER?.startsWith("http:") && !cfg.SIGNER_TOKEN) {
     throw new Error("ATTESTOR_SIGNER=http: 需要 SIGNER_TOKEN");
+  }
+  if (cfg.SKR_ENABLED) {
+    if (!cfg.SKR_RECIPIENT || !cfg.SKR_GENESIS_FRAME_PRICE) throw new Error("SKR_ENABLED 需要 SKR_RECIPIENT 與 SKR_GENESIS_FRAME_PRICE");
+    // SKR-01：主網只接受官方 mint，避免設定錯 mint 收到假幣；devnet 試跑必須另指定測試 mint（不得沿用官方地址假裝主網）
+    if (cfg.SKR_NETWORK === "mainnet-beta" && cfg.SKR_MINT !== OFFICIAL_SKR_MINT) throw new Error(`SKR_NETWORK=mainnet-beta 的 SKR_MINT 必須是官方 ${OFFICIAL_SKR_MINT}`);
+    if (cfg.SKR_NETWORK === "devnet" && cfg.SKR_MINT === OFFICIAL_SKR_MINT) throw new Error("SKR_NETWORK=devnet 需指定測試用 SKR_MINT（官方 mint 不在 devnet）");
   }
   return cfg;
 }

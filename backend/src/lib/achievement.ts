@@ -6,12 +6,17 @@ export const ACHIEVEMENT_DOMAIN = Buffer.from("NEONSHIFT_ACHIEVEMENT_V1", "ascii
 export const ACHIEVEMENT_LEN = 194;
 export const ACHIEVEMENT_VERSION = 1;
 export const ACHIEVEMENT_MAX_TTL_SECONDS = 900;
+/**
+ * 鏈上 `Clock::unix_timestamp` 常落後牆上時間數秒（devnet 實測拆盒示範：證明簽出 1 秒內送鏈 → 6040「尚未生效」）。
+ * 簽發時把 issued_at 往前撥這段寬限，expiry 仍以 issued_at＋TTL 計，鏈上 ttl 檢查不變，有效期實際縮短同秒數。
+ */
+export const CHAIN_CLOCK_SKEW_SECONDS = 60;
 
-/** 1..=6 PB（PG-R-08）；7..=11 首次里程碑（PG-M-02）；與 Rust CATEGORY_* 一致 */
-export const CATEGORY_CODE = { fastest_1k: 1, fastest_5k: 2, fastest_10k: 3, fastest_half: 4, fastest_marathon: 5, longest_run: 6, first_5k: 7, first_10k: 8, first_half: 9, first_marathon: 10, first_finish: 11, event_check_in: 12, event_finish: 13 } as const;
+/** 1..=6 PB（PG-R-08）；7..=11 首次里程碑（PG-M-02）；12..=13 活動留念章（PG-M-04）；14 節日收藏（PG-SEASON-04，整個系列共用一個 category）；與 Rust CATEGORY_* 一致 */
+export const CATEGORY_CODE = { fastest_1k: 1, fastest_5k: 2, fastest_10k: 3, fastest_half: 4, fastest_marathon: 5, longest_run: 6, first_5k: 7, first_10k: 8, first_half: 9, first_marathon: 10, first_finish: 11, event_check_in: 12, event_finish: 13, seasonal: 14 } as const;
 export const CLASS_CODE = { organizer: 1, device: 2 } as const;
 /** 12..=13 活動留念章（PG-M-04） */
-export const CATEGORY_MAX = 13;
+export const CATEGORY_MAX = 14;
 
 const OFF = { domain: 0, version: 24, programId: 25, clusterId: 57, wallet: 58, achievementId: 90, category: 122, cls: 123, sourceRevision: 124, rulesVersion: 128, metadataHash: 130, issuedAt: 162, expiry: 170, nonce: 178 } as const;
 

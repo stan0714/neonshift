@@ -189,7 +189,6 @@ npm install lottie-react-native
         "android.permission.ACTIVITY_RECOGNITION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.health.READ_STEPS",
-        "android.permission.health.READ_SLEEP",
         "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"
       ],
       // FR-07.3 只用粗粒度定位；expo-location 預設會加 FINE，明確擋掉
@@ -416,7 +415,6 @@ adb shell pm revoke cc.neonshift.app android.permission.health.READ_EXERCISE
 
 ```bash
 adb shell pm revoke cc.neonshift.app android.permission.health.READ_STEPS
-adb shell pm revoke cc.neonshift.app android.permission.health.READ_SLEEP
 adb shell pm revoke cc.neonshift.app android.permission.ACTIVITY_RECOGNITION
 adb shell pm revoke cc.neonshift.app android.permission.ACCESS_COARSE_LOCATION
 
@@ -428,7 +426,7 @@ adb shell pm clear cc.neonshift.app
 
 真實步數要靠走路，但驗證讀取邏輯時可以用其他健身 App 寫入 Health Connect，再確認本 App 的來源歸因（BR-07、BR-08）能正確排除非裝置來源。
 
-**開發診斷頁**：debug build 內建 `Health Connect (dev)` 畫面（`src/screens/dev/HealthDiagnosticsScreen.tsx`，只在 `__DEV__` 註冊），可逐項呼叫 getStatus／權限／readSteps／readSleep 並顯示原始回傳。開啟方式：`EXPO_PUBLIC_DEV_ROUTE=DevHealth npx expo start --dev-client`，冷啟動後會直接疊在 Landing 之上。`EXPO_PUBLIC_DEV_ROUTE=Main` 則在錢包已連線但尚未建立鏈上 profile（程式未部署）時直接進入 tabs 檢查版面。
+**開發診斷頁**：debug build 內建 `Health Connect (dev)` 畫面（`src/screens/dev/HealthDiagnosticsScreen.tsx`，只在 `__DEV__` 註冊），可逐項呼叫 getStatus／權限／readSteps（本版隱藏 readSleep） 並顯示原始回傳。開啟方式：`EXPO_PUBLIC_DEV_ROUTE=DevHealth npx expo start --dev-client`，冷啟動後會直接疊在 Landing 之上。`EXPO_PUBLIC_DEV_ROUTE=Main` 則在錢包已連線但尚未建立鏈上 profile（程式未部署）時直接進入 tabs 檢查版面。
 
 **Metro 注意**：修改 `src/` 後若實機仍載入舊畫面，重啟 `npx expo start --clear`（本機 watchman 監看偶爾失效）。原生模組（`modules/`）改動一律要重新 `assembleDebug`。
 
@@ -543,14 +541,14 @@ manifest 的 `consistent=false`（後端名單人數 ≠ 鏈上 `valid − forfe
 
 ### 7.7 後端部署到 l1（api.neonshift.cc）
 
-後端跑在 `root@l1.neonshift.cc`，**port 6080**，健康檢查 `GET /healthz`；`https://api.neonshift.cc` 由另一台主機的 nginx 反代（範本 `deploy/l1/nginx-api.neonshift.cc.conf`）；靜態站 `web/` 部署在 Cloudflare Pages（`https://neonshift.cc`）。
+後端跑在 `$NEONSHIFT_L1_SSH`，**port 6080**，健康檢查 `GET /healthz`；`https://api.neonshift.cc` 由另一台主機的 nginx 反代（範本 `deploy/l1/nginx-api.neonshift.cc.conf`）；靜態站 `web/` 部署在 Cloudflare Pages（`https://neonshift.cc`）。
 
 ```bash
 deploy/l1/deploy.sh bootstrap        # 第一次（安裝 Node 24／PostgreSQL、系統帳號、/etc/neonshift/*.env 隨機 secret、systemd）
 deploy/l1/deploy.sh                  # 每次更新：rsync backend → npm ci → migration（schema_migrations 一次性）→ 重啟 signer／api → healthz
 curl -s https://api.neonshift.cc/healthz          # {"status":"ok","env":"dev","cluster_id":1}
 cd backend && npm run smoke -- https://api.neonshift.cc   # healthz／readyz／events／SIWS 登入／event-history／partner/me／logout（唯讀，不留資料）
-ssh root@l1.neonshift.cc 'journalctl -u neonshift-api -n 100 --no-pager'
+ssh $NEONSHIFT_L1_SSH 'journalctl -u neonshift-api -n 100 --no-pager'
 ```
 
 attestor 私鑰只在 `neonshift-signer.service`（`127.0.0.1:6081`、獨立帳號）；API 透過 `ATTESTOR_SIGNER=http:http://127.0.0.1:6081` 簽章。鏈上 `Config.attestor_pubkey` 需與 `/etc/neonshift/keys/attestor.json` 一致（`init-config` 用同一把 `~/.config/neonshift/dev/attestor.json`）。
@@ -590,10 +588,14 @@ curl -s "$API/partner/events/$EV/campaign-summary?format=csv" -H "Authorization:
 
 ```bash
 # 需 dev program 已升級到含 claim_achievement 的版本（程式 600 KB，升級需 admin 先有 ≈ 3.1 SOL 供 buffer）
-OPS_TOKEN=$(ssh root@l1.neonshift.cc 'grep ^OPS_TOKEN= /etc/neonshift/api.env | cut -d= -f2') \
+OPS_TOKEN=$(ssh $NEONSHIFT_L1_SSH 'grep ^OPS_TOKEN= /etc/neonshift/api.env | cut -d= -f2') \
   npm --prefix tools/chain-admin run sync-achievements -- dev --dry-run   # 先看 pending
 OPS_TOKEN=… npm --prefix tools/chain-admin run sync-achievements -- dev   # 逐筆 set_achievement_eligibility 並回報
 ```
+
+**api.neonshift.cc（2026-09-17 已接通）**：l1 只跑 API（:6080），**不裝 nginx**——TLS 與反代由前面那台 nginx（`deploy/l1/nginx-api.neonshift.cc.conf`，upstream `<l1>:6080`，Let's Encrypt 憑證）經 Cloudflare 橘雲提供；`curl https://api.neonshift.cc/healthz` → 200。Seeker 測試包改用預設 API（`APP_ARCHS=arm64-v8a scripts/app/build.sh dev release`，不帶 `APP_API_URL_OVERRIDE`，明文 HTTP 關閉），`demo-event.mjs https://api.neonshift.cc` 已核對（state published）。
+
+2026-09-15 已升級（slot 498753143，資料帳戶 660,824 bytes）。`api.neonshift.cc` 尚未通時，chain-admin 可用 SSH tunnel：`ssh -f -N -L 16080:127.0.0.1:6080 $NEONSHIFT_L1_SSH` 並以 `NEONSHIFT_API_URL=http://127.0.0.1:16080/v1` 覆寫（任何 env 檔鍵都可用 `NEONSHIFT_<KEY>` 覆寫）。
 
 升級程式：`scripts/chain/build.sh dev && solana program extend 6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA 100000 --url devnet -k ~/.config/neonshift/dev/admin.json && scripts/chain/deploy.sh dev`（先 extend program-data 到新大小）。
 
@@ -717,7 +719,29 @@ ls -lh app-release.apk
 
 檢查重點：`sdkVersion:'34'`、權限清單只有預期的六項、憑證指紋與交付清單登記的一致。
 
-### 8.5 版本號管理
+### 8.5 Seeker 實機測試包（dev 金鑰、直連 l1:6080）【2026-09-16】
+
+戶外實測不能靠 Metro（dev client 需要 USB／tunnel），要用內嵌 bundle 的 release 包。正式 release 金鑰（8.1）未建立前，用 **dev 環境專屬測試金鑰**（不是正式金鑰；正式金鑰仍依 8.1 另建並離線備份）：
+
+```bash
+# 只做一次：dev 測試金鑰放 ~/.config/neonshift/dev/（不進 repo；*.keystore、keystore.properties 已 gitignore）
+KD=~/.config/neonshift/dev
+keytool -genkeypair -storetype PKCS12 -keystore $KD/neonshift-dev-test.keystore -alias neonshift-dev -keyalg RSA -keysize 2048 -validity 3650
+printf 'storeFile=%s/neonshift-dev-test.keystore\nstorePassword=<密碼>\nkeyAlias=neonshift-dev\nkeyPassword=<密碼>\n' $KD > $KD/keystore.properties
+chmod 600 $KD/keystore.properties $KD/neonshift-dev-test.keystore
+ln -sfn $KD/keystore.properties app/android/keystore.properties   # build.gradle 支援 storeFile 絕對路徑
+
+# 每次出包（login shell 才有 Node 24）：單 ABI、後端直連 l1:6080（api.neonshift.cc 的 nginx vhost 尚未安裝）
+bash -lc 'APP_ARCHS=arm64-v8a APP_API_URL_OVERRIDE=$NEONSHIFT_L1_API/v1 scripts/app/build.sh dev release'
+adb uninstall cc.neonshift.app      # 首次由 debug 簽章切換必須先移除（本機運動紀錄與偏好會清空）
+adb install app/android/app/build/outputs/apk/release/app-release.apk
+```
+
+- release 預設 `usesCleartextTraffic=false`；`build.sh` 只在後端 URL 為 `http://` 時以 `-PcleartextTraffic=true` 開啟，release-notes.txt 會標示「已允許明文 HTTP」。**這種包只裝在自己的 Seeker，不對外散布**。api.neonshift.cc 的 nginx vhost 裝好後拿掉 `APP_API_URL_OVERRIDE` 即恢復 https。
+- 之後正式金鑰（8.1）建立時，換簽章仍要 `adb uninstall` 一次。
+- 產物附帶 `release/release-notes.txt`（env、版本、git hash、Program Id、後端）。
+
+### 8.6 版本號管理
 
 每次要給隊友或評審的包都要遞增 `versionCode`，否則裝置會拒絕安裝舊版號。
 
@@ -833,7 +857,7 @@ adb reverse --remove-all
 ### M1 健康資料
 
 - [ ] 實機顯示今日步數，與 Health Connect 設定畫面數值一致（誤差 ≤ 1 步）
-- [ ] 顯示昨夜睡眠時長，跨午夜歸屬正確
+- [ ] 本版不顯示睡眠任務、不讀睡眠資料，合併 manifest 不含 READ_SLEEP
 - [ ] 拒絕權限時出現引導畫面與前往設定按鈕
 - [ ] 第三方 App 寫入的步數**未**被計入
 - [ ] 手動輸入的步數**未**被計入
@@ -875,6 +899,8 @@ adb reverse --remove-all
 |---|---|---|
 | `adb devices` 顯示 `unauthorized` | 未接受授權對話框 | 裝置上勾選一律允許；或 `adb kill-server && adb start-server` |
 | App 開啟後停在白畫面 | Metro 沒連上 | `adb reverse tcp:8081 tcp:8081` 後重開 App |
+| 桌面／最近使用出現兩個 NeonShift、切回來變另一個 App | 裝置上還留著改 package 前的舊版 `xyz.neonshift.app`（同名同圖示） | `adb uninstall xyz.neonshift.app`（2026-09-16 已在 Seeker 移除） |
+| Onboarding 卡在「Opening Health Connect…」（release 包） | Android 14+ 的 Health Connect 權限是執行期權限，結果從 `onRequestPermissionsResult` 回來；Expo `registerForActivityResult` 在 release 包不會把它送回 launcher | 已於 2026-09-16 改為 `PermissionAwareActivity.requestPermissions`＋前景保底（`modules/neonshift-health`）；若再發生，看 logcat `NeonshiftHealth` 標籤 |
 | `Unable to load script` | 同上 | 同上，並確認 `npx expo start --dev-client` 在跑 |
 | `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | debug 與 release 簽章不同 | `adb uninstall cc.neonshift.app` 後重裝 |
 | `INSTALL_FAILED_VERSION_DOWNGRADE` | versionCode 沒遞增 | 提高 versionCode 重新建置 |
@@ -938,8 +964,8 @@ set -euo pipefail
 PKG="cc.neonshift.app"
 
 adb shell pm clear "$PKG"
-for p in health.READ_STEPS health.READ_SLEEP health.READ_HEALTH_DATA_IN_BACKGROUND \
-         ACTIVITY_RECOGNITION ACCESS_COARSE_LOCATION; do
+for p in health.READ_STEPS health.READ_HEALTH_DATA_IN_BACKGROUND \
+         ACTIVITY_RECOGNITION ACCESS_COARSE_LOCATION POST_NOTIFICATIONS; do
   adb shell pm revoke "$PKG" "android.permission.$p" 2>/dev/null || true
 done
 echo "已重置，可重新測試首次啟動流程"

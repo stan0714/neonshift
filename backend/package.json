@@ -2,6 +2,7 @@
   "name": "@neonshift/backend",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "NeonShift Attestor 後端",
   "engines": {
@@ -18,7 +19,8 @@
     "start": "node --import tsx src/server.ts",
     "signer": "node --import tsx src/signer/main.ts",
     "smoke": "node scripts/smoke-api.mjs",
-    "retention:once": "node --import tsx src/retention/once.ts"
+    "retention:once": "node --import tsx src/retention/once.ts",
+    "seasonal:check": "node --import tsx src/seasonal/check.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
