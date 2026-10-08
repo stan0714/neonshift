@@ -695,7 +695,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-R-01 | Workout session、來源／去重、摘要 schema 與 API | activity-running-gallery 3、7；walk-run-tracking 3 | FR-14.1、BR-37 | 3.0 | WIP | 2026-09-14 完成：migration 0009；匯入 schema／derive（估算距離需校準步長、步頻／速度上限、Active／Total 分開、PB 資格）；`/workouts/import`（≤ 50、限流、revision 去重 same／stale／superseded、tombstone）、`/me/workouts` 清單／明細／刪除、跨來源可能重複標記、player 刪除同步；App domain 映射（HC RUNNING／TREADMILL／WALKING）、importer（分批、unavailable）、`WorkoutsScreen`（Style 23.1）；vitest 6＋PG 整合 1、Jest 7。待：R-02 原生 ExerciseSession 讀取、實機 |
 | PG-R-02 | Health Connect 運動、距離、活動熱量匯入及裝置矩陣 | activity-running-gallery 3、4 | FR-14.1～3 | 3.0 | WIP | 2026-09-14 完成：原生 `readExerciseSessions`（RUNNING／TREADMILL／WALKING；同來源同時段 aggregate 距離／步數／Active／Total 熱量；缺權限欄位 null＋partialPermissions；不含路線）、權限常數與 Manifest／app.json（READ_EXERCISE／DISTANCE／ACTIVE／TOTAL_CALORIES）、App 匯入流程（必要 READ_EXERCISE、拒絕不阻擋其他功能）、Runbook 6.1.1 裝置矩陣表；Jest 7。待：實機實測填矩陣（Seeker 無 session 來源，需相容 App 寫入） |
 | PG-R-03 | Walking／Running GPS session、權限、前景服務與持久恢復 | walk-run-tracking 2、3 | FR-18.1、18.2 | 5.0 | WIP | 2026-09-14 完成：`WorkoutRecorder` 狀態機（單一 session、暫停／恢復／Lap、Finish 先保存再同步、同步失敗保留）、`LocalWorkoutStore`（加密軌跡、checkpoint、seq 去重、刪除清路線）、expo-location 前景服務＋TaskManager 任務、權限（FINE 使用中；不申請背景定位）、恢復（跨 process 標 interrupted 只允許結束／丟棄）、摘要同步契約（origin gps、無座標）；Manifest／app.json 權限與 expo-location plugin；隱私政策補 GPS 段落；Jest 5。待：實機（鎖屏 30 分鐘、殺 process、重開機、權限撤銷）、原生 elapsedRealtime |
-| PG-R-04 | GPS 距離品質、5 秒速度／最高速度／配速引擎 | walk-run-tracking 4 | FR-18.4 | 3.0 | WIP | 2026-09-14 完成：`app/src/domain/gps/engine.ts`（GPS_RULES_VERSION 1：精度 ≤ 20 m、缺口 > 5 s 新段不補直線、跑 12／走 4 m/s 跳點、3 m 遲滯抖動、5 秒完整窗速度／最高速度、平均含暫停、coverage／gaps 品質）；固定軌跡重播 Jest 10。待：實機校準門檻（R-10） |
+| PG-R-04 | GPS 距離品質、5 秒速度／最高速度／配速引擎 | walk-run-tracking 4 | FR-18.4 | 3.0 | WIP | 2026-09-14 完成：`app/src/domain/gps/engine.ts`（GPS_RULES_VERSION 1：精度 ≤ 20 m、缺口 > 5 s 新段不補直線、跑 12／走 4 m/s 跳點、3 m 遲滯抖動、5 秒完整窗速度／最高速度、平均含暫停、coverage／gaps 品質）；固定軌跡重播 Jest 10。待：實機校準門檻（R-10）。2026-10-08 GPS_RULES_VERSION 4：缺口瞬移加 300 m 門檻並扣兩端精度、最高速度改取平滑速度（見文末 10/8 條） |
 | PG-R-05 | 公里分段、手動圈／自訂距離圈與 Partial 末段 | walk-run-tracking 5 | FR-18.3 | 3.0 | WIP | 2026-09-14 引擎完成：splits（1,000 m／1,609.344 m，兩點間按距離比例插值、一次跨多界線、跨缺口 uncertain、末段 partial 不參與最快）、手動圈與自訂距離自動圈獨立序列（暫停禁按、零距離去重、不重設分段）、跑道等效圈 floor＋餘數；Jest 涵蓋。待：R-06 畫面（Splits／Laps 分頁） |
 | PG-R-06 | 記錄畫面、暫停／結束、摘要與分圈表 | walk-run-tracking 6；Style 23 | FR-18.1～5 | 3.0 | WIP | 2026-09-14 完成：`WorkoutStart`（運動／地點／自動圈／分段單位、室內導向匯入、權限引導）、`WorkoutRecord`（跑步配速／走路速度大數字、時間距離、GPS 與暫停狀態、Lap／Pause／Resume／Finish 確認、返回鍵鎖定）、`WorkoutSummary`（統計、needs_review、同步狀態與重試、Splits／Laps／Quality 分頁、跑道等效）、Workouts 入口與恢復提示；Style 23.2；Jest 3。待：實機視覺與 30 分鐘鎖屏驗收（R-10） |
 | PG-R-07 | 主辦方／裝置 PB 分組與修正重算 | activity-running-gallery 5 | FR-15.1、BR-38 | 3.0 | WIP | 2026-09-14 完成：migration 0010 `pb_revisions`；`pb/compute.ts`（候選：workout 需 pb_eligible、固定距離只用連續完整分段的最短覆蓋區間、半馬／全馬僅主辦方、最遠 ≥ 1 km；result 依距離 ≤ 1% 歸類；key＝discipline＋category＋environment＋verification_class＋timing_basis＋rules_major；Baseline → 嚴格改善）；`PersonalBestService.recompute`（冪等 sync：pb_id 穩定、previous 鏈、來源刪除／更正 → invalidated、重現恢復），觸發於匯入／刪除／成績發布；`GET /me/personal-bests`（imported_since）；App Workouts 頁 PB 區塊；vitest 5＋PG 整合 1、Jest。待：chip／gun 計時基準（成績 CSV 尚無欄位）、R-08 成就簽發 |
@@ -1954,3 +1954,16 @@ testID 維持 `session-notice` 不變——我一度把它改成帶後綴，打�
 testID 是契約，不該為了加一個變體就換掉。
 
 App 88 suites／705 tests。
+
+## 2026-10-08｜5.38 km 跑步被「瞬移」誤判，最高速度 20.3 km/h
+
+10/7 實跑 5.38 km（平均 6:38 /km）被標 needs_review，運動任務無法領取，且無法重新判定（原始軌跡不離開手機）。摘要頁的完整性檢查：**Teleport 2**；同時 38 個點被拒（速度跳點 33）、2 個缺口、涵蓋率 99%、步態探測 11 次 0 次不一致——確定是真的在跑。
+
+機制：定位突然偏移數十公尺後停在偏移處，每點相對最後接受點 > 12 m/s 被拒為跳點；連續被拒 > 5 秒即成「缺口」，缺口結束那點離最後接受點太遠 → 記瞬移 → 任一旗標整筆 needs_review（後端直接採用 App 旗標）。缺口兩端本來就不補距離，小幅瞬移不會讓任何人多拿距離，整筆作廢過重。同一批飄移也讓原始 5 秒窗最高速度到 20.3 km/h（低於 25 km/h 上限，擋不住）。
+
+修正（GPS_RULES_VERSION 3 → 4，versionCode 23）：
+- 缺口瞬移：位移扣掉兩端精度後仍超過「跳點上限 × 缺口秒數」，**且位移 ≥ 300 m**（`GAP_TELEPORT_MIN_M`）才記。
+- 最高速度：改取顯示用平滑速度（10 秒窗＋EMA τ 15 s）的最大值；原始窗超過可信上限或剛補回靜止位移時仍不更新。欄位名 `maxSpeed5sKmh`／`extras.max_speed_5s_kmh` 不改，相容後端（後端上限跑 36 km/h）。標示改「最高速度（平滑）」。
+
+回歸測試 3 個：偏移 90 m 停住不記瞬移、6 秒 400 m 仍記瞬移、前後飄移最高速度 < 15 km/h。還原修正時，「偏移 90 m」與「最高速度」兩個測試失敗（舊版記瞬移 1 次、最高速度 23.47 km/h），保護既有防弊的 400 m 測試新舊皆過。App 93 suites／761 tests（UTC＋CI 與台北時區）。實機待驗：v23 實跑一次，確認未誤標、最高速度合理。
+

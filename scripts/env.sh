@@ -16,8 +16,11 @@ BREW_PREFIX="$(brew --prefix 2>/dev/null || echo /opt/homebrew)"
 if command -v nvm >/dev/null 2>&1 && nvm ls 24 >/dev/null 2>&1; then
   nvm use 24 >/dev/null
 else
-  for node_bin in "$BREW_PREFIX/opt/node/bin" /opt/homebrew/opt/node/bin /usr/local/opt/node/bin; do
-    if [ -x "$node_bin/node" ]; then
+  # nvm 安裝目錄（非互動 shell 讀不到 nvm function 時直接用）排第一；
+  # 2026-10 macOS 升級後沒有 Rosetta，/usr/local 的 x86 Homebrew node 已無法執行。
+  nvm_node24="$(ls -d "$HOME"/.nvm/versions/node/v24.*/bin 2>/dev/null | sort -V | tail -1)"
+  for node_bin in "$nvm_node24" "$BREW_PREFIX/opt/node/bin" /opt/homebrew/opt/node/bin /usr/local/opt/node/bin; do
+    if [ -n "$node_bin" ] && [ -x "$node_bin/node" ] && "$node_bin/node" -v >/dev/null 2>&1; then
       export PATH="$node_bin:$PATH"
       break
     fi

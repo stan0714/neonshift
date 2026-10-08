@@ -1150,7 +1150,7 @@ Indoor 不啟用 GPS 推算距離，僅接可信裝置／已標記來源；缺�
 | App 點級 | 模擬定位 | `LocationObject.mocked === true` → 點拒絕（`mock_location`）並計數；有任何一點即旗標 | `locationTask` → `GpsMetricsEngine` |
 | App 點級 | 單點跳點 | 與前一接受點速度 > 跑 12／走 4 m/s → 拒絕（既有） | engine |
 | App 段級 | 持續超速 | 60 s 滑動窗平均 > 跑 6.5／走 2.8 m/s 記一次 episode（`sustained_speed`）；針對「勻速搭車」 | engine `INTEGRITY_RULES` |
-| App 段級 | 缺口瞬移 | 缺口（> 5 s 無點）前後位移換算速度超過跳點上限 → `gap_teleport`；針對「關 GPS 移動再開」 | engine |
+| App 段級 | 缺口瞬移 | 缺口（> 5 s 無點）前後位移扣掉兩端精度後換算速度仍超過跳點上限，**且位移 ≥ 300 m**（v4，2026-10-08；`GAP_TELEPORT_MIN_M`）→ `gap_teleport`；針對「關 GPS 移動再開」。缺口兩端本不補距離，GPS 偏移造成的小幅跳躍不再整筆 needs_review | engine |
 | App 時間 | 時鐘漂移 | 牆鐘（`Date.now`）− 單調時鐘（`performance.now`）偏移在記錄中變動 > 30 s → `clock_drift`；針對改系統時間灌時長 | recorder `ingest` |
 | App 感測 | 步態探測 | 記錄中每 3 分鐘（前景、GPS 5 秒窗速度 ≥ 1 m/s 時）用 `NeonshiftSensors` 取 8 s 加速度：計步增量 > 0 或 1～4 Hz 主頻＋RMS ≥ 0.6 視為有步態；≥ 2 次且過半「GPS 在動但無步態」→ `motion_mismatch`；量不到（背景／無感測器）不計 | recorder `runProbe` |
 | 伺服器 | 旗標二線 | 白名單旗標任一 → `needs_review`；未知旗標忽略 | `workouts/schema.derive` |
