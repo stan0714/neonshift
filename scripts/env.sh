@@ -27,11 +27,15 @@ else
   done
 fi
 
-# JDK 17
-if [ -d "$BREW_PREFIX/opt/openjdk@17" ]; then
-  export JAVA_HOME="$BREW_PREFIX/opt/openjdk@17"
-  export PATH="$JAVA_HOME/bin:$PATH"
-fi
+# JDK 17：同樣逐一試已知位置，挑第一個真的能執行的
+# （2026-10 macOS 升級後沒有 Rosetta，/usr/local 的 x86 openjdk@17 目錄還在但 java 跑不起來）
+for jdk in "$BREW_PREFIX/opt/openjdk@17" /opt/homebrew/opt/openjdk@17 /usr/local/opt/openjdk@17; do
+  if [ -x "$jdk/bin/java" ] && "$jdk/bin/java" -version >/dev/null 2>&1; then
+    export JAVA_HOME="$jdk"
+    export PATH="$JAVA_HOME/bin:$PATH"
+    break
+  fi
+done
 
 # Android SDK
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
