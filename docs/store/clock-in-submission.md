@@ -189,13 +189,13 @@ README 頂部應提供 APK、影片、Pitch PDF、五分鐘體驗步驟、Devnet
 | 換算台灣時間 | **2026-10-12（一）19:59**。內部目標：**10/12（一）12:00 前完成最終提交**，保留約 8 小時緩衝 |
 | 提交負責人 | 使用者本人（單人參賽） |
 | Repository URL | `https://github.com/stan0714/neonshift`（10/7 改為公開；評審預設看 `main`，待 PR #10 → dev → main 合併） |
-| Release／Tag URL | 草稿 `v0.1.0-build22`（10/7 建立，未發布；main 合併後發布） |
-| Commit SHA | App `c73649d`（10/7 RC，見 [RC 紀錄](../evidence/2026-10-07-rc-v22.md)） |
-| APK 下載 URL | 發布後：`https://github.com/stan0714/neonshift/releases/download/v0.1.0-build22/NeonShift-v0.1.0-build22-devnet-arm64.apk` |
-| APK versionName／versionCode | 0.1.0／22（10/7 RC，見 [RC 紀錄](../evidence/2026-10-07-rc-v22.md)） |
-| APK SHA-256 | `3d86e9bf08fc531c0362ea3a6a4cf0d869f6b7eb5fe22ee75ac2da6600a5845a`（10/7 RC，見 [RC 紀錄](../evidence/2026-10-07-rc-v22.md)） |
+| Release／Tag URL | 草稿 `v0.1.0-build24`（10/9 由 build 22 草稿更新，未發布；main 合併後發布） |
+| Commit SHA | App `719c7de`（10/9 RC，見 [RC 紀錄](../evidence/2026-10-09-rc-v24.md)） |
+| APK 下載 URL | 發布後：`https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-v0.1.0-build24-devnet-arm64.apk` |
+| APK versionName／versionCode | 0.1.0／24（10/9 RC，見 [RC 紀錄](../evidence/2026-10-09-rc-v24.md)） |
+| APK SHA-256 | `9cf074b123668f756714c9b7b9ef6f3319cac831686c72c838baf5db4e8a6515`（10/9 RC，見 [RC 紀錄](../evidence/2026-10-09-rc-v24.md)） |
 | APK 簽章憑證指紋 | SHA-256 `c6b8bbb34b050ae3725c29dc8155d601875693f8c741356a1331d948fb5f4b04`（CN=NeonShift dev test；換正式簽章需重記） |
-| 建置日期 | 2026-10-06T15:09:02Z（10/7 RC，見 [RC 紀錄](../evidence/2026-10-07-rc-v22.md)） |
+| 建置日期 | 2026-10-09T14:42:52Z（10/9 RC，見 [RC 紀錄](../evidence/2026-10-09-rc-v24.md)） |
 | 評審指南 URL | 待填 |
 | Demo 影片 URL／時長 | 待填 |
 | 活動文字詳解 URL | 待填；不再要求長片 |
@@ -206,7 +206,7 @@ README 頂部應提供 APK、影片、Pitch PDF、五分鐘體驗步驟、Devnet
 | 網路／Program ID／Mint | devnet／`6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA`／tSKR `2itshf7Xup3WZeeDRSXbstv4nbPcjfiLhdDpcQjU7RtZ` |
 | 核心操作 Explorer 連結 | 見 [RC v21 鏈上證據](../evidence/2026-10-04-rc-v21.md#鏈上證據devnet錢包-acbuvbv2)：InitPlayer、ClockIn、ClaimAchievement、ClaimCollectible、SKR（TEST）付款 |
 | 驗收裝置／OS／錢包版本 | Solana Seeker／Android 16／Seeker Wallet 1.17.0 |
-| 已知限制 | 見 [RC v22 已知限制](../evidence/2026-10-07-rc-v22.md#已知限制)（含 v21）：devnet／tSKR 無價值、僅 arm64-v8a、dev test 簽章、同 UTC 日領取、session 過期未實測 |
+| 已知限制 | 見 [RC v24 已知限制](../evidence/2026-10-09-rc-v24.md#已知限制)（含 v21、v22）：devnet／tSKR 無價值、僅 arm64-v8a、dev test 簽章、同 UTC 日領取、session 過期未實測 |
 | 最後連結檢查時間 | 待填 |
 | 提交時間／回執／編號 | 待填 |
 
