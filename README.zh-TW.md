@@ -8,7 +8,7 @@ Solana Mobile 健康追蹤 dApp。將每日跑步／健走轉化為「打卡」�
 
 ## 黑客松評審入口（準備中）
 
-先看 [評審快速指南](docs/store/judges-guide.md)，再依需要閱讀 [三分鐘內英文 Demo 腳本](docs/store/demo-video.md)與 [活動參與流程](docs/store/event-demo-playbook.md)。APK、影片與測試活動連結尚待登錄；功能存在不代表實機端到端已驗收。
+先看 [評審快速指南](docs/store/judges-guide.md)，再依需要閱讀 [三分鐘內英文 Demo 腳本](docs/store/demo-video.md)與 [活動參與流程](docs/store/event-demo-playbook.md)。APK：[NeonShift-v0.1.0-build24-devnet-arm64.apk](https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-v0.1.0-build24-devnet-arm64.apk)（[Release 說明與 SHA-256](https://github.com/stan0714/neonshift/releases/tag/v0.1.0-build24)）；簡報：[NeonShift-Pitch-EN.pdf](https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-Pitch-EN.pdf)。影片與測試活動連結尚待登錄；功能存在不代表實機端到端已驗收。
 
 ## 架構
 

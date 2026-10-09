@@ -19,9 +19,9 @@
 
 | Deliverable | Link |
 |---|---|
-| Android APK (release, signed) | _added at submission_ |
+| Android APK (release, signed) | [NeonShift-v0.1.0-build24-devnet-arm64.apk](https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-v0.1.0-build24-devnet-arm64.apk) · [release notes and SHA-256](https://github.com/stan0714/neonshift/releases/tag/v0.1.0-build24) |
 | Demo video (≤ 3 min) | _added at submission_ |
-| Pitch deck (PDF) | _added at submission_ |
+| Pitch deck (PDF) | [NeonShift-Pitch-EN.pdf](https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-Pitch-EN.pdf) |
 | Judges' quick guide | [docs/store/judges-guide.md](docs/store/judges-guide.md) (Traditional Chinese) |
 
 To try it, you need a Seeker or another Android 14+ phone with an MWA wallet (Seed Vault Wallet, Phantom, Solflare) on **devnet**, plus a little devnet SOL for fees (for example from [faucet.solana.com](https://faucet.solana.com)).
