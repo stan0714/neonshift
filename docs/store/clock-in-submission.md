@@ -171,30 +171,31 @@ README 頂部應提供 APK、影片、Pitch PDF、五分鐘體驗步驟、Devnet
 
 來源：[條款 PDF](https://solanamobile.radiant.nexus/legal/clock-in-terms.pdf)、官網與其公開 API（`align-api.radiant.nexus/hackathons/H5jQ…M1kb`）。
 
-- **日程**：報名／開放提交 9/8 16:00 UTC；**提交截止 10/12 23:59 UTC**（主辦方 10/7 email 確認，見 §9）；評審 10/13～11/9；公布 11/10～11/11。
+- **日程**：報名／開放提交 9/8 16:00 UTC；**提交截止 10/12 11:59 UTC（台灣 19:59）**（10/8 提交網站登入頁 Key Dates：「Submissions due Oct 12, 2026 at 7:59 PM GMT+8」，與官網 API 一致；見 §9）；評審 10/13～11/9；公布 11/11。
 - **必交四項**（條款 §6.4）：可運作的 Android APK、GitHub repo、功能 Demo 影片（約 3 分鐘）、Pitch deck。
 - **表單欄位**：專案名稱；是否曾獲 VC／天使資金（是／否）；是否在近 3 個月內建置（是／否）；是否曾以此專案得獎；新增的行動端開發（長文）；**是否有 SKR 整合及方式**（長文）；Deck URL；Demo 影片 URL（YouTube、Loom 或公開 Google Drive）；Repo URL；**APK 直接下載連結**。
 - **修改**：截止前草稿可隨時修改；完成最終提交同意後不可再改。評審以截止前的提交與 GitHub commit 為準。
 - **Repo**：可公開，或以團隊成員連結的 GitHub App 授權私有 repo（主辦方建立私有評審副本）。
 - **評分**（各 25%）：黏著度與 PMF、使用體驗、創新、簡報與 Demo。
 - **SKR 整合獎**（$10,000 SKR）：**SKR 質押整合不列入**；本案以 Genesis Mint 邊框的 SKR 付款為整合主體，質押只作 Roadmap。
+- **10/8 複查**：條款 PDF 於 2026-10-08 13:46 UTC 重新上傳（SHA-256 `7f1b1d2f…84cf`，副本存本機 `private/rules/`）；§5–§9 內容與上列摘要一致，條款內無具體日期。提交網站登入頁與官網 API 皆為 **10/12 11:59 UTC**；主辦方 10/7 email 的 23:59 UTC 與 Solana Mobile 9/28 部落格的 10/8 都不採用。
 - **得獎後**：公布後 30 天內須上架 Solana dApp Store；入圍須 KYC；USDC 獎限未獲 VC／天使資金者。
 
 ## 9. 最終交付登錄
 
 | 欄位 | 值 |
 |---|---|
-| 官方精確截止時間／時區 | **2026-10-12 23:59 UTC**（主辦方 Hackathon Judge 10/7 email 回覆確認；活動頁 10/8 為錯誤日期、官網 API 的 11:59 UTC 亦不採用，主辦方另有公告） |
-| 換算台灣時間 | **2026-10-13（二）07:59**。內部目標：**10/12（一）18:00 前完成最終提交**，保留整夜緩衝 |
+| 官方精確截止時間／時區 | **2026-10-12 11:59 UTC**（10/8 提交網站登入頁 Key Dates「Oct 12, 2026 at 7:59 PM GMT+8」與官網 API 一致；主辦方 10/7 email 寫 23:59 UTC，以較早的提交網站為準） |
+| 換算台灣時間 | **2026-10-12（一）19:59**。內部目標：**10/12（一）12:00 前完成最終提交**，保留約 8 小時緩衝 |
 | 提交負責人 | 使用者本人（單人參賽） |
 | Repository URL | `https://github.com/stan0714/neonshift`（10/7 改為公開；評審預設看 `main`，待 PR #10 → dev → main 合併） |
-| Release／Tag URL | 草稿 `v0.1.0-build22`（10/7 建立，未發布；main 合併後發布） |
-| Commit SHA | App `c73649d`（10/7 RC，見 [RC 紀錄](../evidence/2026-10-07-rc-v22.md)） |
-| APK 下載 URL | 發布後：`https://github.com/stan0714/neonshift/releases/download/v0.1.0-build22/NeonShift-v0.1.0-build22-devnet-arm64.apk` |
-| APK versionName／versionCode | 0.1.0／22（10/7 RC，見 [RC 紀錄](../evidence/2026-10-07-rc-v22.md)） |
-| APK SHA-256 | `3d86e9bf08fc531c0362ea3a6a4cf0d869f6b7eb5fe22ee75ac2da6600a5845a`（10/7 RC，見 [RC 紀錄](../evidence/2026-10-07-rc-v22.md)） |
+| Release／Tag URL | 草稿 `v0.1.0-build24`（10/9 由 build 22 草稿更新，未發布；main 合併後發布） |
+| Commit SHA | App `719c7de`（10/9 RC，見 [RC 紀錄](../evidence/2026-10-09-rc-v24.md)） |
+| APK 下載 URL | 發布後：`https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-v0.1.0-build24-devnet-arm64.apk` |
+| APK versionName／versionCode | 0.1.0／24（10/9 RC，見 [RC 紀錄](../evidence/2026-10-09-rc-v24.md)） |
+| APK SHA-256 | `9cf074b123668f756714c9b7b9ef6f3319cac831686c72c838baf5db4e8a6515`（10/9 RC，見 [RC 紀錄](../evidence/2026-10-09-rc-v24.md)） |
 | APK 簽章憑證指紋 | SHA-256 `c6b8bbb34b050ae3725c29dc8155d601875693f8c741356a1331d948fb5f4b04`（CN=NeonShift dev test；換正式簽章需重記） |
-| 建置日期 | 2026-10-06T15:09:02Z（10/7 RC，見 [RC 紀錄](../evidence/2026-10-07-rc-v22.md)） |
+| 建置日期 | 2026-10-09T14:42:52Z（10/9 RC，見 [RC 紀錄](../evidence/2026-10-09-rc-v24.md)） |
 | 評審指南 URL | 待填 |
 | Demo 影片 URL／時長 | 待填 |
 | 活動文字詳解 URL | 待填；不再要求長片 |
@@ -205,7 +206,7 @@ README 頂部應提供 APK、影片、Pitch PDF、五分鐘體驗步驟、Devnet
 | 網路／Program ID／Mint | devnet／`6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA`／tSKR `2itshf7Xup3WZeeDRSXbstv4nbPcjfiLhdDpcQjU7RtZ` |
 | 核心操作 Explorer 連結 | 見 [RC v21 鏈上證據](../evidence/2026-10-04-rc-v21.md#鏈上證據devnet錢包-acbuvbv2)：InitPlayer、ClockIn、ClaimAchievement、ClaimCollectible、SKR（TEST）付款 |
 | 驗收裝置／OS／錢包版本 | Solana Seeker／Android 16／Seeker Wallet 1.17.0 |
-| 已知限制 | 見 [RC v22 已知限制](../evidence/2026-10-07-rc-v22.md#已知限制)（含 v21）：devnet／tSKR 無價值、僅 arm64-v8a、dev test 簽章、同 UTC 日領取、session 過期未實測 |
+| 已知限制 | 見 [RC v24 已知限制](../evidence/2026-10-09-rc-v24.md#已知限制)（含 v21、v22）：devnet／tSKR 無價值、僅 arm64-v8a、dev test 簽章、同 UTC 日領取、session 過期未實測 |
 | 最後連結檢查時間 | 待填 |
 | 提交時間／回執／編號 | 待填 |
 
