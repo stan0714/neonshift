@@ -1967,3 +1967,16 @@ App 88 suites／705 tests。
 
 回歸測試 3 個：偏移 90 m 停住不記瞬移、6 秒 400 m 仍記瞬移、前後飄移最高速度 < 15 km/h。還原修正時，「偏移 90 m」與「最高速度」兩個測試失敗（舊版記瞬移 1 次、最高速度 23.47 km/h），保護既有防弊的 400 m 測試新舊皆過。App 93 suites／761 tests（UTC＋CI 與台北時區）。實機待驗：v23 實跑一次，確認未誤標、最高速度合理。
 
+## 2026-10-09｜v23 實跑仍被標待審：真正的主因是「任何 GPS 缺口都算待審」
+
+v23 實跑 2.69 km：完整性檢查已顯示 *No integrity issues…no teleports*（23 個跳點、2 個缺口，瞬移修正有效），**但仍被標 needs_review、運動任務領不到**。
+
+原因在 `WorkoutRecorder.persistFinish`：`quality.complete`（缺口 = 0 且 coverage ≥ 0.9）也是 saved 的條件，**只要一個 > 5 s 的缺口就整筆待審**。10/7 那筆就算沒有瞬移也一樣會被擋。而且 App 比後端嚴：後端的 `gps_gap` 不在 `REVIEW_TRIGGERS`，同一筆只會判 saved＋partial（可領、不算 PB）；摘要頁 GPS 品質卡也寫著 *Distance is still saved, but this session cannot set a personal best*——頂端的待審橫幅跟它自相矛盾。
+
+修正（versionCode 24）：
+- 狀態：interrupted、完整性旗標或未落地點才 needs_review；缺口／coverage 只影響品質（partial、不算 PB，PB 由後端 `pb_eligible` 決定）。
+- 啟動時 `reclassifyGapOnlyReviews()`：舊版只因缺口而待審的紀錄依同一規則改回 saved（中斷／旗標／排除／刪除／未落地點不動），所以 10/9 這筆裝上 v24 後可以領。
+- 待審文案改成「記錄中斷，或未通過完整性檢查」，不再提 GPS 缺口。
+
+回歸測試：既有「缺口 → needs_review」的測試改為「缺口 → saved＋不完整」；新增重新分類測試（6 種狀態只改 1 筆）。分別還原兩處修正時各自的測試失敗。App 93 suites／762 tests（UTC＋CI 與台北時區）。
+
