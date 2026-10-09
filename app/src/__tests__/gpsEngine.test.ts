@@ -348,3 +348,44 @@ describe('最高速度不被 GPS 補帳與跳點灌高', () => {
     expect(s.distanceMm / 1_000_000).toBeGreaterThan(0.3);
   });
 });
+
+describe('GPS_RULES_VERSION 4：瞬移門檻與平滑最高速度（2026-10-07 實機 5.38 km 被誤標）', () => {
+  test('GPS 偏移 90 m 後停在偏移位置：跳點被拒形成缺口，但位移 < 300 m 不記瞬移', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    const a = track({ speedMs: 3, seconds: 60, accuracy: 20 });
+    const lastA = a[a.length - 1]!;
+    // 第 61 秒起定位整段往前偏 90 m，之後就沿偏移後的位置繼續（1 秒 93 m → 被拒為跳點，持續 > 5 s → 缺口）
+    const b = track({ speedMs: 3, seconds: 60, startSec: 61, startLat: lastA.lat + 93 / M_PER_DEG_LAT, seqStart: a.length, accuracy: 20 });
+    run([...a, ...b], e);
+    const s = e.finish(121_000);
+    expect(s.quality.gaps).toBe(1);
+    expect(s.quality.rejected.speed_spike).toBeGreaterThan(0);
+    expect(s.integrity).toMatchObject({ gapTeleports: 0, flags: [] });
+  });
+
+  test('真的瞬移：6 秒缺口位移 400 m（精度 50 m）仍記 gap_teleport', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    run(track({ speedMs: 3, seconds: 10, accuracy: 50 }), e);
+    run(track({ speedMs: 3, seconds: 10, startSec: 16, startLat: 25 + 430 / M_PER_DEG_LAT, seqStart: 100, accuracy: 50 }), e);
+    expect(e.finish(26_000).integrity).toMatchObject({ gapTeleports: 1, flags: ['gap_teleport'] });
+  });
+
+  test('GPS 前後飄移（3 秒往前 8.6 m/s、3 秒往回 3.4 m/s）不把最高速度灌到 20 km/h 以上；平穩配速不受影響', () => {
+    const e = new GpsMetricsEngine('run');
+    e.start(0);
+    const pts: RawPoint[] = [];
+    let pos = 0;
+    for (let i = 0; i <= 180; i++) {
+      if (i > 0) pos += i % 60 >= 31 && i % 60 <= 33 ? 8.6 : i % 60 >= 34 && i % 60 <= 36 ? -3.4 : 2.6;
+      pts.push({ seq: i, monotonicMs: i * 1000, utcMs: 1_700_000_000_000 + i * 1000, lat: 25 + pos / M_PER_DEG_LAT, lon: 121.5, accuracyM: 3 });
+    }
+    const r = run(pts, e);
+    expect(r.every((x) => x.accepted)).toBe(true);
+    const s = e.finish(180_000);
+    expect(s.maxSpeed5sKmh).not.toBeNull();
+    expect(s.maxSpeed5sKmh!).toBeLessThan(15);
+    expect(s.maxSpeed5sKmh!).toBeGreaterThan(2.6 * 3.6 * 0.9);
+  });
+});

@@ -87,7 +87,7 @@ describe('WorkoutRecorder', () => {
     expect(rec.snapshot().state).toBe('idle');
   });
 
-  test('同步失敗：本機已保存（saved）、syncedSessionId 空、可再同步；缺口 → needs_review 並帶 gps_gap', async () => {
+  test('同步失敗：本機已保存（saved）、syncedSessionId 空、可再同步；缺口只算品質 partial：仍 saved（運動任務可領）、不完整、帶 gps_gap', async () => {
     const sync: jest.Mock = jest.fn(async () => { throw new Error('offline'); });
     const { rec, store, tick } = mk({ sync });
     const meta = await rec.start({ sport: 'walk', environment: 'outdoor' });
@@ -96,8 +96,9 @@ describe('WorkoutRecorder', () => {
     tick(160_000);
     const r = await rec.finish();
     expect((await r.sync).ok).toBe(false);
-    expect(store.readMeta(meta.sessionId)).toMatchObject({ status: 'needs_review', syncedSessionId: null });
-    expect(r.summary.quality.gaps).toBe(1);
+    // 2026-10-09 實機：只有 GPS 缺口（無完整性旗標）卻被標 needs_review，運動任務領不到；後端對同一筆判 saved＋partial
+    expect(store.readMeta(meta.sessionId)).toMatchObject({ status: 'saved', syncedSessionId: null });
+    expect(r.summary.quality).toMatchObject({ gaps: 1, complete: false });
     sync.mockResolvedValueOnce({ sessionId: 'server-2' } as never);
     expect((await rec.syncMeta(store.readMeta(meta.sessionId)!)).ok).toBe(true);
     expect((sync.mock.calls[1]![0] as { client_flags: string[] }).client_flags).toContain('gps_gap');
@@ -664,4 +665,31 @@ test('route 外觀保存後跨重啟、同步 metadata 更新不可改寫；新 
   expect(reopened.readMeta(meta.sessionId)).toMatchObject({ routeAppearance: { version: 1, layer: 'ocean' }, syncedSessionId: 'remote-art' });
   const second = await store.create({ ...meta, sessionId: 'new-art', routeAppearance: { version: 1, layer: 'mars' } });
   expect(second.routeAppearance?.layer).toBe('mars');
+});
+
+test('v24 啟動重新分類：舊版「只因 GPS 缺口」待審的紀錄改回 saved；中斷／完整性旗標／未落地點／使用者排除／已刪除不動', async () => {
+  const store = new LocalWorkoutStore();
+  const rec = new WorkoutRecorder({ store, now: () => 1_000_000, sync: jest.fn(async () => ({ sessionId: 'server-1' })), monotonic: null, motionProbe: null });
+  const meta = await rec.start({ sport: 'run', environment: 'outdoor' });
+  rec.ingest(pts(60, 1_000_000));
+  rec.ingest(pts(60, 1_100_000, 60)); // 40 s 缺口
+  const r = await rec.finish();
+  await r.sync;
+  const base = { ...store.readMeta(meta.sessionId)!, status: 'needs_review' as const }; // 模擬 v23 以前存下的狀態
+  const flagged = { ...base.summary!, integrity: { ...base.summary!.integrity, flags: ['gap_teleport' as const] } };
+  const variants = {
+    gapOnly: base,
+    interrupted: { ...base, interrupted: true },
+    flagged: { ...base, summary: flagged },
+    unsaved: { ...base, unsavedPoints: 3 },
+    excluded: { ...base, sync: { attempt: 0, nextAttemptAt: null, lastError: null, revision: 1, excluded: { at: 1, reason: 'x' } } },
+    deleted: { ...base, deletedAt: 5 },
+  };
+  for (const [id, m] of Object.entries(variants)) { await store.create({ ...m, sessionId: id }); await store.writeMeta({ ...m, sessionId: id }); }
+  await store.writeMeta({ ...store.readMeta(meta.sessionId)!, status: 'saved' }); // 原始那筆本來就是 saved，不計入
+  expect(await rec.reclassifyGapOnlyReviews()).toBe(1);
+  expect(Object.fromEntries(Object.keys(variants).map((id) => [id, store.readMeta(id)?.status]))).toEqual({
+    gapOnly: 'saved', interrupted: 'needs_review', flagged: 'needs_review', unsaved: 'needs_review', excluded: 'needs_review', deleted: 'needs_review',
+  });
+  expect(store.readMeta('gapOnly')!.summary!.quality.complete).toBe(false); // 仍是 partial，不算 PB
 });

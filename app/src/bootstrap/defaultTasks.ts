@@ -4,6 +4,7 @@ import { isOnboardingComplete, useOnboardingStore } from '@/state/onboardingStor
 import { useWalletStore } from '@/state/walletStore';
 import { useSyncPrefs } from '@/state/syncPrefsStore';
 import { workoutOutbox } from '@/services/workouts/WorkoutOutbox';
+import { workoutRecorder } from '@/services/workouts/WorkoutRecorder';
 import { cleanupShareCache } from '@/services/share/shareImage';
 
 import type { BootstrapTask } from './types';
@@ -56,6 +57,8 @@ export const defaultBootstrapTasks: readonly BootstrapTask[] = [
       ctx.walletConnected = session !== null;
       // PG-LINK-02：載入該玩家的同步偏好；已開啟自動同步才會在啟動／回前景／網路恢復時上傳（預設關閉）
       await useSyncPrefs.getState().load(session?.address ?? null);
+      // v24：舊版只因 GPS 缺口而標待審的紀錄改回 saved（運動任務可領）；先於同步，失敗不擋啟動
+      await workoutRecorder.reclassifyGapOnlyReviews().catch(() => 0);
       workoutOutbox.installTriggers();
       void workoutOutbox.kick('startup');
       return session ? { status: 'done', detail: session.address } : { status: 'failed', detail: 'Wallet session could not be read' };

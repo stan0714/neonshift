@@ -850,13 +850,13 @@ My collection 新增 Milestones；摘要可同時呈現首次、活動與 PB 卡
 
 延續既有深色、霓虹青綠／紫與數字字體設計，詳 [GPS 運動畫面規格](./walk-run-tracking.md)。開始頁分別選 Walking／Running 與戶外／室內；記錄頁走路主顯示 km/h、跑步主顯示 min/km，時間／距離為次要資訊。GPS 品質與暫停狀態需文字加圖示，不能只靠顏色。
 
-Lap／Pause 至少 48dp；Finish 置於暫停頁並確認。摘要分 Splits／Laps，未滿末段標 Partial，最高值標「最高速度（5 秒平均）」。跑道圈顯示「依距離估算」與剩餘公尺。缺值顯示 —，不使用 0 偽裝測量結果。記錄中降低動畫與裝飾，減少閱讀負擔；公開分享排除 GPS 路線。
+Lap／Pause 至少 48dp；Finish 置於暫停頁並確認。摘要分 Splits／Laps，未滿末段標 Partial，最高值標「最高速度（平滑）」（v4 起取顯示用 10 秒窗＋EMA 的最大值）。跑道圈顯示「依距離估算」與剩餘公尺。缺值顯示 —，不使用 0 偽裝測量結果。記錄中降低動畫與裝飾，減少閱讀負擔；公開分享排除 GPS 路線。
 
 ### 23.2 開始／記錄／摘要（PG-R-03／R-06 實作，2026-09-14）
 
 - **開始頁** `WorkoutStart`：Segmented（48dp、選中 mint 底／`onMint` 字）選 Run／Walk、Outdoor (GPS)／Indoor、自動圈 Off／400 m／1 km、分段 1 km／1 mile；跑道模式 Off／400 m／200 m／自訂（number-pad，100～2000 m）＋ caption 提示「依 GPS 距離估算，非實體過線；各跑道線長度不同請先核對」與「我已核對圈長」Switch，未核對或圈長無效時「Start recording」停用（disabledReason）（PG-R-12）。Indoor 顯示 info InlineState 導向匯入並停用「Start recording」（disabledReason）。定位拒絕 → warning InlineState（說明路線只留手機、可改匯入）＋「Open settings」。
 - **記錄頁** `WorkoutRecord`（無 header、返回鍵鎖定）：頂列 GPS Chip（good＝synced／low accuracy＝devnet 警示／searching、off＝offline）與狀態 Chip（Recording＝level／Paused＝devnet）；主數字 88px tabular（跑步 min/km、走路 km/h，不足 5 秒窗顯示 —）；次列 displayM 時間／公里；底部兩顆 64dp 圓角控制鍵：記錄中「Lap」（surface 描邊）＋「Pause」（mint）；暫停中「Finish」（danger 描邊，Alert 確認）＋「Resume」（mint）。記錄中無動畫。 跑道模式時距離下方加一列 title「第 N 圈 ＋ m」與 caption「{len} m／圈 · 依距離估算」（PG-R-12）。
-- **摘要頁** `WorkoutSummary`（無返回）：displayL 距離、四格 elevated 統計（Elapsed、Avg pace／speed、Top speed (5 s avg)、Active kcal — 無裝置值為 —）；needs_review 以 warning InlineState 說明不具 PB 資格；同步狀態列（已同步 success／未同步＋「Sync now」）；Tabs Splits／Laps／Quality：列＝序號、距離、時間、配速＋ Chip（Partial＝neutral、Across a gap＝devnet、Fastest＝synced）；跑道等效以 caption 標「依距離估算」；Quality 為 Chips（接受／拒絕／缺口／涵蓋率）。路線不顯示（地圖供應商未定）。
+- **摘要頁** `WorkoutSummary`（無返回）：displayL 距離、四格 elevated 統計（Elapsed、Avg pace／speed、Top speed (smoothed)、Active kcal — 無裝置值為 —）；needs_review 以 warning InlineState 說明不具 PB 資格；同步狀態列（已同步 success／未同步＋「Sync now」）；Tabs Splits／Laps／Quality：列＝序號、距離、時間、配速＋ Chip（Partial＝neutral、Across a gap＝devnet、Fastest＝synced）；跑道等效以 caption 標「依距離估算」；Quality 為 Chips（接受／拒絕／缺口／涵蓋率）。路線不顯示（地圖供應商未定）。
 - **恢復**：Workouts 清單頂部 warning InlineState「Unfinished workout」＋ Save（secondary）／Discard（danger）。
 
 ### 23.3 記錄頁四格、軌跡預覽與 GPS 品質說明（2026-09-16，實機回饋）

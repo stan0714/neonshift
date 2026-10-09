@@ -2,22 +2,22 @@
  * GpsMetricsEngine（PG-R-04／R-05；walk-run-tracking 4、5；SD 16）。
  * 純計算、可由固定軌跡重播；不碰定位 API、不持久化。內部整數毫米／毫秒；UI 四捨五入不參與比較。
  *
- * 規則（GPS_RULES_VERSION 3；v2 完整性／防弊、v3 靜止漂移抑制）：
+ * 規則（GPS_RULES_VERSION 4；v2 完整性／防弊、v3 靜止漂移抑制、v4 瞬移門檻與平滑最高速度）：
  * - 拒絕：非有限座標、時間倒序／重複、精度 > acceptMaxAccuracyM（50 m，見 thresholds.ts）、與前一接受點的速度超過上限（跑 12 m/s／走 4 m/s）→ 疑似跳點、暫停中的點。
  * - 連續段：與前一接受點間隔 > 5 s、或暫停後恢復，從新點重新建段；不跨缺口補直線距離。
  * - 抖動：位移小於遲滯門檻（max(3 m, 0.6 × 精度)）的點不累加距離（錨點不前進）；OS 速度 < 0.3 m/s 且位移 < 3 × 精度也視為靜止（v3），避免原地飄移增加里程。
- * - 速度：最近完整 5 秒連續窗的接受距離 ÷ 5；窗不完整（缺口／暫停／剛開始）→ null。最高速度 = 該窗最大值。
+ * - 速度：最近完整 5 秒連續窗的接受距離 ÷ 5；窗不完整（缺口／暫停／剛開始）→ null。最高速度 = 顯示用平滑速度的最大值（v4；見 TOP_SPEED_CEILING_MS）。
  *   顯示用速度／配速另走 10 秒窗＋EMA（τ 15 s）＋保持（變化 < 15 s/km 時最多每 5 s 更新一次），主數字不再每秒跳動（實機回饋）。
  * - Splits：每 splitLengthMm（1,000,000 或 1,609,344）在兩接受點間按距離比例插值時間；一次跨多界線逐一切；跨缺口者標 uncertain；末段 partial。
  * - Laps：手動圈與自訂距離自動圈為獨立序列；暫停時不可按 Lap；零距離／零時間不新增。
  * - 完整性（INTEGRITY_RULES）：模擬定位點一律拒絕並記數；60 秒滑動窗平均速度超過跑 6.5／走 2.8 m/s 記一次持續超速；
- *   缺口前後位移換算速度超過跳點上限記一次瞬移；utc−monotonic 偏移變化 > 30 s 記時鐘漂移；感測器探測（由 recorder 餵入）
+ *   缺口前後位移扣掉兩端精度後仍超過「跳點上限 × 缺口秒數」、且位移 ≥ GAP_TELEPORT_MIN_M 才記一次瞬移（v4）；utc−monotonic 偏移變化 > 30 s 記時鐘漂移；感測器探測（由 recorder 餵入）
  *   ≥ 2 次且過半不一致記 motion_mismatch。任一旗標 → needs_review、不具 PB／任務資格；後端以 client_flags 二次判定，不信任 App 單方。
  */
 
 import { GPS_QUALITY } from './thresholds';
 
-export const GPS_RULES_VERSION = 3;
+export const GPS_RULES_VERSION = 4;
 /** 完整性（防弊）規則 v2：模擬定位、持續超速、缺口瞬移、時鐘漂移、感測器不一致（後者由 recorder 填入） */
 /**
  * 最高速度（5 秒窗）的可信上限（m/s）：跑步 7.0（≈25 km/h，業餘衝刺上緣）、走路 3.0（≈11 km/h）。
@@ -25,8 +25,14 @@ export const GPS_RULES_VERSION = 3;
  * 2026-10-03 實機：平均 7:24/km（≈8 km/h）的跑步，分享文字寫「Top speed 29.2 km/h」。
  */
 export const TOP_SPEED_CEILING_MS = { run: 7.0, walk: 3.0 } as const;
-/** 靜止後補回的位移會集中在一個點上，接下來這段時間的 5 秒窗不列入最高速度 */
+/** 靜止後補回的位移會集中在一個點上，接下來這段時間不更新最高速度 */
 export const TOP_SPEED_CATCHUP_HOLD_MS = 5000;
+/**
+ * 缺口瞬移的最小位移（m，v4）。缺口兩端的距離本來就不計，小幅瞬移不會多拿到距離；
+ * 2026-10-07 實機：5.38 km 跑步，GPS 偏移後停在原處數秒 → 33 個跳點被拒、形成 2 個缺口 → 記 2 次瞬移，
+ * 整筆 needs_review（步態探測 11 次全部一致，確定是真的在跑）。真正「關 GPS 移動到別處」的位移遠大於此值。
+ */
+export const GAP_TELEPORT_MIN_M = 300;
 
 export const INTEGRITY_RULES = {
   /** 持續超速：60 秒滑動窗平均速度上限（m/s）；跑步 6.5（≈23 km/h）、走路 2.8（≈10 km/h） */
@@ -93,7 +99,7 @@ export type Lap = {
   uncertain: boolean;
 };
 
-type Accepted = { monotonicMs: number; lat: number; lon: number; cumMm: number; segment: number; elapsedMs: number };
+type Accepted = { monotonicMs: number; lat: number; lon: number; accuracyM: number; cumMm: number; segment: number; elapsedMs: number };
 
 /** 跑道等效圈：`floor(distance / lapMm)` ＋ 餘數；依距離估算，非實體過線圈（PG-R-12） */
 export type TrackEquivalent = { laps: number; remainderMm: number; lapMm: number };
@@ -113,7 +119,7 @@ export type Summary = {
   /** 運動平均（不含暫停）：距離 ÷ moving。跑步中畫面與摘要主數字皆用此，兩處一致 */
   movingAvgSpeedKmh: number | null;
   movingAvgPaceSPerKm: number | null;
-  /** 最高速度（5 秒平均），km/h */
+  /** 最高速度（平滑後，v4 起；欄位名沿用以相容後端 extras.max_speed_5s_kmh），km/h */
   maxSpeed5sKmh: number | null;
   splits: Lap[];
   laps: Lap[];
@@ -152,7 +158,7 @@ export class GpsMetricsEngine {
   /**
    * 顯示用平滑速度（實機回饋二次：5 秒窗＋τ 8 s 的配速仍每秒跳動，不夠專業）：
    * 10 秒窗（DISPLAY_WINDOW_MS）再做 EMA（τ 15 s），再經「保持」——顯示值只在變化 ≥ 15 s/km、或距上次更新 ≥ 5 s 時才換，
-   * 避免 5 秒量化邊界來回閃動。防弊／最高速度／自動暫停仍用原始 5 秒窗（windowSpeedMs()）。
+   * 避免 5 秒量化邊界來回閃動。最高速度也取此值（v4）；防弊／自動暫停仍用原始 5 秒窗（windowSpeedMs()）。
    */
   private smoothSpeedMs: number | null = null;
   private smoothAtMono = 0;
@@ -252,7 +258,9 @@ export class GpsMetricsEngine {
         this.gaps += 1;
         // 缺口瞬移：缺口期間的位移若超過該模式跳點上限，記一次（不計距離、只作完整性旗標）
         const gapS = (p.monotonicMs - this.last.monotonicMs) / 1000;
-        if (gapS > 0 && haversineMm(this.last.lat, this.last.lon, p.lat, p.lon) / 1000 / gapS > this.config.maxSpeedMs) this.gapTeleports += 1;
+        // 兩端各有定位誤差，先扣掉精度再比；且位移要夠大才算瞬移（GAP_TELEPORT_MIN_M）
+        const jumpM = haversineMm(this.last.lat, this.last.lon, p.lat, p.lon) / 1000;
+        if (gapS > 0 && jumpM >= GAP_TELEPORT_MIN_M && (jumpM - this.last.accuracyM - p.accuracyM) / gapS > this.config.maxSpeedMs) this.gapTeleports += 1;
       }
       this.segment += 1;
       newSegment = true;
@@ -282,7 +290,7 @@ export class GpsMetricsEngine {
     this.lastMono = p.monotonicMs;
     const prevCum = this.cumMm;
     this.cumMm += distanceMm;
-    const acc: Accepted = { monotonicMs: p.monotonicMs, lat: p.lat, lon: p.lon, cumMm: this.cumMm, segment: this.segment, elapsedMs };
+    const acc: Accepted = { monotonicMs: p.monotonicMs, lat: p.lat, lon: p.lon, accuracyM: p.accuracyM, cumMm: this.cumMm, segment: this.segment, elapsedMs };
     // 前面有靜止點（錨點沒跟著走）→ 這一點一次補上從錨點起的整段位移；精度 50 m 時可達 30 m，
     // 塞進 5 秒窗就變成假的最高速度。距離照算，只是這段時間不更新最高速度。
     if (!stationary && distanceMm > 0 && this.anchor && this.anchor !== this.last) this.topSpeedHoldUntil = p.monotonicMs + TOP_SPEED_CATCHUP_HOLD_MS;
@@ -298,7 +306,6 @@ export class GpsMetricsEngine {
       else break;
     }
     const raw = this.windowSpeedMs();
-    if (raw !== null && p.monotonicMs >= this.topSpeedHoldUntil && raw <= TOP_SPEED_CEILING_MS[this.sport] && (this.maxSpeed5s === null || raw > this.maxSpeed5s)) this.maxSpeed5s = raw;
     const display = this.windowSpeedMs(GpsMetricsEngine.DISPLAY_WINDOW_MS);
     if (display === null || newSegment) { this.smoothSpeedMs = display; this.shown = null; }
     else {
@@ -307,6 +314,10 @@ export class GpsMetricsEngine {
       this.smoothSpeedMs = this.smoothSpeedMs === null ? display : this.smoothSpeedMs + alpha * (display - this.smoothSpeedMs);
     }
     this.smoothAtMono = p.monotonicMs;
+    // 最高速度取平滑速度（v4）：原始 5 秒窗在 GPS 飄移時可到 20 km/h（10/7 實機，配速 6:38 /km 的跑步）。
+    // 原始窗超過可信上限、或剛補回靜止位移時不更新。
+    const top = this.smoothSpeedMs;
+    if (top !== null && raw !== null && p.monotonicMs >= this.topSpeedHoldUntil && raw <= TOP_SPEED_CEILING_MS[this.sport] && top <= TOP_SPEED_CEILING_MS[this.sport] && (this.maxSpeed5s === null || top > this.maxSpeed5s)) this.maxSpeed5s = top;
     this.updateShown(p.monotonicMs);
     const cur = this.currentSpeedMs();
     this.trackIntegrity(p, acc, newSegment);

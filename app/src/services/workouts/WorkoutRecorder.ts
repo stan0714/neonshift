@@ -707,7 +707,10 @@ export class WorkoutRecorder {
     this.meta.endedAtUtc = endedAt;
     this.meta.summary = summary;
     if (unsaved > 0) this.meta.unsavedPoints = unsaved;
-    this.meta.status = summary.quality.complete && !this.meta.interrupted && summary.integrity.flags.length === 0 && unsaved === 0 ? 'saved' : 'needs_review';
+    // GPS 缺口／涵蓋率不足只代表品質 partial（不算 PB，後端同樣判 saved＋partial），不是待審：
+    // 2026-10-07、10-09 實機兩次跑步各有 2 個缺口（定位飄移被拒成跳點），就被標 needs_review、運動任務領不到，
+    // 但後端其實會判 saved 而可以領。待審只留給中斷、完整性旗標與未落地的點（這些後端也會標待審或 App 端無法保證完整）。
+    this.meta.status = !this.meta.interrupted && summary.integrity.flags.length === 0 && unsaved === 0 ? 'saved' : 'needs_review';
     try {
       await this.store.writeMeta(this.meta);
     } catch (e) {
@@ -860,6 +863,22 @@ export class WorkoutRecorder {
   }
 
   /** 啟動時：把仍在 recording／paused 的 session 標為 recoverable（不自動續錄）；進行中的 session 不在其列（review 6） */
+  /**
+   * v24 起 GPS 缺口只算品質 partial、不再是待審（見 persistFinish）。舊版存下的「只因缺口而待審」紀錄依同一規則改回 saved：
+   * 有摘要、未中斷、無完整性旗標、無未落地的點、非使用者排除、未刪除。其餘待審（中斷／旗標／排除）不動。回傳改了幾筆。
+   */
+  async reclassifyGapOnlyReviews(): Promise<number> {
+    let n = 0;
+    for (const m of this.store.list()) {
+      if (m.status !== 'needs_review' || !m.summary || m.interrupted || m.deletedAt || m.sync?.excluded) continue;
+      if ((m.summary.integrity?.flags ?? []).length > 0 || (m.unsavedPoints ?? 0) > 0) continue;
+      m.status = 'saved';
+      await this.store.writeMeta(m);
+      n += 1;
+    }
+    return n;
+  }
+
   async markRecoverable(): Promise<SessionMeta[]> {
     const activeId = this.active()?.sessionId ?? null;
     const list = this.store.recoverable().filter((m) => m.sessionId !== activeId);
