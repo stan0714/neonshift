@@ -41,7 +41,7 @@ To try it, you need a Seeker or another Android 14+ phone with an MWA wallet (Se
 
 **Implemented with automated tests, partially device-tested:** weekly staked step tournaments (Arena), partner events with staff check-in ([evidence](docs/evidence/2026-09-24-events.md)), the public player gallery, and share cards.
 
-**Planned, not built:** SKR staking that boosts mission rewards by shoe level, with 10% of the boost going to a separately tracked wildlife conservation pool (rates not final, no returns promised; [design](docs/design/skr-staking-boost.md)); mainnet deployment; pattern-route challenges ([design](docs/design/pattern-route-challenges.md)); more shoe series.
+**Planned, not built:** SKR staking that boosts mission rewards by shoe level, with 10% of the boost going to a separately tracked wildlife conservation pool (rates not final, no returns promised; [design](docs/design/skr-staking-boost.md)); a personal running coach that tracks fitness, weekly volume, heart-rate and HRV trends from Health Connect on the phone and suggests whether to train, go easy or rest ([design](docs/design/ai-running-coach.md)); mainnet deployment; pattern-route challenges ([design](docs/design/pattern-route-challenges.md)); more shoe series.
 
 ## Architecture
 
