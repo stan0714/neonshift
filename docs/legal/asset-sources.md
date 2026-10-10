@@ -12,8 +12,8 @@
 | 圖示 | `@expo/vector-icons`（Feather） | Feather Icons | MIT | ✅ | 隨套件授權 |
 | 字型 | 系統字型（Roboto／Noto CJK） | Android 內建 | 系統授權 | ✅ | App 未內嵌字型（`expo-font` 未載入自訂字體） |
 | 開源套件 | `app/package.json`、`backend/package.json`、`programs/Cargo.toml` | 各套件作者 | MIT／Apache-2.0／ISC 等 | ✅ | 提交前跑 `npx license-checker --summary`（app、backend）與 `cargo license`（programs）產出清單放 `docs/evidence/` |
-| Demo 影片旁白 | `docs/store/demo-voiceover-en.txt`（逐頁 `output/hackathon-flexclip-en/flexclip-v4/narration/*.txt`）→ FlexClip AI PPT/PDF to Video 的 **Andrew Multilingual**（Microsoft TTS），2026-10-10 生成 | 文案本專案；聲音由 FlexClip 內建 TTS 生成 | 依 FlexClip 方案條款（使用者帳號生成；需確認方案允許公開發布） | ⚠️ 待確認方案 | 不模仿真人聲音；未用 Voice Cloning；YouTube 已標示 AI 合成內容 |
-| Demo 影片背景音樂 | FlexClip 內建曲庫（`output/hackathon-flexclip-en/production-plan.md`） | FlexClip | 依 FlexClip 方案授權 | ⚠️ 待確認 | 只用平台授權曲庫，不用外部音樂 |
+| Demo 影片旁白 | `docs/store/demo-voiceover-en.txt`（逐頁 `output/hackathon-flexclip-en/flexclip-v4/narration/*.txt`）→ FlexClip AI PPT/PDF to Video 的 **Andrew Multilingual**（Microsoft TTS），2026-10-10 生成 | 文案本專案；聲音由 FlexClip 內建 TTS 生成 | FlexClip **Plus** 方案（使用者 10/10 確認）；[FlexClip Commercial Use Regulations](https://help.flexclip.com/en/articles/7266809-commercial-use-regulations)（2026-07-02 版，10/10 查）：Plus／Business／Team 可將 FlexClip 素材與 AI 工具產生內容用於商業用途，免另行授權；訂閱到期後，訂閱期間所製內容的權利仍有效 | ✅ | 不模仿真人聲音；未用 Voice Cloning；YouTube 已標示 AI 合成內容 |
+| Demo 影片背景音樂 | FlexClip AI PPT/PDF to Video 生成時自動加入的曲庫配樂（10/10 成片；旁白結束後仍可聽到，約 −30 dB）；曲名待自 FlexClip 專案補記 | FlexClip 曲庫 | FlexClip **Plus** 方案；同上官方條款 | ✅（曲名待補） | 只用平台授權曲庫，不用外部音樂；若 YouTube 出現版權聲明，用 FlexClip 帳號的 YouTube 白名單處理 |
 | 實機截圖／錄影 | `output/hackathon-flexclip-en/captures/**`、`docs/evidence/*.png` | 本專案 Seeker 實機 | 專案自有 | ✅ | 錢包畫面為黑（secure surface）；含負責人自己的錢包地址與運動摘要，無健康原始資料 |
 | Nike Run Club 參考截圖 | 只在對話中作版面參考 | Nike | 第三方 | ❌ 不入 repo、不入素材 | Activity 版面為自行實作 |
 | 簡報範本／圖表 | `output/**/build_deck.py` 產生 | 本專案（python-pptx） | 專案自有 | ✅ | 不含第三方模板 |
@@ -22,6 +22,6 @@
 ## 提交前動作
 
 1. ✅ 2026-09-22 產出 [docs/evidence/2026-09-22-licenses.md](../evidence/2026-09-22-licenses.md)（npm production）；注意 `rpc-websockets` LGPL-3.0（web3.js 傳遞依賴，App 需列授權頁）、本專案 LICENSE 待選；`cargo license` 待補。
-2. 確認 TTS 與音樂授權（⚠️ 兩項）並回填。
+2. ~~確認 TTS 與音樂授權並回填~~：10/10 完成（FlexClip Plus）；背景音樂曲名待補。
 3. 全 repo 掃描：`git grep -nE "keypair|PRIVATE KEY|BEGIN (EC|RSA)"`、`git ls-files | grep -E "\.keystore$|keystore\.properties|-keypair\.json$"` 必須為空。
 4. 影片與簡報中所有「合作」「捐款」「保育成果」字眼移除或改為「靈感／教育」。
