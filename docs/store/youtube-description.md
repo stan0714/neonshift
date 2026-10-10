@@ -1,6 +1,6 @@
 # YouTube 上傳文字（Demo 影片）
 
-狀態：**草稿（2026-10-10）**。上傳時把下方「標題」與「說明」整段貼上。章節時間取自 [timeline.csv](../../output/hackathon-flexclip-en/flexclip-v4/timeline.csv)（177 秒版）；FlexClip 匯出後若時長不同，請依實際秒數微調或整段刪除章節。
+狀態：**草稿（2026-10-10）**。上傳時把下方「標題」與「說明」整段貼上。章節時間依 10/10 FlexClip 匯出成片（2:01、1920×1080、Andrew Multilingual 配音、無浮水印）逐頁量測的換頁時間；若重新匯出，需重新量測。
 
 **建議設定**：瀏覽權限「不公開」或「公開」皆可（評審需能免登入觀看，不可設「私人」）；類別「科學與技術」；「為兒童打造」選否；語言英文；如 YouTube 詢問「經過變造或合成的內容」，因旁白為 AI 語音，勾選「是」。
 
@@ -25,10 +25,10 @@ Website: https://neonshift.cc
 
 Chapters
 0:00 Daily movement, visible progress
-0:25 Walk, run and review your workouts
-1:00 Your approval, an onchain claim
-1:35 SKR cosmetic frame: eligibility and payment
-2:20 Wildlife story cards and what's next
+0:16 Walk, run and review your workouts
+0:38 Your approval, an onchain claim
+1:01 SKR cosmetic frame: eligibility and payment
+1:32 Wildlife story cards and what's next
 
 Important
 • Solana devnet only. tSKR is a devnet test token with no monetary value and is not the official SKR.
