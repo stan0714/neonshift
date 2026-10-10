@@ -1,13 +1,29 @@
 # CLOCK IN 提交表單：長文答案草稿
 
-狀態：**草稿（2026-10-07）**，待使用者確認後貼入提交表單。欄位見 [clock-in-submission §8.5](clock-in-submission.md#85-官方規則摘要2026-10-06-查)。
+狀態：**草稿（2026-10-07；10/10 加全欄位一覽）**。短欄位已由使用者確認（10/7）；長文待貼入提交頁確認字數。欄位見 [clock-in-submission §8.5](clock-in-submission.md#85-官方規則摘要2026-10-06-查)。
 表單字數上限：公開 API 與條款未載明，需登入提交頁貼草稿確認。
 原則：只寫已在實機或自動測試驗證過的事；devnet／tSKR／TEST SKR 明講；質押只列 Roadmap（官方規定質押整合不列入 SKR 獎）。
 
-## 短欄位建議
+## 全部欄位一覽（照順序貼）
 
-| 欄位 | 建議答案 | 依據 |
-|---|---|---|
+截止：**2026-10-12 19:59（台灣）**＝11:59 UTC；內部目標 10/12 12:00。草稿可改到按下最終提交為止。
+
+| # | 欄位 | 要填的內容 | 狀態 |
+|---|---|---|---|
+| 1 | Project name | `NeonShift` | ✅ |
+| 2 | VC / angel funding? | `No` | ✅ 使用者 9/21、10/7 確認 |
+| 3 | Built in the last 3 months? | `Yes`（第一個 commit 2026-09-09） | ✅ |
+| 4 | Previous hackathon win with this project? | `No` | ✅ 使用者 10/7 確認 |
+| 5 | New mobile development（長文） | 下方 **Q1** 引用框以下全文 | ⏳ 貼上後確認字數 |
+| 6 | SKR integration（長文） | 下方 **Q2** 引用框以下全文 | ⏳ 貼上後確認字數 |
+| 7 | Pitch deck URL | `https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-Pitch-EN.pdf` | ✅ 10/9 未登入下載已驗 |
+| 8 | Demo video URL | YouTube 連結（說明文字見 [youtube-description.md](youtube-description.md)） | ⏳ 待上傳 |
+| 9 | GitHub repo URL | `https://github.com/stan0714/neonshift` | ✅ 公開，main＝build 24 |
+| 10 | APK direct download URL | `https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-v0.1.0-build24-devnet-arm64.apk` | ✅ 10/9 未登入下載、SHA 已驗 |
+
+送出前檢查：用無痕視窗逐一打開 7～10 的連結（影片要能免登入播放、APK 要直接開始下載）；repo 首頁 README 的評審表格要已有 APK、影片、Pitch 連結。
+
+---|---|---|
 | Project name | NeonShift | |
 | VC / angel funding | No | 使用者 9/21 確認 |
 | Built in the last 3 months | Yes | 第一個 commit 2026-09-09 |
@@ -29,7 +45,7 @@ NeonShift is a native Android app for the Seeker that turns daily running, walki
 - **Engagement layer.** Activity history (week/month/year), personal bests, weekly step tournaments (Arena), partner events with staff check-in, a public player gallery, and species story cards for the wildlife shoe series.
 - **Polish for real use.** Full English and Traditional Chinese UI, plain-language error messages (offline, timeout, chain busy) instead of stack traces, and release builds tested on a Seeker (Android 16, Seeker Wallet).
 
-Verified on a Seeker on devnet with real transactions, for example the 2026-10-06 6.41 km run claim: `3aPL5GD9GHZ2q969U68WBoqrK8o66vQRgipwmzi5iLKJ5tieqzJEm5DWt5FD9qK7YDYe21Di21kp5bdU16JTPHNM`. The full evidence, including tests (758 app, 279 backend, plus LiteSVM program tests), is in `docs/evidence/` in the repo.
+Verified on a Seeker on devnet with real transactions, for example the 2026-10-06 6.41 km run claim: `3aPL5GD9GHZ2q969U68WBoqrK8o66vQRgipwmzi5iLKJ5tieqzJEm5DWt5FD9qK7YDYe21Di21kp5bdU16JTPHNM`. The full evidence, including tests (762 app, 279 backend, plus LiteSVM program tests), is in `docs/evidence/` in the repo.
 
 ---
 
