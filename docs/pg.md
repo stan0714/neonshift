@@ -96,7 +96,7 @@ test(chain): PG-C-18 補齊 attestation 重放攻擊案例
 | PG-D 交付物 | 6 | 0 | 6.0 | APK、素材、影片、Pitch |
 | PG-G 藝廊 | 4 | 0 | 5.5 | 既有收藏與展示 |
 | PG-E 合作活動 | 10 | 0 | 24.0 | 活動工作流 |
-| PG-R 運動／PB | 12 | 0 | 38.0 | GPS、分圈、速度、PB；日期待排 |
+| PG-R 運動／PB | 13 | 0 | 38.0 | GPS、分圈、速度、PB；R-13 跑步教練待估；日期待排 |
 | PG-M 首次紀念 | 5 | 0 | 11.5 | 里程碑、紀念 NFT；日期待排 |
 | PG-V 維持遊戲 | 5 | 0 | 16.0 | 維持、降階、權限；日期待排 |
 | PG-U 運動體驗／探索 | 5 | 0 | 17.0 | 新增體驗與探索冊；日期待排 |
@@ -704,6 +704,7 @@ DEC-01、DEC-02 到期日均為 09-10，截至本次 review 已逾期但無決�
 | PG-R-10 | 距離／速度／圈數、NFT 重放與實機長時間驗收 | walk-run-tracking 7；activity-running-gallery 8 | FR-14、15、18 | 4.0 | TODO | 待指派 |
 | PG-R-11 | MET 熱量估算與模型／體重同意 | activity-running-gallery 4.1 | FR-14.3 | 2.0 | WIP | 2026-09-22（負責人指示「提醒使用者填體重才有數據」）：App 端 `domain/energy.ts`（2024 Adult Compendium 走路 7 級／跑步 17 級 MET 表 `compendium-2024/v1`，條目代碼與來源列於程式；總／活動熱量公式；分段優先、暫停不計）、`bodyStore`（體重只存手機 SecureStore，不上傳）、Profile「熱量估算（選填）」卡、摘要頁與 Activity 詳情無裝置熱量時顯示「≈N · 估算」，沒體重顯示 — 並提示到 Profile 填；估算不上傳、不作 PB／XP／排名。Jest 458（energy 5）。MET 數值 2026-09-22 依 pacompendium.com 核對（2024 版）；後端 `energy_method=estimated` 暫不使用 |
 | PG-R-12 | 400m 跑道等效圈模式與提示 | walk-run-tracking 5 | FR-18.6 | 1.5 | WIP | 2026-09-15：開始頁跑道模式 Off／400 m／200 m／自訂（100～2000 m 整數），需「我已核對圈長」開關才可開始；`trackLapMm` 寫入 session meta、恢復沿用；引擎 `trackEquivalent()` 記錄中即時「第 N 圈＋餘數」與摘要共用，皆標「依距離估算、非實體過線」；extras `track_equivalent` 上傳。不含實體過線偵測（需實機另開）；App 206 測試 |
+| PG-R-13 | 個人化跑步教練：跑力／週跑量、心率／HRV／負荷趨勢、每日照課表／降量／休息建議、課表（Roadmap） | [ai-running-coach](./design/ai-running-coach.md) | FR-23 | 待估 | TODO | 2026-10-10：使用者決定列入下次實作，不加入 CLOCK IN 提交（投影片／影片不提，README 列 Planned）。原則：只用 Health Connect 與 App 內紀錄、指標在手機上計算、原始資料不離開手機、建議非醫療用途、不改變任務資格與獎勵 |
 
 ### 18.2 PG-M 首次與紀念 NFT
 

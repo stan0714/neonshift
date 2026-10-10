@@ -19,9 +19,9 @@
 
 | Deliverable | Link |
 |---|---|
-| Android APK (release, signed) | _added at submission_ |
-| Demo video (≤ 3 min) | _added at submission_ |
-| Pitch deck (PDF) | _added at submission_ |
+| Android APK (release, signed) | [NeonShift-v0.1.0-build24-devnet-arm64.apk](https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-v0.1.0-build24-devnet-arm64.apk) · [release notes and SHA-256](https://github.com/stan0714/neonshift/releases/tag/v0.1.0-build24) |
+| Demo video (2:02) | [youtu.be/hFUhFfC1sb0](https://youtu.be/hFUhFfC1sb0) |
+| Pitch deck (PDF) | [NeonShift-Pitch-EN.pdf](https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-Pitch-EN.pdf) |
 | Judges' quick guide | [docs/store/judges-guide.md](docs/store/judges-guide.md) (Traditional Chinese) |
 
 To try it, you need a Seeker or another Android 14+ phone with an MWA wallet (Seed Vault Wallet, Phantom, Solflare) on **devnet**, plus a little devnet SOL for fees (for example from [faucet.solana.com](https://faucet.solana.com)).
@@ -41,7 +41,7 @@ To try it, you need a Seeker or another Android 14+ phone with an MWA wallet (Se
 
 **Implemented with automated tests, partially device-tested:** weekly staked step tournaments (Arena), partner events with staff check-in ([evidence](docs/evidence/2026-09-24-events.md)), the public player gallery, and share cards.
 
-**Planned, not built:** SKR staking that boosts mission rewards by shoe level, with 10% of the boost going to a separately tracked wildlife conservation pool (rates not final, no returns promised; [design](docs/design/skr-staking-boost.md)); mainnet deployment; pattern-route challenges ([design](docs/design/pattern-route-challenges.md)); more shoe series.
+**Planned, not built:** SKR staking that boosts mission rewards by shoe level, with 10% of the boost going to a separately tracked wildlife conservation pool (rates not final, no returns promised; [design](docs/design/skr-staking-boost.md)); a personal running coach that tracks fitness, weekly volume, heart-rate and HRV trends from Health Connect on the phone and suggests whether to train, go easy or rest ([design](docs/design/ai-running-coach.md)); mainnet deployment; pattern-route challenges ([design](docs/design/pattern-route-challenges.md)); more shoe series.
 
 ## Architecture
 

@@ -8,7 +8,7 @@ Solana Mobile 健康追蹤 dApp。將每日跑步／健走轉化為「打卡」�
 
 ## 黑客松評審入口（準備中）
 
-先看 [評審快速指南](docs/store/judges-guide.md)，再依需要閱讀 [三分鐘內英文 Demo 腳本](docs/store/demo-video.md)與 [活動參與流程](docs/store/event-demo-playbook.md)。APK、影片與測試活動連結尚待登錄；功能存在不代表實機端到端已驗收。
+先看 [評審快速指南](docs/store/judges-guide.md)，再依需要閱讀 [三分鐘內英文 Demo 腳本](docs/store/demo-video.md)與 [活動參與流程](docs/store/event-demo-playbook.md)。APK：[NeonShift-v0.1.0-build24-devnet-arm64.apk](https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-v0.1.0-build24-devnet-arm64.apk)（[Release 說明與 SHA-256](https://github.com/stan0714/neonshift/releases/tag/v0.1.0-build24)）；簡報：[NeonShift-Pitch-EN.pdf](https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-Pitch-EN.pdf)；Demo 影片（2:02）：[youtu.be/hFUhFfC1sb0](https://youtu.be/hFUhFfC1sb0)。測試活動連結尚待登錄；功能存在不代表實機端到端已驗收。
 
 ## 架構
 
@@ -55,6 +55,8 @@ flowchart LR
 ## 文件
 
 [特殊圖案路線挑戰規劃](docs/design/pattern-route-challenges.md)：GPS 路線匯出／分享、匯入收藏與日後沿線挑戰（TODO）。
+
+[個人化跑步教練規劃](docs/design/ai-running-coach.md)：跑力／週跑量、Health Connect 心率與 HRV 趨勢、每日「照課表／降量／休息」建議與課表；指標在手機上計算（Roadmap，未實作）。
 
 [Activity 改善與睡眠停用盤點](docs/activity-sleep-review.md)：App 已停止睡眠讀取；歷史協議保留，Lv5 維持門檻仍需調整決策。
 
