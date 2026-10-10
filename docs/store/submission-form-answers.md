@@ -14,8 +14,8 @@
 | 2 | VC / angel funding? | `No` | ✅ 使用者 9/21、10/7 確認 |
 | 3 | Built in the last 3 months? | `Yes`（第一個 commit 2026-09-09） | ✅ |
 | 4 | Previous hackathon win with this project? | `No` | ✅ 使用者 10/7 確認 |
-| 5 | New mobile development（長文） | 下方 **Q1** 引用框以下全文 | ⏳ 貼上後確認字數 |
-| 6 | SKR integration（長文） | 下方 **Q2** 引用框以下全文 | ⏳ 貼上後確認字數 |
+| 5 | New mobile development（長文） | 下方 **Q1** 標題下的全文（第一句引用也要，去掉開頭的 `>`） | ⏳ 貼上後確認字數 |
+| 6 | SKR integration（長文） | 下方 **Q2** 標題下的全文（第一句引用也要，去掉開頭的 `>`） | ⏳ 貼上後確認字數 |
 | 7 | Pitch deck URL | `https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-Pitch-EN.pdf` | ✅ 10/9 未登入下載已驗 |
 | 8 | Demo video URL | YouTube 連結（說明文字見 [youtube-description.md](youtube-description.md)） | ⏳ 待上傳 |
 | 9 | GitHub repo URL | `https://github.com/stan0714/neonshift` | ✅ 公開，main＝build 24 |
