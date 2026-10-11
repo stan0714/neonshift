@@ -187,6 +187,7 @@ README 頂部應提供 APK、影片、Pitch PDF、五分鐘體驗步驟、Devnet
 |---|---|
 | 官方精確截止時間／時區 | **2026-10-12 11:59 UTC**（10/8 提交網站登入頁 Key Dates「Oct 12, 2026 at 7:59 PM GMT+8」與官網 API 一致；主辦方 10/7 email 寫 23:59 UTC，以較早的提交網站為準） |
 | 換算台灣時間 | **2026-10-12（一）19:59**。內部目標：**10/12（一）12:00 前完成最終提交**，保留約 8 小時緩衝 |
+| 10/11 複查 | 官網 API `submissionCloseDate` 改為 **2026-10-12T23:59 UTC**（台灣 10/13 07:59），與主辦方 10/7 email 一致，推測即主辦方所說的更正公告。內部目標**不變**（10/12 12:00），以較早的時間為準，不因延後而放鬆 |
 | 提交負責人 | 使用者本人（單人參賽） |
 | Repository URL | `https://github.com/stan0714/neonshift`（10/7 改為公開；評審預設看 `main`，待 PR #10 → dev → main 合併） |
 | Release／Tag URL | https://github.com/stan0714/neonshift/releases/tag/v0.1.0-build24（10/9 發布，tag 在 main `b54df0d`；未登入下載與 SHA 已驗） |
@@ -202,7 +203,7 @@ README 頂部應提供 APK、影片、Pitch PDF、五分鐘體驗步驟、Devnet
 | AI 配音模型／voice ID／設定 | FlexClip AI PPT/PDF to Video → **Andrew Multilingual**（Microsoft）、English、語速預設；無 avatar；字幕黑底白字（燒入畫面）。標題 Text Settings：English／Concise／Product Demo，講稿逐頁換成 `narration/01–11.txt` |
 | 主片實測秒數／字幕版本 | 2:01（1920×1080、30 fps、無浮水印）；11 頁 v4，字幕＝旁白原文（逐頁抽格核對）。換頁：0:00／0:10／0:16／0:24／0:38／0:50／1:01／1:15／1:32／1:40／1:53 |
 | 測試活動／時窗／支援方式 | 待填，見活動手冊 |
-| Pitch PDF URL | `https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-Pitch-EN.pdf`（11 頁英文 v4，10/7 第 5 頁換 v22 實機打卡；SHA-256 `49ef2f430539efcd2fca9ccd5085ef948c3a5b07e75ef4eecce359d1058b3466`） |
+| Pitch PDF URL | `https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-Pitch-EN.pdf`（11 頁英文 v4，10/7 第 5 頁換 v22 實機打卡；SHA-256 `49ef2f430539efcd2fca9ccd5085ef948c3a5b07e75ef4eecce359d1058b3466`）。**表單用 Google Drive 版**：https://drive.google.com/file/d/1biMgVZ7GCEaezvRPU5l8JP7Im-BWMfoR/view?usp=sharing（提交頁只接受 Google Slides／Drive PDF，需公開檢視且可下載；10/11 未登入下載 SHA 相符） |
 | 網路／Program ID／Mint | devnet／`6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA`／tSKR `2itshf7Xup3WZeeDRSXbstv4nbPcjfiLhdDpcQjU7RtZ` |
 | 核心操作 Explorer 連結 | 見 [RC v21 鏈上證據](../evidence/2026-10-04-rc-v21.md#鏈上證據devnet錢包-acbuvbv2)：InitPlayer、ClockIn、ClaimAchievement、ClaimCollectible、SKR（TEST）付款 |
 | 驗收裝置／OS／錢包版本 | Solana Seeker／Android 16／Seeker Wallet 1.17.0 |
