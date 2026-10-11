@@ -47,7 +47,7 @@ NeonShift is a native Android app for the Seeker that turns daily running, walki
 - **Engagement layer.** Verified on a Seeker: Activity history (week/month/year), personal bests and species story cards for the wildlife shoe series. Built with automated tests, partially device-tested: weekly step tournaments (Arena), partner events with staff check-in and a public player gallery. Planned, not built: community conservation pilots and SKR staking.
 - **Polish for real use.** Full English and Traditional Chinese UI, plain-language error messages (offline, timeout, chain busy) instead of stack traces, and release builds tested on a Seeker (Android 16, Seeker Wallet).
 
-Verified on a Seeker on devnet with real transactions, for example the 2026-10-06 6.41 km run claim: `3aPL5GD9GHZ2q969U68WBoqrK8o66vQRgipwmzi5iLKJ5tieqzJEm5DWt5FD9qK7YDYe21Di21kp5bdU16JTPHNM`. The full evidence, including tests (762 app, 279 backend, plus LiteSVM program tests), is in `docs/evidence/` in the repo. Reviewer guide (built vs planned, how to try it, where anti-cheat is tested): `REVIEWERS.md` in the repo.
+Verified on a Seeker on devnet with real transactions, for example the 2026-10-06 6.41 km run claim: `3aPL5GD9GHZ2q969U68WBoqrK8o66vQRgipwmzi5iLKJ5tieqzJEm5DWt5FD9qK7YDYe21Di21kp5bdU16JTPHNM`. The full evidence, including tests (762 app, 279 backend, plus LiteSVM program tests), is in `docs/evidence/` in the repo. Reviewer guide (built vs planned, how to try it, where anti-cheat is tested): `REVIEWERS.md` in the repo. Uncut device recording of two claims on a Seeker: https://youtu.be/WwFbpgdSnEA
 
 ---
 
@@ -94,7 +94,7 @@ NeonShift is a native Android app for the Seeker that turns daily running, walki
 • Engagement layer. Verified on a Seeker: Activity history (week/month/year), personal bests and species story cards for the wildlife shoe series. Built with automated tests, partially device-tested: weekly step tournaments (Arena), partner events with staff check-in and a public player gallery. Planned, not built: community conservation pilots and SKR staking.
 • Polish for real use. Full English and Traditional Chinese UI, plain-language error messages (offline, timeout, chain busy) instead of stack traces, and release builds tested on a Seeker (Android 16, Seeker Wallet).
 
-Verified on a Seeker on devnet with real transactions, for example the 2026-10-06 6.41 km run claim: 3aPL5GD9GHZ2q969U68WBoqrK8o66vQRgipwmzi5iLKJ5tieqzJEm5DWt5FD9qK7YDYe21Di21kp5bdU16JTPHNM. The full evidence, including tests (762 app, 279 backend, plus LiteSVM program tests), is in docs/evidence/ in the repo. Reviewer guide (built vs planned, how to try it, where anti-cheat is tested): REVIEWERS.md in the repo.
+Verified on a Seeker on devnet with real transactions, for example the 2026-10-06 6.41 km run claim: 3aPL5GD9GHZ2q969U68WBoqrK8o66vQRgipwmzi5iLKJ5tieqzJEm5DWt5FD9qK7YDYe21Di21kp5bdU16JTPHNM. The full evidence, including tests (762 app, 279 backend, plus LiteSVM program tests), is in docs/evidence/ in the repo. Reviewer guide (built vs planned, how to try it, where anti-cheat is tested): REVIEWERS.md in the repo. Uncut device recording of two claims on a Seeker: https://youtu.be/WwFbpgdSnEA
 ```
 
 ### Q2（SKR integration）

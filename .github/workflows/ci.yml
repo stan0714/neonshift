@@ -124,10 +124,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+      # ubuntu-latest 已預裝 Android SDK（ANDROID_HOME、授權已接受）；setup-android v3 在新版 sdkmanager 的授權互動卡住（10/2 起每次失敗），改用預裝 SDK
+      - run: echo "ANDROID_HOME=$ANDROID_HOME" && ls "$ANDROID_HOME/platforms" | tail -3
       - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
       - run: npm ci
         working-directory: app
+      # *.keystore 不進 repo（安全規則）：CI 只產生用完即丟的 debug keystore，與 release 簽章無關
+      - name: 產生臨時 debug keystore
+        working-directory: app/android/app
+        run: |
+          [ -f debug.keystore ] || keytool -genkeypair -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" -noprompt
       - run: ./gradlew :app:assembleDebug --no-daemon
         working-directory: app/android
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
