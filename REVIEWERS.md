@@ -8,10 +8,39 @@ A 5-minute map for judges: who it is for, what is built today, how to try it, an
 | Demo video (2:02) | [youtu.be/hFUhFfC1sb0](https://youtu.be/hFUhFfC1sb0) · transcript: [`docs/store/demo-voiceover-en.txt`](docs/store/demo-voiceover-en.txt) |
 | Pitch deck | [NeonShift-Pitch-EN.pdf](https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-Pitch-EN.pdf) |
 | Release candidate record | [`docs/evidence/2026-10-09-rc-v24.md`](docs/evidence/2026-10-09-rc-v24.md) (device results and transactions) |
+| Test run log | [`docs/evidence/2026-10-11-test-run.md`](docs/evidence/2026-10-11-test-run.md) (762 app + 297 backend tests, listed by area) |
 
 ## Who it is for
 
 **Seeker owners who already carry the phone on walks and runs, but drop new fitness habits after the first week.** Most fitness apps reward a streak with badges that mean nothing outside the app. NeonShift gives each day a small, verifiable result: a claim the user approves in their own wallet, tSKR and XP that level up a running shoe, and free achievement collectibles they own. The loop is daily (steps or one workout), short (one wallet approval) and visible on-chain, which is what we want to test for retention. Health data stays on the phone; only a daily summary is checked.
+
+### Who we built it for
+
+| Persona | Today | What NeonShift adds |
+|---|---|---|
+| **The restarter** — a Seeker owner who walks or jogs a few times a week but loses momentum after the first week | Counts steps in a generic fitness app; streaks reset and mean nothing | One small daily goal (8,000 steps **or** one 1 km / 10-minute workout), approved in their own wallet, with a visible result: tSKR, XP and a shoe that levels up |
+| **The crypto-native runner** — already uses a Solana wallet daily | Move-to-earn apps that require buying an NFT first and pay out in a token that can be farmed | Free starter shoes, achievements that are real Metaplex Core collectibles, and SKR used only for optional cosmetics |
+| **The community organiser** — runs a club run or a sponsored event | Paper sign-in sheets, no lasting record for participants | Partner events with staff check-in and event badges (built with automated tests; partially device-tested) |
+
+### The return loop
+
+| Cadence | Mechanic | Status |
+|---|---|---|
+| Daily (resets 00:00 UTC) | Steps mission and workout mission, each claimable once per wallet per day; XP levels up the active shoe | Built, verified on a Seeker |
+| Per session | Splits, personal bests, share card, Activity journal week / month / year | Built, verified on a Seeker |
+| Weekly | Step tournament per `week_id` with staked entry and on-chain settlement | Built with automated tests; partially device-tested |
+| Milestones | First 5K and other free achievement collectibles; species story cards per shoe | Built, verified on a Seeker |
+| Optional | SKR cosmetic frame for an earned achievement | Built, verified on devnet with a test SKR mint |
+
+**Usage evidence, stated plainly:** NeonShift is pre-launch. It has been used by its developer on one Seeker since September 2026 (runs, walks and claims are recorded in `docs/evidence/`); there is no beta cohort yet, so we make no retention claims. A privacy-preserving funnel endpoint (accepted → started → qualified → claimed, plus rough D7/D30 from first/last seen; counts only, no wallets, routes or health values) is already in the backend (`backend/src/ops/funnel.ts`) so the first dApp Store cohort can be measured.
+
+### Why this is not another move-to-earn app
+
+- **No pay-to-start, no pay-to-win.** Starter shoes and upgrades are free. SKR buys only cosmetics for achievements you already earned; it never buys XP, rewards, rankings or eligibility.
+- **Health data stays on the phone.** Raw Health Connect records and GPS routes never leave the device; the backend checks a daily summary and the chain stores only the claim.
+- **The wallet shows what you sign.** Each claim is a short, human-readable message (mission, UTC day, expiry, domain) approved through Mobile Wallet Adapter on the Seeker, not an opaque blob.
+- **Verifiable rules.** A 164-byte attestation pinned across Rust, TypeScript and Python, checked by the Anchor program with the Ed25519 precompile; one receipt PDA per wallet, mission and day.
+- **Anti-cheat that does not punish real runners.** Mock locations, teleports and impossible speeds are flagged, while ordinary GPS drift only lowers data quality (build 24, fixed after two real runs were wrongly flagged).
 
 ## What is built, and how sure we are
 
