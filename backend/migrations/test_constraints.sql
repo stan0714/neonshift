@@ -52,14 +52,14 @@ SELECT must_fail($$
           '2026-09-09T00:00:00Z', '2026-09-09T00:05:00Z')
 $$, 'attestations nonce 長度不是 16');
 
--- attestations：task_type 只能是 1 或 2
+-- attestations：task_type 只能是 1（步數）、2（睡眠）、3（運動，0018 起）
 SELECT must_fail($$
   INSERT INTO attestations (nonce, idempotency_key, request_hash, wallet, task_date, task_type,
                             rules_version, evidence_hash, issued_at, expires_at)
   VALUES (decode(repeat('46',16),'hex'), gen_random_uuid(), decode(repeat('55',32),'hex'),
-          'WalletA', 20706, 3, 3, decode(repeat('33',32),'hex'),
+          'WalletA', 20706, 4, 3, decode(repeat('33',32),'hex'),
           '2026-09-09T00:00:00Z', '2026-09-09T00:05:00Z')
-$$, 'attestations task_type 為 3');
+$$, 'attestations task_type 為 4');
 
 -- risk_decisions：reject 必須帶 reject_code
 SELECT must_fail($$
