@@ -35,6 +35,8 @@
 
 > NeonShift was built from scratch for this hackathon (first commit 2026-09-09). Everything below is new and runs on a Solana Seeker today.
 
+Who it is for: Seeker owners who already carry the phone on walks and runs but drop new fitness habits after the first week. Most fitness apps reward streaks with badges that mean nothing outside the app. NeonShift gives each day a small, verifiable result: a claim you approve in your own wallet, tSKR and XP that level up your running shoe, and free collectibles you own. The loop is daily (steps or one workout), short (one approval) and live today on devnet.
+
 NeonShift is a native Android app for the Seeker that turns daily running, walking and step goals into on-chain "clock-in" missions. All of it is new work for CLOCK IN:
 
 - **Mobile-first wallet flow.** Mobile Wallet Adapter connect plus Sign-In With Solana, with cancel and timeout handling, account switching with data kept separate per wallet, and a clear "no compatible wallet" state. Each claim is approved with a short, human-readable message in the wallet (mission, UTC day, expiry, domain), not raw bytes.
@@ -42,10 +44,10 @@ NeonShift is a native Android app for the Seeker that turns daily running, walki
 - **GPS workout recorder.** Run/walk tracking with auto-pause, km splits, top speed with GPS-spike filtering, and a share card. Raw routes and coordinates never leave the phone; only a daily summary is sent.
 - **Daily missions with on-chain rewards.** Hit 8,000 steps or a 1 km / 10-minute workout, and the backend checks the summary and signs a 164-byte attestation. The Anchor program verifies the attestation, pays tSKR test tokens and XP that level up your running shoe, and blocks a second claim per wallet per UTC day with a receipt PDA.
 - **Free achievement NFTs.** Milestones such as "First 5K" mint Metaplex Core collectibles to the player's wallet at no cost.
-- **Engagement layer.** Activity history (week/month/year), personal bests, weekly step tournaments (Arena), partner events with staff check-in, a public player gallery, and species story cards for the wildlife shoe series.
+- **Engagement layer.** Verified on a Seeker: Activity history (week/month/year), personal bests and species story cards for the wildlife shoe series. Built with automated tests, partially device-tested: weekly step tournaments (Arena), partner events with staff check-in and a public player gallery. Planned, not built: community conservation pilots and SKR staking.
 - **Polish for real use.** Full English and Traditional Chinese UI, plain-language error messages (offline, timeout, chain busy) instead of stack traces, and release builds tested on a Seeker (Android 16, Seeker Wallet).
 
-Verified on a Seeker on devnet with real transactions, for example the 2026-10-06 6.41 km run claim: `3aPL5GD9GHZ2q969U68WBoqrK8o66vQRgipwmzi5iLKJ5tieqzJEm5DWt5FD9qK7YDYe21Di21kp5bdU16JTPHNM`. The full evidence, including tests (762 app, 279 backend, plus LiteSVM program tests), is in `docs/evidence/` in the repo.
+Verified on a Seeker on devnet with real transactions, for example the 2026-10-06 6.41 km run claim: `3aPL5GD9GHZ2q969U68WBoqrK8o66vQRgipwmzi5iLKJ5tieqzJEm5DWt5FD9qK7YDYe21Di21kp5bdU16JTPHNM`. The full evidence, including tests (762 app, 279 backend, plus LiteSVM program tests), is in `docs/evidence/` in the repo. Reviewer guide (built vs planned, how to try it, where anti-cheat is tested): `REVIEWERS.md` in the repo.
 
 ---
 
@@ -80,6 +82,8 @@ Automated tests cover the wrong mint, wrong network, replays, someone else's pay
 ```
 NeonShift was built from scratch for this hackathon (first commit 2026-09-09). Everything below is new and runs on a Solana Seeker today.
 
+Who it is for: Seeker owners who already carry the phone on walks and runs but drop new fitness habits after the first week. Most fitness apps reward streaks with badges that mean nothing outside the app. NeonShift gives each day a small, verifiable result: a claim you approve in your own wallet, tSKR and XP that level up your running shoe, and free collectibles you own. The loop is daily (steps or one workout), short (one approval) and live today on devnet.
+
 NeonShift is a native Android app for the Seeker that turns daily running, walking and step goals into on-chain "clock-in" missions. All of it is new work for CLOCK IN:
 
 • Mobile-first wallet flow. Mobile Wallet Adapter connect plus Sign-In With Solana, with cancel and timeout handling, account switching with data kept separate per wallet, and a clear "no compatible wallet" state. Each claim is approved with a short, human-readable message in the wallet (mission, UTC day, expiry, domain), not raw bytes.
@@ -87,10 +91,10 @@ NeonShift is a native Android app for the Seeker that turns daily running, walki
 • GPS workout recorder. Run/walk tracking with auto-pause, km splits, top speed with GPS-spike filtering, and a share card. Raw routes and coordinates never leave the phone; only a daily summary is sent.
 • Daily missions with on-chain rewards. Hit 8,000 steps or a 1 km / 10-minute workout, and the backend checks the summary and signs a 164-byte attestation. The Anchor program verifies the attestation, pays tSKR test tokens and XP that level up your running shoe, and blocks a second claim per wallet per UTC day with a receipt PDA.
 • Free achievement NFTs. Milestones such as "First 5K" mint Metaplex Core collectibles to the player's wallet at no cost.
-• Engagement layer. Activity history (week/month/year), personal bests, weekly step tournaments (Arena), partner events with staff check-in, a public player gallery, and species story cards for the wildlife shoe series.
+• Engagement layer. Verified on a Seeker: Activity history (week/month/year), personal bests and species story cards for the wildlife shoe series. Built with automated tests, partially device-tested: weekly step tournaments (Arena), partner events with staff check-in and a public player gallery. Planned, not built: community conservation pilots and SKR staking.
 • Polish for real use. Full English and Traditional Chinese UI, plain-language error messages (offline, timeout, chain busy) instead of stack traces, and release builds tested on a Seeker (Android 16, Seeker Wallet).
 
-Verified on a Seeker on devnet with real transactions, for example the 2026-10-06 6.41 km run claim: 3aPL5GD9GHZ2q969U68WBoqrK8o66vQRgipwmzi5iLKJ5tieqzJEm5DWt5FD9qK7YDYe21Di21kp5bdU16JTPHNM. The full evidence, including tests (762 app, 279 backend, plus LiteSVM program tests), is in docs/evidence/ in the repo.
+Verified on a Seeker on devnet with real transactions, for example the 2026-10-06 6.41 km run claim: 3aPL5GD9GHZ2q969U68WBoqrK8o66vQRgipwmzi5iLKJ5tieqzJEm5DWt5FD9qK7YDYe21Di21kp5bdU16JTPHNM. The full evidence, including tests (762 app, 279 backend, plus LiteSVM program tests), is in docs/evidence/ in the repo. Reviewer guide (built vs planned, how to try it, where anti-cheat is tested): REVIEWERS.md in the repo.
 ```
 
 ### Q2（SKR integration）
