@@ -16,7 +16,7 @@
 | 4 | Previous hackathon win with this project? | `No` | ✅ 使用者 10/7 確認 |
 | 5 | New mobile development（長文） | 下方 **Q1** 標題下的全文（第一句引用也要，去掉開頭的 `>`） | ⏳ 貼上後確認字數 |
 | 6 | SKR integration（長文） | 下方 **Q2** 標題下的全文（第一句引用也要，去掉開頭的 `>`） | ⏳ 貼上後確認字數 |
-| 7 | Pitch deck URL | `https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-Pitch-EN.pdf` | ✅ 10/9 未登入下載已驗 |
+| 7 | Deck URL | `https://drive.google.com/file/d/1biMgVZ7GCEaezvRPU5l8JP7Im-BWMfoR/view?usp=sharing` | ✅ 表單只收 Google Slides／Drive 上的 PDF；10/11 上傳，未登入可開啟與下載，SHA-256 與 Release 版相同（`49ef2f43…3466`） |
 | 8 | Demo video URL | `https://youtu.be/hFUhFfC1sb0` | ✅ 10/10 上傳（不公開、可嵌入），未登入可播放 |
 | 9 | GitHub repo URL | `https://github.com/stan0714/neonshift` | ✅ 公開，main＝build 24 |
 | 10 | APK direct download URL | `https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-v0.1.0-build24-devnet-arm64.apk` | ✅ 10/9 未登入下載、SHA 已驗 |

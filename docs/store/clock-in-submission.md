@@ -203,7 +203,7 @@ README 頂部應提供 APK、影片、Pitch PDF、五分鐘體驗步驟、Devnet
 | AI 配音模型／voice ID／設定 | FlexClip AI PPT/PDF to Video → **Andrew Multilingual**（Microsoft）、English、語速預設；無 avatar；字幕黑底白字（燒入畫面）。標題 Text Settings：English／Concise／Product Demo，講稿逐頁換成 `narration/01–11.txt` |
 | 主片實測秒數／字幕版本 | 2:01（1920×1080、30 fps、無浮水印）；11 頁 v4，字幕＝旁白原文（逐頁抽格核對）。換頁：0:00／0:10／0:16／0:24／0:38／0:50／1:01／1:15／1:32／1:40／1:53 |
 | 測試活動／時窗／支援方式 | 待填，見活動手冊 |
-| Pitch PDF URL | `https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-Pitch-EN.pdf`（11 頁英文 v4，10/7 第 5 頁換 v22 實機打卡；SHA-256 `49ef2f430539efcd2fca9ccd5085ef948c3a5b07e75ef4eecce359d1058b3466`） |
+| Pitch PDF URL | `https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-Pitch-EN.pdf`（11 頁英文 v4，10/7 第 5 頁換 v22 實機打卡；SHA-256 `49ef2f430539efcd2fca9ccd5085ef948c3a5b07e75ef4eecce359d1058b3466`）。**表單用 Google Drive 版**：https://drive.google.com/file/d/1biMgVZ7GCEaezvRPU5l8JP7Im-BWMfoR/view?usp=sharing（提交頁只接受 Google Slides／Drive PDF，需公開檢視且可下載；10/11 未登入下載 SHA 相符） |
 | 網路／Program ID／Mint | devnet／`6MhVoQHdEpY2hqkaNJMkT2vHWakfnGfEYDgCtJzh6ENA`／tSKR `2itshf7Xup3WZeeDRSXbstv4nbPcjfiLhdDpcQjU7RtZ` |
 | 核心操作 Explorer 連結 | 見 [RC v21 鏈上證據](../evidence/2026-10-04-rc-v21.md#鏈上證據devnet錢包-acbuvbv2)：InitPlayer、ClockIn、ClaimAchievement、ClaimCollectible、SKR（TEST）付款 |
 | 驗收裝置／OS／錢包版本 | Solana Seeker／Android 16／Seeker Wallet 1.17.0 |
