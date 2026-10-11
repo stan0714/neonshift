@@ -187,6 +187,7 @@ README 頂部應提供 APK、影片、Pitch PDF、五分鐘體驗步驟、Devnet
 |---|---|
 | 官方精確截止時間／時區 | **2026-10-12 11:59 UTC**（10/8 提交網站登入頁 Key Dates「Oct 12, 2026 at 7:59 PM GMT+8」與官網 API 一致；主辦方 10/7 email 寫 23:59 UTC，以較早的提交網站為準） |
 | 換算台灣時間 | **2026-10-12（一）19:59**。內部目標：**10/12（一）12:00 前完成最終提交**，保留約 8 小時緩衝 |
+| 10/11 複查 | 官網 API `submissionCloseDate` 改為 **2026-10-12T23:59 UTC**（台灣 10/13 07:59），與主辦方 10/7 email 一致，推測即主辦方所說的更正公告。內部目標**不變**（10/12 12:00），以較早的時間為準，不因延後而放鬆 |
 | 提交負責人 | 使用者本人（單人參賽） |
 | Repository URL | `https://github.com/stan0714/neonshift`（10/7 改為公開；評審預設看 `main`，待 PR #10 → dev → main 合併） |
 | Release／Tag URL | https://github.com/stan0714/neonshift/releases/tag/v0.1.0-build24（10/9 發布，tag 在 main `b54df0d`；未登入下載與 SHA 已驗） |
