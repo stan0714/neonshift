@@ -71,6 +71,10 @@ source scripts/env.sh
 (cd programs && cargo test -p neonshift-core)   # LiteSVM program tests
 ```
 
+## Security review
+
+The submission portal's automated security review (2026-10-11) confirmed no defect in this repository's code. Every finding was checked against the source; the dev-only critical (vitest) and the CI action pins are fixed, and the rest are explained in [`docs/security/2026-10-11-audit-triage.md`](docs/security/2026-10-11-audit-triage.md).
+
 ## Known limitations
 
 - Devnet only. The SKR payment uses a devnet test mint; a mainnet purchase with official SKR has not been made.
