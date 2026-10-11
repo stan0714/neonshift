@@ -21,6 +21,7 @@
 |---|---|
 | Android APK (release, signed) | [NeonShift-v0.1.0-build24-devnet-arm64.apk](https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-v0.1.0-build24-devnet-arm64.apk) · [release notes and SHA-256](https://github.com/stan0714/neonshift/releases/tag/v0.1.0-build24) |
 | Demo video (2:02) | [youtu.be/hFUhFfC1sb0](https://youtu.be/hFUhFfC1sb0) |
+| Uncut device recording (3:12) | [youtu.be/WwFbpgdSnEA](https://youtu.be/WwFbpgdSnEA): two real claims on a Seeker, no edits |
 | Pitch deck (PDF) | [NeonShift-Pitch-EN.pdf](https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-Pitch-EN.pdf) |
 | **Reviewer guide (English)** | [REVIEWERS.md](REVIEWERS.md): what is built vs planned, how to try it, on-chain evidence, where anti-cheat is tested |
 | Judges' quick guide | [docs/store/judges-guide.md](docs/store/judges-guide.md) (Traditional Chinese) |

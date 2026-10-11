@@ -6,6 +6,7 @@ A 5-minute map for judges: who it is for, what is built today, how to try it, an
 |---|---|
 | APK (Android 14+, arm64) | [NeonShift-v0.1.0-build24-devnet-arm64.apk](https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-v0.1.0-build24-devnet-arm64.apk) · [release notes and SHA-256](https://github.com/stan0714/neonshift/releases/tag/v0.1.0-build24) |
 | Demo video (2:02) | [youtu.be/hFUhFfC1sb0](https://youtu.be/hFUhFfC1sb0) · transcript: [`docs/store/demo-voiceover-en.txt`](docs/store/demo-voiceover-en.txt) |
+| **Uncut device recording (3:12)** | [youtu.be/WwFbpgdSnEA](https://youtu.be/WwFbpgdSnEA): a Solana Seeker on 2026-10-06 (build 21) syncing a run, passing the motion check, approving two claims in the wallet and ending with both missions claimed; no edits |
 | Pitch deck | [NeonShift-Pitch-EN.pdf](https://github.com/stan0714/neonshift/releases/download/v0.1.0-build24/NeonShift-Pitch-EN.pdf) |
 | Release candidate record | [`docs/evidence/2026-10-09-rc-v24.md`](docs/evidence/2026-10-09-rc-v24.md) (device results and transactions) |
 | Test run log | [`docs/evidence/2026-10-11-test-run.md`](docs/evidence/2026-10-11-test-run.md) (762 app + 297 backend tests, listed by area) |
